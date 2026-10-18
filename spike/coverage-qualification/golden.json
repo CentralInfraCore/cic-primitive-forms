@@ -1,0 +1,31 @@
+{
+  "_comment": "Hand-counted branches of the two samples under cic-branch/1 (ADR 0009). Per function: category, edges, edges covered by the full tests, edges covered by the reduced tests.",
+  "rust": {
+    "cond":    ["conditional", 2, 2, 1],
+    "let_opt": ["conditional", 2, 2, 2],
+    "m":       ["match", 5, 5, 3],
+    "w":       ["loop", 2, 2, 2],
+    "wl":      ["loop", 2, 2, 2],
+    "fo":      ["loop", 2, 2, 1],
+    "lp":      ["conditional", 2, 2, 2],
+    "sc":      ["short_circuit", 4, 4, 3],
+    "so":      ["short_circuit", 4, 4, 3],
+    "q":       ["error_path", 2, 2, 1]
+  },
+  "go": {
+    "Cond":            ["conditional", 2, 2, 1],
+    "CommaOk":         ["conditional", 2, 2, 2],
+    "SwitchNoDefault": ["match", 3, 3, 2],
+    "SwitchDefault":   ["match", 2, 2, 1],
+    "TypeSwitch":      ["match", 3, 3, 2],
+    "SelectDefault":   ["match", 2, 2, 1],
+    "SelectNoDefault": ["match", 2, 2, 1],
+    "ForCond":         ["loop", 2, 2, 2],
+    "ForClause":       ["loop", 2, 2, 1],
+    "ForRange":        ["loop", 2, 2, 2],
+    "ForEver":         ["conditional", 2, 2, 2],
+    "And":             ["short_circuit", 4, 4, 3],
+    "Or":              ["short_circuit", 4, 4, 3],
+    "Atoi":            ["conditional", 2, 2, 1]
+  }
+}

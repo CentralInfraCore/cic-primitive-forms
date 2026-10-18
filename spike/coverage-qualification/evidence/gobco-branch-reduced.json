@@ -1,0 +1,68 @@
+[
+	{
+		"Start": "sample.go:46:7",
+		"Code": "v.(type) == int",
+		"TrueCount": 1,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:48:7",
+		"Code": "v.(type) == string",
+		"TrueCount": 0,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:8:5",
+		"Code": "x > 0",
+		"TrueCount": 1,
+		"FalseCount": 0
+	},
+	{
+		"Start": "sample.go:16:20",
+		"Code": "ok",
+		"TrueCount": 1,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:25:7",
+		"Code": "n == 0",
+		"TrueCount": 1,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:27:7",
+		"Code": "n == 1",
+		"TrueCount": 0,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:36:7",
+		"Code": "n > 10",
+		"TrueCount": 0,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:76:6",
+		"Code": "n > 0",
+		"TrueCount": 2,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:85:14",
+		"Code": "i < n",
+		"TrueCount": 0,
+		"FalseCount": 1
+	},
+	{
+		"Start": "sample.go:104:6",
+		"Code": "i >= 3",
+		"TrueCount": 1,
+		"FalseCount": 2
+	},
+	{
+		"Start": "sample.go:122:5",
+		"Code": "err != nil",
+		"TrueCount": 0,
+		"FalseCount": 1
+	}
+]
