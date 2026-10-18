@@ -1,6 +1,6 @@
-# ADR 0005: Shared conformance corpus contract (draft)
+# ADR 0005: Shared conformance corpus contract
 
-Status: **proposed.** Closes the "corpus format" and "runnable gate" items of
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Closes the "corpus format" and "runnable gate" items of
 issue #3 for the *structure* of the corpus. It decides nothing about error codes,
 the path grammar or the diff format, and it implements no library semantics.
 
@@ -224,3 +224,13 @@ are not mechanical:
   language-independent of the implementations.
 - Adding a kind or an expectation key is an ADR-level change, because the key sets
   are closed.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- **Mandatory follow-up.** `pins.yaml` must gain the grammar identity decided in ADR 0002 (the seven-file manifest and its digest) with a structural rule and a seeded fault, in the separate change that implements it.
+- The gate checks structure only and prints that implementation conformance was not run. Its Python tooling is a P0 structural tool, independent of the implementations.
+- The ADR carries the amendments of ADR 0006 to 0010 in one document; the format version is 2.

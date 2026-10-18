@@ -1,6 +1,6 @@
-# ADR 0004: Access inheritance vocabulary (draft)
+# ADR 0004: Access inheritance vocabulary
 
-Status: **proposed.** Addresses issue #3 point 8 (the type of the symbolic
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 8 (the type of the symbolic
 `inherit`) and fixes how the library reads the three-valued `inherit` key. It
 does **not** define how inheritance is resolved: the normative semantics are
 open upstream (see "Upstream status"), and resolution is P3.
@@ -120,3 +120,18 @@ ADR 0005.
    that statement needs correcting upstream. It does not affect this ADR.)
 3. What a "sub-object" is for the purposes of `inherit`, in terms of the Shape
    structure of ADR 0002.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+### Scope of this acceptance
+
+Two questions must never be merged:
+
+1. *Can the library read `true`, `false`, `0` and the symbol `inherit` without loss?* This is what ADR 0004 specifies and what is accepted.
+2. *Which effective permission follows from them?* This is **not** decided. It needs the normative semantics of `false` versus `0`, the enum and the union type, all open in cic-primitives #17.
+
+ADR 0004 is accepted as the library's **reading contract** for the `inherit` key and for the `access` / `modify` / `inherit_policy` values: type-strict, lossless, `false` never equal to `0`, an empty list never equal to `inherit`. It does **not** define the meaning of `false` versus `0`, an enum, the evaluation of inheritance or any effective permission; those wait for the upstream decision, and the codes `INVALID_ACCESS_VALUE`, `INVALID_CERT_PATTERN` and `INVALID_INHERIT` stay provisional. Accepting it must not be read as accepting an inheritance semantics.
+
+Box 8 of issue #3 is not ticked by this acceptance and its wording is not narrowed: the type contradiction is real upstream and waits for cic-primitives #17.

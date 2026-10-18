@@ -2,6 +2,39 @@
 
 Status: **draft, open decisions listed below.**
 
+## Decision index (living)
+
+This ADR stays `draft` until P0 closes. It is the index of the decisions; the text of a
+decision lives in its ADR.
+
+Status rule. `Proposed`: reviewed and versioned, not formally finalized. `Accepted`: the
+normative decision inside the P0 scope was expressly accepted, dependencies and limits
+documented. `Implemented/Verified`: tracked separately; an `Accepted` ADR proves no Rust
+or Go conformance.
+
+| ADR | Subject | Status | Issue #3 point |
+|---|---|---|---|
+| [0001](0001-recognition-rule.md) | recognition rule | accepted | 1, 7 |
+| [0002](0002-minimal-schema-contract.md) | schema contract | **proposed**: grammar identity decided, implementation pending | 4 |
+| [0003](0003-presence-and-value-semantics.md) | presence and value semantics | accepted | 3 |
+| [0004](0004-access-inheritance-vocabulary.md) | inheritance vocabulary | accepted, reading contract only | 8 (not ticked) |
+| [0005](0005-conformance-corpus-contract.md) | corpus contract and gate | accepted | corpus skeleton |
+| [0006](0006-logical-path-grammar.md) | logical paths | accepted | 2 |
+| [0007](0007-error-contract-and-source-positions.md) | errors and positions | accepted | 6 |
+| [0008](0008-deterministic-diff-contract.md) | deterministic diff | accepted | 5 |
+| [0009](0009-branch-coverage-measurement-contract.md) | branch coverage measurement | **proposed**: tool qualification pending | 10 |
+| [0010](0010-conformance-origin-and-authority.md) | conformance origin | accepted | 9 |
+
+What still prevents P0 from closing:
+
+1. the grammar identity of ADR 0002 implemented and checked (`pins.yaml`, rule, fault, CI
+   reproduction of the seven-file manifest);
+2. the upstream type decision behind point 8 (cic-primitives #17);
+3. the branch-coverage tool qualification behind point 10 (ADR 0009).
+
+Everything else is a P1 proof obligation or a later-phase item, recorded in each ADR's
+acceptance record and in `docs/reviews/p0-acceptance-review.md`.
+
 ## Fixed
 
 - Expanded form is recognized by the **complete key set declared by the

@@ -1,6 +1,6 @@
-# ADR 0010: Origin of `conformance` and the authority boundary (draft)
+# ADR 0010: Origin of `conformance` and the authority boundary
 
-Status: **proposed, not approved.** Addresses ADR 0000 open point 9. It decides who
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses ADR 0000 open point 9. It decides who
 may state a device capability in a document and what the library preserves about it.
 It does **not** change the six-key Access grammar (`value`, `access`, `modify`,
 `inherit`, `default_injection`, `conformance`), and it does **not** prove that a
@@ -132,3 +132,13 @@ source location. The gate checks structure only and decides nothing about author
 - Subtree entries in `attested_positions`, and per-field signatures.
 - The basis in the diff output.
 - Merging a materialized document back into an authored one.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- **P5/P6 boundary.** `binding_attested` means provenance asserted by the trusted input context. It does not mean that the library verified the evidence cryptographically; verifying an attestation and enforcing writes to a `not_implemented` field are the Relay's work.
+- The basis is not a diff event (ADR 0008): an empty `changes` is no evidence of equal capability.
+- Subtree entries in `attested_positions`, per-field signatures and merging a materialized document back into an authored one are not decided.

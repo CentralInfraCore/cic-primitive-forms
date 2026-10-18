@@ -1,6 +1,6 @@
-# ADR 0008: Deterministic diff contract (draft)
+# ADR 0008: Deterministic diff contract
 
-Status: **proposed, not approved.** Addresses issue #3 point 5. It defines what a
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 5. It defines what a
 diff compares, what it returns, in which order, and the exact bytes of the canonical
 serialization. It does **not** define patch (`patch(A, diff(A, B)) == B` is P4: it
 needs the semantics of applying operations, preconditions, conflicts and
@@ -220,3 +220,13 @@ runners are the independent check.
 - Diffs through a plain `choice` (no real schema uses one).
 - Whether a runner may stream events; only the result is fixed.
 - An error response's canonical bytes (only the diff result is serialized here).
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- `conformance_basis` is provenance companion data of the LogicalView, like the authored form. It is not a `changes` event and not part of logical equality; the intent-observed adapter reads it separately. **`changes == []` means logical equality only.** It asserts nothing about provenance, attestation or device capability equivalence.
+- Patch and its invariant are P4; the interpretation of a difference as drift is a separate integration contract.
+- Floats and integers beyond 64 bits are refused (`DIFF_UNSUPPORTED_VALUE`, provisional); the schema-dependent order of set values inside fragments and the payload order across `item_choice` cases are P1 obligations.

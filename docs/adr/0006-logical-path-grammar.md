@@ -1,6 +1,6 @@
-# ADR 0006: Logical path grammar (draft)
+# ADR 0006: Logical path grammar
 
-Status: **proposed, not approved.** Addresses issue #3 point 2. It defines the
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 2. It defines the
 logical path model and one canonical text form. It does **not** define diff
 operations, final error codes or source positions (the next P0 ADR), authorization
 or inheritance resolution. The error codes of the corpus are reviewed in ADR 0007
@@ -127,9 +127,12 @@ Component order is the schema's, not the document's.
 
 `$.mtu` is the same path whether `mtu` is written short or expanded. The Access keys
 `value access modify inherit default_injection conformance` are not path segments.
-A field that is itself called `value` is an ordinary field `$.value`. How a later
-phase addresses Access metadata (a separate typed component beside the path) is
-**not decided here.**
+A field that is itself called `value` is an ordinary field `$.value`.
+
+A logical path identifies a primitive position. `access`, `modify`, `inherit`,
+`default_injection` and `conformance` are attributes of that position, not path
+segments and not a further addressing level. No selector for them is introduced
+without demonstrated need and a separate contract.
 
 ## Measured against the pinned corpus
 
@@ -189,3 +192,13 @@ implementation produces these results is for the P1 runners.
 - How Access components are addressed.
 - Conversion from the engine's path syntax.
 - Source-preserving editing (P3b).
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- The Access-attribute sentence of "Path versus Access" is part of the contract.
+- Key types other than string and signed 64-bit integer, paths through a plain `choice`, and conversion from the engine's path syntax are explicit non-goals of P0 (errors, not guesses).
+- That two parsers agree is a P1 proof obligation.
