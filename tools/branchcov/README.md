@@ -1,8 +1,9 @@
 # cic-branch/1 measurement tools (ADR 0009, decision A)
 
 The candidate tools did not measure `cic-branch/1` (see `spike/coverage-qualification/EXIT-REPORT.md`), so the
-measurement is provided here. **Nothing in this directory is selected for the product**: `coverage/tools.yaml` stays
-`selected: null` until the pipeline is qualified and the owner approves it.
+measurement is provided here. `gobranch` and `rustbranch` are the **selected** tools (`coverage/tools.yaml`, ADR 0009,
+no deviations), pinned by version, toolchain and a digest of their sources: a change here must be re-qualified
+(`qualify.py`) and re-pinned in the same change. Product code is measured from P1.
 
 | Part | What it does |
 |---|---|

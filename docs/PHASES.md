@@ -20,9 +20,10 @@ a "critical" subset:
 | Fuzzing | parser, expand/collapse, normalize, diff/patch; from P1 |
 
 The branch-coverage row is governed by ADR 0009: one definition (`cic-branch/1`), one
-threshold, one report format and a gate that fails closed. The measurement tool per
-language is not selected yet; it is chosen on the P1 sample evidence, and until then
-the gate is red by design.
+threshold, one report format and a gate that fails closed. The measurement tools are
+selected (`gobranch` and `rustbranch`, `coverage/tools.yaml`) and were qualified on
+hand-counted samples. The gate on **product code** is mandatory in CI from P1, together
+with the first Rust and Go implementation, and a missing measurement must then fail.
 
 A gate that cannot fail proves nothing: each gate is accompanied by a seeded
 fault or vector that demonstrably turns it red.

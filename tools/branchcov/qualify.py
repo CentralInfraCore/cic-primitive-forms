@@ -11,6 +11,11 @@ and then runs the REAL `tools/coverage_gate.py check` on both languages: the ful
 must fail with BELOW_THRESHOLD. A second measurement must give byte-identical output. With --llvm (needs the nightly
 toolchain and cargo-llvm-cov) the Rust counters are also compared with LLVM's branch regions where LLVM has them.
 
+It runs on the REAL `coverage/tools.yaml` (the tools that are selected there), checks that the pinned toolchains and the
+source digests of the measurement tools are the ones in that file (a changed tool or adapter must be re-qualified and
+re-pinned: this run is what the CI executes on every such change), and proves that a wrong `selected` version is a
+TOOL_MISMATCH.
+
 Needs go, cargo and rustc on PATH. Exit status 0 only if everything above holds.
 """
 import argparse
@@ -22,8 +27,13 @@ import subprocess
 import sys
 import tempfile
 
+import yaml
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+import grammar_identity as gid  # noqa: E402  (the sha256sum manifest format is shared)
+
 QS = "spike/coverage-qualification"
 SAMPLES = [  # name, scope file, go dir, rust dir
     ("simple", "scope.yaml", "go", "rust"),
@@ -35,6 +45,28 @@ GOLDEN = {
     "rust": ("golden.json", "rust", "rust/src/lib.rs"),
     "rust-complex": ("golden-rust-complex.json", "rust-complex", "rust-complex/src/lib.rs"),
 }
+
+
+def source_files(lang):
+    """The files whose bytes define a measurement tool: its sources, tests and lock file, and the adapter."""
+    base = os.path.join("tools", "branchcov", lang)
+    out = [os.path.join("tools", "branchcov", "adapter.py")]
+    for d, _, files in os.walk(os.path.join(ROOT, base)):
+        if os.sep + "target" in d or os.sep + ".git" in d:
+            continue
+        for f in files:
+            if f.endswith((".go", ".rs", ".toml", ".lock", ".mod", ".sum")):
+                out.append(os.path.relpath(os.path.join(d, f), ROOT))
+    return sorted(set(out))
+
+
+def source_digest(lang, root=ROOT):
+    entries = []
+    for rel in source_files(lang):
+        with open(os.path.join(root, rel), "rb") as fh:
+            import hashlib
+            entries.append((rel.replace(os.sep, "/"), hashlib.sha256(fh.read()).hexdigest()))
+    return gid.manifest_digest(entries)
 
 
 def sh(cmd, **kw):
@@ -64,8 +96,33 @@ def main():
     gobranch = os.path.join(build, "gobranch")
     rustbranch = os.path.join(build, "rust-target", "release", "rustbranch")
     commit = must(sh(["git", "rev-parse", "HEAD"]), "git rev-parse").stdout.strip()
-    tools = os.path.join(ROOT, QS, "tools-pipeline.yaml")
+    tools = os.path.join(ROOT, "coverage", "tools.yaml")
+    pins = yaml.safe_load(open(tools, encoding="utf-8"))
     ok = True
+    # the selected tools are the ones qualified here: toolchains and source digests
+    want_tc = {"go": pins["go"]["selected"].get("toolchain"), "rust": pins["rust"]["selected"].get("toolchain")}
+    have_tc = {"go": must(sh(["go", "env", "GOVERSION"]), "go env").stdout.strip(),
+               "rust": must(sh(["rustc", "--version"]), "rustc --version").stdout.strip()}
+    for lang in ("go", "rust"):
+        sel = pins[lang]["selected"]
+        d = source_digest(lang)
+        good = sel.get("source_sha256") == d and want_tc[lang] == have_tc[lang]
+        print("pin %-4s %s %s: source digest %s, toolchain %s" % (lang, sel["name"], sel["version"],
+              "matches" if sel.get("source_sha256") == d else "DIFFERS (re-qualify and re-pin)",
+              "matches (%s)" % have_tc[lang] if want_tc[lang] == have_tc[lang] else "DIFFERS (pinned %r, found %r)" % (want_tc[lang], have_tc[lang])))
+        ok = ok and good
+    # the digest is sensitive to a one-byte change of a tool source
+    tmp = tempfile.mkdtemp(prefix="digest-")
+    for rel in source_files("go"):
+        os.makedirs(os.path.dirname(os.path.join(tmp, rel)), exist_ok=True)
+        shutil.copy(os.path.join(ROOT, rel), os.path.join(tmp, rel))
+    changed = os.path.join(tmp, source_files("go")[-1])
+    with open(changed, "ab") as fh:
+        fh.write(b" ")
+    sensitive = source_digest("go", tmp) != source_digest("go")
+    shutil.rmtree(tmp)
+    print("digest changes when a tool source changes by one byte: %s" % ("yes" if sensitive else "NO"))
+    ok = ok and sensitive
 
     def measure(lang, d, mode, dest):
         reduced = mode == "reduced"
@@ -111,6 +168,20 @@ def main():
             if gate.returncode != want or (mode == "reduced" and gate.stdout.count("BELOW_THRESHOLD") != 2):
                 print(gate.stdout)
                 ok = False
+    # a wrong selected version is a TOOL_MISMATCH on the real gate (full reports of the complex samples)
+    for lang in ("go", "rust"):
+        bad = yaml.safe_load(open(tools, encoding="utf-8"))
+        bad[lang]["selected"]["version"] = "0.1.1"
+        bad_path = os.path.join(out, "tools-wrong-%s.yaml" % lang)
+        with open(bad_path, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(bad, fh)
+        g = sh([sys.executable, os.path.join(ROOT, "tools", "coverage_gate.py"), "check", "--root", ROOT, "--scope",
+                os.path.join(ROOT, QS, "scope-complex.yaml"), "--tools", bad_path, "--commit", commit,
+                "--report", "rust=" + os.path.join(out, "rust-complex-full-rust.report.json"),
+                "--report", "go=" + os.path.join(out, "go-complex-full-go.report.json")])
+        hit = g.returncode == 1 and ("FAIL %s TOOL_MISMATCH" % lang) in g.stdout
+        print("wrong selected %s version: %s" % (lang, "TOOL_MISMATCH" if hit else "NOT DETECTED"))
+        ok = ok and hit
     # determinism: a second measurement gives byte-identical output
     for lang, d, mode in (("go", "go-complex", "reduced"), ("rust", "rust-complex", "reduced")):
         first = os.path.join(out, "%s-%s-%s.json" % (d, mode, lang))

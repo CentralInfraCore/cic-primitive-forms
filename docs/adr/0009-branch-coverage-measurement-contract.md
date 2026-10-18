@@ -1,12 +1,10 @@
-# ADR 0009: Branch coverage measurement contract (draft)
+# ADR 0009: Branch coverage measurement contract
 
-Status: **proposed, not approved.** Addresses ADR 0000 open point 10. It fixes *what
-is measured, against which threshold, and what counts as a valid measurement* for
-branch coverage in Rust and Go, and it provides the gate that enforces it. It does
-**not** select the measurement tool per language: that needs sample evidence from P1,
-so **point 10 of issue #3 stays open** until that evidence exists. Line coverage and
-mutation score are separate requirements of `docs/PHASES.md`; they stay strictly above
-90% and get their own reports in the same discipline later.
+Status: **accepted** (2026-10-18, see "Acceptance record" at the end). Addresses ADR 0000 open point 10. It fixes
+*what is measured, against which threshold, and what counts as a valid measurement* for branch coverage in Rust and
+Go, provides the gate that enforces it, and records the selected measurement tools (`gobranch`, `rustbranch`). Line
+coverage and mutation score are separate requirements of `docs/PHASES.md`; they stay strictly above 90% and get
+their own reports in the same discipline later.
 
 ## Principle
 
@@ -62,8 +60,9 @@ closed, names every reason, and carries seeded faults for every reason.
 
 ## Decision on the measurement approach (owner, 2026-10-18)
 
-Recorded after the tool qualification spike (PR #18, `spike/coverage-qualification`). The ADR stays
-`proposed`, and `coverage/tools.yaml` keeps `selected: null` for both languages.
+Recorded after the tool qualification spike (PR #18, `spike/coverage-qualification`). At that point the ADR was
+proposed and no tool was selected; the selection and the acceptance followed once the pipeline was qualified (see
+"Tool selection (decided)" and the acceptance record).
 
 ### What the spike showed
 
@@ -146,56 +145,81 @@ and a final `BRANCH COVERAGE: PASS` or `FAIL`. Failure reasons: `REPORT_MISSING`
 `BELOW_THRESHOLD`. A conformance result needs **exactly** Rust and Go: an empty, one-language, unknown or
 repeated set is `LANGUAGE_SET_INVALID`, never a pass. A per-language diagnostic run
 exists (`--only LANG`) and can only end with exit status 3 and the line
-`NOT a conformance result`, whatever it finds. With the real `coverage/tools.yaml` (no tool selected) it is red
-(`TOOL_NOT_SELECTED`): the quality gate is not satisfied, and no document can say
-otherwise. Today CI runs only the self-test, because no Rust or Go code exists; the
-real `check` becomes a required CI step with the first implementation code (P1).
+`NOT a conformance result`, whatever it finds. Today CI runs the self-test and the qualification run on the samples;
+no product code exists to measure, and the real `check` on product code becomes a required CI step with the first
+implementation (P1).
 
-## Tool selection (open)
+## Tool selection (decided)
 
-`coverage/tools.yaml` lists candidates as leads, none verified here:
+Selected, with no `approved_deviations`, in `coverage/tools.yaml`:
 
-- Rust: `cargo-llvm-cov` has a branch mode; its README documents it as optional and
-  nightly-only. Open: stability of the counts, and whether `match` arms, loops,
-  short-circuit operands and `?` are branches in its report.
-- Go: the standard `go test -cover` is statement coverage only (the Go issue
-  [golang/go#28888](https://golang.org/issue/28888) asks for branch coverage).
-  `gobco` is a third-party tool that reports whether each condition was true and
-  false, which is condition coverage, narrower than the definition above. It is
-  described as syntactic and as not covering `select`. **No known Go candidate
-  covers all five categories**; this is a finding, not a verdict, and it must be
-  settled on a real sample.
+| Language | Tool | Version | Pinned with |
+|---|---|---|---|
+| Rust | `rustbranch` | `0.1.0` | `rustc 1.101.0-nightly (8006091eb 2026-10-17)` (`nightly-2026-10-17`), source digest in `tools.yaml` |
+| Go | `gobranch` | `0.1.0` | `go1.27.2`, source digest in `tools.yaml` |
 
-Sources read: [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov), [gobco](https://github.com/rillig/gobco) (via search results; nothing was run).
+`cargo-llvm-cov` 0.9.1 stays as an independent cross-check of the Rust counters (not as a measurement). The version
+`0.1.0` of our own tools is meaningful only together with the repository commit, the toolchain and the source
+digest: `tools/branchcov/qualify.py` recomputes the toolchain and the `sha256sum`-manifest digest of the sources,
+tests and lock file of each tool and of the adapter, and fails if they differ from `tools.yaml`; the `branchcov` workflow
+runs it whenever a tool, the adapter, the gate or `tools.yaml` changes. A rebuilt "0.1.0" with other sources or another
+compiler is not the qualified tool, and a changed tool must be re-qualified and re-pinned in the same change.
 
-### Requirements for a candidate
+Assessed and not selected (`spike/coverage-qualification/EXIT-REPORT.md`): `cargo-llvm-cov` (20 of 27 edges, categories
+unavailable), `gobco` (30 outcomes for 34 edges, not a subset; no `select` or `range`; ignores build constraints), `gocove`
+(7 conditions on the sample, a silent no-op on Go 1.27.2), `go test -cover` (statements only).
 
-A tool may be selected for a language only if, on the P1 sample, it (a) measures all
-five categories, or the missing ones are covered by an approved deviation; (b) is
-available at a pinned version in CI; (c) gives deterministic counts for the same
-source and tests; (d) yields output an adapter can turn into `cic-coverage-report/1`
-without guessing; (e) can be made to fail the gate by a seeded fault.
+### The qualification run
 
-### Closing point 10
+`tools/branchcov/qualify.py` runs on the real `coverage/tools.yaml`. On the four hand-counted samples it measures with the
+selected tools, compares with the golden tables, feeds the normalized reports to the real `coverage_gate.py check` (the
+full test sets pass, the reduced ones fail with `BELOW_THRESHOLD` in both languages), proves that a wrong `selected`
+version is a `TOOL_MISMATCH`, checks that a second measurement is byte-identical and, for Rust, compares the counters with
+LLVM's branch regions. Fail-closed cases are tested separately.
 
-Point 10 closes only when, for each language, there is recorded evidence: a sample
-with every branch category and known expected counts, the adapter's output equal to
-those counts (a golden test), a seeded fault that takes the sample below the
-threshold and turns CI red, and the selected tool and version in `coverage/tools.yaml`.
-Adapters are part of the trust base of the gate and are tested like code.
+### Where the proof stops
+
+The contract and the measurement method are accepted. That the future Rust and Go **product code** exceeds 90% is not
+proven and is not claimed: the product code does not exist yet. `docs/PHASES.md` makes the quality gates of the product
+code mandatory in CI from P1; the real `coverage_gate.py check` becomes a required CI step together with the first Rust
+and Go implementation, and a missing measurement must then fail. It is deliberately not simulated with empty
+implementation directories.
 
 ### No automatic fallback
 
-If branch coverage cannot be measured comparably in both languages there is **no
-automatic fallback** to statement or line coverage or to mutation score. That needs an
-explicit amendment of this ADR and a separate decision of the owner; until then the
-gate stays unsatisfied. Replacing the metric lowers the gate.
+If branch coverage cannot be measured comparably in both languages there is **no automatic fallback** to statement or
+line coverage or to mutation score. That needs an explicit amendment of this ADR and a separate decision of the owner.
+Replacing the metric lowers the gate.
 
 ## Not decided here
 
-- The tool per language, and the adapters (P1).
-- Whether branches in Rust in-file test modules (`#[cfg(test)]`) are own source; it
-  depends on what the chosen tool can exclude and is fixed on the sample.
+- Whether Rust `#[cfg(test)]` modules or other test code count as own source: they do not (they are dropped from the
+  measured copy), which is the rule of the tools; a different rule would be an amendment.
 - Line coverage and mutation score reports, and mutation equivalents.
 - Coverage of generated code beyond the manifest globs.
-- Branch counts across inlined or monomorphized code beyond what a tool reports.
+- The wiring of the required CI step on product code (P1, with the first implementation).
+- Macros and conditional compilation that hide decisions are refused, not measured; supporting them is future work.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision, after the tool qualification (PR #18), the decision A record (PR #19) and
+the measurement pipeline (PR #20). *Accepted* means the measurement contract and the selected measurement method are
+the normative decision of the P0 scope; it is **not** evidence that product code exists or exceeds 90%.
+
+| Requirement | State |
+|---|---|
+| Five categories and the exact edge definition | proven on the samples |
+| Go and Rust golden equality, per function and category | proven (34, 49, 27 and 69 edges, full and reduced) |
+| Normalized report | proven |
+| Real gate, negative test | proven in the qualification (full passes, reduced fails, wrong version is `TOOL_MISMATCH`) |
+| Determinism | proven on the samples |
+| Refusal of unsupported or faulty constructs | tested, within the documented scope |
+| The measurement tools as a tested trust base | supported by the qualification tests and the source-digest pin |
+| Tool selection | decided and recorded in `coverage/tools.yaml` |
+| Full coverage of real product code | P1, not yet proven |
+| Required product CI gate and a result above 90% | P1, not yet active |
+
+Stated risks that stay in force: an instrumented copy is a different program from the shipped one with the same
+decisions (the Rust copy relaxes `forbid(unsafe_code)` to `deny` for the generated counter module); the golden tables
+and the cross-check cover the samples, not all of Rust and Go; a counting defect was found in review (a Go switch
+clause entered by `fallthrough`), which shows that the trust base needs the tests it has and more as it meets real code.
