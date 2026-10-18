@@ -1,14 +1,25 @@
 # Provisional vectors for ADR 0004. Format is not final.
 # Values are YAML-typed: 0 is an integer, "0" a string, false a boolean.
+# Vectors assert only that the input type and value are preserved and that false and
+# 0 stay different. They do not fix any internal enum name (that is an upstream decision).
 inherit_key:
-  - {id: true-ok, input: true, expect: {valid: true, internal: inherit}}
-  - {id: false-ok, input: false, expect: {valid: true, internal: no-inherit}}
-  - {id: zero-ok, input: 0, expect: {valid: true, internal: reset}}
+  - {id: true-ok, input: true, expect: {valid: true, preserved: {type: boolean, value: true}}}
+  - {id: false-ok, input: false, expect: {valid: true, preserved: {type: boolean, value: false}}}
+  - {id: zero-ok, input: 0, expect: {valid: true, preserved: {type: integer, value: 0}}}
   - {id: one-rejected, input: 1, expect: {error: INVALID_INHERIT}}
   - {id: string-true-rejected, input: "true", expect: {error: INVALID_INHERIT}}
   - {id: string-zero-rejected, input: "0", expect: {error: INVALID_INHERIT}}
   - {id: null-rejected, input: null, expect: {error: INVALID_INHERIT}}
   - {id: list-rejected, input: [], expect: {error: INVALID_INHERIT}}
+inherit_policy:
+  - {id: policy-true-ok, input: true, expect: {valid: true, preserved: {type: boolean, value: true}}}
+  - {id: policy-false-ok, input: false, expect: {valid: true, preserved: {type: boolean, value: false}}}
+  - id: policy-zero-ok-despite-boolean-declaration
+    description: the schema declares boolean but its description defines 0; the library accepts it by documented meaning and flags the contradiction upstream
+    input: 0
+    expect: {valid: true, preserved: {type: integer, value: 0}, upstream_conflict: true}
+  - {id: policy-one-rejected, input: 1, expect: {error: INVALID_INHERIT}}
+  - {id: policy-string-rejected, input: "false", expect: {error: INVALID_INHERIT}}
 access_modify:
   - {id: symbol-ok, input: inherit, expect: {valid: true, kind: symbol}}
   - {id: pattern-list-ok, input: ["OU=operators,O=acme-corp"], expect: {valid: true, kind: list}}

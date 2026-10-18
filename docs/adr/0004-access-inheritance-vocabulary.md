@@ -11,9 +11,21 @@ open upstream (see "Upstream status"), and resolution is P3.
 |---|---|---|
 | `access` / `modify` value | the symbol `inherit`, or a `CertPattern` list | this field takes its rule from the parent's PolicySurface rules (`access.yaml`, default `inherit`) |
 | Access key `inherit` | `true` (default), `false`, `0` | whether sub-objects inherit this field's rule (`access.yaml`, D-010) |
-| `PolicySurface.inherit_policy` | `true` (default), `false`, `0` | the same three states at object level (`policy-surface.yaml`) |
+| `PolicySurface.inherit_policy` | declared `boolean`, default `true`; the description also uses `0` | the same three states at object level (`policy-surface.yaml`); the declared type and the description contradict each other |
 
 The library keeps the three apart. They share a spelling, not a type.
+
+Two of the three carry a type contradiction in the source schemas, and this ADR
+names both rather than papering over them:
+
+- `access` / `modify` are typed `list<CertPattern>` but default to the symbol
+  `inherit`;
+- `inherit_policy` is typed `boolean` (`policy-surface.yaml`) but its description
+  defines the value `0` ("full reset"), which a boolean does not hold.
+
+Settling both type contracts is the job of upstream P0.4,
+`cic-primitives` issue #17 ("Define Access atom instance grammar (P0.4)"), not
+of this library.
 
 ## Sources
 
@@ -71,7 +83,11 @@ Consequences for this library:
    symbolically (PHASES, ADR 0001). It does not resolve anything.
 6. **Recognition (ADR 0001) is unaffected.** It looks at keys only, never at the
    values of `inherit`.
-7. **`inherit_policy`** follows the same vocabulary rule as the `inherit` key.
+7. **`inherit_policy`** is read with the same vocabulary rule as the `inherit`
+   key: boolean `true`, boolean `false`, integer `0`, by YAML scalar type. This
+   accepts `0` even though the schema declares `boolean`; the library follows the
+   documented meaning and flags the contradiction (above) for upstream instead
+   of rejecting a value the description defines.
 
 ## Not decided here
 
@@ -80,8 +96,10 @@ Consequences for this library:
   `surface_rules`, then `default_access` / `default_modify`, then the parent's
   PolicySurface when `inherit_policy` is true) is recorded for P3, not
   re-specified.
-- Whether the internal enum uses the upstream names (`inherit` / `no-inherit` /
-  `reset`); that is an implementation detail until upstream decides.
+- The internal representation. The vectors require only that the input type and
+  value are preserved and that `false` and `0` stay different; they do not fix
+  any enum name. The upstream names (`inherit` / `no-inherit` / `reset`) are not
+  normative here.
 - What "sub-object" covers given ADR 0002 (a nested composite, the record of a
   list element, a case of a choice).
 
@@ -94,7 +112,11 @@ still a P0 item.
 
 1. Upstream: the normative difference between `false` and `0`, and the final
    enum (P0.4). Blocks the resolution part of P3.
-2. Upstream: write the `access` / `modify` type as a union. A `cic-primitives`
-   issue is the place; not filed by this ADR.
+2. Upstream: write the `access` / `modify` type as a union and resolve the
+   `inherit_policy` `boolean` versus `0` contradiction. Both belong in the
+   existing `cic-primitives` issue #17, as additions to it; no new issue is
+   opened. (Issue #17 also says PolicySurface is not defined in the corpus, based
+   on a search of two files; `schemas/aggregate/policy-surface.yaml` exists, so
+   that statement needs correcting upstream. It does not affect this ADR.)
 3. What a "sub-object" is for the purposes of `inherit`, in terms of the Shape
    structure of ADR 0002.
