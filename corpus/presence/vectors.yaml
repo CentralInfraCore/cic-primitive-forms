@@ -1,0 +1,39 @@
+# Provisional presence vectors for ADR 0003. Format is not final.
+# shape: presence = mandatory | optional; nullable (default false); default (optional)
+# absent: true means the key is missing from the document (not a value); otherwise
+# doc holds the present value, which may be null, "", [], {}, 0 or false.
+validate:
+  - {id: mandatory-absent, shape: {type: string, presence: mandatory}, absent: true, expect: {error: MISSING_MANDATORY}}
+  - {id: mandatory-null, shape: {type: string, presence: mandatory}, doc: null, expect: {error: NULL_NOT_ALLOWED}}
+  - {id: mandatory-nullable-null, shape: {type: string, presence: mandatory, nullable: true}, doc: null, expect: {valid: true}}
+  - {id: mandatory-nullable-absent, shape: {type: string, presence: mandatory, nullable: true}, absent: true, expect: {error: MISSING_MANDATORY}}
+  - {id: mandatory-empty-string, shape: {type: string, presence: mandatory}, doc: "", expect: {valid: true}}
+  - {id: optional-absent, shape: {type: string, presence: optional}, absent: true, expect: {valid: true, stays_absent: true}}
+  - {id: optional-null, shape: {type: string, presence: optional}, doc: null, expect: {error: NULL_NOT_ALLOWED}}
+  - {id: optional-nullable-null, shape: {type: string, presence: optional, nullable: true}, doc: null, expect: {valid: true}}
+  - {id: optional-nullable-absent, shape: {type: string, presence: optional, nullable: true}, absent: true, expect: {valid: true, stays_absent: true}}
+  - {id: zero-is-a-value, shape: {type: integer, presence: optional, default: 5}, doc: 0, expect: {valid: true, default_applies: false}}
+  - {id: false-is-a-value, shape: {type: boolean, presence: optional, default: true}, doc: false, expect: {valid: true, default_applies: false}}
+  - {id: default-trigger-absent, shape: {type: integer, presence: optional, default: 5}, absent: true, expect: {valid: true, default_applies: true}}
+  - {id: default-not-triggered-by-null, shape: {type: integer, presence: optional, default: 5}, doc: null, expect: {error: NULL_NOT_ALLOWED, default_applies: false}}
+  - {id: default-not-triggered-by-empty-string, shape: {type: string, presence: optional, default: x}, doc: "", expect: {valid: true, default_applies: false}}
+  - {id: list-empty-ok, shape: {type: list, presence: optional}, doc: [], expect: {valid: true}}
+  - {id: list-empty-below-min-items, shape: {type: list, presence: optional, min_items: 1}, doc: [], expect: {error: CONTRACT_VIOLATION}}
+  - {id: map-empty-composite-all-optional, shape: {type: composite, presence: optional, fields: {a: optional}}, doc: {}, expect: {valid: true}}
+  - {id: map-empty-composite-mandatory-child, shape: {type: composite, presence: optional, fields: {a: mandatory}}, doc: {}, expect: {error: MISSING_MANDATORY, path: a}}
+# round trip: expand -> collapse -> expand must keep each state
+roundtrip:
+  - {id: absent-stays-absent, absent: true, expect: {expanded_node: none, collapse: none}}
+  - {id: null-stays-null, doc: null, expect: {expanded_value: null, collapse: "null"}}
+  - {id: empty-string-preserved, doc: "", expect: {expanded_value: "", collapse: ""}}
+  - {id: empty-list-preserved, doc: [], expect: {expanded_value: [], collapse: []}}
+  - {id: empty-map-preserved, doc: {}, expect: {expanded_value: {}, collapse: {}}}
+  - id: value-null-and-default-injection-are-separate
+    description: value null is data; default_injection 0 is access behavior and must survive
+    expanded: {value: null, access: inherit, modify: inherit, inherit: true, default_injection: 0, conformance: implemented}
+    expect: {collapse: expanded, value: null, default_injection: 0}
+  - id: expanded-without-value-key-is-not-expanded
+    description: an expanded node lacks the value key, so by ADR 0001 it is short and then rejected at a scalar position
+    doc: {access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    position: scalar
+    expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
