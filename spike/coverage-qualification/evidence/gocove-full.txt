@@ -1,0 +1,15 @@
+gocove report
+meta-dir: (scratch)
+packages: 1    files: 1    conditions: 7
+
+covsample  (cond: 7,  hit: 7,  full: 7,  cond%: 100.0%,  block%: 75.9%,  branch%: 58.3%)
+  sample.go
+    [T+F    ] 8:5     x > 0    (block ✓, branch ✗)
+    [T+F    ] 16:20    ok    (block ✓, branch ✓)
+    [T+F    ] 36:7     n > 10    (block ✓, branch ✗)
+    [T+F    ] 76:6     n > 0    (block ✓, branch ✓)
+    [T+F    ] 85:14    i < n    (block ✓, branch ✓)
+    [T+F    ] 104:6     i >= 3    (block ✓, branch ✓)
+    [T+F    ] 122:5     err != nil    (block ✓, branch ✓)
+
+TOTAL  cond: 7   hit: 7   full: 7   cond%: 100.0%   block%: 75.9%   branch%: 58.3%

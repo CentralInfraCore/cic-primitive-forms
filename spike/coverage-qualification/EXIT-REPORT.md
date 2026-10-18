@@ -1,5 +1,11 @@
 # Exit report: branch coverage tool qualification
 
+> **Decision recorded (owner, 2026-10-18): option A.** `cic-branch/1` is kept in full and the missing measurement is
+> provided by this project (a source classifier for Rust, an AST enumerator and instrumenter for Go). Options B and C
+> are rejected for the P0 acceptance contract. The decision, the rejection reasons and the qualification requirements are in
+> ADR 0009 (PR #19). This spike is a negative qualification result and its evidence is kept as the golden basis of the
+> next pipeline; `coverage/tools.yaml` stays `selected: null`.
+
 Date 2026-10-18. Scope: the isolated spike of ADR 0009 ("Closing point 10"). The tools were installed and run
 locally in a throwaway directory and again on GitHub (see "Reproducibility"). Nothing in `coverage/tools.yaml`
 was changed: **no tool is selected**, and selecting one needs the owner's decision (below).
@@ -115,6 +121,19 @@ which should be a conscious investment and not a side effect. Under any option t
 The adapter and the classifier (nothing built); the gate on real tool output; behaviour on larger code (the
 samples are tiny); `#[cfg(test)]` modules (the sample moved its tests to `tests/`); other nightly dates; the
 effect of inlining, generics and macros on the Rust branch regions.
+
+## Addendum: `gocove` (assessed after the decision)
+
+`gocove` (`v0.0.0-20260427173940-a0dceb9dadca`, beta, toolexec based) was run on the same Go sample:
+
+- On **Go 1.27.2** `gocove test` printed `ok ... coverage: 100.0%` and wrote only a plain `cover.profile`: **no
+  catalogue, no observations, no error**. A silent no-op is the worst failure mode for a gate.
+- On **Go 1.23.12** it works: 7 conditions (`x > 0`, `ok`, the tagless-switch `n > 10`, `n > 0`, `i < n`, `i >= 3`,
+  `err != nil`), no value-switch or type-switch cases, no `&&` / `||` outside an `if`, no `select`, no `range`;
+  its `branch%` for the sample is 58.3% (7 of 12), a different quantity again. Output in `evidence/gocove-full.txt`.
+- It needs a populated module cache at run time (it reads its runtime source from `$GOMODCACHE`).
+
+It does not qualify; it measures a smaller set than `gobco`, which itself does not qualify.
 
 ## Reproducibility
 
