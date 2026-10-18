@@ -247,6 +247,36 @@ def check_typed_fields(m, where, vs):
         check_typed(tv, "%s.%s" % (where, k), vs)
 
 
+CLASSES = ("short", "expanded", "error")
+
+
+def check_recognize_expect(case, expect, where, vs):
+    if "class" in expect and expect["class"] not in CLASSES:
+        vs.append(Violation("EXPECT_FIELD", where + ".class", "class must be one of %s" % (CLASSES,)))
+    if "elements" not in expect:
+        return
+    els = expect["elements"]
+    w = where + ".elements"
+    if not isinstance(els, list) or not els:
+        vs.append(Violation("EXPECT_FIELD", w, "elements must be a non-empty list"))
+        return
+    pos = case.get("schema", {}).get("synthetic", {}).get("position") if isinstance(case.get("schema"), dict) else None
+    fields = None
+    if isinstance(pos, dict) and "list_of" in pos and valid_record(pos["list_of"]):
+        fields = set(pos["list_of"]["record"])
+    else:
+        vs.append(Violation("EXPECT_FIELD", w, "elements needs a list_of record position"))
+    if isinstance(case.get("input"), list) and len(case["input"]) != len(els):
+        vs.append(Violation("EXPECT_FIELD", w, "%d elements expected for %d input elements"
+                            % (len(els), len(case["input"]))))
+    for i, el in enumerate(els):
+        if not isinstance(el, dict) or not el or any(c not in CLASSES for c in el.values()):
+            vs.append(Violation("EXPECT_FIELD", "%s[%d]" % (w, i), "must map field names to one of %s" % (CLASSES,)))
+        elif fields is not None and set(el) != fields:
+            vs.append(Violation("EXPECT_FIELD", "%s[%d]" % (w, i), "fields %s differ from the record %s"
+                                % (sorted(el), sorted(fields))))
+
+
 def check_expect_types(kind, expect, where, vs):
     if kind == "validate" and "preserved" in expect:
         check_typed(expect["preserved"], where + ".preserved", vs)
@@ -348,6 +378,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             if r not in expect:
                 vs.append(Violation("EXPECT_FIELD", where, "expect.%s is required for %s" % (r, kind)))
         check_expect_types(kind, expect, where + ".expect", vs)
+        if kind == "recognize":
+            check_recognize_expect(case, expect, where + ".expect", vs)
         found = collect_codes(expect)
         if not all(isinstance(x, str) for x in found):
             vs.append(Violation("EXPECT_FIELD", where, "error and code expectations must be strings"))

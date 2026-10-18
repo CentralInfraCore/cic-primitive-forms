@@ -92,4 +92,18 @@ faults:
   - id: empty-scalar-case-loses-codes-status
     rule: CODE_STATUS
     ops: [{file: corpus/presence/vectors.yaml, old: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.map-with-code", new: "    expect: {error: NULL_NOT_ALLOWED}\n  - id: presence.map-with-code"}]
-
+  - id: elements-not-a-list
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "expect: {elements: [{host: short, port: short}, {host: short, port: expanded}]}", new: "expect: {elements: nonsense}"}]
+  - id: elements-unknown-class
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, port: shortt}, {host: short, port: expanded}"}]
+  - id: elements-wrong-fields
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, colour: short}, {host: short, port: expanded}"}]
+  - id: elements-count-mismatch
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, port: short}"}]
+  - id: class-unknown
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: short}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: shorter}"}]

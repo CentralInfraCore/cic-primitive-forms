@@ -67,7 +67,7 @@ may override them.
 
 | Kind | Input fields | Expectation keys |
 |---|---|---|
-| `recognize` | `input` or `input_yaml` (raw text, for parse-phase cases) | `class`, `elements` (per list element: field to class), `validate`, `opaque_value`, `phase`, `code` |
+| `recognize` | `input` or `input_yaml` (raw text, for parse-phase cases) | `class`, `elements` (non-empty list, one `{field: class}` map per input element, fields equal to the record's), `validate`, `opaque_value`, `phase`, `code` |
 | `validate` | `input` or `absent: true` | `valid`, `error`, `stays_absent`, `default_candidate`, `path`, `kind`, `is_inherit`, `preserved`, `upstream_conflict` |
 | `roundtrip` | `input` or `absent: true` | `expanded`, `collapsed`, `fields` (typed values) |
 | `collapse` | `input`, boolean `authored_expanded` | `collapse` (required), `fields` |
@@ -136,7 +136,9 @@ checker to have at least one fault**. A new rule without a fault fails the gate.
 The self-test also asserts loader invariants first: an empty scalar is `null`
 (equal to `null`), `''` stays a string, `0` is an integer, `false` a boolean.
 
-Current state: 3 suites, 86 cases, 22 rules, 30 faults.
+`class` and the `elements` classes are limited to `short`, `expanded`, `error`.
+
+Current state: 3 suites, 86 cases, 22 rules, 35 faults.
 
 ## Migration of the existing vectors
 
