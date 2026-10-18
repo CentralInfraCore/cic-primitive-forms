@@ -1,0 +1,5 @@
+# Fixture pins: the self-test needs a selected tool, which the real file does not have yet.
+rust:
+  selected: {name: fixture-tool, version: "1.0.0", approved_deviations: []}
+go:
+  selected: {name: fixture-tool, version: "1.0.0", approved_deviations: []}

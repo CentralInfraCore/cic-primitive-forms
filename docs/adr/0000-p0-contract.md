@@ -50,6 +50,8 @@ Status: **draft, open decisions listed below.**
     language that enforces the same requirement. Replacing branch coverage with a
     weaker metric (for example statement coverage plus mutation score) lowers the
     gate and needs its own explicit, recorded decision.
+    *Status: the contract is ADR 0009; the tool per language is selected on P1
+    sample evidence, so this point stays open until then.*
 
 Points 1 and 7 describe the same recognition problem (a `type: any` value that
 happens to carry the full key set) and must be resolved together in P0.

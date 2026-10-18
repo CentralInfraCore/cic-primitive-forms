@@ -19,8 +19,10 @@ a "critical" subset:
 | Property tests | required for parse/emit, expand/collapse, normalize, diff/patch |
 | Fuzzing | parser, expand/collapse, normalize, diff/patch; from P1 |
 
-The branch-coverage row is not yet identically measurable in both languages
-(see ADR 0000, open point 10); the measurement method is fixed in P0.
+The branch-coverage row is governed by ADR 0009: one definition (`cic-branch/1`), one
+threshold, one report format and a gate that fails closed. The measurement tool per
+language is not selected yet; it is chosen on the P1 sample evidence, and until then
+the gate is red by design.
 
 A gate that cannot fail proves nothing: each gate is accompanied by a seeded
 fault or vector that demonstrably turns it red.

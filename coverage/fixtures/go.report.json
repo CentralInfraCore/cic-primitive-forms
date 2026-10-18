@@ -1,0 +1,76 @@
+{
+ "format": "cic-coverage-report/1",
+ "language": "go",
+ "metric": "branch",
+ "branch_definition": "cic-branch/1",
+ "tool": {
+  "name": "fixture-tool",
+  "version": "1.0.0"
+ },
+ "unmeasured_categories": [],
+ "source": {
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "files": [
+   {
+    "path": "go/a.go",
+    "sha256": "9e6ab2c865adc2e359a57581e7e6d30474615c98809551e7b94bc8e391c2e002",
+    "total": 50,
+    "covered": 46,
+    "categories": {
+     "conditional": {
+      "total": 25,
+      "covered": 23
+     },
+     "match": {
+      "total": 8,
+      "covered": 7
+     },
+     "loop": {
+      "total": 7,
+      "covered": 6
+     },
+     "short_circuit": {
+      "total": 6,
+      "covered": 6
+     },
+     "error_path": {
+      "total": 4,
+      "covered": 4
+     }
+    }
+   },
+   {
+    "path": "go/b.go",
+    "sha256": "9e6ab2c865adc2e359a57581e7e6d30474615c98809551e7b94bc8e391c2e002",
+    "total": 50,
+    "covered": 46,
+    "categories": {
+     "conditional": {
+      "total": 25,
+      "covered": 23
+     },
+     "match": {
+      "total": 8,
+      "covered": 7
+     },
+     "loop": {
+      "total": 7,
+      "covered": 6
+     },
+     "short_circuit": {
+      "total": 6,
+      "covered": 6
+     },
+     "error_path": {
+      "total": 4,
+      "covered": 4
+     }
+    }
+   }
+  ]
+ },
+ "totals": {
+  "total": 100,
+  "covered": 92
+ }
+}
