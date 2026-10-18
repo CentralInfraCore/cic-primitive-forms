@@ -1,0 +1,902 @@
+# Provisional logical path cases for ADR 0006. Format: ADR 0005 plus its path amendment.
+# Texts are canonical or deliberately not; every positive path_parse case is also a path_format case
+# (format of the parsed segments gives the same text). Codes are provisional (codes.yaml).
+# trees: synthetic schema fixtures for the path kinds; a notation, not a schema. A list key is the
+# resolved identity of ADR 0002 (role: key / item_key; per case for item_choice).
+corpus_format: 1
+suite: paths
+status: provisional
+defaults: {adr: ADR-0006, grammar: cic-primitives-devel}
+trees:
+  main: {'a[0]': {scalar: string}, enabled: {scalar: boolean}, interface.name: {scalar: string}, ip: {composite: {addresses: {set: string}, blob: opaque, gateway: {scalar: string}}}, logical_interfaces: {list: {fields: {ip: {composite: {addresses: {set: string}}}, name: {scalar: string}}, key: [name]}}, mtu: {scalar: integer}, nics: {list: {fields: {name: {scalar: string}, subnet: {scalar: string}, zone: {scalar: string}}, key: [name, zone]}}, nëtz: {scalar: string}, value: {scalar: string}, vlans: {list: {choice: [{fields: {ref: {scalar: string}}, key: [ref], name: referenced}, {fields: {vlan_id: {scalar: integer}, vlan_mode: {scalar: string}}, key: [vlan_id], name: inline}]}}, weird\name: {scalar: string}}
+  boolkey: {flags: {list: {fields: {note: {scalar: string}, 'on': {scalar: boolean}}, key: ['on']}}}
+  overlap: {items: {list: {choice: [{fields: {k1: {scalar: string}, k2: {scalar: string}, x: {scalar: string}}, key: [k1], name: a}, {fields: {k1: {scalar: string}, k2: {scalar: string}, x: {scalar: string}}, key: [k2], name: b}]}}}
+  accessnames: {access: {scalar: string}, ip: {composite: {gateway: {scalar: string}}}}
+cases:
+  - id: paths.parse-root
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $
+    expect: {segments: []}
+  - id: paths.parse-simple-field
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.enabled
+    expect: {segments: [{field: enabled}]}
+  - id: paths.parse-nested-fields
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.ip.addresses
+    expect: {segments: [{field: ip}, {field: addresses}]}
+  - id: paths.parse-literal-dot-in-name
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.interface\.name
+    expect: {segments: [{field: interface.name}]}
+  - id: paths.parse-backslash-in-name
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.weird\\name
+    expect: {segments: [{field: weird\name}]}
+  - id: paths.parse-brackets-in-name
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.a\[0\]
+    expect: {segments: [{field: 'a[0]'}]}
+  - id: paths.parse-selector-punctuation-in-name
+    kind: path_parse
+    polarity: positive
+    description: 'every escaped character of the set: backslash . [ ] { } = ,'
+    schema: {synthetic: {lexical: true}}
+    path: $.a\{b\}\=\,
+    expect: {segments: [{field: 'a{b}=,'}]}
+  - id: paths.parse-non-ascii-name
+    kind: path_parse
+    polarity: positive
+    description: no Unicode normalization, the scalar sequence is kept as written
+    schema: {synthetic: {lexical: true}}
+    path: $.nëtz
+    expect: {segments: [{field: nëtz}]}
+  - id: paths.parse-field-named-value
+    kind: path_parse
+    polarity: positive
+    description: a field called value is a field, not Access metadata
+    schema: {synthetic: {lexical: true}}
+    path: $.value
+    expect: {segments: [{field: value}]}
+  - id: paths.parse-integer-key-item
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=100}].vlan_mode
+    expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 100}, name: vlan_id}]}, {field: vlan_mode}]}
+  - id: paths.parse-string-key-item
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="eth0.100"}].ip.addresses
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: eth0.100}, name: name}]}, {field: ip}, {field: addresses}]}
+  - id: paths.parse-composite-key-item
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.nics[{name="nic-0",zone="eu"}].subnet
+    expect: {segments: [{field: nics}, {item: [{key: {type: string, value: nic-0}, name: name}, {key: {type: string, value: eu}, name: zone}]}, {field: subnet}]}
+  - id: paths.parse-item-is-a-valid-path-end
+    kind: path_parse
+    polarity: positive
+    description: the item record is addressable as a structural location
+    schema: {synthetic: {lexical: true}}
+    path: $.nics[{name="nic-0",zone="eu"}]
+    expect: {segments: [{field: nics}, {item: [{key: {type: string, value: nic-0}, name: name}, {key: {type: string, value: eu}, name: zone}]}]}
+  - id: paths.parse-key-with-delimiters
+    kind: path_parse
+    polarity: positive
+    description: quote, comma, equals, brace, bracket and backslash inside a quoted key value
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="a\"b,c=d}]\\"}]
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: 'a"b,c=d}]\'}, name: name}]}]}
+  - id: paths.parse-key-with-control-char
+    kind: path_parse
+    polarity: positive
+    description: short escapes where JSON has them, lowercase \u00xx for the other control characters
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="a\nb\u001f"}]
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: "a\nb\x1F"}, name: name}]}]}
+  - id: paths.parse-key-non-ascii-literal
+    kind: path_parse
+    polarity: positive
+    description: non-ASCII is written literally, never escaped
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="é"}]
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: é}, name: name}]}]}
+  - id: paths.parse-key-empty-string
+    kind: path_parse
+    polarity: positive
+    description: an empty string is a legal key value; only an empty field name is rejected
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name=""}]
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: ''}, name: name}]}]}
+  - id: paths.parse-integer-key-negative
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=-5}]
+    expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: -5}, name: vlan_id}]}]}
+  - id: paths.parse-integer-key-zero
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=0}]
+    expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: vlan_id}]}]}
+  - id: paths.parse-integer-key-int64-max
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=9223372036854775807}]
+    expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 9223372036854775807}, name: vlan_id}]}]}
+  - id: paths.parse-integer-key-int64-min
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=-9223372036854775808}]
+    expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: -9223372036854775808}, name: vlan_id}]}]}
+  - id: paths.parse-item-choice-referenced-selector
+    kind: path_parse
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{ref="cic:network:vlan-100"}]
+    expect: {segments: [{field: vlans}, {item: [{key: {type: string, value: 'cic:network:vlan-100'}, name: ref}]}]}
+  - id: paths.parse-string-looking-like-integer
+    kind: path_parse
+    polarity: positive
+    description: quoted is a string, bare is an integer; the schema checks which one the key needs
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="100"}]
+    expect: {segments: [{field: logical_interfaces}, {item: [{key: {type: string, value: '100'}, name: name}]}]}
+  - id: paths.parse-no-root
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: .enabled
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-no-root-bare-name
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: enabled
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-empty-text
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: ''
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-empty-name-trailing-dot
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.a.
+    expect: {error: PATH_EMPTY_NAME}
+    codes_status: provisional
+  - id: paths.parse-empty-name-double-dot
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.a..b
+    expect: {error: PATH_EMPTY_NAME}
+    codes_status: provisional
+  - id: paths.parse-empty-name-after-root
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.
+    expect: {error: PATH_EMPTY_NAME}
+    codes_status: provisional
+  - id: paths.parse-unknown-escape
+    kind: path_parse
+    polarity: negative
+    description: unknown escape sequences are errors
+    schema: {synthetic: {lexical: true}}
+    path: $.a\x
+    expect: {error: PATH_BAD_ESCAPE}
+    codes_status: provisional
+  - id: paths.parse-trailing-backslash
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.a\
+    expect: {error: PATH_BAD_ESCAPE}
+    codes_status: provisional
+  - id: paths.parse-unescaped-bracket-in-name
+    kind: path_parse
+    polarity: negative
+    description: the name characters that need escaping are never taken literally
+    schema: {synthetic: {lexical: true}}
+    path: $.a]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-unescaped-brace-in-name
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.a{b
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-control-char-in-name
+    kind: path_parse
+    polarity: negative
+    description: a control character cannot be part of a name
+    schema: {synthetic: {lexical: true}}
+    path: "$.a\x01b"
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-index-selector
+    kind: path_parse
+    polarity: negative
+    description: an index never substitutes for a declared key
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[0]
+    expect: {error: PATH_INDEX_SELECTOR}
+    codes_status: provisional
+  - id: paths.parse-negative-index-selector
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[-1]
+    expect: {error: PATH_INDEX_SELECTOR}
+    codes_status: provisional
+  - id: paths.parse-selector-without-braces
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[vlan_id=100]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-empty
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-empty-name
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{=100}]
+    expect: {error: PATH_EMPTY_NAME}
+    codes_status: provisional
+  - id: paths.parse-selector-unclosed-bracket
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=100}
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-unclosed-brace
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=100]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-unquoted-string
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name=eth0}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-unterminated-string
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="eth0}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-space-after-bracket
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[ {vlan_id=100}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-space-after-equals
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id= 100}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-adjacent-items
+    kind: path_parse
+    polarity: negative
+    description: a list element is a record, not a list
+    schema: {synthetic: {lexical: true}}
+    path: $.nics[{name="a",zone="b"}][{name="a",zone="b"}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-before-any-field
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $[{vlan_id=1}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.parse-selector-duplicate-component
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.nics[{name="a",name="b"}]
+    expect: {error: PATH_DUPLICATE_COMPONENT}
+    codes_status: provisional
+  - id: paths.parse-selector-bad-string-escape
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="a\xb"}]
+    expect: {error: PATH_BAD_ESCAPE}
+    codes_status: provisional
+  - id: paths.parse-selector-integer-leading-zero
+    kind: path_parse
+    polarity: negative
+    description: a valid reading exists but it is not the canonical text
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=007}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-integer-plus-sign
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=+7}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-integer-negative-zero
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=-0}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-integer-out-of-range
+    kind: path_parse
+    polarity: negative
+    description: keys outside signed 64-bit are rejected until a numeric contract exists
+    schema: {synthetic: {lexical: true}}
+    path: $.vlans[{vlan_id=9223372036854775808}]
+    expect: {error: PATH_INTEGER_RANGE}
+    codes_status: provisional
+  - id: paths.parse-selector-unicode-escape-of-printable
+    kind: path_parse
+    polarity: negative
+    description: \u is canonical only for control characters without a short escape
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="\u0041"}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-uppercase-hex-escape
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="\u001F"}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-long-escape-of-newline
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="\u000a"}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.parse-selector-escaped-slash
+    kind: path_parse
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    path: $.logical_interfaces[{name="a\/b"}]
+    expect: {error: PATH_NONCANONICAL}
+    codes_status: provisional
+  - id: paths.format-root
+    kind: path_format
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    segments: []
+    expect: {text: $}
+  - id: paths.format-escapes-name
+    kind: path_format
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: a.b}, {field: c\d}]
+    expect: {text: $.a\.b.c\\d}
+  - id: paths.format-escapes-selector-name
+    kind: path_format
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: l}, {item: [{key: {type: string, value: x}, name: k=1}]}]
+    expect: {text: '$.l[{k\=1="x"}]'}
+  - id: paths.format-canonical-string
+    kind: path_format
+    polarity: positive
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: l}, {item: [{key: {type: string, value: 'q"\
+
+            '}, name: name}]}]
+    expect: {text: '$.l[{name="q\"\\\n"}]'}
+  - id: paths.format-composite-order-as-given
+    kind: path_format
+    polarity: positive
+    description: the formatter keeps the segment order it is given; the schema fixes that order
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: nics}, {item: [{key: {type: string, value: nic-0}, name: name}, {key: {type: string, value: eu}, name: zone}]}]
+    expect: {text: '$.nics[{name="nic-0",zone="eu"}]'}
+  - id: paths.format-empty-field-name
+    kind: path_format
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: ''}]
+    expect: {error: PATH_EMPTY_NAME}
+    codes_status: provisional
+  - id: paths.format-control-char-in-name
+    kind: path_format
+    polarity: negative
+    description: a name that cannot be written as canonical text is an error, not an approximation
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: 'a
+
+      b'}]
+    expect: {error: PATH_SYNTAX}
+    codes_status: provisional
+  - id: paths.format-boolean-key
+    kind: path_format
+    polarity: negative
+    description: boolean, number and bytes key encodings are not defined (ADR 0006)
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: flags}, {item: [{key: {type: boolean, value: true}, name: 'on'}]}]
+    expect: {error: PATH_KEY_UNSUPPORTED}
+    codes_status: provisional
+  - id: paths.format-integer-key-out-of-range
+    kind: path_format
+    polarity: negative
+    schema: {synthetic: {lexical: true}}
+    segments: [{field: vlans}, {item: [{key: {type: integer, value: 9223372036854775808}, name: vlan_id}]}]
+    expect: {error: PATH_INTEGER_RANGE}
+    codes_status: provisional
+  - id: paths.resolve-root
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $
+    expect: {primitive_position: false, target: root}
+  - id: paths.resolve-scalar
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.mtu
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-field-named-value
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.value
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-composite
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.ip
+    expect: {primitive_position: true, target: composite}
+  - id: paths.resolve-nested-scalar
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.ip.gateway
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-set-field
+    kind: path_resolve
+    polarity: positive
+    description: the collection field is addressable
+    schema: {synthetic: {tree: main}}
+    path: $.ip.addresses
+    expect: {primitive_position: true, target: set}
+  - id: paths.resolve-opaque-field
+    kind: path_resolve
+    polarity: positive
+    description: the opaque field itself is one position
+    schema: {synthetic: {tree: main}}
+    path: $.ip.blob
+    expect: {primitive_position: true, target: opaque}
+  - id: paths.resolve-list-field
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.nics
+    expect: {primitive_position: true, target: list}
+  - id: paths.resolve-plain-list-item
+    kind: path_resolve
+    polarity: positive
+    description: a list element is a structural record, not an Access-wrapped primitive position
+    schema: {synthetic: {tree: main}}
+    path: $.logical_interfaces[{name="eth0"}]
+    expect: {primitive_position: false, target: item}
+  - id: paths.resolve-field-of-item
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.logical_interfaces[{name="eth0"}].name
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-set-under-item
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.logical_interfaces[{name="eth0"}].ip.addresses
+    expect: {primitive_position: true, target: set}
+  - id: paths.resolve-composite-key-item
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{name="nic-0",zone="eu"}].subnet
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-item-choice-referenced
+    kind: path_resolve
+    polarity: positive
+    description: the selector names pick the case; distinct key sets make that unique (grammar C17)
+    schema: {synthetic: {tree: main}}
+    path: $.vlans[{ref="x"}]
+    expect: {primitive_position: false, target: item}
+  - id: paths.resolve-item-choice-inline
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.vlans[{vlan_id=100}].vlan_mode
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-escaped-name
+    kind: path_resolve
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    path: $.interface\.name
+    expect: {primitive_position: true, target: scalar}
+  - id: paths.resolve-unknown-field
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nope
+    expect: {error: PATH_UNKNOWN_FIELD}
+    codes_status: provisional
+  - id: paths.resolve-unknown-nested-field
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.ip.nope
+    expect: {error: PATH_UNKNOWN_FIELD}
+    codes_status: provisional
+  - id: paths.resolve-unknown-field-below-item
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{name="a",zone="b"}].nope
+    expect: {error: PATH_UNKNOWN_FIELD}
+    codes_status: provisional
+  - id: paths.resolve-through-scalar
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.mtu.x
+    expect: {error: PATH_THROUGH_SCALAR}
+    codes_status: provisional
+  - id: paths.resolve-into-opaque
+    kind: path_resolve
+    polarity: negative
+    description: an opaque value is one position; the walker never descends into it
+    schema: {synthetic: {tree: main}}
+    path: $.ip.blob.x
+    expect: {error: PATH_THROUGH_OPAQUE}
+    codes_status: provisional
+  - id: paths.resolve-set-element-selector
+    kind: path_resolve
+    polarity: negative
+    description: a set element is not independently addressable
+    schema: {synthetic: {tree: main}}
+    path: $.ip.addresses[{name="a"}]
+    expect: {error: PATH_SET_ELEMENT}
+    codes_status: provisional
+  - id: paths.resolve-set-descent
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.ip.addresses.x
+    expect: {error: PATH_SET_ELEMENT}
+    codes_status: provisional
+  - id: paths.resolve-selector-on-scalar
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.mtu[{k=1}]
+    expect: {error: PATH_NOT_A_LIST}
+    codes_status: provisional
+  - id: paths.resolve-selector-on-composite
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.ip[{k=1}]
+    expect: {error: PATH_NOT_A_LIST}
+    codes_status: provisional
+  - id: paths.resolve-list-without-selector
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nics.subnet
+    expect: {error: PATH_LIST_NOT_SELECTED}
+    codes_status: provisional
+  - id: paths.resolve-selector-missing-component
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{name="a"}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-selector-extra-component
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{name="a",zone="b",colour="c"}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-selector-unknown-component
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{name="a",region="b"}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-selector-wrong-order
+    kind: path_resolve
+    polarity: negative
+    description: canonical text uses the declared key order
+    schema: {synthetic: {tree: main}}
+    path: $.nics[{zone="b",name="a"}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-selector-non-key-field
+    kind: path_resolve
+    polarity: negative
+    description: a field of the record that is not part of the key
+    schema: {synthetic: {tree: main}}
+    path: $.logical_interfaces[{ip="a"}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-item-choice-mixed-cases
+    kind: path_resolve
+    polarity: negative
+    description: one selector cannot name keys of two cases
+    schema: {synthetic: {tree: main}}
+    path: $.vlans[{ref="x",vlan_id=1}]
+    expect: {error: PATH_SELECTOR_MISMATCH}
+    codes_status: provisional
+  - id: paths.resolve-integer-key-given-string
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.vlans[{vlan_id="100"}]
+    expect: {error: PATH_KEY_TYPE}
+    codes_status: provisional
+  - id: paths.resolve-string-key-given-integer
+    kind: path_resolve
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    path: $.logical_interfaces[{name=1}]
+    expect: {error: PATH_KEY_TYPE}
+    codes_status: provisional
+  - id: paths.resolve-boolean-key-unsupported
+    kind: path_resolve
+    polarity: negative
+    description: only string and integer keys are measured in the pinned corpus
+    schema: {synthetic: {tree: boolkey}}
+    path: $.flags[{on=1}]
+    expect: {error: PATH_KEY_UNSUPPORTED}
+    codes_status: provisional
+  - id: paths.of-simple-field
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {mtu: 1500}
+    at: [mtu]
+    expect: {path: $.mtu}
+  - id: paths.of-nested-field
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {ip: {gateway: g}}
+    at: [ip, gateway]
+    expect: {path: $.ip.gateway}
+  - id: paths.of-composite-key-item
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {nics: [{name: nic-0, subnet: s0, zone: eu}, {name: nic-1, subnet: s1, zone: us}]}
+    at: [nics, 1, subnet]
+    expect: {path: '$.nics[{name="nic-1",zone="us"}].subnet'}
+  - id: paths.of-composite-key-uses-declared-order
+    kind: path_of
+    polarity: positive
+    description: the document lists zone first; the schema order wins
+    schema: {synthetic: {tree: main}}
+    document: {nics: [{name: nic-0, zone: eu}]}
+    at: [nics, 0]
+    expect: {path: '$.nics[{name="nic-0",zone="eu"}]'}
+  - id: paths.of-item-choice-referenced
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {vlans: [{ref: x}, {vlan_id: 100, vlan_mode: access}]}
+    at: [vlans, 0]
+    expect: {path: '$.vlans[{ref="x"}]'}
+  - id: paths.of-item-choice-inline
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {vlans: [{ref: x}, {vlan_id: 100, vlan_mode: access}]}
+    at: [vlans, 1, vlan_mode]
+    expect: {path: '$.vlans[{vlan_id=100}].vlan_mode'}
+  - id: paths.of-key-value-with-delimiters
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {logical_interfaces: [{name: 'a"b,c=d}]\'}]}
+    at: [logical_interfaces, 0]
+    expect: {path: '$.logical_interfaces[{name="a\"b,c=d}]\\"}]'}
+  - id: paths.of-access-expanded-key-value
+    kind: path_of
+    polarity: positive
+    description: an Access-wrapped key field gives the same identity as the bare value
+    schema: {synthetic: {tree: main}}
+    document: {logical_interfaces: [{name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: eth0}}]}
+    at: [logical_interfaces, 0]
+    expect: {path: '$.logical_interfaces[{name="eth0"}]'}
+  - id: paths.of-field-named-value
+    kind: path_of
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    document: {value: v}
+    at: [value]
+    expect: {path: $.value}
+  - id: paths.of-field-named-access
+    kind: path_of
+    polarity: positive
+    description: document keys that merely resemble Access metadata stay data fields
+    schema: {synthetic: {tree: accessnames}}
+    document: {access: x, ip: {gateway: g}}
+    at: [ip]
+    expect: {path: $.ip}
+  - id: paths.of-duplicate-identity
+    kind: path_of
+    polarity: negative
+    description: never silently mapped to an index
+    schema: {synthetic: {tree: main}}
+    document: {logical_interfaces: [{name: eth0}, {name: eth0}]}
+    at: [logical_interfaces, 1]
+    expect: {error: PATH_DUPLICATE_IDENTITY}
+    codes_status: provisional
+  - id: paths.of-missing-key-component
+    kind: path_of
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    document: {nics: [{name: nic-0, subnet: s}]}
+    at: [nics, 0]
+    expect: {error: PATH_KEY_MISSING}
+    codes_status: provisional
+  - id: paths.of-key-wrong-type
+    kind: path_of
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    document: {vlans: [{vlan_id: '100'}]}
+    at: [vlans, 0]
+    expect: {error: PATH_KEY_TYPE}
+    codes_status: provisional
+  - id: paths.of-item-matches-no-case
+    kind: path_of
+    polarity: negative
+    description: 'ADR 0002: a case matches when every key of the record is a declared field of it'
+    schema: {synthetic: {tree: main}}
+    document: {vlans: [{ref: x, vlan_id: 1}]}
+    at: [vlans, 0]
+    expect: {error: PATH_CASE_NONE}
+    codes_status: provisional
+  - id: paths.of-item-matches-several-cases
+    kind: path_of
+    polarity: negative
+    description: 'both cases declare k1, k2 and x and the record holds both key fields, so both match (ADR 0002: zero or several is an error)'
+    schema: {synthetic: {tree: overlap}}
+    document: {items: [{k1: a, k2: b}]}
+    at: [items, 0]
+    expect: {error: PATH_CASE_AMBIGUOUS}
+    codes_status: provisional
+  - id: paths.of-item-without-any-case-key-matches-no-case
+    kind: path_of
+    polarity: negative
+    description: every declared field is allowed by both cases, but neither case finds its key field present
+    schema: {synthetic: {tree: overlap}}
+    document: {items: [{x: '1'}]}
+    at: [items, 0]
+    expect: {error: PATH_CASE_NONE}
+    codes_status: provisional
+  - id: paths.of-overlapping-cases-one-key-selects
+    kind: path_of
+    polarity: positive
+    description: the record lacks k2, so only case a matches
+    schema: {synthetic: {tree: overlap}}
+    document: {items: [{k1: a, x: '1'}]}
+    at: [items, 0]
+    expect: {path: '$.items[{k1="a"}]'}
+  - id: paths.of-boolean-key-unsupported
+    kind: path_of
+    polarity: negative
+    schema: {synthetic: {tree: boolkey}}
+    document: {flags: [{'on': true}]}
+    at: [flags, 0]
+    expect: {error: PATH_KEY_UNSUPPORTED}
+    codes_status: provisional
+  - id: paths.stability-list-reordered
+    kind: path_stability
+    polarity: positive
+    description: the same logical object has the same path after the list is reordered
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [nics, 1, subnet], document: {nics: [{name: nic-0, subnet: s0, zone: eu}, {name: nic-1, subnet: s1, zone: us}]}}, {at: [nics, 0, subnet], document: {nics: [{name: nic-1, subnet: s1, zone: us}, {name: nic-0, subnet: s0, zone: eu}]}}]
+    expect: {path: '$.nics[{name="nic-1",zone="us"}].subnet'}
+  - id: paths.stability-item-choice-reordered
+    kind: path_stability
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [vlans, 1], document: {vlans: [{ref: x}, {vlan_id: 100}]}}, {at: [vlans, 0], document: {vlans: [{vlan_id: 100}, {ref: x}]}}]
+    expect: {path: '$.vlans[{vlan_id=100}]'}
+  - id: paths.stability-field-order-changed
+    kind: path_stability
+    polarity: positive
+    description: YAML mapping order does not change the path
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [enabled], document_yaml: 'mtu: 1
+
+      enabled: true
+
+      '}, {at: [enabled], document_yaml: 'enabled: true
+
+      mtu: 1
+
+      '}]
+    expect: {path: $.enabled}
+  - id: paths.stability-record-field-order-changed
+    kind: path_stability
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [nics, 0, subnet], document_yaml: "nics:\n  - {name: a, zone: b, subnet: s}\n"}, {at: [nics, 0, subnet], document_yaml: "nics:\n  - {subnet: s, zone: b, name: a}\n"}]
+    expect: {path: '$.nics[{name="a",zone="b"}].subnet'}
+  - id: paths.stability-short-versus-expanded
+    kind: path_stability
+    polarity: positive
+    description: the Access representation does not change the path
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [mtu], document: {mtu: 1500}}, {at: [mtu], document: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}}]
+    expect: {path: $.mtu}
+  - id: paths.stability-expanded-key-field
+    kind: path_stability
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [logical_interfaces, 0], document: {logical_interfaces: [{name: eth0}]}}, {at: [logical_interfaces, 0], document: {logical_interfaces: [{name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: eth0}}]}}]
+    expect: {path: '$.logical_interfaces[{name="eth0"}]'}
+  - id: paths.stability-duplicate-identity-stays-an-error
+    kind: path_stability
+    polarity: negative
+    description: reordering cannot make an ambiguous identity valid
+    schema: {synthetic: {tree: main}}
+    variants: [{at: [logical_interfaces, 0], document: {logical_interfaces: [{name: a}, {name: a}]}}, {at: [logical_interfaces, 1], document: {logical_interfaces: [{name: a}, {name: a}, {name: b}]}}]
+    expect: {error: PATH_DUPLICATE_IDENTITY}
+    codes_status: provisional

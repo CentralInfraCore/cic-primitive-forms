@@ -107,3 +107,51 @@ faults:
   - id: class-unknown
     rule: EXPECT_FIELD
     ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: short}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: shorter}"}]
+  - id: anchor-in-fixture
+    rule: YAML_ANCHOR
+    ops: [{file: corpus/codes.yaml, old: "  CONTRACT_VIOLATION: provisional", new: "  CONTRACT_VIOLATION: &a provisional"}]
+  - id: tree-key-not-a-field
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/paths/vectors.yaml, old: "key: ['on']}}}", new: "key: [nope]}}}"}]
+  - id: tree-choice-cases-share-key-set
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/paths/vectors.yaml, old: "key: [k2], name: b}", new: "key: [k1], name: b}"}]
+  - id: tree-ref-dangling
+    rule: REF_DANGLING
+    ops: [{file: corpus/paths/vectors.yaml, old: "schema: {synthetic: {tree: main}}\n    path: $.mtu\n", new: "schema: {synthetic: {tree: nowhere}}\n    path: $.mtu\n"}]
+  - id: lexical-kind-with-tree
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/paths/vectors.yaml, old: "id: paths.parse-root\n    kind: path_parse\n    polarity: positive\n    schema: {synthetic: {lexical: true}}", new: "id: paths.parse-root\n    kind: path_parse\n    polarity: positive\n    schema: {synthetic: {tree: main}}"}]
+  - id: path-expect-success-and-error
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {primitive_position: true, target: scalar}\n  - id: paths.resolve-field-named-value", new: "expect: {primitive_position: true, target: scalar, error: PATH_SYNTAX}\n  - id: paths.resolve-field-named-value"}]
+  - id: item-marked-primitive-position
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/paths/vectors.yaml, old: "id: paths.resolve-plain-list-item\n    kind: path_resolve\n    polarity: positive\n    description: a list element is a structural record, not an Access-wrapped primitive position\n    schema: {synthetic: {tree: main}}\n    path: $.logical_interfaces[{name=\"eth0\"}]\n    expect: {primitive_position: false", new: "id: paths.resolve-plain-list-item\n    kind: path_resolve\n    polarity: positive\n    description: a list element is a structural record, not an Access-wrapped primitive position\n    schema: {synthetic: {tree: main}}\n    path: $.logical_interfaces[{name=\"eth0\"}]\n    expect: {primitive_position: true"}]
+  - id: parse-expectation-item-first
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: []}", new: "expect: {segments: [{item: [{name: k, key: {type: integer, value: 1}}]}]}"}]
+  - id: parse-expectation-empty-field-name
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: [{field: enabled}]}", new: "expect: {segments: [{field: ''}]}"}]
+  - id: parse-expectation-boolean-key
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: vlan_id}]}]}", new: "expect: {segments: [{field: vlans}, {item: [{key: {type: boolean, value: false}, name: vlan_id}]}]}"}]
+  - id: format-input-not-a-list
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "segments: []\n    expect: {text: $}", new: "segments: nonsense\n    expect: {text: $}"}]
+  - id: locator-negative-index
+    rule: PATH_LOCATOR
+    ops: [{file: corpus/paths/vectors.yaml, old: "document: {mtu: 1500}\n    at: [mtu]\n", new: "document: {mtu: 1500}\n    at: [mtu, -1]\n"}]
+  - id: path-input-missing
+    rule: INPUT_PRESENCE
+    ops: [{file: corpus/paths/vectors.yaml, old: "    path: $.mtu\n    expect: {primitive_position: true, target: scalar}\n  - id: paths.resolve-field-named-value", new: "    expect: {primitive_position: true, target: scalar}\n  - id: paths.resolve-field-named-value"}]
+  - id: stability-variants-identical
+    rule: STABILITY_VARIANTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "{at: [nics, 0, subnet], document: {nics: [{name: nic-1, subnet: s1, zone: us}, {name: nic-0, subnet: s0, zone: eu}]}}]", new: "{at: [nics, 1, subnet], document: {nics: [{name: nic-0, subnet: s0, zone: eu}, {name: nic-1, subnet: s1, zone: us}]}}]"}]
+  - id: stability-single-variant
+    rule: STABILITY_VARIANTS
+    ops: [{file: corpus/paths/vectors.yaml, old: ", {at: [nics, 0, subnet], document: {nics: [{name: nic-1, subnet: s1, zone: us}, {name: nic-0, subnet: s0, zone: eu}]}}]", new: "]"}]
+  - id: parse-expectation-control-char-in-component-name
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: vlan_id}]}]}", new: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: \"vlan\\nid\"}]}]}"}]

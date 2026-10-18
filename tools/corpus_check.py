@@ -28,6 +28,7 @@ TYPES = ("null", "boolean", "integer", "float", "string", "list", "map")
 RULES = {
     "YAML_SYNTAX": "file is not parseable YAML",
     "DUPLICATE_YAML_KEY": "a mapping repeats a key",
+    "YAML_ANCHOR": "anchor or alias, which fixtures do not use (they must read the same in every loader)",
     "AMBIGUOUS_SCALAR": "unquoted scalar that YAML 1.1 and 1.2 read differently",
     "UNEXPECTED_FILE": "YAML file in the corpus that is not pins, codes or a suite",
     "ENVELOPE": "missing, unknown or inconsistent file-level field",
@@ -48,6 +49,9 @@ RULES = {
     "TYPED_VALUE": "malformed typed value",
     "TYPED_MISMATCH": "typed value's declared type differs from its actual YAML type",
     "EXPECT_FIELD": "missing or unknown expectation field for this kind",
+    "PATH_SEGMENTS": "malformed path segment list",
+    "STABILITY_VARIANTS": "path_stability variants missing, malformed or not different",
+    "PATH_LOCATOR": "malformed document locator",
 }
 
 
@@ -112,6 +116,15 @@ def _mapping(loader, node, deep=False):
     return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
 
 
+def _no_anchors(self, parent, index):
+    if self.check_event(yaml.events.AliasEvent):
+        raise LoadError("YAML_ANCHOR", "alias %r" % self.peek_event().anchor)
+    if self.peek_event().anchor is not None:
+        raise LoadError("YAML_ANCHOR", "anchor %r" % self.peek_event().anchor)
+    return yaml.composer.Composer.compose_node(self, parent, index)
+
+
+StrictLoader.compose_node = _no_anchors
 StrictLoader.add_constructor("!ambiguous", _ambiguous)
 StrictLoader.add_constructor("tag:yaml.org,2002:map", _mapping)
 
@@ -149,7 +162,12 @@ HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ADR_REF = re.compile(r"^ADR-(\d{4})$")
-INPUT_FORMS = {  # kind -> (allowed input fields, rule on them)
+INPUT_FORMS = {
+    "path_parse": "path",
+    "path_format": "segments",
+    "path_resolve": "path",
+    "path_of": "document, at",
+    "path_stability": "variants",  # kind -> (allowed input fields, rule on them)
     "recognize": "input|input_yaml",
     "validate": "input|absent",
     "roundtrip": "input|absent",
@@ -158,6 +176,11 @@ INPUT_FORMS = {  # kind -> (allowed input fields, rule on them)
     "equality": "ab",
 }
 KIND_FIELDS = {
+    "path_parse": {"path"},
+    "path_format": {"segments"},
+    "path_resolve": {"path"},
+    "path_of": {"document", "at"},
+    "path_stability": {"variants"},
     "recognize": {"input", "input_yaml"},
     "validate": {"input", "absent"},
     "roundtrip": {"input", "absent"},
@@ -168,7 +191,17 @@ KIND_FIELDS = {
 COMMON_FIELDS = {"id", "kind", "polarity", "description", "adr", "grammar",
                  "schema", "codes_status", "expect"}
 REQUIRED_COMMON = ("id", "kind", "polarity", "schema", "expect")
+PATH_SUCCESS = {  # kind -> expectation key of the success outcome
+    "path_parse": "segments", "path_format": "text", "path_resolve": "target",
+    "path_of": "path", "path_stability": "path",
+}
+TARGETS = ("root", "scalar", "composite", "list", "item", "set", "opaque")
 EXPECT_KEYS = {
+    "path_parse": ({"segments", "error"}, None),
+    "path_format": ({"text", "error"}, None),
+    "path_resolve": ({"target", "primitive_position", "error"}, None),
+    "path_of": ({"path", "error"}, None),
+    "path_stability": ({"path", "error"}, None),
     "recognize": ({"class", "elements", "validate", "opaque_value", "phase", "code"}, None),
     "validate": ({"valid", "error", "stays_absent", "default_candidate", "path",
                   "kind", "is_inherit", "preserved", "upstream_conflict"}, None),
@@ -277,6 +310,28 @@ def check_recognize_expect(case, expect, where, vs):
                                 % (sorted(el), sorted(fields))))
 
 
+def check_path_expect(kind, case, expect, where, vs):
+    ok_key = PATH_SUCCESS[kind]
+    if (ok_key in expect) == ("error" in expect):
+        vs.append(Violation("EXPECT_FIELD", where, "exactly one of %s and error" % ok_key))
+        return
+    if "error" in expect:
+        if set(expect) != {"error"}:
+            vs.append(Violation("EXPECT_FIELD", where, "an error expectation carries nothing else"))
+        return
+    if kind == "path_parse":
+        check_segments(expect["segments"], where + ".segments", vs, True)
+    elif kind == "path_resolve":
+        if expect.get("target") not in TARGETS or not isinstance(expect.get("primitive_position"), bool):
+            vs.append(Violation("EXPECT_FIELD", where, "target in %s and boolean primitive_position" % (TARGETS,)))
+        elif expect["primitive_position"] != (expect["target"] not in ("root", "item")):
+            vs.append(Violation("EXPECT_FIELD", where, "only root and item are not primitive positions"))
+    elif not isinstance(expect[ok_key], str):
+        vs.append(Violation("EXPECT_FIELD", where, "%s must be a string" % ok_key))
+    if kind != "path_resolve" and set(expect) != {ok_key}:
+        vs.append(Violation("EXPECT_FIELD", where, "only %s is allowed" % ok_key))
+
+
 def check_expect_types(kind, expect, where, vs):
     if kind == "validate" and "preserved" in expect:
         check_typed(expect["preserved"], where + ".preserved", vs)
@@ -290,7 +345,71 @@ def check_expect_types(kind, expect, where, vs):
         check_typed_fields(expect["fields"], where + ".fields", vs)
 
 
-def check_schema(kind, schema, pins, where, vs):
+SCALAR_TYPES = ("string", "integer", "boolean", "number", "bytes")
+
+
+def tree_problems(tree):
+    """Problems of a synthetic schema tree (a notation, not a schema)."""
+    out = []
+
+    def fields(f, ctx):
+        if not isinstance(f, dict) or not f:
+            out.append("%s: fields must be a non-empty map" % ctx)
+            return {}
+        for n, node in f.items():
+            walk(node, "%s.%s" % (ctx, n))
+        return f
+
+    def keyed(spec, ctx):
+        fs = fields(spec.get("fields"), ctx)
+        key = spec.get("key")
+        if not isinstance(key, list) or not key or len(set(key)) != len(key) or not all(
+                isinstance(k, str) and k in fs and isinstance(fs[k], dict) and "scalar" in fs[k] for k in key):
+            out.append("%s: key must list distinct scalar fields of the record" % ctx)
+
+    def walk(node, ctx):
+        if node == "opaque":
+            return
+        if not isinstance(node, dict) or len(node) != 1:
+            out.append("%s: node is opaque or a one-key map" % ctx)
+            return
+        (k, v), = node.items()
+        if k in ("scalar", "set"):
+            if v not in SCALAR_TYPES:
+                out.append("%s: %s type must be one of %s" % (ctx, k, SCALAR_TYPES))
+        elif k == "composite":
+            fields(v, ctx)
+        elif k == "list":
+            if not isinstance(v, dict):
+                out.append("%s: list spec must be a map" % ctx)
+            elif set(v) == {"choice"}:
+                cases = v["choice"]
+                if not isinstance(cases, list) or len(cases) < 2:
+                    out.append("%s: choice needs at least two cases" % ctx)
+                    return
+                names, keysets = set(), set()
+                for c in cases:
+                    if not isinstance(c, dict) or set(c) != {"name", "key", "fields"}:
+                        out.append("%s: case needs name, key, fields" % ctx)
+                        continue
+                    keyed(c, "%s.%s" % (ctx, c.get("name")))
+                    ks = frozenset(c["key"]) if isinstance(c.get("key"), list) else None
+                    if c["name"] in names or ks in keysets:
+                        out.append("%s: cases must differ in name and in key set (grammar C17)" % ctx)
+                    names.add(c["name"])
+                    keysets.add(ks)
+            elif set(v) == {"key", "fields"}:
+                keyed(v, ctx)
+            else:
+                out.append("%s: list is {key, fields} or {choice}" % ctx)
+        else:
+            out.append("%s: unknown node kind %r" % (ctx, k))
+
+    fields(tree, "tree")
+    return out
+
+
+def check_schema(kind, schema, pins, where, vs, trees=None):
     if not isinstance(schema, dict) or len(schema) != 1:
         vs.append(Violation("SCHEMA_FIXTURE", where, "schema is exactly one of synthetic or pin"))
         return
@@ -302,7 +421,19 @@ def check_schema(kind, schema, pins, where, vs):
     if not isinstance(syn, dict):
         vs.append(Violation("SCHEMA_FIXTURE", where, "schema is exactly one of synthetic or pin"))
         return
-    if kind == "validate":
+    if kind in ("path_parse", "path_format"):
+        if syn != {"lexical": True}:
+            vs.append(Violation("SCHEMA_FIXTURE", where, "lexical path kinds take synthetic: {lexical: true}"))
+    elif kind.startswith("path_"):
+        if set(syn) != {"tree"}:
+            vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
+        elif isinstance(syn["tree"], str):
+            if syn["tree"] not in (trees or {}):
+                vs.append(Violation("REF_DANGLING", where, "tree %r not in the suite's trees" % syn["tree"]))
+        else:
+            for p in tree_problems(syn["tree"]):
+                vs.append(Violation("SCHEMA_FIXTURE", where, p))
+    elif kind == "validate":
         if set(syn) == {"slot"}:
             if syn["slot"] not in SLOTS:
                 vs.append(Violation("SCHEMA_FIXTURE", where, "unknown slot %r" % (syn["slot"],)))
@@ -332,7 +463,7 @@ def check_shape(shape, where, vs):
             vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional"))
 
 
-def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes):
+def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes, trees=None):
     if not isinstance(case, dict):
         vs.append(Violation("CASE_FIELD", where, "case is not a mapping"))
         return None
@@ -368,7 +499,7 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
     if "grammar" in eff and eff["grammar"] not in pins.get("grammar", {}):
         vs.append(Violation("REF_DANGLING", where, "grammar pin %r not in pins.yaml" % (eff["grammar"],)))
     if kind and "schema" in case:
-        check_schema(kind, case["schema"], pins, where + ".schema", vs)
+        check_schema(kind, case["schema"], pins, where + ".schema", vs, trees)
     expect = case.get("expect")
     if kind and isinstance(expect, dict):
         allowed, required = EXPECT_KEYS[kind]
@@ -380,6 +511,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
         check_expect_types(kind, expect, where + ".expect", vs)
         if kind == "recognize":
             check_recognize_expect(case, expect, where + ".expect", vs)
+        if kind.startswith("path_"):
+            check_path_expect(kind, case, expect, where + ".expect", vs)
         found = collect_codes(expect)
         if not all(isinstance(x, str) for x in found):
             vs.append(Violation("EXPECT_FIELD", where, "error and code expectations must be strings"))
@@ -404,8 +537,98 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
     return cid
 
 
+def strict_eq(a, b):
+    """Equality that never mixes 0 with false, 1 with true, or a list with a map."""
+    if yaml_type(a) != yaml_type(b):
+        return False
+    if isinstance(a, dict):
+        return a.keys() == b.keys() and all(strict_eq(a[k], b[k]) for k in a)
+    if isinstance(a, list):
+        return len(a) == len(b) and all(strict_eq(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def valid_locator(at):
+    return isinstance(at, list) and all(
+        (isinstance(s, str) and s) or (yaml_type(s) == "integer" and s >= 0) for s in at)
+
+
+def check_segments(segs, where, vs, strict_names):
+    """Segment list of the typed path model: Field(name) and ListItem(keys), item after field."""
+    if not isinstance(segs, list):
+        vs.append(Violation("PATH_SEGMENTS", where, "segments must be a list"))
+        return
+    prev = None
+    for i, s in enumerate(segs):
+        w = "%s[%d]" % (where, i)
+        if isinstance(s, dict) and set(s) == {"field"} and isinstance(s["field"], str):
+            if strict_names and (not s["field"] or any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in s["field"])):
+                vs.append(Violation("PATH_SEGMENTS", w, "field name must be non-empty without control characters"))
+            prev = "field"
+        elif isinstance(s, dict) and set(s) == {"item"} and isinstance(s["item"], list) and s["item"]:
+            if prev != "field":
+                vs.append(Violation("PATH_SEGMENTS", w, "an item selector must directly follow a field"))
+            names = []
+            for j, comp in enumerate(s["item"]):
+                if not (isinstance(comp, dict) and set(comp) == {"name", "key"} and isinstance(comp["name"], str)):
+                    vs.append(Violation("PATH_SEGMENTS", "%s.item[%d]" % (w, j), "component is {name, key}"))
+                    continue
+                names.append(comp["name"])
+                check_typed(comp["key"], "%s.item[%d].key" % (w, j), vs)
+                if strict_names and isinstance(comp["key"], dict) and comp["key"].get("type") not in ("string", "integer"):
+                    vs.append(Violation("PATH_SEGMENTS", "%s.item[%d].key" % (w, j), "a parsed key is a string or an integer"))
+                if strict_names and (not comp["name"] or any(
+                        ord(ch) < 0x20 or ord(ch) == 0x7f for ch in comp["name"])):
+                    vs.append(Violation("PATH_SEGMENTS", "%s.item[%d]" % (w, j),
+                                        "component name must be non-empty without control characters"))
+            if len(set(names)) != len(names):
+                vs.append(Violation("PATH_SEGMENTS", w, "duplicate component names"))
+            prev = "item"
+        else:
+            vs.append(Violation("PATH_SEGMENTS", w, "segment is {field: name} or {item: [{name, key}]}"))
+            prev = None
+
+
+def check_path_inputs(kind, case, where, vs):
+    def need(*names):
+        extra = KIND_FIELDS[kind] - set(names)
+        if any(n not in case for n in names) or extra & set(case) - set(names):
+            vs.append(Violation("INPUT_PRESENCE", where, "kind %s takes exactly %s" % (kind, INPUT_FORMS[kind])))
+            return False
+        return True
+    if kind in ("path_parse", "path_resolve"):
+        if need("path") and not isinstance(case["path"], str):
+            vs.append(Violation("INPUT_PRESENCE", where, "path must be a string"))
+    elif kind == "path_format":
+        if need("segments"):
+            check_segments(case["segments"], where + ".segments", vs, False)
+    elif kind == "path_of":
+        if need("document", "at") and not valid_locator(case["at"]):
+            vs.append(Violation("PATH_LOCATOR", where, "at is a list of field names and non-negative integer indices"))
+    elif kind == "path_stability":
+        if not need("variants"):
+            return
+        var = case["variants"]
+        def body(v):  # a variant holds a parsed document or raw document_yaml text, never both
+            return v.get("document") if "document" in v else v.get("document_yaml")
+        if not isinstance(var, list) or len(var) < 2 or not all(
+                isinstance(v, dict) and set(v) in ({"document", "at"}, {"document_yaml", "at"})
+                and valid_locator(v["at"]) and ("document" in v or isinstance(v["document_yaml"], str)) for v in var):
+            vs.append(Violation("STABILITY_VARIANTS", where,
+                                "variants: at least two {document | document_yaml, at} with a valid locator"))
+            return
+        for i in range(len(var)):
+            for j in range(i + 1, len(var)):
+                if ("document" in var[i]) == ("document" in var[j]) and strict_eq(body(var[i]), body(var[j])):
+                    vs.append(Violation("STABILITY_VARIANTS", where,
+                                        "variants %d and %d have identical documents, the stability case would prove nothing" % (i, j)))
+
+
 def check_inputs(kind, case, where, vs):
     has = lambda f: f in case
+    if kind.startswith("path_"):
+        check_path_inputs(kind, case, where, vs)
+        return
     if kind == "recognize":
         ok = has("input") != has("input_yaml")
     elif kind in ("validate", "roundtrip"):
@@ -495,9 +718,16 @@ def check_corpus(root):
         suite = parts[1]
         stats["suites"] += 1
         need = {"corpus_format", "suite", "status", "defaults", "cases"}
-        if not isinstance(doc, dict) or set(doc) != need:
-            vs.append(Violation("ENVELOPE", rel, "keys must be %s" % sorted(need)))
+        if not isinstance(doc, dict) or not need <= set(doc) <= need | {"trees"}:
+            vs.append(Violation("ENVELOPE", rel, "keys must be %s, optionally trees" % sorted(need)))
             continue
+        trees = doc.get("trees", {})
+        if not isinstance(trees, dict):
+            vs.append(Violation("ENVELOPE", rel, "trees must be a map"))
+            trees = {}
+        for tname, tree in trees.items():
+            for p in tree_problems(tree):
+                vs.append(Violation("SCHEMA_FIXTURE", "%s trees.%s" % (rel, tname), p))
         version(doc, rel, vs)
         if doc["suite"] != suite:
             vs.append(Violation("ENVELOPE", rel, "suite %r differs from directory %r" % (doc["suite"], suite)))
@@ -510,7 +740,7 @@ def check_corpus(root):
             vs.append(Violation("ENVELOPE", rel, "cases must be a non-empty list"))
             continue
         for case in doc["cases"]:
-            cid = check_case(case, suite, doc["defaults"], pins, codes, adr_numbers, rel, vs, used)
+            cid = check_case(case, suite, doc["defaults"], pins, codes, adr_numbers, rel, vs, used, trees)
             stats["cases"] += 1
             if isinstance(case, dict):
                 if case.get("polarity") in ("positive", "negative"):
@@ -557,6 +787,12 @@ def loader_invariants():
         ("quoted 0 is a string", yaml_type(load("a: '0'\n")["a"]) == "string"),
         ("empty flow list is a list", load("a: []\n") == {"a": []}),
         ("empty flow map is a map", load("a: {}\n") == {"a": {}}),
+        ("strict equality: 0 is not false", not strict_eq(0, False)),
+        ("strict equality: 1 is not true", not strict_eq(1, True)),
+        ("strict equality: [] is not {}", not strict_eq([], {})),
+        ("strict equality: null is not ''", not strict_eq(None, "")),
+        ("strict equality: nested", strict_eq({"a": [0, None]}, {"a": [0, None]})
+         and not strict_eq({"a": [0]}, {"a": [False]})),
     ]
     bad = [name for name, ok in checks if not ok]
     for name in bad:
