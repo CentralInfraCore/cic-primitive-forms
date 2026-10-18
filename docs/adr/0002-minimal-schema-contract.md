@@ -175,9 +175,11 @@ by the presence of the declared fields. This is what the `devel` grammar already
 fixes (§2.3, "Diszkrimináció: implicit, mezőjelenlét alapján"), and no new
 `type` / `case` key is introduced in the user's YAML. The library evaluates
 every case and accepts exactly one matching case; **zero matches or more than
-one is an explicit error.** A case matches when every key of the record is a
-declared field of the case and every mandatory field of the case is present
-(this definition is a proposal). The grammar itself says that mutual exclusion
+one is an explicit error.** A case matches when every key of the record is a declared field of the case
+and every mandatory field of the case, key fields included, is present. Matching
+runs on the raw authored structure, before any default is applied. Selecting a
+case is not validating the record: the selected case's values, types and
+contracts are checked afterwards. The grammar itself says that mutual exclusion
 of cases is the schema author's responsibility and that its rule C17 does not
 prove it in general; the instance-level error above is how the library reports a
 schema whose cases overlap on a given record.
@@ -191,8 +193,19 @@ schema_ref, schema_digest, grammar commit and digest,
 surface = config_surface, document = authored YAML
 ```
 
-`config_surface` and `state_surface` may belong to the same schema and differ in
-validation and defaulting rules.
+The first instance-document contract allows two processing targets, always named
+by the caller and never by the YAML:
+
+| Surface | Document |
+|---|---|
+| `config_surface` | authored intent, the desired configuration |
+| `state_surface` | observed state coming from the adapter |
+
+They may belong to the same schema and differ in validation and defaulting
+rules. No observation is ever produced from a schema default for
+`state_surface`. `policy_surface` is part of the resolution context, not an
+intent document. `operation_surface` input/output structures may later become a
+separate processing target; they are not generic intent documents.
 
 ## Exit criterion
 
@@ -224,8 +237,9 @@ compliance choice and not legal advice:
   its own source, and the CC licence of that file stays documented next to the
   pin;
 - the cleanest route is an explicit Apache-2.0 (or dual-licence) grant by the
-  rightsholder for the specific fixtures; the schemas' metadata names the
-  project owner, to be confirmed.
+  rightsholder for the specific fixtures; the `owner` field in the
+  schemas' metadata does not by itself prove the complete rights, so it is not
+  taken as a basis for relicensing; the grant, if given, is made explicitly.
 
 Coverage of the real schema, with the lines in the pinned file:
 
@@ -260,6 +274,7 @@ and nothing more.
 
 ## Open questions
 
-1. The exact definition of a matching case (the proposal above).
-2. Which surfaces a document may address and how the caller names them.
-3. Confirmation of the fixture-licence route with the rightsholder.
+1. Whether and when `operation_surface` becomes a processing target.
+2. The explicit rights grant for fixtures, if one is wanted. It is not a
+   precondition for this ADR, because no file of the source repositories is
+   copied into this repository.
