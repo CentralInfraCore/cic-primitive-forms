@@ -51,6 +51,13 @@ primitive is:
 - **A rejected or ambiguous input is an explicit error**, never silently
   reinterpreted.
 
+## Corpus check
+
+`make corpus` (needs `pip install -r tools/requirements.txt`) checks the structure of
+every fixture and proves with seeded faults that the check can fail. It is a
+structural check only; implementation conformance is not run until the P1 runners
+exist. Format: [ADR 0005](docs/adr/0005-conformance-corpus-contract.md).
+
 ## What does not belong here
 
 - Conformance evaluation, verdicts, canonical digests: that is

@@ -1,0 +1,15 @@
+# Error code registry. Every code a case expects must be listed here with its status.
+# All codes are provisional until the error-contract ADR closes P0 point 6; a case that
+# uses a code carries codes_status equal to the status below.
+corpus_format: 1
+codes:
+  CONTRACT_VIOLATION: provisional
+  DUPLICATE_KEY: provisional
+  EXPANDED_WITH_EXTRA_KEY: provisional
+  INVALID_ACCESS_VALUE: provisional
+  INVALID_CERT_PATTERN: provisional
+  INVALID_INHERIT: provisional
+  MAP_AT_SCALAR_POSITION: provisional
+  MISSING_MANDATORY: provisional
+  NULL_NOT_ALLOWED: provisional
+  UNKNOWN_FIELD: provisional

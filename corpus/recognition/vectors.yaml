@@ -1,151 +1,234 @@
-# Provisional recognition vectors for ADR 0001. Format is not final.
-# position: scalar | any | {structured: [child fields]} | {list_of: <position>}
-# A = [value, access, modify, inherit, default_injection, conformance]
-# validate: expected result of the later validate step on a Short node
-#           (codes provisional).
-vectors:
-  - {id: scalar-short, position: scalar, input: 4, expect: {class: short}}
-  - {id: list-short, position: any, input: [1, 2], expect: {class: short}}
-  - {id: null-short, position: any, input: null, expect: {class: short}}
-  - id: full-key-set-expanded
-    position: scalar
-    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+# Provisional recognition and collapse cases for ADR 0001. Format: ADR 0005.
+# Positions: scalar | opaque | {structured: [fields]} | {list_of: position}.
+# A = [value, access, modify, inherit, default_injection, conformance], read from the grammar pin.
+# recognize.expect.validate: expected result of the later validate step on a Short node.
+# collapse: expand(collapse(L, I, S), S) == L; defaults of S are the symbolic ones;
+# authored_expanded says whether the intent wrote the node in expanded form.
+corpus_format: 1
+suite: recognition
+status: provisional
+defaults: {adr: ADR-0001, grammar: cic-primitives-devel}
+cases:
+  - id: recognition.scalar-short
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: 4
+    expect: {class: short}
+  - id: recognition.list-short
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: [1, 2]
+    expect: {class: short}
+  - id: recognition.null-short
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: null
+    expect: {class: short}
+  - id: recognition.full-key-set-expanded
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     expect: {class: expanded}
-  - id: full-key-set-any-is-expanded
-    position: any
-    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+  - id: recognition.full-key-set-any-is-expanded
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     expect: {class: expanded}
-  - id: full-key-set-structured-is-expanded
-    position: {structured: [host, port]}
-    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+  - id: recognition.full-key-set-structured-is-expanded
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: {structured: [host, port]}}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     expect: {class: expanded}
-  - id: any-literal-map-wrapped
+  - id: recognition.any-literal-map-wrapped
+    kind: recognize
+    polarity: positive
     description: literal map equal to A is written under an explicit wrapper; its content stays opaque
-    position: any
-    input:
-      value: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6}
-      access: inherit
-      modify: inherit
-      inherit: true
-      default_injection: null
-      conformance: implemented
+    schema: {synthetic: {position: opaque}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}}
     expect: {class: expanded, opaque_value: true}
-  - id: structured-child-fields-equal-A-precedence
+  - id: recognition.structured-child-fields-equal-a-precedence
+    kind: recognize
+    polarity: positive
     description: schema children equal A; a map with exactly A is still Expanded (Access keys take precedence)
-    position: {structured: [value, access, modify, inherit, default_injection, conformance]}
-    input: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6}
+    schema: {synthetic: {position: {structured: [value, access, modify, inherit, default_injection, conformance]}}}
+    input: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}
     expect: {class: expanded}
-  - {id: any-plain-map-short, position: any, input: {a: 1, b: 2}, expect: {class: short}}
-  - {id: any-one-access-key-plus-foreign, position: any, input: {value: 1, foo: 2}, expect: {class: short}}
-  - id: any-one-key-is-data
+  - id: recognition.any-plain-map-short
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: {a: 1, b: 2}
+    expect: {class: short}
+  - id: recognition.any-one-access-key-plus-foreign
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: {foo: 2, value: 1}
+    expect: {class: short}
+  - id: recognition.any-one-key-is-data
+    kind: recognize
+    polarity: positive
     description: missing keys mean Short; at any position this is data
-    position: any
+    schema: {synthetic: {position: opaque}}
     input: {value: 1}
     expect: {class: short}
-  - id: any-two-keys-is-data
-    position: any
-    input: {value: 1, access: 2}
+  - id: recognition.any-two-keys-is-data
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: {access: 2, value: 1}
     expect: {class: short}
-  - id: scalar-partial-is-short-then-rejected
-    position: scalar
-    input: {value: 1, access: inherit}
+  - id: recognition.scalar-partial-is-short-then-rejected
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, value: 1}
     expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
-  - id: structured-partial-is-short-then-rejected
-    position: {structured: [host, port]}
-    input: {value: 1, access: inherit}
+    codes_status: provisional
+  - id: recognition.structured-partial-is-short-then-rejected
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: {structured: [host, port]}}}
+    input: {access: inherit, value: 1}
     expect: {class: short, validate: {code: UNKNOWN_FIELD}}
-  - id: structured-child-named-like-access-key
-    position: {structured: [access, port]}
+    codes_status: provisional
+  - id: recognition.structured-child-named-like-access-key
+    kind: recognize
+    polarity: positive
+    schema: {synthetic: {position: {structured: [access, port]}}}
     input: {access: ops, port: 22}
     expect: {class: short}
-  - id: structured-unknown-field-short-then-rejected
-    position: {structured: [host, port]}
-    input: {host: a, colour: red}
+  - id: recognition.structured-unknown-field-short-then-rejected
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: {structured: [host, port]}}}
+    input: {colour: red, host: a}
     expect: {class: short, validate: {code: UNKNOWN_FIELD}}
-  - id: scalar-plain-map-short-then-rejected
-    position: scalar
+    codes_status: provisional
+  - id: recognition.scalar-plain-map-short-then-rejected
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: scalar}}
     input: {a: 1}
     expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
-  - id: all-keys-plus-extra-any
+    codes_status: provisional
+  - id: recognition.all-keys-plus-extra-any
+    kind: recognize
+    polarity: negative
     description: a hostile or mistaken expanded node is never read as data
-    position: any
-    input: {value: secret, access: [admins], modify: [], inherit: true, default_injection: null, conformance: implemented, audit: true}
+    schema: {synthetic: {position: opaque}}
+    input: {access: [admins], audit: true, conformance: implemented, default_injection: null, inherit: true, modify: [], value: secret}
     expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-  - id: all-keys-plus-extra-scalar
-    position: scalar
-    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented, extra: 1}
+    codes_status: provisional
+  - id: recognition.all-keys-plus-extra-scalar
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, extra: 1, inherit: true, modify: inherit, value: 4}
     expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-  - id: all-keys-plus-extra-structured
-    position: {structured: [host, port]}
-    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented, host: a}
+    codes_status: provisional
+  - id: recognition.all-keys-plus-extra-structured
+    kind: recognize
+    polarity: negative
+    schema: {synthetic: {position: {structured: [host, port]}}}
+    input: {access: inherit, conformance: implemented, default_injection: null, host: a, inherit: true, modify: inherit, value: 4}
     expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-  - id: list-elements-recognized-individually
+    codes_status: provisional
+  - id: recognition.list-elements-recognized-individually
+    kind: recognize
+    polarity: positive
     description: provisional, depends on the schema contract (issue 3 point 4)
-    position: {list_of: {structured: [host]}}
-    input:
-      - {host: a}
-      - {value: 1, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: {list_of: {structured: [host]}}}}
+    input: [{host: a}, {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}]
     expect: {classes: [short, expanded]}
-  - id: duplicate-key
+  - id: recognition.duplicate-key
+    kind: recognize
+    polarity: negative
     description: rejected in the parse phase, before recognition
-    position: any
-    input_yaml: "a: 1\na: 2\n"
-    expect: {phase: parse, code: DUPLICATE_KEY}
-# Round trip: expand(collapse(L, I, S), S) == L. Defaults of S:
-# access: inherit, modify: inherit, inherit: true, default_injection: null,
-# conformance: implemented.
-# authored_expanded: whether the intent I wrote this node in expanded form.
-roundtrip:
-  - id: defaults-collapse-to-short
-    position: scalar
-    L: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: opaque}}
+    input_yaml: 'a: 1
+
+  a: 2
+
+  '
+    expect: {code: DUPLICATE_KEY, phase: parse}
+    codes_status: provisional
+  - id: recognition.defaults-collapse-to-short
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     authored_expanded: false
     expect: {collapse: short}
-  - id: explicit-access-override-stays-expanded
-    position: scalar
-    L: {value: 4, access: [OU=admins], modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+  - id: recognition.explicit-access-override-stays-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: [OU=admins], conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: explicit-inherit-false-scalar-stays-expanded
-    position: scalar
-    L: {value: 4, access: inherit, modify: inherit, inherit: false, default_injection: null, conformance: implemented}
+  - id: recognition.explicit-inherit-false-scalar-stays-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: false, modify: inherit, value: 4}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: shortable-map-value-with-policy-stays-expanded
-    position: {structured: [foo]}
-    L: {value: {foo: bar}, access: [OU=admins], modify: inherit, inherit: false, default_injection: null, conformance: implemented}
+  - id: recognition.shortable-map-value-with-policy-stays-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: {structured: [foo]}}}
+    input: {access: [OU=admins], conformance: implemented, default_injection: null, inherit: false, modify: inherit, value: {foo: bar}}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: non-default-default-injection-stays-expanded
-    position: scalar
-    L: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: 0, conformance: implemented}
+  - id: recognition.non-default-default-injection-stays-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: 0, inherit: true, modify: inherit, value: 4}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: non-default-conformance-stays-expanded
-    position: scalar
-    L: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: deprecated}
+  - id: recognition.non-default-conformance-stays-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: deprecated, default_injection: null, inherit: true, modify: inherit, value: 4}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: authored-expanded-defaults-stay-expanded
-    position: scalar
-    L: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+  - id: recognition.authored-expanded-defaults-stay-expanded
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
     authored_expanded: true
     expect: {collapse: expanded}
-  - id: any-value-equal-to-A-stays-expanded
+  - id: recognition.any-value-equal-to-a-stays-expanded
+    kind: collapse
+    polarity: positive
     description: a short form would be recognized as expanded
-    position: any
-    L: {value: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6}, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: opaque}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: any-value-superset-of-A-stays-expanded
+  - id: recognition.any-value-superset-of-a-stays-expanded
+    kind: collapse
+    polarity: positive
     description: a short form would be rejected as EXPANDED_WITH_EXTRA_KEY
-    position: any
-    L: {value: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6, x: 7}, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: opaque}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1, x: 7}}
     authored_expanded: false
     expect: {collapse: expanded}
-  - id: any-value-proper-subset-collapses
+  - id: recognition.any-value-proper-subset-collapses
+    kind: collapse
+    polarity: positive
     description: under the simple rule a proper subset is safely Short
-    position: any
-    L: {value: {value: 1, access: 2}, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: opaque}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {access: 2, value: 1}}
     authored_expanded: false
     expect: {collapse: short}

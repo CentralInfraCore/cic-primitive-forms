@@ -1,45 +1,173 @@
-# Provisional presence vectors for ADR 0003. Format is not final.
-# The `shape` shorthand below is a fixture notation only, NOT a schema. The shared
-# runner binds it to the real Shape members (shape_type, scalar_type, mandatory /
-# optional, nullable, default); no parallel primitive schema is defined here.
-# default_candidate: the default may be considered. Whether it is applied depends
-# on Role and is decided by separate P3 vectors, not here.
-# shape: presence = mandatory | optional; nullable (default false); default (optional)
-# absent: true means the key is missing from the document (not a value); otherwise
-# doc holds the present value, which may be null, "", [], {}, 0 or false.
-validate:
-  - {id: mandatory-absent, shape: {type: string, presence: mandatory}, absent: true, expect: {error: MISSING_MANDATORY}}
-  - {id: mandatory-null, shape: {type: string, presence: mandatory}, doc: null, expect: {error: NULL_NOT_ALLOWED}}
-  - {id: mandatory-nullable-null, shape: {type: string, presence: mandatory, nullable: true}, doc: null, expect: {valid: true}}
-  - {id: mandatory-nullable-absent, shape: {type: string, presence: mandatory, nullable: true}, absent: true, expect: {error: MISSING_MANDATORY}}
-  - {id: mandatory-empty-string, shape: {type: string, presence: mandatory}, doc: "", expect: {valid: true}}
-  - {id: optional-absent, shape: {type: string, presence: optional}, absent: true, expect: {valid: true, stays_absent: true}}
-  - {id: optional-null, shape: {type: string, presence: optional}, doc: null, expect: {error: NULL_NOT_ALLOWED}}
-  - {id: optional-nullable-null, shape: {type: string, presence: optional, nullable: true}, doc: null, expect: {valid: true}}
-  - {id: optional-nullable-absent, shape: {type: string, presence: optional, nullable: true}, absent: true, expect: {valid: true, stays_absent: true}}
-  - {id: zero-is-a-value, shape: {type: integer, presence: optional, default: 5}, doc: 0, expect: {valid: true, default_candidate: false}}
-  - {id: false-is-a-value, shape: {type: boolean, presence: optional, default: true}, doc: false, expect: {valid: true, default_candidate: false}}
-  - {id: default-trigger-absent, shape: {type: integer, presence: optional, default: 5}, absent: true, expect: {valid: true, default_candidate: true}}
-  - {id: default-not-triggered-by-null, shape: {type: integer, presence: optional, default: 5}, doc: null, expect: {error: NULL_NOT_ALLOWED, default_candidate: false}}
-  - {id: default-not-triggered-by-empty-string, shape: {type: string, presence: optional, default: x}, doc: "", expect: {valid: true, default_candidate: false}}
-  - {id: list-empty-ok, shape: {type: list, presence: optional}, doc: [], expect: {valid: true}}
-  - {id: list-empty-below-min-items, shape: {type: list, presence: optional, min_items: 1}, doc: [], expect: {error: CONTRACT_VIOLATION}}
-  - {id: map-empty-composite-all-optional, shape: {type: composite, presence: optional, fields: {a: optional}}, doc: {}, expect: {valid: true}}
-  - {id: map-empty-composite-mandatory-child, shape: {type: composite, presence: optional, fields: {a: mandatory}}, doc: {}, expect: {error: MISSING_MANDATORY, path: a}}
-# round trip: expand -> collapse -> expand must keep each state.
-# present: false means no node/key exists; present: true carries a typed value.
-roundtrip:
-  - {id: absent-stays-absent, absent: true, expect: {expanded: {present: false}, collapsed: {present: false}}}
-  - {id: null-stays-null, doc: null, expect: {expanded: {present: true, value: null}, collapsed: {present: true, value: null}}}
-  - {id: empty-string-preserved, doc: "", expect: {expanded: {present: true, value: ""}, collapsed: {present: true, value: ""}}}
-  - {id: empty-list-preserved, doc: [], expect: {expanded: {present: true, value: []}, collapsed: {present: true, value: []}}}
-  - {id: empty-map-preserved, doc: {}, expect: {expanded: {present: true, value: {}}, collapsed: {present: true, value: {}}}}
-  - id: value-null-and-default-injection-are-separate
+# Provisional presence cases for ADR 0003. Format: ADR 0005.
+# schema.synthetic.shape is a fixture notation, NOT a schema; the shared runner binds it to the
+# real Shape members. presence = mandatory | optional; nullable defaults to false.
+# default_candidate: the default may be considered; whether it applies depends on Role (P3).
+# absent: true means the key is missing (not a value); otherwise input holds the present value,
+# which may be null, "", [], {}, 0 or false. roundtrip expectations are typed values; Absent is
+# {type: absent}.
+corpus_format: 1
+suite: presence
+status: provisional
+defaults: {adr: ADR-0003, grammar: cic-primitives-devel}
+cases:
+  - id: presence.mandatory-absent
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {presence: mandatory, type: string}}}
+    absent: true
+    expect: {error: MISSING_MANDATORY}
+    codes_status: provisional
+  - id: presence.mandatory-null
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {presence: mandatory, type: string}}}
+    input: null
+    expect: {error: NULL_NOT_ALLOWED}
+    codes_status: provisional
+  - id: presence.mandatory-nullable-null
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {nullable: true, presence: mandatory, type: string}}}
+    input: null
+    expect: {valid: true}
+  - id: presence.mandatory-nullable-absent
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {nullable: true, presence: mandatory, type: string}}}
+    absent: true
+    expect: {error: MISSING_MANDATORY}
+    codes_status: provisional
+  - id: presence.mandatory-empty-string
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {presence: mandatory, type: string}}}
+    input: ''
+    expect: {valid: true}
+  - id: presence.optional-absent
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {presence: optional, type: string}}}
+    absent: true
+    expect: {stays_absent: true, valid: true}
+  - id: presence.optional-null
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {presence: optional, type: string}}}
+    input: null
+    expect: {error: NULL_NOT_ALLOWED}
+    codes_status: provisional
+  - id: presence.optional-nullable-null
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {nullable: true, presence: optional, type: string}}}
+    input: null
+    expect: {valid: true}
+  - id: presence.optional-nullable-absent
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {nullable: true, presence: optional, type: string}}}
+    absent: true
+    expect: {stays_absent: true, valid: true}
+  - id: presence.zero-is-a-value
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {default: 5, presence: optional, type: integer}}}
+    input: 0
+    expect: {default_candidate: false, valid: true}
+  - id: presence.false-is-a-value
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {default: true, presence: optional, type: boolean}}}
+    input: false
+    expect: {default_candidate: false, valid: true}
+  - id: presence.default-trigger-absent
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {default: 5, presence: optional, type: integer}}}
+    absent: true
+    expect: {default_candidate: true, valid: true}
+  - id: presence.default-not-triggered-by-null
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {default: 5, presence: optional, type: integer}}}
+    input: null
+    expect: {default_candidate: false, error: NULL_NOT_ALLOWED}
+    codes_status: provisional
+  - id: presence.default-not-triggered-by-empty-string
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {default: x, presence: optional, type: string}}}
+    input: ''
+    expect: {default_candidate: false, valid: true}
+  - id: presence.list-empty-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {presence: optional, type: list}}}
+    input: []
+    expect: {valid: true}
+  - id: presence.list-empty-below-min-items
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {min_items: 1, presence: optional, type: list}}}
+    input: []
+    expect: {error: CONTRACT_VIOLATION}
+    codes_status: provisional
+  - id: presence.map-empty-composite-all-optional
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {shape: {fields: {a: optional}, presence: optional, type: composite}}}
+    input: {}
+    expect: {valid: true}
+  - id: presence.map-empty-composite-mandatory-child
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {fields: {a: mandatory}, presence: optional, type: composite}}}
+    input: {}
+    expect: {error: MISSING_MANDATORY, path: a}
+    codes_status: provisional
+  - id: presence.absent-stays-absent
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    absent: true
+    expect: {collapsed: {type: absent}, expanded: {type: absent}}
+  - id: presence.null-stays-null
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: null
+    expect: {collapsed: {type: 'null', value: null}, expanded: {type: 'null', value: null}}
+  - id: presence.empty-string-preserved
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: ''
+    expect: {collapsed: {type: string, value: ''}, expanded: {type: string, value: ''}}
+  - id: presence.empty-list-preserved
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: []
+    expect: {collapsed: {type: list, value: []}, expanded: {type: list, value: []}}
+  - id: presence.empty-map-preserved
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: opaque}}
+    input: {}
+    expect: {collapsed: {type: map, value: {}}, expanded: {type: map, value: {}}}
+  - id: presence.value-null-and-default-injection-are-separate
+    kind: collapse
+    polarity: positive
     description: value null is data; default_injection 0 is access behavior and must survive
-    expanded: {value: null, access: inherit, modify: inherit, inherit: true, default_injection: 0, conformance: implemented}
-    expect: {collapse: expanded, value: null, default_injection: 0}
-  - id: expanded-without-value-key-is-not-expanded
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: 0, inherit: true, modify: inherit, value: null}
+    authored_expanded: false
+    expect: {collapse: expanded, fields: {default_injection: {type: integer, value: 0}, value: {type: 'null', value: null}}}
+  - id: presence.expanded-without-value-key-is-not-expanded
+    kind: recognize
+    polarity: negative
     description: an expanded node lacks the value key, so by ADR 0001 it is short and then rejected at a scalar position
-    doc: {access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
-    position: scalar
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit}
     expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
+    codes_status: provisional

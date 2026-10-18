@@ -84,8 +84,9 @@ in the vectors are provisional. A duplicate key is a `parse`-phase error.
 
 ## Vectors
 
-Provisional vectors are in `corpus/recognition/vectors.yaml`. The corpus file
-format is still a P0 item.
+Provisional vectors are in `corpus/recognition/vectors.yaml`, in the format of
+ADR 0005. The `any` position of the original vectors is now `opaque` (ADR 0002);
+the case ids keep their historical `any-` spelling because ids are stable.
 
 ## Open questions
 
