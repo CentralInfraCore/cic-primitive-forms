@@ -9,7 +9,8 @@ inconsistent count is red, and so is exactly 90.00%.
 
 Usage:
     coverage_gate.py check --root DIR --scope F --tools F --commit SHA \\
-                           [--require rust,go] --report rust=PATH --report go=PATH
+                           --report rust=PATH --report go=PATH
+    coverage_gate.py check ... --only rust --report rust=PATH   diagnostic, never a PASS
     coverage_gate.py selftest          seeded-fault proof that the gate can fail
 """
 import argparse
@@ -33,6 +34,7 @@ LANGUAGES = ("rust", "go")
 REASONS = {
     "REPORT_MISSING": "report absent or unreadable",
     "REPORT_FORMAT": "report is not a valid cic-coverage-report/1",
+    "LANGUAGE_SET_INVALID": "the required languages are not exactly rust and go (empty, partial, unknown or repeated)",
     "LANGUAGE_NOT_REPORTED": "a required language has no report at all",
     "MEASUREMENT_EMPTY": "nothing was measured (no files or no branches)",
     "TOOL_NOT_SELECTED": "no measurement tool is selected for the language",
@@ -185,23 +187,41 @@ def pct(c, t):
     return "%d.%02d" % (q.numerator // q.denominator // 100, q.numerator // q.denominator % 100)
 
 
+def evaluate(root, scope, tools, commit, require, only, reports):
+    """Return (failures, lines, rc). Compliance needs exactly rust and go; --only is a diagnostic."""
+    fails, lines = [], []
+    if only is not None:
+        langs = [only] if only in LANGUAGES else []
+        if not langs:
+            fails.append(("-", "LANGUAGE_SET_INVALID", "unknown language %r" % only))
+    else:
+        langs = [x for x in require.split(",") if x]
+        if sorted(langs) != sorted(LANGUAGES):
+            fails.append(("-", "LANGUAGE_SET_INVALID",
+                          "required languages %r, a conformance result needs exactly %s" % (langs, list(LANGUAGES))))
+            langs = []
+    for lang in langs:
+        if lang not in reports:
+            fails.append((lang, "LANGUAGE_NOT_REPORTED", "no report given for %s" % lang))
+            continue
+        f, summ = check_language(lang, reports[lang], root, scope, tools, commit)
+        fails += [(lang, r, d) for r, d in f]
+        lines.append("%-5s %s" % (lang, summ or "not measured"))
+    if only is not None and not fails:
+        lines.append("DIAGNOSTIC %s: no failure found. This is NOT a conformance result (exit status 3)" % only)
+        return fails, lines, 3
+    lines += ["FAIL %s %s: %s" % f for f in fails]
+    lines.append("BRANCH COVERAGE: %s" % ("FAIL (%d)" % len(fails) if fails else "PASS"))
+    return fails, lines, 1 if fails else 0
+
+
 def run_check(args):
     scope = yaml.safe_load(open(args.scope, encoding="utf-8"))["languages"]
     tools = yaml.safe_load(open(args.tools, encoding="utf-8"))
     reports = dict(r.split("=", 1) for r in args.report)
-    required = [x for x in args.require.split(",") if x]
-    allfails = []
-    for lang in required:
-        if lang not in reports:
-            allfails.append((lang, "LANGUAGE_NOT_REPORTED", "no report given for %s" % lang))
-            continue
-        fails, summ = check_language(lang, reports[lang], args.root, scope, tools, args.commit)
-        allfails += [(lang, r, d) for r, d in fails]
-        print("%-5s %s" % (lang, summ or "not measured"))
-    for lang, r, d in allfails:
-        print("FAIL %s %s: %s" % (lang, r, d))
-    print("BRANCH COVERAGE: %s" % ("FAIL (%d)" % len(allfails) if allfails else "PASS"))
-    return 1 if allfails else 0
+    _, lines, rc = evaluate(args.root, scope, tools, args.commit, args.require, args.only, reports)
+    print("\n".join(lines))
+    return rc
 
 
 # --- seeded-fault self-test -------------------------------------------------------
@@ -232,20 +252,16 @@ def apply_ops(ops, work):
                 fh.write(text.replace(op["old"], op["new"]))
 
 
-def fixture_run(work, drop=None):
+def fixture_run(work, drop=None, invocation=None):
     fx = os.path.join(work, "coverage", "fixtures")
     scope = yaml.safe_load(open(os.path.join(fx, "scope.yaml"), encoding="utf-8"))["languages"]
     tools = yaml.safe_load(open(os.path.join(fx, "tools.yaml"), encoding="utf-8"))
     commit = open(os.path.join(fx, "commit.txt")).read().strip()
-    out = []
-    for lang in LANGUAGES:
-        if lang == drop:
-            out.append((lang, "LANGUAGE_NOT_REPORTED"))
-            continue
-        fails, _ = check_language(lang, os.path.join(fx, "%s.report.json" % lang),
-                                  os.path.join(fx, "tree"), scope, tools, commit)
-        out += [(lang, r) for r, _ in fails]
-    return out
+    inv = {"require": "rust,go", "only": None, "reports": ["rust", "go"]}
+    inv.update(invocation or {})
+    reports = {l: os.path.join(fx, "%s.report.json" % l) for l in inv["reports"] if l != drop}
+    fails, _, rc = evaluate(os.path.join(fx, "tree"), scope, tools, commit, inv["require"], inv["only"], reports)
+    return [(l, r) for l, r, _ in fails], rc
 
 
 def selftest(root):
@@ -253,11 +269,15 @@ def selftest(root):
     tmp = tempfile.mkdtemp(prefix="cov-base-")
     try:
         shutil.copytree(os.path.join(root, "coverage"), os.path.join(tmp, "coverage"))
-        base = fixture_run(tmp)
+        base, base_rc = fixture_run(tmp)
+        diag, diag_rc = fixture_run(tmp, invocation={"only": "rust", "reports": ["rust"]})
     finally:
         shutil.rmtree(tmp)
-    if base:
+    if base or base_rc != 0:
         print("self-test: the unmodified fixtures are not green: %s" % base)
+        return 1
+    if diag or diag_rc == 0:
+        print("self-test: a diagnostic run must never end with status 0 (got %s, %s)" % (diag, diag_rc))
         return 1
     covered, failed = set(), 0
     for fault in spec["faults"]:
@@ -270,7 +290,7 @@ def selftest(root):
                 failed += 1
                 print("  STALE %-34s %s" % (fault["id"], exc))
                 continue
-            got = fixture_run(tmp, fault.get("drop_report"))
+            got, _ = fixture_run(tmp, fault.get("drop_report"), fault.get("invocation"))
         finally:
             shutil.rmtree(tmp)
         want = (fault["language"], fault["reason"])
@@ -303,6 +323,7 @@ def main():
     c.add_argument("--tools", required=True)
     c.add_argument("--commit", required=True)
     c.add_argument("--require", default="rust,go")
+    c.add_argument("--only", default=None, help="diagnostic run for one language; never exits 0")
     c.add_argument("--report", action="append", default=[])
     sub.add_parser("selftest")
     args = ap.parse_args()

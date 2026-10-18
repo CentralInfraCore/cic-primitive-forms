@@ -46,3 +46,9 @@ faults:
       - {file: go.report.json, json_set: [source, files, 0, categories, conditional, covered], value: 0}
       - {file: go.report.json, json_set: [source, files, 0, covered], value: 23}
       - {file: go.report.json, json_set: [totals, covered], value: 69}
+  - {id: empty-language-set, language: "-", reason: LANGUAGE_SET_INVALID, invocation: {require: ""}}
+  - {id: only-one-language-required, language: "-", reason: LANGUAGE_SET_INVALID, invocation: {require: rust, reports: [rust]}}
+  - {id: unknown-language-required, language: "-", reason: LANGUAGE_SET_INVALID, invocation: {require: "rust,go,cobol"}}
+  - {id: language-repeated-instead-of-both, language: "-", reason: LANGUAGE_SET_INVALID, invocation: {require: "rust,rust", reports: [rust]}}
+  - {id: diagnostic-for-an-unknown-language, language: "-", reason: LANGUAGE_SET_INVALID, invocation: {only: cobol}}
+  - {id: complete-run-with-one-report-missing, language: go, reason: LANGUAGE_NOT_REPORTED, invocation: {reports: [rust]}}
