@@ -73,6 +73,11 @@ may override them.
 | `collapse` | `input`, boolean `authored_expanded` | `collapse` (required), `fields` |
 | `expand` | `input` | `fields` (required) |
 | `equality` | `a`, `b` | `equal` (required) |
+| `path_parse` | `path` (text) | `segments` or `error` |
+| `path_format` | `segments` | `text` or `error` |
+| `path_resolve` | `path` | `target` and `primitive_position`, or `error` |
+| `path_of` | `document`, `at` | `path` or `error` |
+| `path_stability` | `variants` (at least two `{document or document_yaml, at}`) | `path` or `error` |
 
 ### Schema reference
 
@@ -120,6 +125,31 @@ the error-contract ADR (issue #3 point 6) closes. A case that uses a code carrie
 case becomes stable only when its codes do. A registry code no case uses is an
 error (`CODE_UNUSED`), so renames cannot leave stale entries.
 
+## Amendment for ADR 0006 (path kinds)
+
+The five `path_*` kinds above are added. Their rules:
+
+- The envelope may carry `trees`, a map of named synthetic schema trees; a case
+  refers to one with `schema: {synthetic: {tree: <name>}}` or inlines a tree. A tree
+  is a fixture notation, not a schema: nodes are `{scalar: T}`, `{set: T}`,
+  `{composite: {..}}`, `{list: {key, fields}}`, `{list: {choice: [{name, key,
+  fields}]}}` or `opaque`, `T` one of `string integer boolean number bytes`. The
+  gate checks that list keys name distinct scalar fields and that choice cases differ
+  in name and in key set. Lexical kinds (`path_parse`, `path_format`) take
+  `synthetic: {lexical: true}`.
+- Segments are `{field: name}` and `{item: [{name, key: <typed value>}]}`; an item
+  directly follows a field. A parsed key is a string or an integer, and a parsed
+  name is non-empty without control characters. A `path_format` input may hold
+  anything, because the formatter has to reject what it cannot write.
+- `at` is a list of field names (strings) and physical list indices (integers) into
+  the document; Access wrappers are looked through by the runner.
+- A `path_stability` case lists variants of one logical object and fails the gate if
+  two variants have identical documents (compared type-strictly), because such a case
+  would prove nothing. A variant that must differ only in YAML mapping order holds
+  raw `document_yaml` text instead of a parsed `document`, since a parsed mapping has
+  no order to vary.
+- An expectation holds exactly one of its success key and `error`.
+
 ## The gate and its proof
 
 ```
@@ -138,7 +168,7 @@ The self-test also asserts loader invariants first: an empty scalar is `null`
 
 `class` and the `elements` classes are limited to `short`, `expanded`, `error`.
 
-Current state: 3 suites, 86 cases, 22 rules, 35 faults.
+Current state: see `make corpus` (the figures change with every suite).
 
 ## Migration of the existing vectors
 

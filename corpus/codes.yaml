@@ -13,3 +13,23 @@ codes:
   MISSING_MANDATORY: provisional
   NULL_NOT_ALLOWED: provisional
   UNKNOWN_FIELD: provisional
+  PATH_BAD_ESCAPE: provisional
+  PATH_CASE_AMBIGUOUS: provisional
+  PATH_CASE_NONE: provisional
+  PATH_DUPLICATE_COMPONENT: provisional
+  PATH_DUPLICATE_IDENTITY: provisional
+  PATH_EMPTY_NAME: provisional
+  PATH_INDEX_SELECTOR: provisional
+  PATH_INTEGER_RANGE: provisional
+  PATH_KEY_MISSING: provisional
+  PATH_KEY_TYPE: provisional
+  PATH_KEY_UNSUPPORTED: provisional
+  PATH_LIST_NOT_SELECTED: provisional
+  PATH_NONCANONICAL: provisional
+  PATH_NOT_A_LIST: provisional
+  PATH_SELECTOR_MISMATCH: provisional
+  PATH_SET_ELEMENT: provisional
+  PATH_SYNTAX: provisional
+  PATH_THROUGH_OPAQUE: provisional
+  PATH_THROUGH_SCALAR: provisional
+  PATH_UNKNOWN_FIELD: provisional
