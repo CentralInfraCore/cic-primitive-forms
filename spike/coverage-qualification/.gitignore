@@ -1,0 +1,6 @@
+target/
+*.profraw
+*.profdata
+out/
+out/
+out2/

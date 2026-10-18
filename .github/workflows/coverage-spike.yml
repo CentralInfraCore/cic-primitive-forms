@@ -1,0 +1,57 @@
+name: coverage-spike
+# Isolated tool qualification for ADR 0009. Not part of the product gates; runs only on spike branches
+# and on demand. The samples live in spike/coverage-qualification and are outside coverage/scope.yaml.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["spike/**"]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Pinned Rust nightly with llvm-tools
+        run: |
+          rustup toolchain install nightly-2026-10-17 --profile minimal --component llvm-tools-preview
+          rustup default nightly-2026-10-17
+          rustc --version
+      - name: Pinned tools
+        run: |
+          cargo install --locked cargo-llvm-cov --version 0.9.1
+          GOFLAGS=-mod=mod go install github.com/rillig/gobco@v1.3.4
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+      - name: Measure both samples under both test sets
+        run: spike/coverage-qualification/run_tools.sh out
+        env:
+          GOFLAGS: -mod=mod
+      - name: Second run is byte-identical (determinism)
+        run: |
+          spike/coverage-qualification/run_tools.sh out2
+          for f in rust-full rust-reduced gobco-full gobco-reduced; do cmp spike/coverage-qualification/out/$f.json spike/coverage-qualification/out2/$f.json; done
+        env:
+          GOFLAGS: -mod=mod
+      - name: CI numbers equal the committed evidence (reproducibility)
+        run: |
+          for f in rust-full rust-reduced gobco-full gobco-reduced; do cmp spike/coverage-qualification/out/$f.json spike/coverage-qualification/evidence/$f.json; done
+      - name: The full sample passes a strict 90 percent threshold on the tool's own numbers
+        run: |
+          python3 spike/coverage-qualification/threshold.py rust spike/coverage-qualification/out/rust-full.json
+          python3 spike/coverage-qualification/threshold.py go spike/coverage-qualification/out/gobco-full.json
+      - name: The reduced test set must turn the threshold red (a real below-threshold fault)
+        run: |
+          if python3 spike/coverage-qualification/threshold.py rust spike/coverage-qualification/out/rust-reduced.json; then echo "Rust reduced set did not fail"; exit 1; fi
+          if python3 spike/coverage-qualification/threshold.py go spike/coverage-qualification/out/gobco-reduced.json; then echo "Go reduced set did not fail"; exit 1; fi
+      - name: Comparison with the hand-counted branches
+        run: |
+          cd spike/coverage-qualification
+          python3 compare.py --rust-full out/rust-full.json --rust-reduced out/rust-reduced.json --gobco-full out/gobco-full.json --gobco-reduced out/gobco-reduced.json | tee out/comparison.md
+          cmp out/comparison.md evidence/comparison.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-spike-output
+          path: spike/coverage-qualification/out

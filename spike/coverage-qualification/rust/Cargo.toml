@@ -1,0 +1,11 @@
+[package]
+name = "cov_sample"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# `reduced` swaps the full test set for a smaller one whose uncovered branches are counted by hand.
+reduced = []
