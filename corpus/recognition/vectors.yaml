@@ -1,0 +1,99 @@
+# Provisional recognition vectors for ADR 0001. Format is not final.
+# position: scalar | any | {structured: [child fields]}
+# A = [value, access, modify, inherit, default_injection, conformance]
+vectors:
+  - id: scalar-short
+    position: scalar
+    input: 4
+    expect: {class: short}
+  - id: list-short
+    position: any
+    input: [1, 2]
+    expect: {class: short}
+  - id: null-short
+    position: any
+    input: null
+    expect: {class: short}
+  - id: full-key-set-expanded
+    position: scalar
+    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    expect: {class: expanded}
+  - id: full-key-set-any-is-expanded
+    position: any
+    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    expect: {class: expanded}
+  - id: any-literal-map-wrapped
+    description: literal map equal to A must be written under an explicit wrapper; its content stays opaque
+    position: any
+    input:
+      value: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6}
+      access: inherit
+      modify: inherit
+      inherit: true
+      default_injection: null
+      conformance: implemented
+    expect: {class: expanded, opaque_value: true}
+  - id: any-plain-map-short
+    position: any
+    input: {a: 1, b: 2}
+    expect: {class: short}
+  - id: any-map-with-one-access-key-and-foreign-key
+    position: any
+    input: {value: 1, foo: 2}
+    expect: {class: short}
+  - id: any-proper-subset-rejected
+    position: any
+    input: {value: 1}
+    expect: {class: error, code: AMBIGUOUS_ACCESS_KEYS}
+  - id: any-two-key-subset-rejected
+    position: any
+    input: {value: 1, access: inherit}
+    expect: {class: error, code: AMBIGUOUS_ACCESS_KEYS}
+  - id: structured-partial-expanded
+    position: {structured: [host, port]}
+    input: {value: 1, access: inherit}
+    expect: {class: error, code: PARTIAL_EXPANDED}
+  - id: structured-child-named-like-access-key
+    description: schema declares a child field called "access"; this is a short map of child fields
+    position: {structured: [access, port]}
+    input: {access: ops, port: 22}
+    expect: {class: short}
+  - id: structured-access-key-not-a-child
+    position: {structured: [host, port]}
+    input: {host: a, access: ops}
+    expect: {class: error, code: UNKNOWN_ACCESS_KEY}
+  - id: structured-plain-short
+    position: {structured: [host, port]}
+    input: {host: a, port: 22}
+    expect: {class: short}
+  - id: structured-unknown-field
+    position: {structured: [host, port]}
+    input: {host: a, colour: red}
+    expect: {class: error, code: UNKNOWN_FIELD}
+  - id: expanded-extra-key
+    position: scalar
+    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented, extra: 1}
+    expect: {class: error, code: MAP_AT_SCALAR_POSITION}
+  - id: any-all-keys-plus-extra-is-short
+    position: any
+    input: {value: 4, access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented, extra: 1}
+    expect: {class: short}
+  - id: scalar-position-plain-map
+    position: scalar
+    input: {a: 1}
+    expect: {class: error, code: MAP_AT_SCALAR_POSITION}
+roundtrip:
+  - id: collapse-keeps-expanded-when-value-is-proper-subset
+    description: a short form would be rejected as ambiguous, so collapse must stay expanded
+    position: any
+    expanded_value: {value: 1, access: ops}
+    expect: {collapse: expanded}
+  - id: collapse-keeps-expanded-when-value-equals-key-set
+    description: a short form would be recognized as expanded, so collapse must stay expanded
+    position: any
+    expanded_value: {value: 1, access: 2, modify: 3, inherit: 4, default_injection: 5, conformance: 6}
+    expect: {collapse: expanded}
+  - id: collapse-to-short-when-value-has-foreign-key
+    position: any
+    expanded_value: {value: 1, foo: 2}
+    expect: {collapse: short}
