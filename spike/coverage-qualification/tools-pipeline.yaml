@@ -1,0 +1,6 @@
+# Tool pins for the pipeline check of the spike only. NOT coverage/tools.yaml: no tool is selected for the product
+# until the pipeline is qualified and the owner approves it (ADR 0009).
+rust:
+  selected: {name: rustbranch, version: "0.1.0", approved_deviations: []}
+go:
+  selected: {name: gobranch, version: "0.1.0", approved_deviations: []}

@@ -4,3 +4,5 @@ target/
 out/
 out/
 out2/
+target/
+Cargo.lock

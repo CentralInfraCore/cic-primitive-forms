@@ -1,0 +1,13 @@
+# Scope of the complex qualification samples, in the format of coverage/scope.yaml.
+format: cic-coverage-scope/1
+languages:
+  rust:
+    root: spike/coverage-qualification/rust-complex
+    include: ["src/**/*.rs"]
+    exclude_test: ["**/tests/**", "**/tests.rs"]
+    exclude_generated: ["**/generated/**"]
+  go:
+    root: spike/coverage-qualification/go-complex
+    include: ["**/*.go"]
+    exclude_test: ["**/*_test.go"]
+    exclude_generated: ["**/*.pb.go"]
