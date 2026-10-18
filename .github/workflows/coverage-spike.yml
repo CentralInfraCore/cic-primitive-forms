@@ -26,12 +26,12 @@ jobs:
           GOFLAGS=-mod=mod go install github.com/rillig/gobco@v1.3.4
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       - name: Measure both samples under both test sets
-        run: spike/coverage-qualification/run_tools.sh spike/coverage-qualification/out
+        run: spike/coverage-qualification/run_tools.sh out
         env:
           GOFLAGS: -mod=mod
       - name: Second run is byte-identical (determinism)
         run: |
-          spike/coverage-qualification/run_tools.sh spike/coverage-qualification/out2
+          spike/coverage-qualification/run_tools.sh out2
           for f in rust-full rust-reduced gobco-full gobco-reduced; do cmp spike/coverage-qualification/out/$f.json spike/coverage-qualification/out2/$f.json; done
         env:
           GOFLAGS: -mod=mod
