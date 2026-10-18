@@ -1,21 +1,33 @@
-# Measurement tools of the branch coverage gate (ADR 0009).
-# `selected` stays null until the P1 sample evidence (ADR 0009, "Closing point 10") exists for the
-# language. While it is null the real gate is red: the quality gate is not satisfied.
-# Candidates are leads, not claims: nothing below was run in this repository.
-# `approved_deviations` of a selected tool names branch categories (conditional, match, loop,
-# short_circuit, error_path) the tool does not measure, each by a recorded decision of the owner.
+# Measurement tools of the branch coverage gate (ADR 0009, accepted).
+#
+# `selected` names the tool the gate accepts for a language. The gate checks `name` and `version` against the report
+# (TOOL_MISMATCH) and `approved_deviations` against the categories the report says it did not measure. There is no
+# deviation: both tools measure all five categories of cic-branch/1.
+#
+# `toolchain` and `source_sha256` pin what "version 0.1.0" means. `source_sha256` is the sha256sum-format manifest
+# digest (sorted by path bytes, as in the grammar identity) of the tool's sources, tests and lock file and of
+# tools/branchcov/adapter.py. `tools/branchcov/qualify.py` recomputes both and fails when they differ, and the
+# `branchcov` workflow runs it whenever a tool, the adapter, the gate or this file changes: a changed measurement
+# tool must be re-qualified and re-pinned here in the same change. A rebuilt "0.1.0" with other sources or another
+# compiler is not the qualified tool.
+#
+# Qualified on the hand-counted samples (spike/coverage-qualification) with the Rust `nightly-2026-10-17`, Go 1.27.2 and
+# `cargo-llvm-cov` 0.9.1 as the independent Rust cross-check. The mandatory measurement of product code starts with
+# the first Rust/Go implementation (P1); until then nothing in the repository is measured by these tools.
 rust:
-  selected: null
-  candidates:
-    - name: cargo-llvm-cov
-      lead: "`--branch` mode; the project documents it as optional and nightly-only"
-      open: "stability of the branch counts; whether match arms, loops, short-circuit and the ? operator are branches in its report"
+  selected:
+    name: rustbranch
+    version: "0.1.0"
+    approved_deviations: []
+    toolchain: "rustc 1.101.0-nightly (5d8fec066 2026-10-16)"
+    source_sha256: 38077b98ee19ae5cc3a982254731755d1112062e3527a4ab04191b6a30fd6f41
 go:
-  selected: null
-  candidates:
-    - name: gobco
-      lead: "third-party; reports whether each condition was both true and false (condition coverage)"
-      open: "described as syntactic and as not covering select; whether switch cases, loops and error paths are measured"
-    - name: "go test -cover"
-      lead: "statement coverage only (golang/go#28888 asks for branch coverage)"
-      open: "not a branch measurement; listed only to record that it does not qualify"
+  selected:
+    name: gobranch
+    version: "0.1.0"
+    approved_deviations: []
+    toolchain: "go1.27.2"
+    source_sha256: 3e211a89ce78c43a89661e4d2a77344ed5d4cd57c298c29be1239f03e809a684
+# Assessed and not selected (spike/coverage-qualification/EXIT-REPORT.md): cargo-llvm-cov (misses match arms, for, `?`
+# as branches; kept as the Rust cross-check), gobco (misses select and range, counts a switch differently, ignores build
+# constraints), gocove (7 conditions on the sample; a silent no-op on Go 1.27.2), `go test -cover` (statements only).

@@ -1,13 +1,14 @@
 name: branchcov
 # Qualification of the cic-branch/1 measurement pipeline (ADR 0009): unit tests of the Go and Rust measurement
 # tools, their fail-closed tests, and the qualification run on the hand-counted samples through the real gate.
-# It does not make any tool "selected" for the product: coverage/tools.yaml is unchanged.
+# It runs on the real coverage/tools.yaml and fails when a selected tool's sources or toolchain differ from its pin.
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["tools/branchcov/**", "tools/coverage_gate.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
+    paths: ["tools/branchcov/**", "tools/coverage_gate.py", "tools/grammar_identity.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
   push:
-    branches: ["spike/**", "feat/branchcov-**"]
+    branches: ["main", "spike/**", "feat/branchcov-**"]
+    paths: ["tools/branchcov/**", "tools/coverage_gate.py", "tools/grammar_identity.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
 permissions:
   contents: read
 jobs:

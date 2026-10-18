@@ -22,13 +22,12 @@ or Go conformance.
 | [0006](0006-logical-path-grammar.md) | logical paths | accepted | 2 |
 | [0007](0007-error-contract-and-source-positions.md) | errors and positions | accepted | 6 |
 | [0008](0008-deterministic-diff-contract.md) | deterministic diff | accepted | 5 |
-| [0009](0009-branch-coverage-measurement-contract.md) | branch coverage measurement | **proposed**: tool qualification pending | 10 |
+| [0009](0009-branch-coverage-measurement-contract.md) | branch coverage measurement | accepted (tools selected and qualified on samples; product code is P1) | 10 |
 | [0010](0010-conformance-origin-and-authority.md) | conformance origin | accepted | 9 |
 
-What still prevents P0 from closing (two items; the grammar identity is done):
+What still prevents P0 from closing (one item; the grammar identity and the coverage method are done):
 
-1. the upstream type decision behind point 8 (cic-primitives #17);
-2. the branch-coverage tool qualification behind point 10 (ADR 0009).
+1. the upstream type decision behind point 8 (cic-primitives #17).
 
 Everything else is a P1 proof obligation or a later-phase item, recorded in each ADR's
 acceptance record and in `docs/reviews/p0-acceptance-review.md`.
@@ -48,7 +47,7 @@ acceptance record and in `docs/reviews/p0-acceptance-review.md`.
 
 This is the original question list as it stood when P0 started. It is kept as a record.
 **The current status of each point is the Decision index above**, not the wording below;
-points 1 to 7 and 9 are decided and accepted; 10 is proposed; 8 is accepted only as a
+points 1 to 7, 9 and 10 are decided and accepted; 8 is accepted only as a
 reading contract, with the upstream type decision open.
 
 1. **Partial expanded form.** A map with some but not all declared keys: an
@@ -95,7 +94,7 @@ reading contract, with the upstream type decision open.
     language that enforces the same requirement. Replacing branch coverage with a
     weaker metric (for example statement coverage plus mutation score) lowers the
     gate and needs its own explicit, recorded decision.
-    *Resolution: ADR 0009 (**proposed**): the measurement contract is written; the tool per language is **open** until the tool qualification.*
+    *Resolution: Decided in ADR 0009 (accepted): the contract, and the selected tools `gobranch` and `rustbranch`, qualified on hand-counted samples. Measuring product code is mandatory from P1.*
 
 Points 1 and 7 describe the same recognition problem (a `type: any` value that
 happens to carry the full key set) and were resolved together in ADR 0001.
