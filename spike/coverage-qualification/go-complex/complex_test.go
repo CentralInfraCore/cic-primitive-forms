@@ -38,6 +38,15 @@ func TestFall(t *testing.T) {
 	}
 }
 
+func TestFallVia(t *testing.T) {
+	if FallVia(1) != 3 || FallVia(9) != -1 {
+		t.Fatal()
+	}
+	if !reduced && FallVia(2) != 2 {
+		t.Fatal()
+	}
+}
+
 func TestDrain(t *testing.T) {
 	if reduced {
 		t.Skip("the reduced set does not run Drain")

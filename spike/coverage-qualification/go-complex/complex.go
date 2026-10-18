@@ -45,6 +45,22 @@ func Fall(n int) int {
 	return r
 }
 
+// FallVia: the second clause is selected directly only by 2; for 1 its body runs through the fallthrough, which is
+// not a selection of that clause (cic-branch/1).
+func FallVia(n int) int {
+	r := 0
+	switch n {
+	case 1:
+		r++
+		fallthrough
+	case 2:
+		r += 2
+	default:
+		r = -1
+	}
+	return r
+}
+
 // Drain: a select inside an unconditional loop, left by a labeled break; no default, no implicit edge.
 func Drain(ch chan int, done chan struct{}) int {
 	s := 0
@@ -125,6 +141,7 @@ func RangeInt(n int) int {
 //   ElseIf       conditional 6 / 6 / 4
 //   Find         loop 4 + conditional 2 = 6 / 6 / 5
 //   Fall         match 3 (no implicit edge) / 3 / 2
+//   FallVia      match 3 (no implicit edge) / 3 / 2   (the reduced tests reach case 2 only through the fallthrough)
 //   Drain        match 2 / 2 / 0
 //   Closure      short_circuit 4 + loop 2 + conditional 2 = 8 / 8 / 7
 //   Named        conditional 2 + short_circuit 4 = 6 / 6 / 4
@@ -132,4 +149,4 @@ func RangeInt(n int) int {
 //   ForCondBreak loop 2 + conditional 2 = 4 / 4 / 3
 //   Parse        conditional 2 + short_circuit 4 = 6 / 6 / 3
 //   RangeInt     loop 2 / 2 / 2
-// Per category: conditional 16/16/12, match 8/8/4, loop 10/10/8, short_circuit 12/12/8; total 46 / 46 / 32.
+// Per category: conditional 16/16/12, match 11/11/6, loop 10/10/8, short_circuit 12/12/8; total 49 / 49 / 34.

@@ -264,6 +264,9 @@ var gobranchHits [%d]uint64
 
 func gobranchHit(id int) { atomic.AddUint64(&gobranchHits[id], 1) }
 
+// gobranchUnhit takes back one count: a fallthrough enters a clause body without selecting the clause.
+func gobranchUnhit(id int) { atomic.AddUint64(&gobranchHits[id], ^uint64(0)) }
+
 func gobranchCond[T ~bool](id int, v T) T {
 	if v {
 		gobranchHit(id)

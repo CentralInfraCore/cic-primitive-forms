@@ -1,15 +1,129 @@
 {
   "_comment": "Hand-counted branches of go-complex under cic-branch/1: function -> [[category, edges, covered by the full tests, covered by the reduced tests], ...]",
   "go-complex": {
-    "ElseIf":       [["conditional", 6, 6, 4]],
-    "Find":         [["loop", 4, 4, 3], ["conditional", 2, 2, 2]],
-    "Fall":         [["match", 3, 3, 2]],
-    "Drain":        [["match", 2, 2, 0]],
-    "Closure":      [["short_circuit", 4, 4, 3], ["loop", 2, 2, 2], ["conditional", 2, 2, 2]],
-    "Named":        [["conditional", 2, 2, 1], ["short_circuit", 4, 4, 3]],
-    "TypeSw":       [["match", 3, 3, 2]],
-    "ForCondBreak": [["loop", 2, 2, 1], ["conditional", 2, 2, 2]],
-    "Parse":        [["conditional", 2, 2, 1], ["short_circuit", 4, 4, 2]],
-    "RangeInt":     [["loop", 2, 2, 2]]
+    "ElseIf": [
+      [
+        "conditional",
+        6,
+        6,
+        4
+      ]
+    ],
+    "Find": [
+      [
+        "loop",
+        4,
+        4,
+        3
+      ],
+      [
+        "conditional",
+        2,
+        2,
+        2
+      ]
+    ],
+    "Fall": [
+      [
+        "match",
+        3,
+        3,
+        2
+      ]
+    ],
+    "FallVia": [
+      [
+        "match",
+        3,
+        3,
+        2
+      ]
+    ],
+    "Drain": [
+      [
+        "match",
+        2,
+        2,
+        0
+      ]
+    ],
+    "Closure": [
+      [
+        "short_circuit",
+        4,
+        4,
+        3
+      ],
+      [
+        "loop",
+        2,
+        2,
+        2
+      ],
+      [
+        "conditional",
+        2,
+        2,
+        2
+      ]
+    ],
+    "Named": [
+      [
+        "conditional",
+        2,
+        2,
+        1
+      ],
+      [
+        "short_circuit",
+        4,
+        4,
+        3
+      ]
+    ],
+    "TypeSw": [
+      [
+        "match",
+        3,
+        3,
+        2
+      ]
+    ],
+    "ForCondBreak": [
+      [
+        "loop",
+        2,
+        2,
+        1
+      ],
+      [
+        "conditional",
+        2,
+        2,
+        2
+      ]
+    ],
+    "Parse": [
+      [
+        "conditional",
+        2,
+        2,
+        1
+      ],
+      [
+        "short_circuit",
+        4,
+        4,
+        2
+      ]
+    ],
+    "RangeInt": [
+      [
+        "loop",
+        2,
+        2,
+        2
+      ]
+    ]
   }
 }

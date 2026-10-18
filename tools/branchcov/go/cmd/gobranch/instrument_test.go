@@ -90,6 +90,19 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
+func TestFallthroughDoesNotCountTheNextClauseAsSelected(t *testing.T) {
+	_, out, err := edgesOf(t, "func f(n int) int { r := 0\nswitch n { case 1: r++\nfallthrough\ncase 2: r += 2\ndefault: r = -1 }\nreturn r }")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "gobranchUnhit(1)") {
+		t.Errorf("a fallthrough must take back the count of the clause it enters:\n%s", out)
+	}
+	if i, j := strings.Index(out, "gobranchUnhit(1)"), strings.Index(out, "fallthrough"); i < 0 || j < i {
+		t.Errorf("the take-back must come right before the fallthrough:\n%s", out)
+	}
+}
+
 func TestRangeExitIsNotCountedWhenBroken(t *testing.T) {
 	_, out, err := edgesOf(t, "func f(v []int) { for range v { break } }")
 	if err != nil {

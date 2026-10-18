@@ -296,18 +296,31 @@ func (in *instr) rewriteRange(x *ast.RangeStmt, label string) ast.Stmt {
 func (in *instr) rewriteCases(body *ast.BlockStmt, pos token.Pos, kind, label string) {
 	in.push(label, "")
 	hasDefault := false
-	for _, c := range body.List {
+	// All clause edges first: a clause that ends in fallthrough needs the id of the clause that follows it.
+	ids := make([]int, len(body.List))
+	for i, c := range body.List {
 		cc := c.(*ast.CaseClause)
 		lab := "case"
 		if cc.List == nil {
 			hasDefault = true
 			lab = "default"
 		}
+		ids[i] = in.edge(cc.Pos(), "match", kind, lab)
+	}
+	for i, c := range body.List {
+		cc := c.(*ast.CaseClause)
 		for _, e := range cc.List {
 			in.exprWalk(e)
 		}
-		id := in.edge(cc.Pos(), "match", kind, lab)
-		cc.Body = append([]ast.Stmt{in.hit(id)}, in.rewriteList(cc.Body)...)
+		stmts := in.rewriteList(cc.Body)
+		// The edge is the selection of a clause, not the execution of its body. A fallthrough enters the next
+		// body without selecting it, so the counter that body is about to increment is taken back first.
+		if n := len(stmts); n > 0 && i+1 < len(ids) {
+			if b, ok := stmts[n-1].(*ast.BranchStmt); ok && b.Tok == token.FALLTHROUGH {
+				stmts = append(stmts[:n-1:n-1], &ast.ExprStmt{X: call("gobranchUnhit", intLit(ids[i+1]))}, b)
+			}
+		}
+		cc.Body = append([]ast.Stmt{in.hit(ids[i])}, stmts...)
 	}
 	in.pop()
 	if hasDefault {

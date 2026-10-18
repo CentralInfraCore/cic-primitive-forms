@@ -143,16 +143,16 @@ After the decision the measurement was built in `tools/branchcov/` (see its READ
 | Sample | Edges | Full covered | Reduced covered | Measured equals the hand counts |
 |---|---|---|---|---|
 | `go` | 34 | 34 | 24 | yes, 14 functions, every category |
-| `go-complex` | 46 | 46 | 32 | yes, 10 functions, every category |
+| `go-complex` | 49 | 49 | 34 | yes, 11 functions, every category |
 | `rust` | 27 | 27 | 20 | yes, 10 functions, every category |
 | `rust-complex` | 69 | 69 | 48 | yes, 13 functions, every category |
 
 - The reports go to the **real** `tools/coverage_gate.py check` with both languages: the full sets **pass**, the reduced sets
-  **fail** with `BELOW_THRESHOLD` for both (Rust 74.07% / 69.56%, Go 70.58% / 69.56%).
+  **fail** with `BELOW_THRESHOLD` for both (Rust 74.07% / 69.56%, Go 70.58% / 69.39%).
 - Determinism: a second measurement is byte-identical.
 - Independent evidence for Rust: where LLVM has a branch region (plain `if` / `while`, guards, `&&` / `||` operands) the
   counters equal LLVM's counts, 8 edge pairs in `rust` and 19 in `rust-complex`, also summed over the two instantiations of a generic function.
-- Fail closed: 10 Go and 9 Rust cases are refused (existing `TestMain`, failing tests, `goto`, `fallthrough` into the implicit edge,
+- Fail closed: 10 Go and 9 Rust cases are refused (11 Go tests, one of them the fallthrough case below) (existing `TestMain`, failing tests, `goto`, `fallthrough` into the implicit edge,
   old `go` directive, build-constraint files, an unmeasured scope file, a file changed after the run; `cfg`, `let-else`, a
   condition inside a macro, `build.rs`, workspaces, ...), and the enumerators have unit tests.
 
@@ -171,3 +171,13 @@ versions, and the product-level wiring (`coverage/tools.yaml` is unchanged, no C
 
 `run_tools.sh` produces `evidence/*.json` byte-identically locally and on GitHub; the workflow
 `.github/workflows/coverage-spike.yml` pins the toolchain and tools and checks it.
+
+## Addendum: a counting defect found in review (Go `fallthrough`)
+
+The first version of `gobranch` counted a switch clause by the execution of its body, so a clause entered only through a
+`fallthrough` was counted as selected (`Fall(1)` and `Fall(9)` gave 3 of 3 where the clauses selected are `case 1` and
+`default`: 2 of 3). The samples did not show it because they also called `Fall(2)` directly. Fixed: a clause that ends
+in `fallthrough` takes back the count of the clause it enters (`gobranchUnhit`), so only a selection counts. Evidence:
+a unit test, an end-to-end test that fails on the old instrumenter (1, 1, 1) and passes on the fixed one (0, 1, 1), the same
+case through the real gate (`BELOW_THRESHOLD`, 2/3), and a new function `FallVia` in `go-complex` whose reduced test set
+reaches `case 2` only through the fallthrough.
