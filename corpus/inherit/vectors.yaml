@@ -1,0 +1,40 @@
+# Provisional vectors for ADR 0004. Format is not final.
+# Values are YAML-typed: 0 is an integer, "0" a string, false a boolean.
+inherit_key:
+  - {id: true-ok, input: true, expect: {valid: true, internal: inherit}}
+  - {id: false-ok, input: false, expect: {valid: true, internal: no-inherit}}
+  - {id: zero-ok, input: 0, expect: {valid: true, internal: reset}}
+  - {id: one-rejected, input: 1, expect: {error: INVALID_INHERIT}}
+  - {id: string-true-rejected, input: "true", expect: {error: INVALID_INHERIT}}
+  - {id: string-zero-rejected, input: "0", expect: {error: INVALID_INHERIT}}
+  - {id: null-rejected, input: null, expect: {error: INVALID_INHERIT}}
+  - {id: list-rejected, input: [], expect: {error: INVALID_INHERIT}}
+access_modify:
+  - {id: symbol-ok, input: inherit, expect: {valid: true, kind: symbol}}
+  - {id: pattern-list-ok, input: ["OU=operators,O=acme-corp"], expect: {valid: true, kind: list}}
+  - {id: wildcard-pattern-ok, input: ["CN=*,O=partner-a"], expect: {valid: true, kind: list}}
+  - {id: empty-list-is-nobody-not-inherit, input: [], expect: {valid: true, kind: list, is_inherit: false}}
+  - {id: list-holding-symbol-rejected, input: [inherit], expect: {error: INVALID_CERT_PATTERN}}
+  - {id: bare-pattern-scalar-rejected, input: "OU=ops,O=acme", expect: {error: INVALID_ACCESS_VALUE}}
+  - {id: null-rejected, input: null, expect: {error: INVALID_ACCESS_VALUE}}
+  - {id: boolean-rejected, input: true, expect: {error: INVALID_ACCESS_VALUE}}
+roundtrip:
+  - id: zero-spelling-preserved
+    description: inherit 0 must come back as integer 0, never as false
+    expanded: {value: 1, access: inherit, modify: inherit, inherit: 0, default_injection: null, conformance: implemented}
+    expect: {inherit_after: 0, inherit_after_type: integer}
+  - id: false-spelling-preserved
+    expanded: {value: 1, access: inherit, modify: inherit, inherit: false, default_injection: null, conformance: implemented}
+    expect: {inherit_after: false, inherit_after_type: boolean}
+  - id: false-and-zero-stay-distinct
+    description: two nodes differing only in false versus 0 are different documents
+    a: {value: 1, access: inherit, modify: inherit, inherit: false, default_injection: null, conformance: implemented}
+    b: {value: 1, access: inherit, modify: inherit, inherit: 0, default_injection: null, conformance: implemented}
+    expect: {equal: false}
+  - id: empty-access-list-not-replaced-by-symbol
+    expanded: {value: 1, access: [], modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+    expect: {access_after: []}
+expand:
+  - id: expand-fills-symbolic-defaults
+    short: 4
+    expect: {access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
