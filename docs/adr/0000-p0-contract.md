@@ -51,5 +51,5 @@ Status: **draft, open decisions listed below.**
     weaker metric (for example statement coverage plus mutation score) lowers the
     gate and needs its own explicit, recorded decision.
 
-Points 1 and 7 are two sides of one recognition problem (a `type: any` value
-that happens to carry the full key set) and are closed together.
+Points 1 and 7 describe the same recognition problem (a `type: any` value that
+happens to carry the full key set) and must be resolved together in P0.
