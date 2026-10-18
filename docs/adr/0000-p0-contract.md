@@ -38,12 +38,18 @@ Status: **draft, open decisions listed below.**
 9. **Origin of `conformance`.** The default `implemented` is part of the atom's
    description; actual device capability comes from the adapter binding
    (`not_implemented` is device-level and enforced by the Relay, per
-   `access.yaml`). The default must not be treated as evidence of support. Decide
-   whether `conformance` is user-writable in the authored long form, and keep
-   an authored-long / materialized-long distinction.
-10. **Branch-coverage measurement.** `go test -cover` measures statements, not
-    branches, and Go has no native branch coverage; Rust branch coverage via
-    `llvm-cov` should be verified for stability before relying on it. Pick one
-    measurable definition that both languages enforce identically (for example
-    statement coverage plus mutation score), or a named tool per language.
+   `access.yaml`). The default must not be treated as evidence of support.
+   Decide whether `conformance` is user-writable in an authored document. There
+   is one expanded-form grammar; what may be written by hand and what is filled
+   from the binding is a property of the validation contract, not of a second
+   grammar.
+10. **Branch-coverage measurement.** The gate requires > 90% branch coverage in
+    both languages. `go test -cover` measures statements, not branches, and Go
+    has no native branch coverage; Rust branch coverage via `llvm-cov` should be
+    verified for stability before relying on it. Name a measurement tool per
+    language that enforces the same requirement. Replacing branch coverage with a
+    weaker metric (for example statement coverage plus mutation score) lowers the
+    gate and needs its own explicit, recorded decision.
 
+Points 1 and 7 are two sides of one recognition problem (a `type: any` value
+that happens to carry the full key set) and are closed together.
