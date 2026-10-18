@@ -30,3 +30,20 @@ Status: **draft, open decisions listed below.**
 6. **Errors.** Machine-readable error codes and source position (line, column).
 7. **Ambiguity for `type: any` values.** A short-form map value that happens to
    contain the full key set: error, or schema-directed reading.
+8. **Type of the symbolic `inherit`.** `access.yaml` types `access` and `modify`
+   as `list<CertPattern>` with default `inherit`. A symbolic value in a list-typed
+   field is a type conflict. Either the schema type becomes
+   `list<CertPattern> | inherit`, or the expanded form carries the marker
+   outside the field's type. Affects `validate` and `collapse`.
+9. **Origin of `conformance`.** The default `implemented` is part of the atom's
+   description; actual device capability comes from the adapter binding
+   (`not_implemented` is device-level and enforced by the Relay, per
+   `access.yaml`). The default must not be treated as evidence of support. Decide
+   whether `conformance` is user-writable in the authored long form, and keep
+   an authored-long / materialized-long distinction.
+10. **Branch-coverage measurement.** `go test -cover` measures statements, not
+    branches, and Go has no native branch coverage; Rust branch coverage via
+    `llvm-cov` should be verified for stability before relying on it. Pick one
+    measurable definition that both languages enforce identically (for example
+    statement coverage plus mutation score), or a named tool per language.
+
