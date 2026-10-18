@@ -1,0 +1,13 @@
+# Scope of the qualification samples, in the format of coverage/scope.yaml (used by the pipeline checks).
+format: cic-coverage-scope/1
+languages:
+  rust:
+    root: spike/coverage-qualification/rust
+    include: ["src/**/*.rs"]
+    exclude_test: ["**/tests/**", "**/tests.rs"]
+    exclude_generated: ["**/generated/**"]
+  go:
+    root: spike/coverage-qualification/go
+    include: ["**/*.go"]
+    exclude_test: ["**/*_test.go"]
+    exclude_generated: ["**/*.pb.go"]

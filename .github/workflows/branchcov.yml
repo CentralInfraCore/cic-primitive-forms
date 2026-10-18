@@ -1,0 +1,41 @@
+name: branchcov
+# Qualification of the cic-branch/1 measurement pipeline (ADR 0009): unit tests of the Go and Rust measurement
+# tools, their fail-closed tests, and the qualification run on the hand-counted samples through the real gate.
+# It does not make any tool "selected" for the product: coverage/tools.yaml is unchanged.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["tools/branchcov/**", "tools/coverage_gate.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
+  push:
+    branches: ["spike/**", "feat/branchcov-**"]
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Pinned Rust nightly with llvm-tools
+        run: |
+          rustup toolchain install nightly-2026-10-17 --profile minimal --component llvm-tools-preview
+          rustup default nightly-2026-10-17
+          rustc --version
+      - name: cargo-llvm-cov (independent cross-check only)
+        run: cargo install --locked cargo-llvm-cov --version 0.9.1
+      - name: Unit tests of gobranch
+        run: cd tools/branchcov/go && go test -count=1 ./...
+      - name: Unit tests of rustbranch
+        run: cd tools/branchcov/rust && cargo test --locked
+      - name: Fail-closed tests, Go
+        run: python3 tools/branchcov/test_failclosed.py
+      - name: Fail-closed tests, Rust
+        run: python3 tools/branchcov/test_failclosed_rust.py
+      - name: Qualification run through the real gate
+        run: python3 tools/branchcov/qualify.py --llvm

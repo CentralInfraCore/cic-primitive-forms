@@ -1,0 +1,18 @@
+{
+  "_comment": "Hand-counted branches of rust-complex under cic-branch/1: function -> [[category, edges, covered by the full tests, covered by the reduced tests], ...]",
+  "rust-complex": {
+    "else_if":      [["conditional", 6, 6, 4]],
+    "find":         [["loop", 4, 4, 3], ["conditional", 2, 2, 2]],
+    "arms":         [["match", 8, 8, 5], ["conditional", 2, 2, 0]],
+    "drain":        [["loop", 2, 2, 2], ["conditional", 4, 4, 2]],
+    "quest2":       [["error_path", 4, 4, 2]],
+    "first_even":   [["error_path", 2, 2, 2], ["conditional", 2, 2, 1]],
+    "closure_cond": [["short_circuit", 4, 4, 3], ["loop", 2, 2, 2], ["conditional", 2, 2, 2]],
+    "generic":      [["conditional", 2, 2, 1]],
+    "iflet_chain":  [["conditional", 4, 4, 3]],
+    "loop_break":   [["conditional", 2, 2, 2]],
+    "nested_cond":  [["conditional", 2, 2, 2], ["short_circuit", 6, 6, 4]],
+    "for_continue": [["loop", 2, 2, 2], ["conditional", 2, 2, 1]],
+    "ret_early":    [["match", 5, 5, 3]]
+  }
+}

@@ -135,6 +135,38 @@ effect of inlining, generics and macros on the Rust branch regions.
 
 It does not qualify; it measures a smaller set than `gobco`, which itself does not qualify.
 
+## Addendum: the pipeline built after decision A
+
+After the decision the measurement was built in `tools/branchcov/` (see its README): `gobranch` (Go, AST based), `rustbranch`
+(Rust, `syn` based), an adapter and a qualification run. Results on the four hand-counted samples, full and reduced test set:
+
+| Sample | Edges | Full covered | Reduced covered | Measured equals the hand counts |
+|---|---|---|---|---|
+| `go` | 34 | 34 | 24 | yes, 14 functions, every category |
+| `go-complex` | 46 | 46 | 32 | yes, 10 functions, every category |
+| `rust` | 27 | 27 | 20 | yes, 10 functions, every category |
+| `rust-complex` | 69 | 69 | 48 | yes, 13 functions, every category |
+
+- The reports go to the **real** `tools/coverage_gate.py check` with both languages: the full sets **pass**, the reduced sets
+  **fail** with `BELOW_THRESHOLD` for both (Rust 74.07% / 69.56%, Go 70.58% / 69.56%).
+- Determinism: a second measurement is byte-identical.
+- Independent evidence for Rust: where LLVM has a branch region (plain `if` / `while`, guards, `&&` / `||` operands) the
+  counters equal LLVM's counts, 8 edge pairs in `rust` and 19 in `rust-complex`, also summed over the two instantiations of a generic function.
+- Fail closed: 10 Go and 9 Rust cases are refused (existing `TestMain`, failing tests, `goto`, `fallthrough` into the implicit edge,
+  old `go` directive, build-constraint files, an unmeasured scope file, a file changed after the run; `cfg`, `let-else`, a
+  condition inside a macro, `build.rs`, workspaces, ...), and the enumerators have unit tests.
+
+Decision of the Rust base: the owner's decision A kept `cargo-llvm-cov` as the evidence source. The region data was examined
+on a compound sample before building: a `match` arm region starts at the first expression of the arm body, not at the arm; an
+`for` loop has no exit region and its exit count would need the counts of every `break` / `return` / `?` in the body; `?` is
+recoverable. That reconstruction is not unambiguous in compound cases, which is exactly what the decision asked to be proved,
+so `rustbranch` uses the same method as `gobranch` (counters in an instrumented copy) and `cargo-llvm-cov` is kept as the independent
+cross-check. This departs from the letter of "cargo-llvm-cov stays the measurement base" and is flagged for the owner.
+
+Acceptance criteria 3 and 6 of the spike are met on the samples. What remains unproven: behaviour on real code (the samples are
+small), macros that hide decisions (refused, not measured), the effect of `unsafe` relaxation in the Rust copy, other toolchain
+versions, and the product-level wiring (`coverage/tools.yaml` is unchanged, no CI gate is required yet).
+
 ## Reproducibility
 
 `run_tools.sh` produces `evidence/*.json` byte-identically locally and on GitHub; the workflow

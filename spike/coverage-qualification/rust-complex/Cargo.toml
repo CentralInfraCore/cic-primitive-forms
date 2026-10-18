@@ -1,0 +1,11 @@
+[package]
+name = "cov_complex"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# `reduced` drops the cases marked cfg(not(feature = "reduced")) in tests/complex.rs.
+reduced = []
