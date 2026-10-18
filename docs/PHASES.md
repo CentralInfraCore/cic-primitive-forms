@@ -19,6 +19,9 @@ a "critical" subset:
 | Property tests | required for parse/emit, expand/collapse, normalize, diff/patch |
 | Fuzzing | parser, expand/collapse, normalize, diff/patch; from P1 |
 
+The branch-coverage row is not yet identically measurable in both languages
+(see ADR 0000, open point 10); the measurement method is fixed in P0.
+
 A gate that cannot fail proves nothing: each gate is accompanied by a seeded
 fault or vector that demonstrably turns it red.
 
