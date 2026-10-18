@@ -1,51 +1,181 @@
-# Provisional vectors for ADR 0004. Format is not final.
+# Provisional inheritance cases for ADR 0004. Format: ADR 0005.
 # Values are YAML-typed: 0 is an integer, "0" a string, false a boolean.
-# Vectors assert only that the input type and value are preserved and that false and
-# 0 stay different. They do not fix any internal enum name (that is an upstream decision).
-inherit_key:
-  - {id: true-ok, input: true, expect: {valid: true, preserved: {type: boolean, value: true}}}
-  - {id: false-ok, input: false, expect: {valid: true, preserved: {type: boolean, value: false}}}
-  - {id: zero-ok, input: 0, expect: {valid: true, preserved: {type: integer, value: 0}}}
-  - {id: one-rejected, input: 1, expect: {error: INVALID_INHERIT}}
-  - {id: string-true-rejected, input: "true", expect: {error: INVALID_INHERIT}}
-  - {id: string-zero-rejected, input: "0", expect: {error: INVALID_INHERIT}}
-  - {id: null-rejected, input: null, expect: {error: INVALID_INHERIT}}
-  - {id: list-rejected, input: [], expect: {error: INVALID_INHERIT}}
-inherit_policy:
-  - {id: policy-true-ok, input: true, expect: {valid: true, preserved: {type: boolean, value: true}}}
-  - {id: policy-false-ok, input: false, expect: {valid: true, preserved: {type: boolean, value: false}}}
-  - id: policy-zero-ok-despite-boolean-declaration
-    description: the schema declares boolean but its description defines 0; the library accepts it by documented meaning and flags the contradiction upstream
+# Cases assert only that input type and value are preserved and that false and 0 stay
+# different. They fix no internal enum name (an upstream decision).
+# schema.synthetic.slot names the atom slot under test.
+corpus_format: 1
+suite: inherit
+status: provisional
+defaults: {adr: ADR-0004, grammar: cic-primitives-devel}
+cases:
+  - id: inherit.key-true-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: inherit_key}}
+    input: true
+    expect: {preserved: {type: boolean, value: true}, valid: true}
+  - id: inherit.key-false-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: inherit_key}}
+    input: false
+    expect: {preserved: {type: boolean, value: false}, valid: true}
+  - id: inherit.key-zero-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: inherit_key}}
     input: 0
-    expect: {valid: true, preserved: {type: integer, value: 0}, upstream_conflict: true}
-  - {id: policy-one-rejected, input: 1, expect: {error: INVALID_INHERIT}}
-  - {id: policy-string-rejected, input: "false", expect: {error: INVALID_INHERIT}}
-access_modify:
-  - {id: symbol-ok, input: inherit, expect: {valid: true, kind: symbol}}
-  - {id: pattern-list-ok, input: ["OU=operators,O=acme-corp"], expect: {valid: true, kind: list}}
-  - {id: wildcard-pattern-ok, input: ["CN=*,O=partner-a"], expect: {valid: true, kind: list}}
-  - {id: empty-list-is-nobody-not-inherit, input: [], expect: {valid: true, kind: list, is_inherit: false}}
-  - {id: list-holding-symbol-rejected, input: [inherit], expect: {error: INVALID_CERT_PATTERN}}
-  - {id: bare-pattern-scalar-rejected, input: "OU=ops,O=acme", expect: {error: INVALID_ACCESS_VALUE}}
-  - {id: null-rejected, input: null, expect: {error: INVALID_ACCESS_VALUE}}
-  - {id: boolean-rejected, input: true, expect: {error: INVALID_ACCESS_VALUE}}
-roundtrip:
-  - id: zero-spelling-preserved
+    expect: {preserved: {type: integer, value: 0}, valid: true}
+  - id: inherit.key-one-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_key}}
+    input: 1
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.key-string-true-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_key}}
+    input: 'true'
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.key-string-zero-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_key}}
+    input: '0'
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.key-null-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_key}}
+    input: null
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.key-list-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_key}}
+    input: []
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.policy-true-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: inherit_policy}}
+    input: true
+    expect: {preserved: {type: boolean, value: true}, valid: true}
+  - id: inherit.policy-false-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: inherit_policy}}
+    input: false
+    expect: {preserved: {type: boolean, value: false}, valid: true}
+  - id: inherit.policy-zero-ok-despite-boolean-declaration
+    kind: validate
+    polarity: positive
+    description: the schema declares boolean but its description defines 0; the library accepts it by documented meaning and flags the contradiction upstream
+    schema: {synthetic: {slot: inherit_policy}}
+    input: 0
+    expect: {preserved: {type: integer, value: 0}, upstream_conflict: true, valid: true}
+  - id: inherit.policy-one-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_policy}}
+    input: 1
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.policy-string-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: inherit_policy}}
+    input: 'false'
+    expect: {error: INVALID_INHERIT}
+    codes_status: provisional
+  - id: inherit.access-symbol-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_modify}}
+    input: inherit
+    expect: {kind: symbol, valid: true}
+  - id: inherit.access-pattern-list-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_modify}}
+    input: ['OU=operators,O=acme-corp']
+    expect: {kind: list, valid: true}
+  - id: inherit.access-wildcard-pattern-ok
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_modify}}
+    input: ['CN=*,O=partner-a']
+    expect: {kind: list, valid: true}
+  - id: inherit.access-empty-list-is-nobody-not-inherit
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_modify}}
+    input: []
+    expect: {is_inherit: false, kind: list, valid: true}
+  - id: inherit.access-list-holding-symbol-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_modify}}
+    input: [inherit]
+    expect: {error: INVALID_CERT_PATTERN}
+    codes_status: provisional
+  - id: inherit.access-bare-pattern-scalar-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_modify}}
+    input: OU=ops,O=acme
+    expect: {error: INVALID_ACCESS_VALUE}
+    codes_status: provisional
+  - id: inherit.access-null-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_modify}}
+    input: null
+    expect: {error: INVALID_ACCESS_VALUE}
+    codes_status: provisional
+  - id: inherit.access-boolean-rejected
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_modify}}
+    input: true
+    expect: {error: INVALID_ACCESS_VALUE}
+    codes_status: provisional
+  - id: inherit.zero-spelling-preserved
+    kind: roundtrip
+    polarity: positive
     description: inherit 0 must come back as integer 0, never as false
-    expanded: {value: 1, access: inherit, modify: inherit, inherit: 0, default_injection: null, conformance: implemented}
-    expect: {inherit_after: 0, inherit_after_type: integer}
-  - id: false-spelling-preserved
-    expanded: {value: 1, access: inherit, modify: inherit, inherit: false, default_injection: null, conformance: implemented}
-    expect: {inherit_after: false, inherit_after_type: boolean}
-  - id: false-and-zero-stay-distinct
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: 0, modify: inherit, value: 1}
+    expect: {fields: {inherit: {type: integer, value: 0}}}
+  - id: inherit.false-spelling-preserved
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: false, modify: inherit, value: 1}
+    expect: {fields: {inherit: {type: boolean, value: false}}}
+  - id: inherit.false-and-zero-stay-distinct
+    kind: equality
+    polarity: positive
     description: two nodes differing only in false versus 0 are different documents
-    a: {value: 1, access: inherit, modify: inherit, inherit: false, default_injection: null, conformance: implemented}
-    b: {value: 1, access: inherit, modify: inherit, inherit: 0, default_injection: null, conformance: implemented}
+    schema: {synthetic: {position: scalar}}
+    a: {access: inherit, conformance: implemented, default_injection: null, inherit: false, modify: inherit, value: 1}
+    b: {access: inherit, conformance: implemented, default_injection: null, inherit: 0, modify: inherit, value: 1}
     expect: {equal: false}
-  - id: empty-access-list-not-replaced-by-symbol
-    expanded: {value: 1, access: [], modify: inherit, inherit: true, default_injection: null, conformance: implemented}
-    expect: {access_after: []}
-expand:
-  - id: expand-fills-symbolic-defaults
-    short: 4
-    expect: {access: inherit, modify: inherit, inherit: true, default_injection: null, conformance: implemented}
+  - id: inherit.empty-access-list-not-replaced-by-symbol
+    kind: roundtrip
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: [], conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}
+    expect: {fields: {access: {type: list, value: []}}}
+  - id: inherit.expand-fills-symbolic-defaults
+    kind: expand
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: 4
+    expect: {fields: {access: {type: string, value: inherit}, conformance: {type: string, value: implemented}, default_injection: {type: 'null', value: null}, inherit: {type: boolean, value: true}, modify: {type: string, value: inherit}}}

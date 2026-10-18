@@ -120,14 +120,15 @@ this is agreed in the integration phase (P5, P6), not here.
 
 ## Vectors
 
-Provisional vectors are in `corpus/presence/vectors.yaml`. The corpus format is
-still a P0 item. The `shape` shorthand in the vectors is a fixture notation, not
+Provisional vectors are in `corpus/presence/vectors.yaml`, in the format of
+ADR 0005. The `shape` shorthand in the vectors is a fixture notation, not
 a schema; the shared runner binds it to the real Shape members (`shape_type`,
 `scalar_type`, `mandatory` / `optional`, `nullable`, `default`) and no parallel
 primitive schema is defined. The vectors assert only that a default is a
 *candidate* for an absent optional field; whether it is applied depends on Role
-and belongs to separate P3 vectors. Expectations are typed (`present` plus a
-`value`), so a value, a state and a serialized text are never confused.
+and belongs to separate P3 vectors. Round-trip expectations are typed values (`{type, value}`, with Absent as
+`{type: absent}`; ADR 0005), so a value, a state and a serialized text are never
+confused.
 
 ## Decisions recorded from the review of PR 6
 

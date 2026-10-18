@@ -1,0 +1,109 @@
+# Seeded faults for the corpus gate (ADR 0005). Each fault is applied to a copy of the
+# corpus and must turn the named rule red. `old` must occur exactly once in the file.
+# The self-test also fails if any rule in the checker has no fault here.
+faults:
+  - id: syntax-error
+    rule: YAML_SYNTAX
+    ops: [{file: corpus/inherit/vectors.yaml, old: "cases:\n", new: "cases: [\n"}]
+  - id: duplicate-key
+    rule: DUPLICATE_YAML_KEY
+    ops: [{file: corpus/inherit/vectors.yaml, old: "suite: inherit\n", new: "suite: inherit\nsuite: inherit\n"}]
+  - id: yaml11-bool-spelling
+    rule: AMBIGUOUS_SCALAR
+    ops: [{file: corpus/inherit/vectors.yaml, old: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: true", new: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: yes"}]
+  - id: stray-yaml-file
+    rule: UNEXPECTED_FILE
+    ops: [{file: corpus/stray.yaml, add: "a: 1\n"}]
+  - id: suite-dir-mismatch
+    rule: ENVELOPE
+    ops: [{file: corpus/inherit/vectors.yaml, old: "suite: inherit\n", new: "suite: presence\n"}]
+  - id: format-version
+    rule: FORMAT_VERSION
+    ops: [{file: corpus/codes.yaml, old: "corpus_format: 1", new: "corpus_format: 2"}]
+  - id: pin-short-commit
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "commit: 5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd", new: "commit: 5a26bd8"}]
+  - id: code-lowercase
+    rule: CODE_REGISTRY
+    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD: provisional", new: "  unknown_field: provisional"}]
+  - id: case-missing-polarity
+    rule: CASE_FIELD
+    ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n", new: "  - id: inherit.key-true-ok\n    kind: validate\n"}]
+  - id: id-wrong-suite-prefix
+    rule: ID_FORMAT
+    ops: [{file: corpus/inherit/vectors.yaml, old: "id: inherit.key-true-ok", new: "id: presence.key-true-ok"}]
+  - id: id-duplicate
+    rule: ID_DUPLICATE
+    ops: [{file: corpus/inherit/vectors.yaml, old: "id: inherit.key-false-ok", new: "id: inherit.key-true-ok"}]
+  - id: kind-unknown
+    rule: KIND_UNKNOWN
+    ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-true-ok\n    kind: validate", new: "  - id: inherit.key-true-ok\n    kind: validat"}]
+  - id: null-input-dropped
+    rule: INPUT_PRESENCE
+    ops: [{file: corpus/presence/vectors.yaml, old: "    input: null\n    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.mandatory-nullable-null", new: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.mandatory-nullable-null"}]
+  - id: absent-and-input-both
+    rule: INPUT_PRESENCE
+    ops: [{file: corpus/presence/vectors.yaml, old: "  - id: presence.mandatory-absent\n    kind: validate\n    polarity: negative\n", new: "  - id: presence.mandatory-absent\n    kind: validate\n    polarity: negative\n    input: null\n"}]
+  - id: adr-dangling
+    rule: REF_DANGLING
+    ops: [{file: corpus/inherit/vectors.yaml, old: "adr: ADR-0004", new: "adr: ADR-0099"}]
+  - id: grammar-pin-dangling
+    rule: REF_DANGLING
+    ops: [{file: corpus/inherit/vectors.yaml, old: "grammar: cic-primitives-devel", new: "grammar: nowhere"}]
+  - id: schema-slot-unknown
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/inherit/vectors.yaml, old: "slot: inherit_key}}\n    input: true", new: "slot: inherit_keyy}}\n    input: true"}]
+  - id: negative-marked-positive
+    rule: POLARITY
+    ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-one-rejected\n    kind: validate\n    polarity: negative", new: "  - id: inherit.key-one-rejected\n    kind: validate\n    polarity: positive"}]
+  - id: code-not-registered
+    rule: CODE_UNKNOWN
+    ops: [{file: corpus/codes.yaml, old: "  INVALID_INHERIT: provisional\n", new: ""}]
+  - id: code-status-dropped
+    rule: CODE_STATUS
+    ops: [{file: corpus/inherit/vectors.yaml, old: "    expect: {error: INVALID_INHERIT}\n    codes_status: provisional\n  - id: inherit.key-string-true-rejected", new: "    expect: {error: INVALID_INHERIT}\n  - id: inherit.key-string-true-rejected"}]
+  - id: code-unused
+    rule: CODE_UNUSED
+    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD: provisional", new: "  UNKNOWN_FIELD: provisional\n  NEVER_USED: provisional"}]
+  - id: typed-value-malformed
+    rule: TYPED_VALUE
+    ops: [{file: corpus/inherit/vectors.yaml, old: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: true\n    expect: {preserved: {type: boolean, value: true}", new: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: true\n    expect: {preserved: {type: boolean}"}]
+  - id: zero-declared-as-boolean
+    rule: TYPED_MISMATCH
+    ops: [{file: corpus/inherit/vectors.yaml, old: "preserved: {type: integer, value: 0}, valid: true}\n  - id: inherit.key-one-rejected", new: "preserved: {type: boolean, value: 0}, valid: true}\n  - id: inherit.key-one-rejected"}]
+  - id: false-declared-as-integer
+    rule: TYPED_MISMATCH
+    ops: [{file: corpus/inherit/vectors.yaml, old: "preserved: {type: boolean, value: false}, valid: true}\n  - id: inherit.key-zero-ok", new: "preserved: {type: integer, value: false}, valid: true}\n  - id: inherit.key-zero-ok"}]
+  - id: absent-with-value
+    rule: TYPED_VALUE
+    ops: [{file: corpus/presence/vectors.yaml, old: "expect: {collapsed: {type: absent}, expanded: {type: absent}}", new: "expect: {collapsed: {type: absent}, expanded: {type: absent, value: null}}"}]
+  - id: null-declared-as-absent-mismatch
+    rule: TYPED_MISMATCH
+    ops: [{file: corpus/presence/vectors.yaml, old: "expect: {collapsed: {type: list, value: []}, expanded: {type: list, value: []}}", new: "expect: {collapsed: {type: list, value: []}, expanded: {type: map, value: []}}"}]
+  - id: expect-unknown-key
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/presence/vectors.yaml, old: "expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.optional-nullable-null", new: "expect: {error: NULL_NOT_ALLOWED, bogus: 1}\n    codes_status: provisional\n  - id: presence.optional-nullable-null"}]
+  - id: schema-pin-dangling
+    rule: REF_DANGLING
+    ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {pin: no-such-schema}"}]
+  - id: record-position-malformed
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "position: {list_of: {record: {host: scalar, port: scalar}}}", new: "position: {list_of: {structured: [host]}}"}]
+  - id: empty-scalar-case-loses-codes-status
+    rule: CODE_STATUS
+    ops: [{file: corpus/presence/vectors.yaml, old: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.map-with-code", new: "    expect: {error: NULL_NOT_ALLOWED}\n  - id: presence.map-with-code"}]
+  - id: elements-not-a-list
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "expect: {elements: [{host: short, port: short}, {host: short, port: expanded}]}", new: "expect: {elements: nonsense}"}]
+  - id: elements-unknown-class
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, port: shortt}, {host: short, port: expanded}"}]
+  - id: elements-wrong-fields
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, colour: short}, {host: short, port: expanded}"}]
+  - id: elements-count-mismatch
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{host: short, port: short}, {host: short, port: expanded}", new: "{host: short, port: short}"}]
+  - id: class-unknown
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: short}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: shorter}"}]

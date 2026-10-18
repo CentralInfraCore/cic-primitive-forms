@@ -105,8 +105,8 @@ Consequences for this library:
 
 ## Vectors
 
-Provisional vectors are in `corpus/inherit/vectors.yaml`. The corpus format is
-still a P0 item.
+Provisional vectors are in `corpus/inherit/vectors.yaml`, in the format of
+ADR 0005.
 
 ## Open questions
 
