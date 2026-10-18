@@ -1,14 +1,15 @@
 # ADR 0001: recognizing short and expanded form (draft)
 
 Status: **proposed.** Resolves issue #3 points 1 and 7 together. Not accepted
-until reviewed; the open questions at the end need a decision.
+until reviewed.
 
-## Problem
+## Origin of the rule
 
-A map at a primitive position can be an expanded primitive (the `Access`
-atom's key set) or the authored value itself. Key presence alone cannot always
-tell them apart, so recognition must be defined, deterministic and
-schema-directed, and it must survive a round trip.
+The decision of record is: when all the mandatory keys of the primitive are
+present the node is expanded, otherwise it is short. An earlier draft of this
+ADR added partial-set errors and per-position cases that departed from that
+decision; this version returns to it and only adds what is needed to make it
+total (the extra-key case).
 
 ## Terms
 
@@ -16,74 +17,80 @@ schema-directed, and it must survive a round trip.
   six keys for `Access` (`value`, `access`, `modify`, `inherit`,
   `default_injection`, `conformance`). Read from the schema, never hardcoded.
 - `K`: the key set of the map being classified.
-- Position kind, given by the schema:
-  - **scalar**: a scalar or list value, no child fields;
-  - **structured**: a shape with declared child fields `C`;
-  - **any**: `type: any`, the value is opaque to this library.
+- A *primitive position* is a place the schema marks as holding a primitive.
+  Recognition happens per primitive position, not per YAML map.
 
 ## The rule
 
-Classification happens per primitive position, not per YAML map. A node that
-is not a map (scalar, list, null) is always **Short**. For a map, apply the
-first matching step:
+A node that is not a map (scalar, list, null) is **Short**. For a map:
 
-1. `K == A`: **Expanded**, at every position kind.
-2. Position **any**:
-   - `K` non-empty and a proper subset of `A`: **Error** `AMBIGUOUS_ACCESS_KEYS`;
-   - otherwise **Short**: an opaque map, including maps that only contain
-     some Access key names next to foreign keys, or all of `A` plus extras.
-3. Position **structured** with child fields `C`:
-   - `K` a proper subset of `A` and `K ⊄ C`: **Error** `PARTIAL_EXPANDED`;
-   - `K ∩ A` not a subset of `C`: **Error** `UNKNOWN_ACCESS_KEY`;
-   - `K ⊆ C`: **Short** (the keys are child fields, even when a child is named
-     like an Access key);
-   - otherwise: **Error** `UNKNOWN_FIELD`.
-4. Position **scalar** and any other map: **Error** `MAP_AT_SCALAR_POSITION`.
+| Condition | Result |
+|---|---|
+| `K == A` | **Expanded** |
+| `A ⊂ K` (all of `A` plus extra keys) | **Error** `EXPANDED_WITH_EXTRA_KEY` |
+| `A ⊄ K` | **Short** |
+
+The recognizer looks only at the keys and at the fact that the position is a
+primitive position. It never looks at values, at `inherit: true/false/0`, or at
+the type of the position. Whether a Short node is acceptable at its position
+(a map at a scalar position, an unknown field, a value of the wrong type) is the
+job of `validate`, not of `recognize`.
 
 Consequences:
 
-1. An **expanded** node has exactly the schema's key set. A map with all of `A`
-   plus extra keys is not expanded: an error at scalar and structured
-   positions, an opaque short map at any positions. There is no partial
-   expanded form.
-2. The content of `value` at an **any** position is **opaque**: it is never
-   re-recognized, so a literal map inside it cannot be mistaken for a primitive.
-3. A user who means a literal map equal to `A` at an any position must write the
-   expanded wrapper explicitly, with that map under `value`. A short-form map
-   whose key set equals `A` is by definition expanded.
-4. A proper subset of `A` at an any position is rejected rather than guessed:
-   `{value: 1}` could be a partial expanded form or user data, and the library
-   does not guess.
+1. **Missing keys mean Short.** `{value: 1, access: inherit}` is a short-form map
+   value, not a partial override. At a scalar or structured position `validate`
+   rejects it; at an `any` position it is data. This is the accepted cost of the
+   simple rule, and it is silent at `any` positions.
+2. **No guessing.** All of `A` plus an extra key is never read as data.
+3. **`any` values are opaque.** The content of `value` at an `any` position is not
+   re-recognized, so a literal map inside it is never mistaken for a primitive.
+4. **Access keys take precedence in structured shapes.** If a structured shape's
+   child fields include all of `A` (`C ⊇ A`), a map with exactly `A` is still
+   Expanded. Literal structured data with that key set must be written under an
+   explicit expanded wrapper, with the data under `value`.
+5. **A literal map equal to `A`** at an `any` position is written the same way:
+   as the `value` of an expanded wrapper.
 
-## Round-trip invariant
+## Round trip
 
-`collapse` must never emit a short form that `recognize` would classify
-differently:
+Preserving the recognition class is necessary but not sufficient. The law is
 
-`recognize(collapse(n)) == n` for every expanded node `n`.
+`expand(collapse(L, I, S), S) ≡ L`
 
-So at an any position an expanded node whose `value` is a map equal to `A` or a
-proper subset of `A` stays expanded under `collapse`: emitting it as a short
-form would be re-recognized as expanded or rejected.
+for an expanded primitive `L`, the authored intent `I` and the fixed schema `S`,
+where `≡` covers the value and the policy semantics (`access`, `modify`,
+`inherit`, `default_injection`, `conformance`), not YAML bytes.
+
+`collapse` may produce a Short form for `L` only if all of these hold:
+
+- every policy field of `L` equals the symbolic default `expand` would fill
+  from `S` (`access: inherit`, `modify: inherit`, `inherit: true`,
+  `default_injection: null`, `conformance: implemented`);
+- `I`, when present, did not author this node in expanded form (an authored
+  expanded node stays expanded, even when equal to the defaults);
+- the Short form is recognized as Short: `value` is not a map whose key set is
+  `⊇ A`.
+
+Otherwise `collapse` leaves the node expanded. No explicit policy setting is
+ever dropped.
 
 ## Errors
 
-Each error carries a stable code, the logical path and the source position:
-`PARTIAL_EXPANDED`, `AMBIGUOUS_ACCESS_KEYS`, `UNKNOWN_ACCESS_KEY`,
-`UNKNOWN_FIELD`, `MAP_AT_SCALAR_POSITION`. The full error contract is issue #3 point 6.
+Recognition has one error, `EXPANDED_WITH_EXTRA_KEY`, with logical path and
+source position. Errors from `validate` (map at scalar position, unknown field,
+unknown key) are defined with the error contract, issue #3 point 6; the codes
+in the vectors are provisional. A duplicate key is a `parse`-phase error.
 
 ## Vectors
 
-Provisional vectors live in `corpus/recognition/vectors.yaml`. The corpus file
-format itself is still a P0 item; these vectors fix the behaviour, not the
-format.
+Provisional vectors are in `corpus/recognition/vectors.yaml`. The corpus file
+format is still a P0 item.
 
 ## Open questions
 
-- Rule 4 rejects a proper subset of `A` at an any position. Is a stricter
-  alternative (always Short for `any`) acceptable given that it silently reads a
-  likely partial override as data?
-- `UNKNOWN_FIELD` at structured positions overlaps with ordinary schema
-  validation. Keep it here, or leave it to `validate`?
-- Whether the recognizer is aware of `inherit: 0` / `false` is not needed here,
-  but confirm that recognition never looks at values, only at keys.
+- List elements: whether and how an element of a list is a primitive position
+  depends on the schema contract (issue #3 point 4); the list vector is
+  provisional.
+- The silent `any` case of consequence 1 is accepted. If a warning channel
+  exists in the error contract, it is a candidate there, not here.
