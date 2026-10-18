@@ -46,6 +46,8 @@ primitive is:
   (intent and state branches, commits, signing) belongs to the CIC Relay.
 - **Two implementations, one corpus.** The shared test vectors are normative;
   neither implementation is the reference for the other.
+- **Quality gates above 90%.** Line, branch and mutation score are each
+  required to exceed 90% in both languages, from the first code phase on.
 - **A rejected or ambiguous input is an explicit error**, never silently
   reinterpreted.
 

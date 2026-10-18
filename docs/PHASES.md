@@ -1,9 +1,28 @@
 # Phases
 
 Each phase ends with a capability that works identically in Rust and Go and is
-closed by tests. Exit criteria matter; calendar time does not. Quality gates
-(coverage, mutation score, fuzzing) are wired in from P1 and only ever tighten.
+closed by tests. Exit criteria matter; calendar time does not.
 Within a phase the shared corpus leads, Rust follows, Go closes in the same phase.
+
+## Quality gates
+
+Wired into CI from P1, enforced in both languages, and they only ever tighten.
+Every threshold is strictly greater than 90% and applies to all code, not only
+a "critical" subset:
+
+| Gate | Requirement |
+|---|---|
+| Line coverage (unit) | > 90% |
+| Branch coverage | > 90% |
+| Mutation score | > 90% |
+| Rust / Go parity on the shared corpus | 100% of accepted vectors |
+| Property tests | required for parse/emit, expand/collapse, normalize, diff/patch |
+| Fuzzing | parser, expand/collapse, normalize, diff/patch; from P1 |
+
+A gate that cannot fail proves nothing: each gate is accompanied by a seeded
+fault or vector that demonstrably turns it red.
+
+## Phases
 
 | Phase | Content | Exit criterion |
 |---|---|---|
