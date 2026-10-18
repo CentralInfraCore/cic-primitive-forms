@@ -71,9 +71,18 @@ list with `min_items: 1` rejects `[]`).
    field, the default does not turn into an authored value (this builds on the
    intent being supplied to `collapse`, ADR 0001).
 8. **`state_surface`.** A missing observation is never replaced by a schema
-   default. At the YAML level the library knows only Absent and Present; the
-   coverage vocabulary (`missing`, `unknown`, `not_observed`) is the engine's and
-   is not produced here.
+   default, and a missing `mandatory` field on `state_surface` is a **coverage
+   fact**, not automatically an authoring-validation error. An absent field does
+   not prove the field is not on the device. Three situations stay separate, in
+   the engine's coverage vocabulary (`MATERIALIZATION-SPEC.md`): the adapter did
+   not examine the path (`unobserved`); it examined it and authoritatively found
+   it not there (`absent`); there is no adequate coverage information (`unknown`,
+   the fourth value B2 adds), in which case the absence must not be called
+   `absent`. A partial observation can be processed without inventing the
+   missing field, but it does not thereby become a complete, conforming
+   observation: completeness and conformance violations are the engine's check.
+   The library knows only Absent and Present at the YAML level and does not
+   produce the coverage values.
 
 ## Round trip
 
@@ -85,14 +94,15 @@ list with `min_items: 1` rejects `[]`).
   byte level is source-preserving editing (P3b), not this ADR.
 - An empty value (`""`, `[]`, `{}`) is preserved as itself.
 
-## Consequence: policy on an absent field cannot be written
+## Consequence: policy on an absent field
 
 The expanded form requires the whole key set of ADR 0001, `value` included. A
 field cannot therefore carry an explicit policy (`access`, `modify`, ...) and be
-absent at the same time; the only way to attach a policy is to give it a
-value, which for an optional field means `null` (if `nullable`) or a real
-value. This is a limitation of the chosen recognition rule, recorded here, not
-solved here.
+absent at the same time. This limit is accepted and no new YAML structure is
+introduced for it: with no authored value there is no field instance to attach a
+wrapper to, so a rule for an absent field is declared in the schema or at the
+right level of the PolicySurface. `null` must not be used as a stand-in for
+Absent only to attach a policy.
 
 ## Relation to the engine
 
@@ -105,13 +115,23 @@ this is agreed in the integration phase (P5, P6), not here.
 ## Vectors
 
 Provisional vectors are in `corpus/presence/vectors.yaml`. The corpus format is
-still a P0 item.
+still a P0 item. The `shape` shorthand in the vectors is a fixture notation, not
+a schema; the shared runner binds it to the real Shape members (`shape_type`,
+`scalar_type`, `mandatory` / `optional`, `nullable`, `default`) and no parallel
+primitive schema is defined. The vectors assert only that a default is a
+*candidate* for an absent optional field; whether it is applied depends on Role
+and belongs to separate P3 vectors. Expectations are typed (`present` plus a
+`value`), so a value, a state and a serialized text are never confused.
+
+## Decisions recorded from the review of PR 6
+
+- A missing `mandatory` field on `state_surface` is a coverage fact (rule 8).
+- A policy on an absent field is not expressible; the limit is accepted and
+  ADR 0001 is not changed.
+- Error codes stay provisional until the common error contract (issue #3
+  point 6).
 
 ## Open questions
 
-1. Is `mandatory` an error for an absent field on `state_surface`, or is absence
-   there a coverage fact (rule 8) and not a validation error?
-2. The policy-without-value limitation above: accept it, or allow a policy on an
-   absent field in some other way (this would change ADR 0001)?
-3. Error codes (`MISSING_MANDATORY`, `NULL_NOT_ALLOWED`, ...) are provisional
-   until the error contract (issue #3 point 6).
+1. Error codes (`MISSING_MANDATORY`, `NULL_NOT_ALLOWED`, ...) are provisional.
+2. How the engine's authored-absent maps onto Absent (P5, P6).
