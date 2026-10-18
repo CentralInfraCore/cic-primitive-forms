@@ -1,0 +1,48 @@
+# Seeded faults of the branch coverage gate (ADR 0009). Each one is applied to a copy of
+# coverage/fixtures and must make the gate fail with the named reason for the named language.
+# The self-test also fails if any reason of the gate has no fault. Paths are relative to
+# coverage/fixtures. rust.report.json lists b.rs first, then lib.rs.
+faults:
+  - {id: report-deleted, language: rust, reason: REPORT_MISSING, ops: [{file: rust.report.json, delete: true}]}
+  - {id: report-not-json, language: rust, reason: REPORT_MISSING, ops: [{file: rust.report.json, add: "not json"}]}
+  - {id: report-with-a-float, language: rust, reason: REPORT_MISSING, ops: [{file: rust.report.json, old: "\"covered\": 96\n", new: "\"covered\": 96.0\n"}]}
+  - {id: report-format-version, language: rust, reason: REPORT_FORMAT, ops: [{file: rust.report.json, json_set: [format], value: "cic-coverage-report/2"}]}
+  - {id: report-extra-key, language: rust, reason: REPORT_FORMAT, ops: [{file: rust.report.json, json_set: [extra], value: 1}]}
+  - {id: report-for-the-other-language, language: rust, reason: REPORT_FORMAT, ops: [{file: rust.report.json, json_set: [language], value: go}]}
+  - {id: report-metric-is-not-branch, language: go, reason: REPORT_FORMAT, ops: [{file: go.report.json, json_set: [metric], value: line}]}
+  - {id: required-language-not-reported, language: go, reason: LANGUAGE_NOT_REPORTED, drop_report: go}
+  - id: measurement-disabled
+    language: rust
+    reason: MEASUREMENT_EMPTY
+    ops: [{file: rust.report.json, json_set: [source, files], value: []}, {file: rust.report.json, json_set: [totals], value: {total: 0, covered: 0}}]
+  - {id: tool-not-selected, language: rust, reason: TOOL_NOT_SELECTED, ops: [{file: tools.yaml, old: "rust:\n  selected: {name: fixture-tool, version: \"1.0.0\", approved_deviations: []}", new: "rust:\n  selected: null"}]}
+  - {id: tool-version-differs-from-the-pin, language: rust, reason: TOOL_MISMATCH, ops: [{file: rust.report.json, json_set: [tool, version], value: "2.0.0"}]}
+  - {id: tool-name-differs-from-the-pin, language: go, reason: TOOL_MISMATCH, ops: [{file: go.report.json, json_set: [tool, name], value: other-tool}]}
+  - {id: other-branch-definition, language: rust, reason: DEFINITION_MISMATCH, ops: [{file: rust.report.json, json_set: [branch_definition], value: statement}]}
+  - {id: report-of-another-commit, language: go, reason: COMMIT_MISMATCH, ops: [{file: go.report.json, json_set: [source, commit], value: "ffffffffffffffffffffffffffffffffffffffff"}]}
+  - {id: new-own-source-file-not-in-the-report, language: rust, reason: SCOPE_INCOMPLETE, ops: [{file: tree/rust/src/new.rs, add: "// a file the report does not know\n"}]}
+  - {id: reported-file-no-longer-exists, language: rust, reason: SCOPE_EXTRA, ops: [{file: tree/rust/src/b.rs, delete: true}]}
+  - {id: test-file-counted-as-source, language: rust, reason: SCOPE_EXTRA, ops: [{file: rust.report.json, json_set: [source, files, 0, path], value: rust/tests/it.rs}]}
+  - {id: generated-file-counted-as-source, language: go, reason: SCOPE_EXTRA, ops: [{file: go.report.json, json_set: [source, files, 1, path], value: go/x.pb.go}]}
+  - {id: source-changed-after-measurement, language: rust, reason: SOURCE_DIGEST, ops: [{file: tree/rust/src/lib.rs, old: "pub fn a", new: "pub fn changed"}]}
+  - {id: digest-of-another-file, language: go, reason: SOURCE_DIGEST, ops: [{file: go.report.json, json_set: [source, files, 0, sha256], value: "0000000000000000000000000000000000000000000000000000000000000000"}]}
+  - {id: covered-exceeds-total, language: rust, reason: COUNT_INCONSISTENT, ops: [{file: rust.report.json, json_set: [source, files, 1, covered], value: 61}]}
+  - {id: totals-differ-from-the-files, language: rust, reason: COUNT_INCONSISTENT, ops: [{file: rust.report.json, json_set: [totals, covered], value: 99}]}
+  - {id: category-sum-differs-from-the-file, language: go, reason: COUNT_INCONSISTENT, ops: [{file: go.report.json, json_set: [source, files, 0, categories, conditional, covered], value: 5}]}
+  - {id: count-is-a-boolean, language: go, reason: COUNT_INCONSISTENT, ops: [{file: go.report.json, json_set: [totals, total], value: true}]}
+  - {id: category-not-measured, language: rust, reason: CATEGORY_UNMEASURED, ops: [{file: rust.report.json, json_set: [unmeasured_categories], value: [match]}]}
+  - {id: unknown-category-named, language: go, reason: CATEGORY_UNMEASURED, ops: [{file: go.report.json, json_set: [unmeasured_categories], value: [statement]}]}
+  - id: exactly-90-percent
+    language: rust
+    reason: BELOW_THRESHOLD
+    ops:
+      - {file: rust.report.json, json_set: [source, files, 0, categories, conditional, covered], value: 13}
+      - {file: rust.report.json, json_set: [source, files, 0, covered], value: 32}
+      - {file: rust.report.json, json_set: [totals, covered], value: 90}
+  - id: far-below-90-percent
+    language: go
+    reason: BELOW_THRESHOLD
+    ops:
+      - {file: go.report.json, json_set: [source, files, 0, categories, conditional, covered], value: 0}
+      - {file: go.report.json, json_set: [source, files, 0, covered], value: 23}
+      - {file: go.report.json, json_set: [totals, covered], value: 69}

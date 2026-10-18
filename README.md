@@ -57,6 +57,8 @@ primitive is:
 every fixture and proves with seeded faults that the check can fail. It is a
 structural check only; implementation conformance is not run until the P1 runners
 exist. Format: [ADR 0005](docs/adr/0005-conformance-corpus-contract.md).
+`make coverage` proves that the branch coverage gate fails when it must
+([ADR 0009](docs/adr/0009-branch-coverage-measurement-contract.md)); no code is measured yet.
 
 ## What does not belong here
 

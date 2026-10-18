@@ -1,0 +1,76 @@
+{
+ "format": "cic-coverage-report/1",
+ "language": "rust",
+ "metric": "branch",
+ "branch_definition": "cic-branch/1",
+ "tool": {
+  "name": "fixture-tool",
+  "version": "1.0.0"
+ },
+ "unmeasured_categories": [],
+ "source": {
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "files": [
+   {
+    "path": "rust/src/b.rs",
+    "sha256": "abf5ea6ecac38595bbb0831ff421736029309a62892659319fddcdbae7a564a0",
+    "total": 40,
+    "covered": 38,
+    "categories": {
+     "conditional": {
+      "total": 20,
+      "covered": 19
+     },
+     "match": {
+      "total": 8,
+      "covered": 8
+     },
+     "loop": {
+      "total": 6,
+      "covered": 5
+     },
+     "short_circuit": {
+      "total": 4,
+      "covered": 4
+     },
+     "error_path": {
+      "total": 2,
+      "covered": 2
+     }
+    }
+   },
+   {
+    "path": "rust/src/lib.rs",
+    "sha256": "9ff1f5b676c9ddffe3043205eb5e2fc4f7175c3e3053e7d756af761209edb380",
+    "total": 60,
+    "covered": 58,
+    "categories": {
+     "conditional": {
+      "total": 30,
+      "covered": 29
+     },
+     "match": {
+      "total": 10,
+      "covered": 10
+     },
+     "loop": {
+      "total": 10,
+      "covered": 9
+     },
+     "short_circuit": {
+      "total": 6,
+      "covered": 6
+     },
+     "error_path": {
+      "total": 4,
+      "covered": 4
+     }
+    }
+   }
+  ]
+ },
+ "totals": {
+  "total": 100,
+  "covered": 96
+ }
+}

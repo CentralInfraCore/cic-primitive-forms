@@ -1,0 +1,15 @@
+# Own source scope of the branch coverage gate (ADR 0009). Files are in scope when they match
+# `include` and neither `exclude_test` nor `exclude_generated`. There is no other way to leave a
+# file or a branch out: no per-branch exclusion, an unreachable branch stays counted.
+format: cic-coverage-scope/1
+languages:
+  rust:
+    root: rust
+    include: ["src/**/*.rs"]
+    exclude_test: ["**/tests/**", "**/tests.rs"]
+    exclude_generated: ["**/generated/**"]
+  go:
+    root: go
+    include: ["**/*.go"]
+    exclude_test: ["**/*_test.go"]
+    exclude_generated: ["**/*.pb.go"]

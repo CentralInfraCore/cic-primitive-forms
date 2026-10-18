@@ -1,0 +1,21 @@
+# Measurement tools of the branch coverage gate (ADR 0009).
+# `selected` stays null until the P1 sample evidence (ADR 0009, "Closing point 10") exists for the
+# language. While it is null the real gate is red: the quality gate is not satisfied.
+# Candidates are leads, not claims: nothing below was run in this repository.
+# `approved_deviations` of a selected tool names branch categories (conditional, match, loop,
+# short_circuit, error_path) the tool does not measure, each by a recorded decision of the owner.
+rust:
+  selected: null
+  candidates:
+    - name: cargo-llvm-cov
+      lead: "`--branch` mode; the project documents it as optional and nightly-only"
+      open: "stability of the branch counts; whether match arms, loops, short-circuit and the ? operator are branches in its report"
+go:
+  selected: null
+  candidates:
+    - name: gobco
+      lead: "third-party; reports whether each condition was both true and false (condition coverage)"
+      open: "described as syntactic and as not covering select; whether switch cases, loops and error paths are measured"
+    - name: "go test -cover"
+      lead: "statement coverage only (golang/go#28888 asks for branch coverage)"
+      open: "not a branch measurement; listed only to record that it does not qualify"
