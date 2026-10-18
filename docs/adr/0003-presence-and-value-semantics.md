@@ -1,6 +1,6 @@
-# ADR 0003: presence and value semantics (draft)
+# ADR 0003: presence and value semantics
 
-Status: **proposed.** Resolves issue #3 point 3. It does not decide the type of
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Resolves issue #3 point 3. It does not decide the type of
 the symbolic `inherit` (point 8), the origin of `conformance` (point 9), or how
 defaults are applied (P3); it fixes what "absent", "null" and "empty" are, which
 those later decisions depend on.
@@ -143,3 +143,13 @@ confused.
 
 1. Error codes (`MISSING_MANDATORY`, `NULL_NOT_ALLOWED`, ...) are reviewed in ADR 0007.
 2. How the engine's authored-absent maps onto Absent (P5, P6).
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits (dependencies kept, none changes this contract):
+
+- Default eligibility by Role is decided in P3; here a default is only a candidate.
+- The mapping of the engine's authored-absent maps onto `Absent` is P5/P6.
+- The engine coverage values are not derived from YAML structure.

@@ -1,6 +1,6 @@
-# ADR 0007: Error contract and source positions (draft)
+# ADR 0007: Error contract and source positions
 
-Status: **proposed, not approved.** Addresses issue #3 point 6. It defines the
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 6. It defines the
 structured error, the phases, the source location, the path offset, which error is
 reported and in what order, and reviews every error code of the corpus. It does
 **not** define message wording, source-preserving editing (P3b), diff conflicts or
@@ -224,3 +224,13 @@ still says nothing about Rust or Go.
   response, which is sorted and phase-exclusive, is fixed.
 - Warnings and a non-error channel.
 - That the two YAML libraries of P1 agree on the node start marks assumed above.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- Six codes stay `provisional` and acceptance does not change that: `INVALID_ACCESS_VALUE`, `INVALID_CERT_PATTERN`, `INVALID_INHERIT` (upstream, cic-primitives #17), `PATH_INTEGER_RANGE`, `PATH_KEY_UNSUPPORTED`, `DIFF_UNSUPPORTED_VALUE` (numeric contract and key encodings). A contract does not need every code to be stable.
+- The anchor table is a claim that the P1 runners must reproduce on two YAML libraries; that a coordinate points at the intended node is not proven by the gate.
+- Block-sequence anchors, message wording and source positions for `path_of` given text are not decided.

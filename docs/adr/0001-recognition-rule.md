@@ -1,7 +1,6 @@
-# ADR 0001: recognizing short and expanded form (draft)
+# ADR 0001: recognizing short and expanded form
 
-Status: **proposed.** Resolves issue #3 points 1 and 7 together. Not accepted
-until reviewed.
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Resolves issue #3 points 1 and 7 together.
 
 ## Origin of the rule
 
@@ -95,3 +94,13 @@ the case ids keep their historical `any-` spelling because ids are stable.
   provisional.
 - The silent `any` case of consequence 1 is accepted. If a warning channel
   exists in the error contract, it is a candidate there, not here.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- **Cross-reference to ADR 0010.** The collapse law takes one more input, the conformance basis of the position: a position whose basis is `binding_attested` is never shortened, even when all six fields equal the defaults. For every other basis the law above is unchanged.
+- The key set `A` is read from the schema; its identity depends on the grammar identity of ADR 0002.
+- The silent `opaque` case (a short map equal to `A`) is an accepted cost; a warning channel is not defined.

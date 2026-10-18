@@ -297,3 +297,23 @@ container, which is why no environment work starts with this document.
 - The compatibility profile for `item_choice` is temporary.
 - The corpus tooling is Python and is a P0 structural tool only.
 - `Accepted` means *what to build*, not *proven built*; no checkbox may be read otherwise.
+
+## Outcome of the review (owner decisions)
+
+Recorded in the acceptance change that follows this document.
+
+| ADR | Decision |
+|---|---|
+| 0001, 0003, 0005, 0007, 0010 | Accepted |
+| 0004 | Accepted, narrowed to the reading contract (section D text) |
+| 0006 | Accepted with the section B sentence |
+| 0008 | Accepted with the section C sentence |
+| 0002, 0009 | stay Proposed |
+
+Section A is overridden on one point: **`proposals/atom-grammar/README.md` is part of the
+grammar manifest** (seven files), as the normative source of the Shape structure; it can
+leave only through a new versioned identity contract. The abbreviated hashes of section A
+are not authoritative; the full manifest is reproduced in CI by the implementing change.
+Box 8 of issue #3 is not ticked and its wording is not narrowed. ADR 0000 stays `draft`
+and becomes a living index. The coverage spike stays a separate task.
+

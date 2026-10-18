@@ -1,6 +1,6 @@
-# ADR 0008: Deterministic diff contract (draft)
+# ADR 0008: Deterministic diff contract
 
-Status: **proposed, not approved.** Addresses issue #3 point 5. It defines what a
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 5. It defines what a
 diff compares, what it returns, in which order, and the exact bytes of the canonical
 serialization. It does **not** define patch (`patch(A, diff(A, B)) == B` is P4: it
 needs the semantics of applying operations, preconditions, conflicts and
@@ -18,7 +18,7 @@ The result is **descriptive evidence of a difference**, from A to B. It is not a
 instruction to execute, and a difference does not by itself mean drift or an
 authorized modification.
 
-A `LogicalView` is a document read under one schema, grammar and surface. It has two
+A `LogicalView` is a document read under one schema, grammar and surface. It has three
 parts:
 
 - the **logical content**: the fully expanded form of ADR 0001 (every primitive
@@ -30,12 +30,17 @@ parts:
   recognition class (ADR 0001) of the node as it was written. It is typed
   companion data, it takes no part in equality, and it is read only to produce
   `representation`. A view that was not built from an authored document has no
-  authored form, and then no `representation` entry can be produced for it.
+  authored form, and then no `representation` entry can be produced for it;
+- the **conformance basis** (ADR 0010): `default`, `authored_claim` or `binding_attested`
+  per position, derived from the trusted input context. It is typed companion data like
+  the authored form: it takes no part in equality, it is never a `changes` event, it is
+  not part of the canonical output, and the intent-observed adapter reads it from the
+  views separately. An empty `changes` therefore means logical equality only.
 
 Consequently none of these makes a difference: YAML mapping order, list order, flow
 versus block style, quoting, short versus expanded writing of the same declaration.
 The last of them is still reported, in `representation`, because the authored form is
-kept.
+kept. A difference of conformance basis alone is not reported at all.
 
 `SchemaContext` is the schema identity and digest, the grammar commit and digest, and
 the surface. Two views read under different contexts are never compared silently:
@@ -220,3 +225,13 @@ runners are the independent check.
 - Diffs through a plain `choice` (no real schema uses one).
 - Whether a runner may stream events; only the result is fixed.
 - An error response's canonical bytes (only the diff result is serialized here).
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Conditions and limits:
+
+- `conformance_basis` is provenance companion data of the LogicalView, like the authored form. It is not a `changes` event and not part of logical equality; the intent-observed adapter reads it separately. **`changes == []` means logical equality only.** It asserts nothing about provenance, attestation or device capability equivalence.
+- Patch and its invariant are P4; the interpretation of a difference as drift is a separate integration contract.
+- Floats and integers beyond 64 bits are refused (`DIFF_UNSUPPORTED_VALUE`, provisional); the schema-dependent order of set values inside fragments and the payload order across `item_choice` cases are P1 obligations.

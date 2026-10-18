@@ -272,6 +272,44 @@ and nothing more.
    needs the `cic-primitives` versioning contradiction (finding 3) resolved.
 4. Fixture licensing as above.
 
+## Grammar identity (decided at the P0 acceptance review; implementation pending)
+
+The grammar identity is the immutable `cic-primitives` commit **plus a file manifest**.
+This decision is binding; this ADR stays `proposed` until it is implemented and checked
+(see "Conditions to acceptance").
+
+- The manifest lists exactly the files the library reads. Each entry is the SHA-256 of
+  the **raw Git blob bytes** of that file at the pinned commit. There is no YAML
+  normalization and no line-ending or whitespace processing before hashing.
+- The manifest text has one line per file, `<sha256-hex>` two spaces `<path>` and `\n`
+  (the `sha256sum` format, LF line ends), sorted by the UTF-8 bytes of the path. The
+  manifest digest is the SHA-256 of that text. It is reproducible with
+  `git show <commit>:<path> | sha256sum`.
+- The file set is part of the identity: adding or removing a file changes the digest.
+- The starting file set, seven files of `cic-primitives`:
+  `schemas/atomic/access.yaml`, `schemas/atomic/shape.yaml`, `schemas/atomic/role.yaml`,
+  `schemas/aggregate/policy-surface.yaml`,
+  `proposals/atom-grammar/instance-grammar.schema.yaml`,
+  `proposals/atom-grammar/check_grammar.py` and `proposals/atom-grammar/README.md`.
+- **The README is in the manifest** (owner decision). Its section 2 is the normative
+  description of the Shape structure that the schema file and the checker build on and
+  that this ADR names as a source. A typo in it changes the identity; that is accepted
+  deliberately. It may leave the manifest only through a new, versioned grammar-identity
+  contract, once every normative rule exists in machine-readable form.
+- The digest cross-checks the commit and does not replace it. It cannot detect a grammar
+  that is simply the wrong version (the `item_choice` situation above).
+- A mismatch between the supplied digest and the content is an error (a context error
+  with no source anchor; its code joins the ADR 0007 registry in the implementing change).
+
+### Conditions to acceptance
+
+1. `corpus/pins.yaml` carries the seven-file manifest and its digest, with a structural
+   rule and a seeded fault.
+2. The **full** manifest is reproduced in CI by the implementing change; abbreviated
+   hashes quoted in review documents are not authoritative.
+3. The verifier checks that the digested file set is exactly the manifest.
+4. The temporary compatibility profile for `item_choice` stays labelled.
+
 ## Open questions
 
 1. Whether and when `operation_surface` becomes a processing target.
