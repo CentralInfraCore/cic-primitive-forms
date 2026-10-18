@@ -3,7 +3,7 @@
 # Cases assert only that input type and value are preserved and that false and 0 stay
 # different. They fix no internal enum name (an upstream decision).
 # schema.synthetic.slot names the atom slot under test.
-corpus_format: 1
+corpus_format: 2
 suite: inherit
 status: provisional
 defaults: {adr: ADR-0004, grammar: cic-primitives-devel}
@@ -31,35 +31,35 @@ cases:
     polarity: negative
     schema: {synthetic: {slot: inherit_key}}
     input: 1
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.key-string-true-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: inherit_key}}
     input: 'true'
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.key-string-zero-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: inherit_key}}
     input: '0'
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.key-null-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: inherit_key}}
     input: null
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.key-list-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: inherit_key}}
     input: []
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.policy-true-ok
     kind: validate
@@ -85,14 +85,14 @@ cases:
     polarity: negative
     schema: {synthetic: {slot: inherit_policy}}
     input: 1
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.policy-string-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: inherit_policy}}
     input: 'false'
-    expect: {error: INVALID_INHERIT}
+    expect: {errors: [{code: INVALID_INHERIT, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.access-symbol-ok
     kind: validate
@@ -123,28 +123,28 @@ cases:
     polarity: negative
     schema: {synthetic: {slot: access_modify}}
     input: [inherit]
-    expect: {error: INVALID_CERT_PATTERN}
+    expect: {errors: [{code: INVALID_CERT_PATTERN, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.access-bare-pattern-scalar-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: access_modify}}
     input: OU=ops,O=acme
-    expect: {error: INVALID_ACCESS_VALUE}
+    expect: {errors: [{code: INVALID_ACCESS_VALUE, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.access-null-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: access_modify}}
     input: null
-    expect: {error: INVALID_ACCESS_VALUE}
+    expect: {errors: [{code: INVALID_ACCESS_VALUE, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.access-boolean-rejected
     kind: validate
     polarity: negative
     schema: {synthetic: {slot: access_modify}}
     input: true
-    expect: {error: INVALID_ACCESS_VALUE}
+    expect: {errors: [{code: INVALID_ACCESS_VALUE, phase: validate, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: inherit.zero-spelling-preserved
     kind: roundtrip

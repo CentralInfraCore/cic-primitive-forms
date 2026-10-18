@@ -1,35 +1,150 @@
-# Error code registry. Every code a case expects must be listed here with its status.
-# All codes are provisional until the error-contract ADR closes P0 point 6; a case that
-# uses a code carries codes_status equal to the status below.
-corpus_format: 1
+# Error code registry (ADR 0007). Every code a case expects is listed here.
+# status: stable   = meaning, phase, trigger and anchor are closed in ADR 0007 and every
+#                    listed phase has a negative vector; changed only by an ADR amendment.
+#         provisional = a named open dependency remains (see the entry).
+# phases: the phases the code may be reported in, each with its source anchor:
+#   second_key | key | value | value_or_key | mapping | sequence | parent   (YAML text node)
+#   path_text  (offset in the path text)   none  (no source anchor)
+# A case that uses a code carries codes_status equal to the status below.
+corpus_format: 2
 codes:
-  CONTRACT_VIOLATION: provisional
-  DUPLICATE_KEY: provisional
-  EXPANDED_WITH_EXTRA_KEY: provisional
-  INVALID_ACCESS_VALUE: provisional
-  INVALID_CERT_PATTERN: provisional
-  INVALID_INHERIT: provisional
-  MAP_AT_SCALAR_POSITION: provisional
-  MISSING_MANDATORY: provisional
-  NULL_NOT_ALLOWED: provisional
-  UNKNOWN_FIELD: provisional
-  PATH_BAD_ESCAPE: provisional
-  PATH_CASE_AMBIGUOUS: provisional
-  PATH_CASE_NONE: provisional
-  PATH_DUPLICATE_COMPONENT: provisional
-  PATH_DUPLICATE_IDENTITY: provisional
-  PATH_EMPTY_NAME: provisional
-  PATH_INDEX_SELECTOR: provisional
-  PATH_INTEGER_RANGE: provisional
-  PATH_KEY_MISSING: provisional
-  PATH_KEY_TYPE: provisional
-  PATH_KEY_UNSUPPORTED: provisional
-  PATH_LIST_NOT_SELECTED: provisional
-  PATH_NONCANONICAL: provisional
-  PATH_NOT_A_LIST: provisional
-  PATH_SELECTOR_MISMATCH: provisional
-  PATH_SET_ELEMENT: provisional
-  PATH_SYNTAX: provisional
-  PATH_THROUGH_OPAQUE: provisional
-  PATH_THROUGH_SCALAR: provisional
-  PATH_UNKNOWN_FIELD: provisional
+  DUPLICATE_KEY:
+    status: stable
+    phases: {parse: second_key}
+    meaning: A YAML mapping repeats a key.
+    trigger: The second and later occurrence of a key in one mapping; only the first such occurrence in source order is reported.
+  EXPANDED_WITH_EXTRA_KEY:
+    status: stable
+    phases: {recognize: mapping}
+    meaning: A mapping holds every key of the Access expanded set plus another key; it is never read as data.
+    trigger: Key set is a proper superset of A (ADR 0001).
+  MAP_AT_SCALAR_POSITION:
+    status: stable
+    phases: {validate: mapping}
+    meaning: A mapping stands at a position whose Shape is scalar and is not an expanded Access node.
+    trigger: Recognized as short form, then the scalar position receives a map (ADR 0001).
+  UNKNOWN_FIELD:
+    status: stable
+    phases: {path_resolve: none, validate: key}
+    meaning: A name is not a declared field at that location.
+    trigger: A document key the Shape does not declare (validate); a path field segment the schema does not declare (path_resolve).
+  MISSING_MANDATORY:
+    status: stable
+    phases: {validate: parent}
+    meaning: A mandatory field is absent.
+    trigger: The key is missing from its parent mapping (ADR 0003); the parent is the anchor because an absent field has no source position.
+  NULL_NOT_ALLOWED:
+    status: stable
+    phases: {validate: value_or_key}
+    meaning: A null value where the field is not nullable.
+    trigger: Explicit null or an empty scalar on a non-nullable field (ADR 0003); an empty scalar has no text of its own, so the key is the anchor.
+  MIN_ITEMS_NOT_MET:
+    status: stable
+    phases: {validate: sequence}
+    meaning: A list has fewer items than its min_items contract.
+    trigger: Item count below min_items (ADR 0003). Other contract kinds get their own codes when they are specified.
+  INVALID_ACCESS_VALUE:
+    status: provisional
+    phases: {validate: value}
+    meaning: An access or modify value is neither the symbol inherit nor a list of CertPattern.
+    trigger: 'Wrong kind of value (ADR 0004). Provisional: the union type is an open upstream decision (cic-primitives #17).'
+  INVALID_CERT_PATTERN:
+    status: provisional
+    phases: {validate: value}
+    meaning: An element of an access or modify list is not a valid CertPattern.
+    trigger: 'Element is not a field=value pattern (ADR 0004). Provisional: depends on the same upstream decision.'
+  INVALID_INHERIT:
+    status: provisional
+    phases: {validate: value}
+    meaning: The inherit key holds a value outside true, false, 0.
+    trigger: 'Type-strict check of the three-valued inherit key (ADR 0004). Provisional: the normative false-versus-0 semantics is an open upstream decision.'
+  PATH_SYNTAX:
+    status: stable
+    phases: {path_format: none, path_parse: path_text}
+    meaning: The path text (or a name to be written) is malformed.
+    trigger: Missing root marker, unescaped special character, unclosed selector, bad token, control character; offset is the first character that cannot continue a valid path, or the text length at premature end.
+  PATH_BAD_ESCAPE:
+    status: stable
+    phases: {path_parse: path_text}
+    meaning: A backslash escape that the grammar does not define.
+    trigger: Unknown or truncated escape; offset is the backslash.
+  PATH_EMPTY_NAME:
+    status: stable
+    phases: {path_format: none, path_parse: path_text}
+    meaning: A field or selector component name is empty.
+    trigger: Offset is the first character after the introducing dot, or the equals sign of an empty component name.
+  PATH_INDEX_SELECTOR:
+    status: stable
+    phases: {path_parse: path_text}
+    meaning: A list element is selected by position.
+    trigger: A selector that starts with a digit or minus instead of a keyed record; offset is the opening bracket.
+  PATH_DUPLICATE_COMPONENT:
+    status: stable
+    phases: {path_parse: path_text}
+    meaning: A selector names the same key component twice.
+    trigger: Offset is the start of the second name.
+  PATH_NONCANONICAL:
+    status: stable
+    phases: {path_parse: path_text}
+    meaning: A valid reading exists but the text is not the canonical writing.
+    trigger: Leading zero, plus sign, minus zero, needless or uppercase unicode escape, escaped slash; offset is the start of the token or the backslash.
+  PATH_INTEGER_RANGE:
+    status: provisional
+    phases: {path_format: none, path_parse: path_text}
+    meaning: An integer key lies outside signed 64 bits.
+    trigger: 'Offset is the start of the integer token. Provisional: a numeric contract does not exist yet (ADR 0006).'
+  PATH_NO_CHILDREN:
+    status: stable
+    phases: {path_resolve: none}
+    meaning: A path continues below a position that has no addressable children.
+    trigger: A field segment after a scalar, a set field or an opaque field.
+  PATH_SET_ELEMENT:
+    status: stable
+    phases: {path_resolve: none}
+    meaning: A selector addresses an element of a set.
+    trigger: Set elements are not independently addressable (ADR 0006).
+  PATH_NOT_A_LIST:
+    status: stable
+    phases: {path_resolve: none}
+    meaning: A selector follows a field that is not a list.
+    trigger: Scalar, composite or opaque field followed by a selector.
+  PATH_LIST_NOT_SELECTED:
+    status: stable
+    phases: {path_resolve: none}
+    meaning: A list field is used as a container without selecting an element.
+    trigger: A field segment directly after a list field.
+  PATH_SELECTOR_MISMATCH:
+    status: stable
+    phases: {path_resolve: none}
+    meaning: A selector does not match the declared identity of the list.
+    trigger: Components missing, extra, unknown, not in the declared order, or naming keys of two item_choice cases.
+  PATH_KEY_TYPE:
+    status: stable
+    phases: {path_of: none, path_resolve: none}
+    meaning: A key value has the wrong kind for the declared key type.
+    trigger: A quoted value for an integer key or the reverse (path_resolve); a document key value of the wrong type (path_of).
+  PATH_KEY_UNSUPPORTED:
+    status: provisional
+    phases: {path_format: none, path_of: none, path_resolve: none}
+    meaning: The key field has a type with no defined path encoding.
+    trigger: 'Boolean, number or bytes key. Provisional: the encodings are undecided (ADR 0006).'
+  PATH_DUPLICATE_IDENTITY:
+    status: stable
+    phases: {path_of: none}
+    meaning: Two elements of one list have the same identity.
+    trigger: Never mapped to an index (ADR 0006).
+  PATH_KEY_MISSING:
+    status: stable
+    phases: {path_of: none}
+    meaning: A key component of a list element is absent.
+    trigger: Plain list element lacks a key field (ADR 0006).
+  PATH_CASE_NONE:
+    status: stable
+    phases: {path_of: none}
+    meaning: No item_choice case matches the element.
+    trigger: ADR 0002 matching finds zero cases.
+  PATH_CASE_AMBIGUOUS:
+    status: stable
+    phases: {path_of: none}
+    meaning: More than one item_choice case matches the element.
+    trigger: ADR 0002 matching finds several cases.

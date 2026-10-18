@@ -22,7 +22,7 @@ import tempfile
 
 import yaml
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 TYPES = ("null", "boolean", "integer", "float", "string", "list", "map")
 
 RULES = {
@@ -52,6 +52,11 @@ RULES = {
     "PATH_SEGMENTS": "malformed path segment list",
     "STABILITY_VARIANTS": "path_stability variants missing, malformed or not different",
     "PATH_LOCATOR": "malformed document locator",
+    "ERROR_SHAPE": "malformed error object in an expectation",
+    "ERROR_PHASE": "error phase not allowed for the code or the case kind",
+    "ERROR_LOCATION": "source location or path offset missing, wrong state or inconsistent with the text",
+    "ERROR_ORDER": "error list not orderable or mixing phases",
+    "PHASE_UNUSED": "registry lists a phase for a code that no case exercises",
 }
 
 
@@ -169,7 +174,7 @@ INPUT_FORMS = {
     "path_of": "document, at",
     "path_stability": "variants",  # kind -> (allowed input fields, rule on them)
     "recognize": "input|input_yaml",
-    "validate": "input|absent",
+    "validate": "input|absent|input_yaml",
     "roundtrip": "input|absent",
     "collapse": "input",
     "expand": "input",
@@ -182,7 +187,7 @@ KIND_FIELDS = {
     "path_of": {"document", "at"},
     "path_stability": {"variants"},
     "recognize": {"input", "input_yaml"},
-    "validate": {"input", "absent"},
+    "validate": {"input", "absent", "input_yaml"},
     "roundtrip": {"input", "absent"},
     "collapse": {"input", "authored_expanded"},
     "expand": {"input"},
@@ -197,13 +202,13 @@ PATH_SUCCESS = {  # kind -> expectation key of the success outcome
 }
 TARGETS = ("root", "scalar", "composite", "list", "item", "set", "opaque")
 EXPECT_KEYS = {
-    "path_parse": ({"segments", "error"}, None),
-    "path_format": ({"text", "error"}, None),
-    "path_resolve": ({"target", "primitive_position", "error"}, None),
-    "path_of": ({"path", "error"}, None),
-    "path_stability": ({"path", "error"}, None),
-    "recognize": ({"class", "elements", "validate", "opaque_value", "phase", "code"}, None),
-    "validate": ({"valid", "error", "stays_absent", "default_candidate", "path",
+    "path_parse": ({"segments", "errors"}, None),
+    "path_format": ({"text", "errors"}, None),
+    "path_resolve": ({"target", "primitive_position", "errors"}, None),
+    "path_of": ({"path", "errors"}, None),
+    "path_stability": ({"path", "errors"}, None),
+    "recognize": ({"class", "elements", "errors", "opaque_value"}, None),
+    "validate": ({"valid", "errors", "stays_absent", "default_candidate",
                   "kind", "is_inherit", "preserved", "upstream_conflict"}, None),
     "roundtrip": ({"expanded", "collapsed", "fields"}, None),
     "collapse": ({"collapse", "fields"}, {"collapse"}),
@@ -235,19 +240,259 @@ def valid_record(r):
 
 
 def collect_codes(expect):
-    """Codes live only at expect.error, expect.code and expect.validate.code.
+    """Codes live only at expect.errors[*].code.
 
     Typed values (`fields`, `preserved`, `expanded`, `collapsed`) are data and are
     never searched: a map that happens to hold `code` or `error` keys is not a code.
     """
-    out = []
-    for key in ("error", "code"):
-        if key in expect:
-            out.append(expect[key])
-    v = expect.get("validate")
-    if isinstance(v, dict) and "code" in v:
-        out.append(v["code"])
-    return out
+    errs = expect.get("errors")
+    if not isinstance(errs, list):
+        return []
+    return [e["code"] for e in errs if isinstance(e, dict) and "code" in e]
+
+
+PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of")
+ANCHORS = ("second_key", "key", "value", "value_or_key", "mapping", "sequence", "parent", "path_text", "none")
+KIND_PHASES = {
+    "recognize": {"parse", "recognize", "validate"},
+    "validate": {"parse", "recognize", "validate"},
+    "path_parse": {"path_parse"},
+    "path_format": {"path_format"},
+    "path_resolve": {"path_parse", "path_resolve"},
+    "path_of": {"path_of"},
+    "path_stability": {"path_of"},
+}
+SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of"}
+ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset"}
+
+
+_NAME_ESC = set("\\.[]{}=,")
+
+
+def parse_logical_path(text):
+    """Canonical ADR 0006 path text -> typed segments, or ValueError.
+
+    Used to check the *structure* of an expectation (is this a canonical path, is it a
+    segment prefix of that one, in which order do these come). It knows nothing of
+    schemas and decides nothing about a document.
+    """
+    if not isinstance(text, str) or not text.startswith("$"):
+        raise ValueError("no root marker")
+    i, segs = 1, []
+
+    def name(i, stop):
+        out = []
+        while i < len(text) and text[i] not in stop:
+            ch = text[i]
+            if ch == "\\":
+                if i + 1 >= len(text) or text[i + 1] not in _NAME_ESC:
+                    raise ValueError("bad escape at %d" % i)
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch in _NAME_ESC or ord(ch) < 0x20 or ord(ch) == 0x7F:
+                raise ValueError("unescaped %r at %d" % (ch, i))
+            out.append(ch)
+            i += 1
+        if not out:
+            raise ValueError("empty name at %d" % i)
+        return "".join(out), i
+
+    while i < len(text):
+        if text[i] == ".":
+            n, i = name(i + 1, ".[")
+            segs.append(("field", n))
+        elif text[i] == "[" and segs and segs[-1][0] == "field" and text[i + 1:i + 2] == "{":
+            i += 2
+            comps = []
+            while True:
+                n, i = name(i, "=")
+                i += 1
+                if i < len(text) and text[i] == '"':
+                    i += 1
+                    val = []
+                    while True:
+                        if i >= len(text):
+                            raise ValueError("unterminated string")
+                        ch = text[i]
+                        if ch == '"':
+                            i += 1
+                            break
+                        if ch == "\\":
+                            d = text[i + 1:i + 2]
+                            esc = {'"': '"', "\\": "\\", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+                            if d in esc:
+                                val.append(esc[d])
+                                i += 2
+                            elif d == "u" and re.fullmatch(r"00[01][0-9a-f]", text[i + 2:i + 6]) \
+                                    and int(text[i + 2:i + 6], 16) not in (8, 9, 10, 12, 13):
+                                val.append(chr(int(text[i + 2:i + 6], 16)))
+                                i += 6
+                            else:
+                                raise ValueError("non-canonical escape at %d" % i)
+                            continue
+                        if ord(ch) < 0x20:
+                            raise ValueError("control character in string")
+                        val.append(ch)
+                        i += 1
+                    comps.append((n, "string", "".join(val)))
+                else:
+                    m = re.match(r"-?(?:0|[1-9][0-9]*)", text[i:])
+                    if not m or m.group() == "-0":
+                        raise ValueError("bad integer at %d" % i)
+                    v = int(m.group())
+                    if not -2 ** 63 <= v < 2 ** 63:
+                        raise ValueError("integer out of range")
+                    i += len(m.group())
+                    comps.append((n, "integer", v))
+                if text[i:i + 1] == ",":
+                    i += 1
+                    continue
+                if text[i:i + 2] == "}]":
+                    i += 2
+                    break
+                raise ValueError("bad selector at %d" % i)
+            if len({c[0] for c in comps}) != len(comps):
+                raise ValueError("duplicate component")
+            segs.append(("item", tuple(comps)))
+        else:
+            raise ValueError("unexpected %r at %d" % (text[i:i + 1], i))
+    return segs
+
+
+def path_order_key(segs):
+    """Segment-wise order of ADR 0007: prefix first, names by UTF-8 bytes, integer keys numerically."""
+    key = []
+    for kind, v in segs:
+        if kind == "field":
+            key.append((0, v.encode("utf-8")))
+        else:
+            key.append((1, tuple((n.encode("utf-8"), (0, x) if k == "integer" else (1, x.encode("utf-8")))
+                                 for n, k, x in v)))
+    return key
+
+
+def location_problem(text, loc):
+    """Do line, column (code points, 1-based) and offset (UTF-8 bytes, 0-based) agree on this text?"""
+    data = text.encode("utf-8")
+    off = loc["offset"]
+    if off > len(data):
+        return "offset %d is beyond the %d bytes of the text" % (off, len(data))
+    if off < len(data) and (data[off] & 0xC0) == 0x80:
+        return "offset %d is inside a multi-byte character" % off
+    if off < len(data) and data[off:off + 1] == b"\n" and data[:off].endswith(b"\r"):
+        return "offset %d is inside a CRLF line break" % off
+    prefix = data[:off].decode("utf-8")
+    if prefix.startswith("\ufeff"):
+        prefix = prefix[1:]  # a leading BOM is no column
+    line, col, i = 1, 1, 0
+    while i < len(prefix):
+        ch = prefix[i]
+        if ch == "\r" and i + 1 < len(prefix) and prefix[i + 1] == "\n":
+            i += 1
+            ch = "\n"
+        if ch in "\r\n":
+            line, col = line + 1, 1
+        else:
+            col += 1
+        i += 1
+    if (loc["line"], loc["column"]) != (line, col):
+        return "line %d column %d, but offset %d is line %d column %d" % (loc["line"], loc["column"], off, line, col)
+    return None
+
+
+def check_errors(kind, case, expect, codes, where, vs, used_pairs):
+    errs = expect.get("errors")
+    w = where + ".errors"
+    if not isinstance(errs, list) or not errs:
+        vs.append(Violation("ERROR_SHAPE", w, "errors must be a non-empty list"))
+        return
+    phases = set()
+    for i, e in enumerate(errs):
+        ew = "%s[%d]" % (w, i)
+        if not isinstance(e, dict) or not {"code", "phase", "source_location"} <= set(e) or not set(e) <= ERROR_KEYS:
+            vs.append(Violation("ERROR_SHAPE", ew, "an error holds code, phase, source_location and optionally "
+                                "logical_path, path_offset (message is not a conformance criterion)"))
+            continue
+        code, phase = e["code"], e["phase"]
+        phases.add(phase)
+        if phase not in PHASES or phase not in KIND_PHASES[kind]:
+            vs.append(Violation("ERROR_PHASE", ew, "phase %r is not allowed in a %s case" % (phase, kind)))
+            continue
+        if code in codes and phase not in codes[code]["phases"]:
+            vs.append(Violation("ERROR_PHASE", ew, "%s is not reported in phase %s (registry: %s)"
+                                % (code, phase, sorted(codes[code]["phases"]))))
+        used_pairs.add((code, phase))
+        # source location: exactly one of three states, fixed by the phase and the input form
+        sl = e["source_location"]
+        has_text = "input_yaml" in case
+        if phase in ("path_parse", "path_format", "path_resolve") or kind == "path_stability":
+            want = "not_applicable"
+        elif phase == "path_of":
+            want = "unavailable"
+        elif phase == "parse":
+            want = "location"
+            if not has_text:
+                vs.append(Violation("ERROR_LOCATION", ew, "a parse error needs input_yaml"))
+        else:
+            want = "location" if has_text else "unavailable"
+        if want == "location":
+            ok = (isinstance(sl, dict) and set(sl) == {"line", "column", "offset"}
+                  and all(yaml_type(sl[k]) == "integer" for k in sl)
+                  and sl["line"] >= 1 and sl["column"] >= 1 and sl["offset"] >= 0)
+            if not ok:
+                vs.append(Violation("ERROR_LOCATION", ew, "source_location must be {line>=1, column>=1, offset>=0}"))
+            elif has_text and isinstance(case["input_yaml"], str):
+                p = location_problem(case["input_yaml"], sl)
+                if p:
+                    vs.append(Violation("ERROR_LOCATION", ew, p))
+        elif sl != {"state": want}:
+            vs.append(Violation("ERROR_LOCATION", ew, "source_location must be {state: %s} here (never null, never absent)" % want))
+        # path offset: the text of the path only, never a YAML coordinate
+        if phase == "path_parse":
+            po = e.get("path_offset")
+            text = case.get("path")
+            if yaml_type(po) != "integer" or po < 0 or (isinstance(text, str) and po > len(text)):
+                vs.append(Violation("ERROR_LOCATION", ew, "path_offset must be an integer in 0..len(path) in code points"))
+        elif "path_offset" in e:
+            vs.append(Violation("ERROR_LOCATION", ew, "path_offset belongs to path_parse errors only"))
+        # logical path: canonical text, only where it is determinable
+        lp = e.get("logical_path")
+        if "logical_path" in e:
+            if phase in ("parse", "path_parse", "path_format"):
+                vs.append(Violation("ERROR_SHAPE", ew, "no logical_path in phase %s: it cannot be determined" % phase))
+            else:
+                try:
+                    lsegs = parse_logical_path(lp)
+                except ValueError as exc:
+                    vs.append(Violation("ERROR_SHAPE", ew, "logical_path is not a canonical path: %s" % exc))
+                else:
+                    if phase == "path_resolve" and isinstance(case.get("path"), str):
+                        try:
+                            csegs = parse_logical_path(case["path"])
+                        except ValueError:
+                            csegs = None
+                        if csegs is None or csegs[:len(lsegs)] != lsegs or not lsegs:
+                            vs.append(Violation("ERROR_SHAPE", ew,
+                                                "logical_path must be a whole-segment prefix of the resolved path"))
+        elif phase == "path_resolve":
+            vs.append(Violation("ERROR_SHAPE", ew, "a resolution error names the logical path it stopped at"))
+    if len(phases) > 1:
+        vs.append(Violation("ERROR_ORDER", w, "one response holds errors of one phase only (phases run in order and stop)"))
+    if len(errs) > 1:
+        if phases & SINGLE_ERROR_PHASES:
+            vs.append(Violation("ERROR_ORDER", w, "phase %s reports exactly one error" % sorted(phases & SINGLE_ERROR_PHASES)))
+        keys = [(e.get("logical_path"), e.get("code")) for e in errs if isinstance(e, dict)]
+        if any(k[0] is None for k in keys) or len(set(keys)) != len(keys):
+            vs.append(Violation("ERROR_ORDER", w, "several errors need a logical_path each and distinct (path, code) pairs"))
+        else:
+            try:
+                order = [(path_order_key(parse_logical_path(p)), c.encode("utf-8")) for p, c in keys]
+            except ValueError:
+                order = None  # a malformed logical_path is reported as ERROR_SHAPE above
+            if order is not None and order != sorted(order):
+                vs.append(Violation("ERROR_ORDER", w,
+                                    "errors are not in the order of ADR 0007 (logical path segment-wise, then code)"))
 
 
 def check_typed(tv, where, vs):
@@ -312,11 +557,11 @@ def check_recognize_expect(case, expect, where, vs):
 
 def check_path_expect(kind, case, expect, where, vs):
     ok_key = PATH_SUCCESS[kind]
-    if (ok_key in expect) == ("error" in expect):
-        vs.append(Violation("EXPECT_FIELD", where, "exactly one of %s and error" % ok_key))
+    if (ok_key in expect) == ("errors" in expect):
+        vs.append(Violation("EXPECT_FIELD", where, "exactly one of %s and errors" % ok_key))
         return
-    if "error" in expect:
-        if set(expect) != {"error"}:
+    if "errors" in expect:
+        if set(expect) != {"errors"}:
             vs.append(Violation("EXPECT_FIELD", where, "an error expectation carries nothing else"))
         return
     if kind == "path_parse":
@@ -459,8 +704,14 @@ def check_shape(shape, where, vs):
         vs.append(Violation("SCHEMA_FIXTURE", where, "shape.min_items must be an integer"))
     if "fields" in shape:
         f = shape["fields"]
-        if not isinstance(f, dict) or any(v not in PRESENCE for v in f.values()):
-            vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional"))
+        if not isinstance(f, dict) or not f:
+            vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional or a nested shape"))
+            return
+        for v in f.values():
+            if isinstance(v, dict):
+                check_shape(dict({"type": "composite"}, **v), where, vs)
+            elif v not in PRESENCE:
+                vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional or a nested shape"))
 
 
 def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes, trees=None):
@@ -513,19 +764,17 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             check_recognize_expect(case, expect, where + ".expect", vs)
         if kind.startswith("path_"):
             check_path_expect(kind, case, expect, where + ".expect", vs)
-        found = collect_codes(expect)
-        if not all(isinstance(x, str) for x in found):
-            vs.append(Violation("EXPECT_FIELD", where, "error and code expectations must be strings"))
-            found = [x for x in found if isinstance(x, str)]
-        used_codes.update(found)
-        negative = bool(found)
+        if "errors" in expect:
+            check_errors(kind, case, expect, codes, where + ".expect", vs, used_codes)
+        found = [x for x in collect_codes(expect) if isinstance(x, str)]
+        negative = "errors" in expect
         if case.get("polarity") in ("positive", "negative") and (case["polarity"] == "negative") != negative:
             vs.append(Violation("POLARITY", where, "polarity %s but the expectation %s an error code"
                                 % (case["polarity"], "carries" if negative else "carries no")))
         for code in found:
             if code not in codes:
                 vs.append(Violation("CODE_UNKNOWN", where, "code %s not in codes.yaml" % code))
-        statuses = {codes[c] for c in found if c in codes}
+        statuses = {codes[c]["status"] for c in found if c in codes}
         if found:
             if case.get("codes_status") not in statuses or len(statuses) != 1:
                 vs.append(Violation("CODE_STATUS", where, "codes_status %r, registry says %s"
@@ -631,7 +880,9 @@ def check_inputs(kind, case, where, vs):
         return
     if kind == "recognize":
         ok = has("input") != has("input_yaml")
-    elif kind in ("validate", "roundtrip"):
+    elif kind == "validate":
+        ok = sum(map(has, ("input", "absent", "input_yaml"))) == 1 and (case.get("absent", True) is True)
+    elif kind == "roundtrip":
         ok = has("input") != has("absent") and (case.get("absent", True) is True)
     elif kind in ("collapse", "expand"):
         ok = has("input")
@@ -639,7 +890,7 @@ def check_inputs(kind, case, where, vs):
         ok = has("a") and has("b")
     if not ok:
         vs.append(Violation("INPUT_PRESENCE", where, "kind %s takes %s" % (kind, INPUT_FORMS[kind])))
-    if kind == "recognize" and has("input_yaml") and not isinstance(case["input_yaml"], str):
+    if kind in ("recognize", "validate") and has("input_yaml") and not isinstance(case["input_yaml"], str):
         vs.append(Violation("INPUT_PRESENCE", where, "input_yaml must be a string"))
     if kind == "collapse" and not isinstance(case.get("authored_expanded"), bool):
         vs.append(Violation("INPUT_PRESENCE", where, "collapse needs boolean authored_expanded"))
@@ -673,10 +924,31 @@ def check_codes(doc, vs):
         vs.append(Violation("ENVELOPE", where, "keys must be corpus_format, codes"))
         return {}
     version(doc, where, vs)
-    for c, st in doc["codes"].items():
-        if not re.match(r"^[A-Z][A-Z0-9_]*$", c) or st not in ("provisional", "stable"):
-            vs.append(Violation("CODE_REGISTRY", "%s %s" % (where, c), "name is UPPER_SNAKE, status provisional|stable"))
-    return dict(doc["codes"])
+    out = {}
+    for c, e in doc["codes"].items():
+        w = "%s %s" % (where, c)
+        if not re.match(r"^[A-Z][A-Z0-9_]*$", c):
+            vs.append(Violation("CODE_REGISTRY", w, "name is UPPER_SNAKE"))
+            continue
+        if not isinstance(e, dict) or set(e) != {"status", "phases", "meaning", "trigger"}:
+            vs.append(Violation("CODE_REGISTRY", w, "entry holds status, phases, meaning, trigger"))
+            continue
+        if e["status"] not in ("provisional", "stable"):
+            vs.append(Violation("CODE_REGISTRY", w, "status is provisional or stable"))
+        ph = e["phases"]
+        if not isinstance(ph, dict) or not ph or any(p not in PHASES or a not in ANCHORS for p, a in ph.items()):
+            vs.append(Violation("CODE_REGISTRY", w, "phases maps phases %s to anchors %s" % (PHASES, ANCHORS)))
+            continue
+        for p, a in ph.items():
+            if p in ("path_parse",) and a != "path_text":
+                vs.append(Violation("CODE_REGISTRY", w, "a path_parse error is anchored in the path text"))
+            if p in ("path_resolve", "path_of", "path_format") and a != "none":
+                vs.append(Violation("CODE_REGISTRY", w, "phase %s has no source anchor" % p))
+        for k in ("meaning", "trigger"):
+            if not isinstance(e[k], str) or not e[k].strip():
+                vs.append(Violation("CODE_REGISTRY", w, "%s must be a non-empty text" % k))
+        out[c] = e
+    return out
 
 
 def check_corpus(root):
@@ -749,8 +1021,13 @@ def check_corpus(root):
                 if cid in ids:
                     vs.append(Violation("ID_DUPLICATE", rel, "%s also in %s" % (cid, ids[cid])))
                 ids[cid] = rel
-    for c in sorted(set(codes) - used):
+    used_codes = {code for code, _ in used}
+    for c in sorted(set(codes) - used_codes):
         vs.append(Violation("CODE_UNUSED", "corpus/codes.yaml", "%s is used by no case" % c))
+    for c in sorted(codes):
+        for p in sorted(codes[c]["phases"]):
+            if c in used_codes and (c, p) not in used:
+                vs.append(Violation("PHASE_UNUSED", "corpus/codes.yaml", "%s is listed for phase %s but no case exercises it" % (c, p)))
     return vs, stats
 
 
@@ -767,8 +1044,8 @@ def apply_fault(fault, root):
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
         if text.count(op["old"]) != 1:
-            raise SystemExit("self-test: fault %s: %r occurs %d times in %s (must be exactly once)"
-                             % (fault["id"], op["old"], text.count(op["old"]), op["file"]))
+            raise ValueError("%r occurs %d times in %s (must be exactly once)"
+                             % (op["old"][:70], text.count(op["old"]), op["file"]))
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(text.replace(op["old"], op["new"]))
 
@@ -794,6 +1071,16 @@ def loader_invariants():
         ("strict equality: nested", strict_eq({"a": [0, None]}, {"a": [0, None]})
          and not strict_eq({"a": [0]}, {"a": [False]})),
     ]
+    k = lambda t: path_order_key(parse_logical_path(t))
+    checks += [
+        ("order: prefix before extension", k("$.a") < k("$.a.x")),
+        ("order: segments, not text ('$.a.x' before '$.a b')", k("$.a.x") < k("$.a b") and "$.a b" < "$.a.x"),
+        ("order: names by UTF-8 bytes", k("$.b") < k("$.\u00e9")),
+        ("order: integer keys numerically", k("$.l[{k=2}]") < k("$.l[{k=10}]") and "$.l[{k=10}]" < "$.l[{k=2}]"),
+        ("path: canonical text accepted", parse_logical_path('$.l[{name="a,b"}].x') is not None),
+        ("path: whole segment prefix only", parse_logical_path("$.nope")[:len(parse_logical_path("$.no"))]
+         != parse_logical_path("$.no")),
+    ]
     bad = [name for name, ok in checks if not ok]
     for name in bad:
         print("  loader invariant broken: %s" % name)
@@ -815,7 +1102,12 @@ def selftest(root):
         try:
             shutil.copytree(os.path.join(root, "corpus"), os.path.join(tmp, "corpus"))
             shutil.copytree(os.path.join(root, "docs", "adr"), os.path.join(tmp, "docs", "adr"))
-            apply_fault(fault, tmp)
+            try:
+                apply_fault(fault, tmp)
+            except ValueError as exc:
+                failed += 1
+                print("  STALE %-30s %s" % (fault["id"], exc))
+                continue
             found, _ = check_corpus(tmp)
         finally:
             shutil.rmtree(tmp)

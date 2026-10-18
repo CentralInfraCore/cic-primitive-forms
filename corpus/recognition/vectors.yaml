@@ -4,7 +4,7 @@
 # recognize.expect.validate: expected result of the later validate step on a Short node.
 # collapse: expand(collapse(L, I, S), S) == L; defaults of S are the symbolic ones;
 # authored_expanded says whether the intent wrote the node in expanded form.
-corpus_format: 1
+corpus_format: 2
 suite: recognition
 status: provisional
 defaults: {adr: ADR-0001, grammar: cic-primitives-devel}
@@ -89,15 +89,15 @@ cases:
     polarity: negative
     schema: {synthetic: {position: scalar}}
     input: {access: inherit, value: 1}
-    expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
-    codes_status: provisional
+    expect: {class: short, errors: [{code: MAP_AT_SCALAR_POSITION, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.structured-partial-is-short-then-rejected
     kind: recognize
     polarity: negative
     schema: {synthetic: {position: {structured: [host, port]}}}
     input: {access: inherit, value: 1}
-    expect: {class: short, validate: {code: UNKNOWN_FIELD}}
-    codes_status: provisional
+    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.structured-child-named-like-access-key
     kind: recognize
     polarity: positive
@@ -109,37 +109,37 @@ cases:
     polarity: negative
     schema: {synthetic: {position: {structured: [host, port]}}}
     input: {colour: red, host: a}
-    expect: {class: short, validate: {code: UNKNOWN_FIELD}}
-    codes_status: provisional
+    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.scalar-plain-map-short-then-rejected
     kind: recognize
     polarity: negative
     schema: {synthetic: {position: scalar}}
     input: {a: 1}
-    expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
-    codes_status: provisional
+    expect: {class: short, errors: [{code: MAP_AT_SCALAR_POSITION, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.all-keys-plus-extra-any
     kind: recognize
     polarity: negative
     description: a hostile or mistaken expanded node is never read as data
     schema: {synthetic: {position: opaque}}
     input: {access: [admins], audit: true, conformance: implemented, default_injection: null, inherit: true, modify: [], value: secret}
-    expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-    codes_status: provisional
+    expect: {class: error, errors: [{code: EXPANDED_WITH_EXTRA_KEY, phase: recognize, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.all-keys-plus-extra-scalar
     kind: recognize
     polarity: negative
     schema: {synthetic: {position: scalar}}
     input: {access: inherit, conformance: implemented, default_injection: null, extra: 1, inherit: true, modify: inherit, value: 4}
-    expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-    codes_status: provisional
+    expect: {class: error, errors: [{code: EXPANDED_WITH_EXTRA_KEY, phase: recognize, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.all-keys-plus-extra-structured
     kind: recognize
     polarity: negative
     schema: {synthetic: {position: {structured: [host, port]}}}
     input: {access: inherit, conformance: implemented, default_injection: null, host: a, inherit: true, modify: inherit, value: 4}
-    expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
-    codes_status: provisional
+    expect: {class: error, errors: [{code: EXPANDED_WITH_EXTRA_KEY, phase: recognize, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: recognition.list-record-fields-recognized-individually
     kind: recognize
     polarity: positive
@@ -151,7 +151,7 @@ cases:
     kind: recognize
     polarity: positive
     description: a record whose field names equal the Access key set is still a record; only its fields are positions
-    schema: {synthetic: {position: {list_of: {record: {value: scalar, access: scalar, modify: scalar, inherit: scalar, default_injection: scalar, conformance: scalar}}}}}
+    schema: {synthetic: {position: {list_of: {record: {access: scalar, conformance: scalar, default_injection: scalar, inherit: scalar, modify: scalar, value: scalar}}}}}
     input: [{access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}]
     expect: {elements: [{access: short, conformance: short, default_injection: short, inherit: short, modify: short, value: short}]}
   - id: recognition.duplicate-key
@@ -159,13 +159,9 @@ cases:
     polarity: negative
     description: rejected in the parse phase, before recognition
     schema: {synthetic: {position: opaque}}
-    input_yaml: 'a: 1
-
-  a: 2
-
-  '
-    expect: {code: DUPLICATE_KEY, phase: parse}
-    codes_status: provisional
+    input_yaml: "a: 1\na: 2\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 2, offset: 5}}]}
+    codes_status: stable
   - id: recognition.defaults-collapse-to-short
     kind: collapse
     polarity: positive
@@ -239,3 +235,59 @@ cases:
     input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {access: 2, value: 1}}
     authored_expanded: false
     expect: {collapse: short}
+  - id: recognition.duplicate-key-multiline-non-ascii
+    kind: recognize
+    polarity: negative
+    description: position is the second occurrence; the first line holds a two-byte character, which changes bytes but no coordinate
+    schema: {synthetic: {position: opaque}}
+    input_yaml: "naïve: 1\nbär: 2\nbär: 3\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 18}}]}
+    codes_status: stable
+  - id: recognition.duplicate-key-after-non-ascii-on-same-line
+    kind: recognize
+    polarity: negative
+    description: 'columns count code points, offsets count UTF-8 bytes: they differ here'
+    schema: {synthetic: {position: opaque}}
+    input_yaml: "é: {a: 1, a: 2}\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 11, line: 1, offset: 11}}]}
+    codes_status: stable
+  - id: recognition.duplicate-key-crlf
+    kind: recognize
+    polarity: negative
+    description: CRLF is one line break
+    schema: {synthetic: {position: opaque}}
+    input_yaml: "a: 1\r\nb: 2\r\nb: 3\r\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}]}
+    codes_status: stable
+  - id: recognition.duplicate-key-after-bom
+    kind: recognize
+    polarity: negative
+    description: 'a leading BOM is no column but counts in the byte offset: the second x is column 11, offset 13'
+    schema: {synthetic: {position: opaque}}
+    input_yaml: "\uFEFFa: {x: 1, x: 2}\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 11, line: 1, offset: 13}}]}
+    codes_status: stable
+  - id: recognition.duplicate-key-only-first-reported
+    kind: recognize
+    polarity: negative
+    description: 'the parse phase reports one error: the first in source order'
+    schema: {synthetic: {position: opaque}}
+    input_yaml: "a: 1\na: 2\nb: 3\nb: 4\n"
+    expect: {errors: [{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 2, offset: 5}}]}
+    codes_status: stable
+  - id: recognition.extra-key-with-source
+    kind: recognize
+    polarity: negative
+    description: the anchor is the mapping, whose first key starts on line 2 after a comment line
+    schema: {synthetic: {position: scalar}}
+    input_yaml: "# c\nvalue: 4\naccess: inherit\nmodify: inherit\ninherit: true\ndefault_injection: null\nconformance: implemented\nextra: 1\n"
+    expect: {class: error, errors: [{code: EXPANDED_WITH_EXTRA_KEY, phase: recognize, source_location: {column: 1, line: 2, offset: 4}}]}
+    codes_status: stable
+  - id: recognition.map-at-scalar-with-source
+    kind: recognize
+    polarity: negative
+    description: a flow mapping is anchored at its opening brace
+    schema: {synthetic: {position: scalar}}
+    input_yaml: "# c\n{a: 1}\n"
+    expect: {class: short, errors: [{code: MAP_AT_SCALAR_POSITION, phase: validate, source_location: {column: 1, line: 2, offset: 4}}]}
+    codes_status: stable

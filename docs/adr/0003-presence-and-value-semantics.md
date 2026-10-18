@@ -136,9 +136,10 @@ confused.
 - A policy on an absent field is not expressible; the limit is accepted and
   ADR 0001 is not changed.
 - Error codes stay provisional until the common error contract (issue #3
-  point 6).
+  point 6); that is now ADR 0007, which also renamed `CONTRACT_VIOLATION` to
+  `MIN_ITEMS_NOT_MET`.
 
 ## Open questions
 
-1. Error codes (`MISSING_MANDATORY`, `NULL_NOT_ALLOWED`, ...) are provisional.
+1. Error codes (`MISSING_MANDATORY`, `NULL_NOT_ALLOWED`, ...) are reviewed in ADR 0007.
 2. How the engine's authored-absent maps onto Absent (P5, P6).

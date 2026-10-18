@@ -3,7 +3,9 @@
 Status: **proposed, not approved.** Addresses issue #3 point 2. It defines the
 logical path model and one canonical text form. It does **not** define diff
 operations, final error codes or source positions (the next P0 ADR), authorization
-or inheritance resolution. The error codes used in the corpus are provisional.
+or inheritance resolution. The error codes of the corpus are reviewed in ADR 0007
+(which merged some of the path codes: `PATH_UNKNOWN_FIELD` is `UNKNOWN_FIELD`, and
+`PATH_THROUGH_SCALAR` / `PATH_THROUGH_OPAQUE` are `PATH_NO_CHILDREN`).
 
 ## Principle
 
