@@ -220,7 +220,11 @@ are not mechanical:
 - **The workflow is part of the contract.** `UPSTREAM_VERIFY` fails `make corpus` unless
   the `corpus` workflow reads the pinned commit with `grammar_identity.py commit`, checks
   out `CentralInfraCore/cic-primitives` at the commit from that step and runs
-  `grammar_identity.py verify` afterwards, with no `if` and no `continue-on-error`.
+  `grammar_identity.py verify` afterwards. The three steps are compared **whole** (the
+  exact command, the exact `with` fields, no extra keys, in that order), never by a
+  fragment of their text, so a command that only mentions the verifier is not the
+  verifier; the job and the workflow set no `env`, `defaults`, `if` or
+  `continue-on-error`, and the workflow runs on `pull_request` and `push`.
 - The reproduction from upstream bytes is `tools/grammar_identity.py verify` (CI, and
   `make grammar-verify UPSTREAM=...` locally); its self-test (`make grammar-selftest`,
   a throwaway Git repository with seeded faults for every reason) needs no network.

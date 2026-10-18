@@ -452,3 +452,45 @@ faults:
   - id: workflow-pin-step-removed
     rule: UPSTREAM_VERIFY
     ops: [{file: .github/workflows/corpus.yml, old: "      - id: grammar_pin\n        run: echo \"commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)\" >> \"$GITHUB_OUTPUT\"\n", new: ""}]
+  - id: workflow-verify-replaced-by-an-echo-that-mentions-it
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: echo \"python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\"\n"}]
+  - id: workflow-pin-step-hardcodes-the-commit-and-keeps-the-old-text-as-a-comment
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - id: grammar_pin\n        run: echo \"commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)\" >> \"$GITHUB_OUTPUT\"\n", new: "      - id: grammar_pin\n        run: echo \"commit=5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd\" >> \"$GITHUB_OUTPUT\" # python3 tools/grammar_identity.py commit --pins corpus/pins.yaml\n"}]
+  - id: workflow-verify-after-an-exit
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: exit 0; python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n"}]
+  - id: workflow-verify-failure-swallowed
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives || true\n"}]
+  - id: workflow-verify-reads-another-directory
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo .\n"}]
+  - id: workflow-verify-with-a-custom-shell
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n        shell: \"true {0}\"\n"}]
+  - id: workflow-verify-with-an-environment
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n        env:\n          GIT_DIR: elsewhere\n"}]
+  - id: workflow-checkout-of-another-repository
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "repository: CentralInfraCore/cic-primitives\n", new: "repository: someone/cic-primitives\n"}]
+  - id: workflow-checkout-into-another-path
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "          path: upstream/cic-primitives\n", new: "          path: upstream/other\n"}]
+  - id: workflow-checkout-ref-from-another-output
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "ref: ${{ steps.grammar_pin.outputs.commit }}", new: "ref: ${{ steps.other.outputs.commit }}"}]
+  - id: workflow-checkout-with-an-extra-input
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - uses: actions/checkout@v4\n        with:\n          repository: CentralInfraCore/cic-primitives\n          ref: ${{ steps.grammar_pin.outputs.commit }}\n          path: upstream/cic-primitives\n", new: "      - uses: actions/checkout@v4\n        with:\n          repository: CentralInfraCore/cic-primitives\n          ref: ${{ steps.grammar_pin.outputs.commit }}\n          path: upstream/cic-primitives\n          fetch-depth: 0\n"}]
+  - id: workflow-environment-set-for-the-whole-run
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "permissions:\n", new: "env:\n  PATH: /nowhere\npermissions:\n"}]
+  - id: workflow-no-pull-request-trigger
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "  pull_request:\n", new: ""}]
+  - id: workflow-verify-moved-before-the-checkout
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: ""}, {file: .github/workflows/corpus.yml, old: "      - uses: actions/checkout@v4\n        with:\n          repository: CentralInfraCore/cic-primitives\n          ref: ${{ steps.grammar_pin.outputs.commit }}\n          path: upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n      - uses: actions/checkout@v4\n        with:\n          repository: CentralInfraCore/cic-primitives\n          ref: ${{ steps.grammar_pin.outputs.commit }}\n          path: upstream/cic-primitives\n"}]

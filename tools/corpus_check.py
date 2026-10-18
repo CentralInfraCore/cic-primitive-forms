@@ -1350,37 +1350,52 @@ def check_codes(doc, vs):
     return out
 
 
+WORKFLOW_PIN_RUN = 'echo "commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)" >> "$GITHUB_OUTPUT"'
+WORKFLOW_VERIFY_RUN = "python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives"
+WORKFLOW_CHECKOUT_WITH = {"repository": "CentralInfraCore/cic-primitives",
+                          "ref": "${{ steps.grammar_pin.outputs.commit }}", "path": "upstream/cic-primitives"}
+
+
 def check_workflow(root, pins, vs):
-    """The workflow that runs the gate must unconditionally reproduce the grammar identity from upstream."""
+    """The workflow that runs the gate must unconditionally reproduce the grammar identity from upstream.
+
+    The three steps are compared whole, not by a fragment of their text: a command that merely
+    mentions the verifier (an echo, a comment, a prefix that exits) is not the verifier.
+    """
     where = ".github/workflows/corpus.yml"
     try:
         with open(os.path.join(root, where), encoding="utf-8") as fh:
             wf = yaml.safe_load(fh)
         job = wf["jobs"]["corpus"]
         steps = job["steps"]
-    except (OSError, KeyError, TypeError, yaml.YAMLError):
+        assert isinstance(steps, list)
+    except (OSError, KeyError, TypeError, AssertionError, yaml.YAMLError):
         vs.append(Violation("UPSTREAM_VERIFY", where, "workflow with jobs.corpus.steps not found"))
         return
-    pinstep = next((s for s in steps if isinstance(s, dict) and "grammar_identity.py commit" in str(s.get("run", ""))), None)
-    pid = pinstep.get("id") if pinstep else None
-    checkout = next((s for s in steps if isinstance(s, dict) and str(s.get("uses", "")).startswith("actions/checkout@")
-                     and isinstance(s.get("with"), dict) and s["with"].get("repository") == "CentralInfraCore/cic-primitives"), None)
-    verify = next((s for s in steps if isinstance(s, dict) and "grammar_identity.py verify" in str(s.get("run", ""))), None)
     problems = []
-    if not (pinstep and pid):
-        problems.append("a step with an id must read the pinned commit with grammar_identity.py commit")
-    if not checkout:
-        problems.append("a checkout of CentralInfraCore/cic-primitives is missing")
-    elif pid and ("steps.%s.outputs" % pid) not in str(checkout["with"].get("ref", "")):
-        problems.append("the checkout ref must come from the pin step, not a copy of the commit")
-    if not verify:
-        problems.append("the step running grammar_identity.py verify is missing")
-    for s in [x for x in (pinstep, checkout, verify) if x] + [job]:
-        if s.get("continue-on-error") not in (None, False) or "if" in s:
-            problems.append("the identity steps and the job must not be conditional or continue-on-error")
-            break
-    if checkout and verify and steps.index(checkout) > steps.index(verify):
-        problems.append("the checkout must come before the verification")
+    triggers = wf.get(True, wf.get("on"))  # PyYAML reads the key `on` as a boolean
+    if not (isinstance(triggers, dict) and "pull_request" in triggers and "push" in triggers):
+        problems.append("the workflow must run on pull_request and on push")
+    for scope, name in ((wf, "workflow"), (job, "job")):
+        for k in ("env", "defaults", "if", "continue-on-error"):
+            if k in scope:
+                problems.append("the %s must not set %s: it could change what the identity steps do" % (name, k))
+    def find(pred):
+        return next((k for k, st in enumerate(steps) if isinstance(st, dict) and pred(st)), None)
+    ip = find(lambda st: st.get("id") == "grammar_pin")
+    ic = find(lambda st: isinstance(st.get("with"), dict) and st["with"].get("repository") == "CentralInfraCore/cic-primitives")
+    iv = find(lambda st: "grammar_identity.py verify" in str(st.get("run", "")))
+    if ip is None or str(steps[ip].get("run", "")).strip() != WORKFLOW_PIN_RUN or set(steps[ip]) - {"id", "name", "run"}:
+        problems.append("the pin step must be exactly: %s" % WORKFLOW_PIN_RUN)
+    if ic is None or steps[ic].get("with") != WORKFLOW_CHECKOUT_WITH or not str(steps[ic].get("uses", "")).startswith("actions/checkout@") \
+            or set(steps[ic]) - {"uses", "with", "name"}:
+        problems.append("the upstream checkout must be actions/checkout with exactly %s" % WORKFLOW_CHECKOUT_WITH)
+    if iv is None or str(steps[iv].get("run", "")).strip() != WORKFLOW_VERIFY_RUN or set(steps[iv]) - {"run", "name"}:
+        problems.append("the verification step must be exactly: %s" % WORKFLOW_VERIFY_RUN)
+    if None not in (ip, ic, iv) and not ip < ic < iv:
+        problems.append("the order must be pin step, upstream checkout, verification")
+    if iv is not None and any(isinstance(st, dict) and "grammar_identity.py verify" in str(st.get("run", "")) for k, st in enumerate(steps) if k != iv):
+        problems.append("the verification command must appear once")
     for pr in problems:
         vs.append(Violation("UPSTREAM_VERIFY", where, pr))
 
