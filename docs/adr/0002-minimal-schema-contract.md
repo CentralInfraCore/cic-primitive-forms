@@ -126,38 +126,73 @@ guesses a list key from values.
 ## Primitive positions and the recursion boundary
 
 `access.yaml` describes the Access atom as wrapping every Shape value. This ADR
-takes that literally and proposes:
+takes that literally:
 
-- **every field descriptor's value is one primitive position;**
+- **every field descriptor's value is one primitive position**;
 - recursion follows the schema, never the YAML shape: into `fields` for a
-  `composite`, into `item_fields` (or the matching case) for a list element,
-  into `cases` for a `choice`;
-- a `set` element and a `scalar` have no children;
-- an `opaque` node is a primitive position, its content is **not** recursed.
+  `composite`, into `item_fields` (or the matching case's `fields`) for a list
+  element, into the matching case's `fields` for a `choice`;
+- **a list element is not a primitive position.** The collection field is one
+  position; the element is a structural record, and the fields of that record
+  (`item_fields` or `item_choice.cases[].fields`) are positions. An element gets
+  no Access wrapper of its own unless a later schema declares a separate Shape
+  position for it;
+- **a `set` element is not a position either.** A `set` has no field
+  descriptor for its elements; the set field is the position and its value is a
+  list of scalars;
+- an `opaque` node is a position and its content is **not** recursed.
+
+Example (expanded wrappers omitted for the fields):
+
+```yaml
+vlans:                       # one position (collection / list)
+  - ref: "cic:network:..."   # element: structural record, not a position
+  - vlan_id: 100             # ref / vlan_id / vlan_mode: positions
+    vlan_mode: trunk
+```
 
 Mapping of ADR 0001's test positions onto Shape:
 
 | ADR 0001 position | Shape |
 |---|---|
-| `scalar` | `scalar` and `set` elements |
-| `{structured: [...]}` | `composite` |
-| `{list_of: ...}` | `collection` / `list` |
-| `any` | `opaque` |
+| `scalar` | a `scalar` field |
+| `{structured: [...]}` | a `composite` field |
+| `{list_of: ...}` | a `collection` / `list` field (its record fields are positions of their own kind) |
+| `any` | an `opaque` field |
 
-Open: whether a list **element** is itself a primitive position or only its
-fields are. The proposal here is that the collection field is one position and
-the element's fields are positions, and the element itself is not wrapped. The
-owner decides.
+A `collection` / `set` field is a position whose value is a list of scalars.
 
 ## Instance documents (proposal, see finding 5)
 
 For a given schema, an authored document maps names to values following the
 descriptor tree: a `composite` value is a map of its `fields`; a `list` value is
-a list of maps of `item_fields` (or of the matching `item_choice` case); a `set`
-value is a list of scalars; a `scalar` is a scalar; an `opaque` value is
-anything. How a `choice` selects its case in an instance, and which surface a
-document addresses, are open and need an owner decision or a source in the
-corpus.
+a list of records of `item_fields` (or of the matching `item_choice` case); a
+`set` value is a list of scalars; a `scalar` is a scalar; an `opaque` value is
+anything.
+
+**Choosing a case.** A `choice` or `item_choice` selects its case implicitly,
+by the presence of the declared fields. This is what the `devel` grammar already
+fixes (§2.3, "Diszkrimináció: implicit, mezőjelenlét alapján"), and no new
+`type` / `case` key is introduced in the user's YAML. The library evaluates
+every case and accepts exactly one matching case; **zero matches or more than
+one is an explicit error.** A case matches when every key of the record is a
+declared field of the case and every mandatory field of the case is present
+(this definition is a proposal). The grammar itself says that mutual exclusion
+of cases is the schema author's responsibility and that its rule C17 does not
+prove it in general; the instance-level error above is how the library reports a
+schema whose cases overlap on a given record.
+
+**Choosing the surface.** The surface (`config_surface`, `state_surface`, ...)
+is supplied by the caller in the processing context, not written in the user's
+YAML:
+
+```
+schema_ref, schema_digest, grammar commit and digest,
+surface = config_surface, document = authored YAML
+```
+
+`config_surface` and `state_surface` may belong to the same schema and differ in
+validation and defaulting rules.
 
 ## Exit criterion
 
@@ -177,10 +212,20 @@ The real-schema fixtures are pinned by reference, not copied:
 | `cic-primitives` grammar | `devel` at `5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd` |
 
 `cic-schema-registry` and `cic-primitives` are licensed CC BY-NC-SA 4.0; this
-repository is Apache-2.0. Vendoring their files into this repository would carry
-that licence with them, so the corpus stores the pin and fetches the file for
-the test, plus minimal synthetic fixtures written here. Confirm this reading of
-the licence before any file is copied.
+repository is Apache-2.0. Placing an unmodified file of another licence in this
+repository is not automatically forbidden, but the file keeps its own licence
+and does not become Apache-2.0, and fetching a file at test time does not remove
+the NonCommercial condition from that use. The choice here, a technical
+compliance choice and not legal advice:
+
+- the Apache-2.0 corpus consists primarily of synthetic fixtures written in
+  this repository;
+- testing against the real CIC schema uses a pinned, SHA-256-verified file from
+  its own source, and the CC licence of that file stays documented next to the
+  pin;
+- the cleanest route is an explicit Apache-2.0 (or dual-licence) grant by the
+  rightsholder for the specific fixtures; the schemas' metadata names the
+  project owner, to be confirmed.
 
 Coverage of the real schema, with the lines in the pinned file:
 
@@ -200,11 +245,21 @@ whether `conformance` is user-writable; path grammar; diff output; error codes;
 branch-coverage measurement. This ADR may name the schema information they need
 and nothing more.
 
+## Decisions proposed in this ADR (from the review of PR 5)
+
+1. A list element is not a primitive position; its fields are. A `set` element
+   is not a position.
+2. A case is chosen implicitly by field presence; zero or several matches is an
+   error. The surface comes from the caller's context.
+3. For P0 the library is bound to an immutable grammar commit and digest carried
+   in the schema input, never to the moving `devel` branch. The relation between
+   the current `network-interface.yaml` and the `devel` grammar is a **temporary
+   P0 compatibility profile, not a stable release contract**; a stable release
+   needs the `cic-primitives` versioning contradiction (finding 3) resolved.
+4. Fixture licensing as above.
+
 ## Open questions
 
-1. A list element: a primitive position itself, or only its fields?
-2. Instance document: how a `choice` selects its case; which surface a document
-   addresses.
-3. The grammar version: pin the library to the unreleased `devel` grammar
-   (`item_choice`), or wait for it to be released in `cic-primitives`?
-4. Licensing of fixtures (see above).
+1. The exact definition of a matching case (the proposal above).
+2. Which surfaces a document may address and how the caller names them.
+3. Confirmation of the fixture-licence route with the rightsholder.
