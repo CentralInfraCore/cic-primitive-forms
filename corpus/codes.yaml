@@ -158,3 +158,19 @@ codes:
     phases: {diff: none}
     meaning: A view holds a value with no canonical serialization yet.
     trigger: A float, or an integer outside signed 64 bits, anywhere in an operand, whether or not it takes part in a difference (ADR 0008). Provisional because a numeric contract does not exist.
+  INVALID_CONFORMANCE_VALUE:
+    status: stable
+    phases: {validate: value}
+    meaning: The conformance key holds a value outside the closed enum of the Access atom.
+    trigger: Not exactly one of the strings implemented, not_implemented, deprecated (type-strict), whatever the origin of the document (ADR 0010).
+  CONFORMANCE_NOT_AUTHORABLE:
+    status: stable
+    phases: {validate: value}
+    meaning: A device capability other than implemented is stated where no trusted binding datum supports it.
+    trigger: An authored long form with conformance not_implemented or deprecated, or the same value in a materialized document at a position that is not among the attested positions (ADR 0010).
+  ORIGIN_ATTESTATION_MISMATCH:
+    status: stable
+    phases: {validate: none}
+    meaning: The origin supplied with a document and its attestation contradict each other.
+    trigger: Origin materialized without an attestation reference or without attested positions, or origin authored with either (ADR 0010). A context error, so it has no source anchor.
+

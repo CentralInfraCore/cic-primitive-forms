@@ -57,6 +57,8 @@ RULES = {
     "ERROR_PHASE": "error phase not allowed for the code or the case kind",
     "ERROR_LOCATION": "source location or path offset missing, wrong state or inconsistent with the text",
     "ERROR_ORDER": "error list not orderable or mixing phases",
+    "ORIGIN_CONTEXT": "origin and attestation inconsistent with each other or with the expected context error",
+    "BASIS": "conformance basis outside the closed set",
     "PHASE_UNUSED": "registry lists a phase for a code that no case exercises",
     "DIFF_INPUT": "malformed diff operands, scope, context or stability variants",
     "DIFF_EVENT": "malformed, empty or redundant diff event",
@@ -178,6 +180,7 @@ INPUT_FORMS = {
     "path_resolve": "path",
     "path_of": "document, at",
     "path_stability": "variants",
+    "basis": "input, origin context, optional via",
     "diff": "a|a_yaml, b|b_yaml, optional scope, schema_b",
     "diff_stability": "variants, optional scope, schema_b",  # kind -> (allowed input fields, rule on them)
     "recognize": "input|input_yaml",
@@ -196,9 +199,10 @@ KIND_FIELDS = {
     "diff": {"a", "a_yaml", "b", "b_yaml", "scope", "schema_b"},
     "diff_stability": {"variants", "scope", "schema_b"},
     "recognize": {"input", "input_yaml"},
-    "validate": {"input", "absent", "input_yaml"},
+    "validate": {"input", "absent", "input_yaml", "origin", "attestation", "attested_positions"},
+    "basis": {"input", "origin", "attestation", "attested_positions", "via"},
     "roundtrip": {"input", "absent"},
-    "collapse": {"input", "authored_expanded"},
+    "collapse": {"input", "authored_expanded", "basis"},
     "expand": {"input"},
     "equality": {"a", "b"},
 }
@@ -219,16 +223,17 @@ EXPECT_KEYS = {
     "diff": ({"changes", "representation", "canonical", "errors"}, None),
     "diff_stability": ({"changes", "representation", "canonical", "errors"}, None),
     "recognize": ({"class", "elements", "errors", "opaque_value"}, None),
-    "validate": ({"valid", "errors", "stays_absent", "default_candidate",
+    "validate": ({"valid", "errors", "basis", "stays_absent", "default_candidate",
                   "kind", "is_inherit", "preserved", "upstream_conflict"}, None),
     "roundtrip": ({"expanded", "collapsed", "fields"}, None),
     "collapse": ({"collapse", "fields"}, {"collapse"}),
     "expand": ({"fields"}, {"fields"}),
+    "basis": ({"bases", "errors"}, None),
     "equality": ({"equal"}, {"equal"}),
 }
 PRESENCE = ("mandatory", "optional")
 SHAPE_KEYS = {"type", "presence", "nullable", "default", "min_items", "fields"}
-SLOTS = ("inherit_key", "inherit_policy", "access_modify")
+SLOTS = ("inherit_key", "inherit_policy", "access_modify", "access_node")
 
 
 def valid_position(p):
@@ -274,6 +279,7 @@ KIND_PHASES = {
     "path_stability": {"path_of"},
     "diff": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
     "diff_stability": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
+    "basis": {"recognize", "validate", "path_parse", "path_resolve"},
 }
 DIFF_KINDS = ("diff", "diff_stability")
 SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of"}
@@ -444,6 +450,8 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
             want = "not_applicable"
         elif phase == "path_of":
             want = "unavailable"
+        elif code in codes and codes[code]["phases"].get(phase) == "none":
+            want = "not_applicable"
         elif phase == "parse":
             want = "location"
             if not has_text:
@@ -872,7 +880,7 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
     if kind in ("path_parse", "path_format"):
         if syn != {"lexical": True}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "lexical path kinds take synthetic: {lexical: true}"))
-    elif kind.startswith("path_") or kind in DIFF_KINDS:
+    elif kind.startswith("path_") or kind in DIFF_KINDS or kind == "basis":
         if set(syn) != {"tree"}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
         elif isinstance(syn["tree"], str):
@@ -954,6 +962,12 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
         vs.append(Violation("REF_DANGLING", where, "grammar pin %r not in pins.yaml" % (eff["grammar"],)))
     if kind and "schema" in case:
         check_schema(kind, case["schema"], pins, where + ".schema", vs, trees)
+    if kind in ("validate", "basis") or {"origin", "attestation", "attested_positions"} & set(case):
+        check_origin(case, where, vs)
+    if kind == "collapse" and "basis" in case and case["basis"] not in BASES:
+        vs.append(Violation("BASIS", where, "the companion basis of the position is one of %s (absent means default)" % (BASES,)))
+    if kind == "basis" and case.get("via", "expand") != "expand":
+        vs.append(Violation("INPUT_PRESENCE", where, "via is expand or absent"))
     if kind in DIFF_KINDS and "schema_b" in case:
         check_schema(kind, case["schema_b"], pins, where + ".schema_b", vs, trees)
     expect = case.get("expect")
@@ -965,6 +979,22 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             if r not in expect:
                 vs.append(Violation("EXPECT_FIELD", where, "expect.%s is required for %s" % (r, kind)))
         check_expect_types(kind, expect, where + ".expect", vs)
+        if "basis" in expect and expect["basis"] not in BASES:
+            vs.append(Violation("BASIS", where + ".expect", "basis is one of %s" % (BASES,)))
+        if kind == "basis" and "bases" in expect:
+            bs = expect["bases"]
+            if not isinstance(bs, dict) or not bs:
+                vs.append(Violation("BASIS", where + ".expect.bases", "bases maps position paths to bases"))
+            else:
+                for p, b in bs.items():
+                    try:
+                        ok_path = bool(parse_logical_path(p))
+                    except ValueError:
+                        ok_path = False
+                    if not ok_path or b not in BASES:
+                        vs.append(Violation("BASIS", "%s.expect.bases[%s]" % (where, p), "a canonical position path and one of %s" % (BASES,)))
+        if kind == "basis" and ("bases" in expect) == ("errors" in expect):
+            vs.append(Violation("EXPECT_FIELD", where + ".expect", "exactly one of bases and errors"))
         if kind == "recognize":
             check_recognize_expect(case, expect, where + ".expect", vs)
         if kind.startswith("path_"):
@@ -1142,6 +1172,44 @@ def check_diff_inputs(kind, case, where, vs):
             vs.append(Violation("DIFF_INPUT", where, "schema_b equal to schema is no context mismatch"))
 
 
+BASES = ("default", "authored_claim", "binding_attested")
+
+
+def check_origin(case, where, vs):
+    """origin authored | materialized; attestation and attested_positions exactly when materialized (ADR 0010)."""
+    origin = case.get("origin", "authored")
+    att = case.get("attestation")
+    pos = case.get("attested_positions")
+    bad = origin not in ("authored", "materialized") or ("attestation" in case and not (isinstance(att, str) and att.strip()))
+    if "attested_positions" in case:
+        if not isinstance(pos, list):
+            bad = True
+        else:
+            for p in pos:
+                try:
+                    segs = parse_logical_path(p)
+                except ValueError:
+                    bad = True
+                else:
+                    if not segs:
+                        bad = True
+            if len(set(pos)) != len(pos):
+                bad = True
+    if bad:
+        vs.append(Violation("ORIGIN_CONTEXT", where, "origin authored|materialized, attestation a non-empty reference, "
+                            "attested_positions a list of distinct canonical position paths"))
+        return
+    given = ("attestation" in case, "attested_positions" in case)
+    consistent = given == ((origin == "materialized"),) * 2
+    errs = case.get("expect", {}).get("errors") if isinstance(case.get("expect"), dict) else None
+    codes = [e.get("code") for e in errs if isinstance(e, dict)] if isinstance(errs, list) else []
+    if consistent and "ORIGIN_ATTESTATION_MISMATCH" in codes:
+        vs.append(Violation("ORIGIN_CONTEXT", where, "a consistent context cannot give ORIGIN_ATTESTATION_MISMATCH"))
+    if not consistent and codes != ["ORIGIN_ATTESTATION_MISMATCH"]:
+        vs.append(Violation("ORIGIN_CONTEXT", where, "origin %s with attestation=%s attested_positions=%s must expect exactly "
+                            "ORIGIN_ATTESTATION_MISMATCH" % (origin, given[0], given[1])))
+
+
 def check_inputs(kind, case, where, vs):
     has = lambda f: f in case
     if kind.startswith("path_"):
@@ -1149,6 +1217,10 @@ def check_inputs(kind, case, where, vs):
         return
     if kind in DIFF_KINDS:
         check_diff_inputs(kind, case, where, vs)
+        return
+    if kind == "basis":
+        if "input" not in case:
+            vs.append(Violation("INPUT_PRESENCE", where, "kind basis takes input"))
         return
     if kind == "recognize":
         ok = has("input") != has("input_yaml")
