@@ -26,10 +26,17 @@ closed, names every reason, and carries seeded faults for every reason.
    | Category | Edges counted |
    |---|---|
    | `conditional` | both outcomes of every `if` / `else if`, including the implicit else |
-   | `match` | each arm of a Rust `match` / `if let` / `while let` pattern and each guard outcome; each case of a Go `switch` and, when there is no `default`, the implicit no-match edge |
-   | `loop` | entering the body and not entering it, for every `for` / `while` / `loop` / `range` |
+   | `match` | each arm of a Rust `match` and each guard outcome (an exhaustive `match` has no implicit edge); each `case` of a Go `switch` or type switch and, when there is no `default`, the implicit no-match edge; each communication `case` of a Go `select` and its `default` when present (a `select` without `default` blocks until a case is ready, so it has no implicit edge) |
+   | `loop` | for every loop whose body is guarded by a test, the two outcomes of that test: iterate and exit. This covers `while`, `while let`, Rust `for`, Go `for cond`, three-clause `for` and `range` (an empty range exits at the first test). An unconditional loop, Rust `loop {}` and Go `for {}` or a constant-true test, always enters and has no such decision |
    | `short_circuit` | both outcomes of every operand of `&&`, `\|\|` |
    | `error_path` | both edges of Rust's `?` (continue, propagate); Go's `if err != nil` is a `conditional` |
+
+   `if let` is a `conditional` (matched or not). Not branches by themselves: an
+   unconditional loop's entry, and `break`, `continue`, `return`, `goto`, `panic`
+   and other jumps; they are real control-flow edges, but the decision that leads to
+   them is already counted where it is made (a `break` inside an `if` is covered by
+   that `if`'s two outcomes). A `break` is therefore never a stand-in for an entry
+   test an unconditional loop does not have.
 
    A tool that does not measure a category must say so in the report
    (`unmeasured_categories`). That is a deviation, and a deviation is accepted only
@@ -47,8 +54,8 @@ closed, names every reason, and carries seeded faults for every reason.
    recomputes all sums and trusts no total. A missing, unreadable, empty, stale or
    inconsistent report is never green.
 5. **A gate that tests itself.** `make coverage` runs the gate against fixtures with
-   28 seeded faults, one or more for each of its 14 failure reasons, among them the
-   exact-90% report, a report that is missing, a disabled (empty) measurement, a
+   34 seeded faults, one or more for each of its 15 failure reasons, among them the
+   exact-90% report, an empty, partial, unknown or repeated language set, a report that is missing, a disabled (empty) measurement, a
    report for another commit and a source file changed after measuring. The self-test
    fails if any reason has no fault that turns the gate red. A mutant of the gate that
    accepts exactly 90% was checked to turn the self-test red.
@@ -64,12 +71,15 @@ exclusion**: a branch that cannot be reached stays counted and uncovered.
 ## The gate
 
 `tools/coverage_gate.py check` takes the scope, the tool pins, the commit under test
-and one report per required language, and prints per language `covered/total = x.xx%`
+and one report for each of the two languages, and prints per language `covered/total = x.xx%`
 and a final `BRANCH COVERAGE: PASS` or `FAIL`. Failure reasons: `REPORT_MISSING`,
-`REPORT_FORMAT`, `LANGUAGE_NOT_REPORTED`, `MEASUREMENT_EMPTY`, `TOOL_NOT_SELECTED`,
+`REPORT_FORMAT`, `LANGUAGE_SET_INVALID`, `LANGUAGE_NOT_REPORTED`, `MEASUREMENT_EMPTY`, `TOOL_NOT_SELECTED`,
 `TOOL_MISMATCH`, `DEFINITION_MISMATCH`, `COMMIT_MISMATCH`, `SCOPE_INCOMPLETE`,
 `SCOPE_EXTRA`, `SOURCE_DIGEST`, `COUNT_INCONSISTENT`, `CATEGORY_UNMEASURED`,
-`BELOW_THRESHOLD`. With the real `coverage/tools.yaml` (no tool selected) it is red
+`BELOW_THRESHOLD`. A conformance result needs **exactly** Rust and Go: an empty, one-language, unknown or
+repeated set is `LANGUAGE_SET_INVALID`, never a pass. A per-language diagnostic run
+exists (`--only LANG`) and can only end with exit status 3 and the line
+`NOT a conformance result`, whatever it finds. With the real `coverage/tools.yaml` (no tool selected) it is red
 (`TOOL_NOT_SELECTED`): the quality gate is not satisfied, and no document can say
 otherwise. Today CI runs only the self-test, because no Rust or Go code exists; the
 real `check` becomes a required CI step with the first implementation code (P1).
