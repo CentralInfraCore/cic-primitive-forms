@@ -7,7 +7,7 @@
 corpus_format: 2
 suite: diff
 status: provisional
-defaults: {adr: ADR-0008, grammar: cic-primitives-devel}
+defaults: {adr: ADR-0008, grammar: cic-primitives-5a26bd8-76f1d664}
 trees:
   main: {enabled: {scalar: boolean}, ip: {composite: {addresses: {set: string}, blob: opaque, gateway: {scalar: string}}}, mtu: {scalar: integer}, name: {scalar: string}, nics: {list: {fields: {name: {scalar: string}, subnet: {scalar: string}, zone: {scalar: string}}, key: [name, zone]}}, note: opaque, vlans: {list: {choice: [{fields: {ref: {scalar: string}}, key: [ref], name: referenced}, {fields: {vlan_id: {scalar: integer}, vlan_mode: {scalar: string}}, key: [vlan_id], name: inline}]}}}
   other: {mtu: {scalar: string}}

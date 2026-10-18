@@ -41,7 +41,7 @@ Any other YAML file under `corpus/` is an error (`UNEXPECTED_FILE`).
 corpus_format: 1
 suite: inherit                 # equals the directory name
 status: provisional            # provisional | stable
-defaults: {adr: ADR-0004, grammar: cic-primitives-devel}
+defaults: {adr: ADR-0004, grammar: cic-primitives-5a26bd8-76f1d664}
 cases: [ ... ]
 ```
 
@@ -204,13 +204,35 @@ are not mechanical:
   `value-null-and-default-injection-are-separate` a `collapse` case, which is
   what they always tested.
 
+## Amendment for the grammar identity (ADR 0002)
+
+- **Grammar pin format.** A pin in `corpus/pins.yaml` has `repo`, `ref`, `commit`, `files`
+  (the accepted seven paths, each with the SHA-256 of its raw Git blob bytes, sorted by
+  the UTF-8 bytes of the path) and `manifest_sha256`. The pin name is
+  `<repo>-<commit7>-<manifest8>`: the identity is in the name, so a re-pin cannot keep
+  its name. Structural faults are `PIN_INVALID`; a `manifest_sha256` that does not
+  match the recomputed digest is `PIN_DIGEST`. Both are offline and need no network.
+- **Kind `grammar_manifest`.** Input `files` (path, sha256) and `declared` (a digest),
+  schema `{synthetic: {lexical: true}}` (no schema); expectation `valid: true` or the
+  error `GRAMMAR_DIGEST_MISMATCH`. The gate recomputes the digest of every case
+  (`MANIFEST_CONSISTENCY`, `MANIFEST_FIXTURE`), so a fixture cannot declare a wrong
+  outcome.
+- **The workflow is part of the contract.** `UPSTREAM_VERIFY` fails `make corpus` unless
+  the `corpus` workflow reads the pinned commit with `grammar_identity.py commit`, checks
+  out `CentralInfraCore/cic-primitives` at the commit from that step and runs
+  `grammar_identity.py verify` afterwards. The three steps are compared **whole** (the
+  exact command, the exact `with` fields, no extra keys, in that order), never by a
+  fragment of their text, so a command that only mentions the verifier is not the
+  verifier; the job and the workflow set no `env`, `defaults`, `if` or
+  `continue-on-error`, and the workflow runs on `pull_request` and `push`.
+- The reproduction from upstream bytes is `tools/grammar_identity.py verify` (CI, and
+  `make grammar-verify UPSTREAM=...` locally); its self-test (`make grammar-selftest`,
+  a throwaway Git repository with seeded faults for every reason) needs no network.
+
 ## Not decided here
 
-- The implementation of the grammar identity. It is decided in ADR 0002 (the
-  immutable commit plus a seven-file manifest of raw blob bytes). What is missing is
-  the implementation: `pins.yaml` still carries a commit only, and the structural
-  rule, the seeded fault and the CI reproduction of the manifest are a separate
-  change (ADR 0002 stays proposed until then).
+- Nothing about the grammar identity is pending in this ADR: it is decided in ADR 0002
+  and implemented as described in the amendment above.
 - A case against the real pinned schema. The `pin` reference path is exercised by a
   seeded fault only; no semantic case uses it before the schema-driven runner exists.
 - The diff format, the path grammar and the error contract: decided in ADR 0008, ADR
@@ -233,6 +255,6 @@ Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`doc
 
 Conditions and limits:
 
-- **Mandatory follow-up.** `pins.yaml` must gain the grammar identity decided in ADR 0002 (the seven-file manifest and its digest) with a structural rule and a seeded fault, in the separate change that implements it.
+- **Follow-up (implemented in a separate change, awaiting the owner's review).** `pins.yaml` carries the grammar identity decided in ADR 0002 (the seven-file manifest and its digest), with structural rules, seeded faults and a mandatory CI reproduction from upstream; see the amendment for the grammar identity.
 - The gate checks structure only and prints that implementation conformance was not run. Its Python tooling is a P0 structural tool, independent of the implementations.
 - The ADR carries the amendments of ADR 0006 to 0010 in one document; the format version is 2.

@@ -23,6 +23,8 @@ import tempfile
 
 import yaml
 
+import grammar_identity as gid
+
 FORMAT_VERSION = 2
 TYPES = ("null", "boolean", "integer", "float", "string", "list", "map")
 
@@ -34,7 +36,11 @@ RULES = {
     "UNEXPECTED_FILE": "YAML file in the corpus that is not pins, codes or a suite",
     "ENVELOPE": "missing, unknown or inconsistent file-level field",
     "FORMAT_VERSION": "corpus_format is not the supported version",
-    "PIN_INVALID": "malformed pin (commit, sha256, repo, path)",
+    "PIN_INVALID": "malformed pin (commit, sha256, repo, path, file set, order, name)",
+    "PIN_DIGEST": "manifest_sha256 differs from the digest recomputed from the pinned file hashes",
+    "MANIFEST_FIXTURE": "malformed grammar_manifest case input",
+    "MANIFEST_CONSISTENCY": "grammar_manifest expectation disagrees with the digest recomputed from the files",
+    "UPSTREAM_VERIFY": "the CI workflow does not unconditionally reproduce the grammar identity from upstream",
     "CODE_REGISTRY": "malformed code registry entry",
     "CASE_FIELD": "missing or unknown case field",
     "ID_FORMAT": "case id is not <suite>.<slug>",
@@ -175,6 +181,7 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ADR_REF = re.compile(r"^ADR-(\d{4})$")
 INPUT_FORMS = {
+    "grammar_manifest": "files, declared",
     "path_parse": "path",
     "path_format": "segments",
     "path_resolve": "path",
@@ -191,6 +198,7 @@ INPUT_FORMS = {
     "equality": "ab",
 }
 KIND_FIELDS = {
+    "grammar_manifest": {"files", "declared"},
     "path_parse": {"path"},
     "path_format": {"segments"},
     "path_resolve": {"path"},
@@ -215,6 +223,7 @@ PATH_SUCCESS = {  # kind -> expectation key of the success outcome
 }
 TARGETS = ("root", "scalar", "composite", "list", "item", "set", "opaque")
 EXPECT_KEYS = {
+    "grammar_manifest": ({"valid", "errors"}, None),
     "path_parse": ({"segments", "errors"}, None),
     "path_format": ({"text", "errors"}, None),
     "path_resolve": ({"target", "primitive_position", "errors"}, None),
@@ -280,6 +289,7 @@ KIND_PHASES = {
     "diff": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
     "diff_stability": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
     "basis": {"recognize", "validate", "path_parse", "path_resolve"},
+    "grammar_manifest": {"validate"},
 }
 DIFF_KINDS = ("diff", "diff_stability")
 SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of"}
@@ -877,9 +887,9 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
     if not isinstance(syn, dict):
         vs.append(Violation("SCHEMA_FIXTURE", where, "schema is exactly one of synthetic or pin"))
         return
-    if kind in ("path_parse", "path_format"):
+    if kind in ("path_parse", "path_format", "grammar_manifest"):
         if syn != {"lexical": True}:
-            vs.append(Violation("SCHEMA_FIXTURE", where, "lexical path kinds take synthetic: {lexical: true}"))
+            vs.append(Violation("SCHEMA_FIXTURE", where, "kinds without a schema take synthetic: {lexical: true}"))
     elif kind.startswith("path_") or kind in DIFF_KINDS or kind == "basis":
         if set(syn) != {"tree"}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
@@ -1210,6 +1220,25 @@ def check_origin(case, where, vs):
                             "ORIGIN_ATTESTATION_MISMATCH" % (origin, given[0], given[1])))
 
 
+def check_manifest_input(case, where, vs):
+    fl = case.get("files")
+    if not (isinstance(fl, list) and fl and all(isinstance(f, dict) and set(f) == {"path", "sha256"} and isinstance(f["path"], str)
+                                               and f["path"] and HEX64.match(str(f["sha256"])) for f in fl)) \
+            or "declared" not in case or not HEX64.match(str(case["declared"])):
+        vs.append(Violation("MANIFEST_FIXTURE", where, "files is a non-empty list of {path, sha256 (64-hex)}, declared a 64-hex digest"))
+        return
+    if len({f["path"] for f in fl}) != len(fl):
+        vs.append(Violation("MANIFEST_FIXTURE", where, "a path is listed twice"))
+        return
+    same = gid.manifest_digest([(f["path"], f["sha256"]) for f in fl]) == case["declared"]
+    exp = case.get("expect", {})
+    codes_ = [e.get("code") for e in exp.get("errors", []) if isinstance(e, dict)] if isinstance(exp, dict) and isinstance(exp.get("errors"), list) else []
+    if same and codes_:
+        vs.append(Violation("MANIFEST_CONSISTENCY", where, "the declared digest matches the files, so no GRAMMAR_DIGEST_MISMATCH can be expected"))
+    if not same and codes_ != ["GRAMMAR_DIGEST_MISMATCH"]:
+        vs.append(Violation("MANIFEST_CONSISTENCY", where, "the declared digest differs from the files, so GRAMMAR_DIGEST_MISMATCH is the only valid expectation"))
+
+
 def check_inputs(kind, case, where, vs):
     has = lambda f: f in case
     if kind.startswith("path_"):
@@ -1217,6 +1246,9 @@ def check_inputs(kind, case, where, vs):
         return
     if kind in DIFF_KINDS:
         check_diff_inputs(kind, case, where, vs)
+        return
+    if kind == "grammar_manifest":
+        check_manifest_input(case, where, vs)
         return
     if kind == "basis":
         if "input" not in case:
@@ -1247,8 +1279,31 @@ def check_pins(doc, vs):
         return {}
     version(doc, where, vs)
     for name, g in (doc["grammar"] or {}).items():
-        if not isinstance(g, dict) or set(g) != {"repo", "ref", "commit"} or not HEX40.match(str(g["commit"])):
-            vs.append(Violation("PIN_INVALID", "%s grammar.%s" % (where, name), "needs repo, ref, 40-hex commit"))
+        w = "%s grammar.%s" % (where, name)
+        if not isinstance(g, dict) or set(g) != {"repo", "ref", "commit", "files", "manifest_sha256"} \
+                or not isinstance(g["repo"], str) or not HEX40.match(str(g["commit"])) or not HEX64.match(str(g["manifest_sha256"])):
+            vs.append(Violation("PIN_INVALID", w, "needs repo, ref, 40-hex commit, files, 64-hex manifest_sha256"))
+            continue
+        fl = g["files"]
+        ok = isinstance(fl, list) and all(isinstance(f, dict) and set(f) == {"path", "sha256"} and isinstance(f["path"], str)
+                                          and HEX64.match(str(f["sha256"])) for f in fl)
+        if not ok:
+            vs.append(Violation("PIN_INVALID", w, "files is a list of {path, sha256 (64-hex)}"))
+            continue
+        paths = [f["path"] for f in fl]
+        if len(set(paths)) != len(paths):
+            vs.append(Violation("PIN_INVALID", w, "a path is listed twice"))
+        elif sorted(paths) != sorted(gid.GRAMMAR_FILES):
+            vs.append(Violation("PIN_INVALID", w, "the file set must be exactly the accepted one (ADR 0002): %s" % list(gid.GRAMMAR_FILES)))
+        elif paths != [e[0] for e in gid.sorted_by_path([(p, "") for p in paths])]:
+            vs.append(Violation("PIN_INVALID", w, "files are sorted by the UTF-8 bytes of the path"))
+        else:
+            digest = gid.manifest_digest([(f["path"], f["sha256"]) for f in fl])
+            if digest != g["manifest_sha256"]:
+                vs.append(Violation("PIN_DIGEST", w, "manifest_sha256 is %s but the files give %s" % (g["manifest_sha256"], digest)))
+            if name != gid.pin_name(g["repo"], g["commit"], g["manifest_sha256"]):
+                vs.append(Violation("PIN_INVALID", w, "the pin name must carry the identity: %s"
+                                    % gid.pin_name(g["repo"], g["commit"], g["manifest_sha256"])))
     for name, s in (doc["schemas"] or {}).items():
         if not isinstance(s, dict) or set(s) != {"repo", "commit", "path", "sha256"} \
                 or not HEX40.match(str(s["commit"])) or not HEX64.match(str(s["sha256"])):
@@ -1295,6 +1350,56 @@ def check_codes(doc, vs):
     return out
 
 
+WORKFLOW_PIN_RUN = 'echo "commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)" >> "$GITHUB_OUTPUT"'
+WORKFLOW_VERIFY_RUN = "python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives"
+WORKFLOW_CHECKOUT_WITH = {"repository": "CentralInfraCore/cic-primitives",
+                          "ref": "${{ steps.grammar_pin.outputs.commit }}", "path": "upstream/cic-primitives"}
+
+
+def check_workflow(root, pins, vs):
+    """The workflow that runs the gate must unconditionally reproduce the grammar identity from upstream.
+
+    The three steps are compared whole, not by a fragment of their text: a command that merely
+    mentions the verifier (an echo, a comment, a prefix that exits) is not the verifier.
+    """
+    where = ".github/workflows/corpus.yml"
+    try:
+        with open(os.path.join(root, where), encoding="utf-8") as fh:
+            wf = yaml.safe_load(fh)
+        job = wf["jobs"]["corpus"]
+        steps = job["steps"]
+        assert isinstance(steps, list)
+    except (OSError, KeyError, TypeError, AssertionError, yaml.YAMLError):
+        vs.append(Violation("UPSTREAM_VERIFY", where, "workflow with jobs.corpus.steps not found"))
+        return
+    problems = []
+    triggers = wf.get(True, wf.get("on"))  # PyYAML reads the key `on` as a boolean
+    if not (isinstance(triggers, dict) and "pull_request" in triggers and "push" in triggers):
+        problems.append("the workflow must run on pull_request and on push")
+    for scope, name in ((wf, "workflow"), (job, "job")):
+        for k in ("env", "defaults", "if", "continue-on-error"):
+            if k in scope:
+                problems.append("the %s must not set %s: it could change what the identity steps do" % (name, k))
+    def find(pred):
+        return next((k for k, st in enumerate(steps) if isinstance(st, dict) and pred(st)), None)
+    ip = find(lambda st: st.get("id") == "grammar_pin")
+    ic = find(lambda st: isinstance(st.get("with"), dict) and st["with"].get("repository") == "CentralInfraCore/cic-primitives")
+    iv = find(lambda st: "grammar_identity.py verify" in str(st.get("run", "")))
+    if ip is None or str(steps[ip].get("run", "")).strip() != WORKFLOW_PIN_RUN or set(steps[ip]) - {"id", "name", "run"}:
+        problems.append("the pin step must be exactly: %s" % WORKFLOW_PIN_RUN)
+    if ic is None or steps[ic].get("with") != WORKFLOW_CHECKOUT_WITH or not str(steps[ic].get("uses", "")).startswith("actions/checkout@") \
+            or set(steps[ic]) - {"uses", "with", "name"}:
+        problems.append("the upstream checkout must be actions/checkout with exactly %s" % WORKFLOW_CHECKOUT_WITH)
+    if iv is None or str(steps[iv].get("run", "")).strip() != WORKFLOW_VERIFY_RUN or set(steps[iv]) - {"run", "name"}:
+        problems.append("the verification step must be exactly: %s" % WORKFLOW_VERIFY_RUN)
+    if None not in (ip, ic, iv) and not ip < ic < iv:
+        problems.append("the order must be pin step, upstream checkout, verification")
+    if iv is not None and any(isinstance(st, dict) and "grammar_identity.py verify" in str(st.get("run", "")) for k, st in enumerate(steps) if k != iv):
+        problems.append("the verification command must appear once")
+    for pr in problems:
+        vs.append(Violation("UPSTREAM_VERIFY", where, pr))
+
+
 def check_corpus(root):
     vs, stats = [], {"suites": 0, "cases": 0, "positive": 0, "negative": 0}
     cdir = os.path.join(root, "corpus")
@@ -1318,6 +1423,7 @@ def check_corpus(root):
     else:
         vs.append(Violation("ENVELOPE", "corpus/codes.yaml", "missing"))
 
+    check_workflow(root, pins, vs)
     ids, used = {}, set()
     allowed = {"corpus/pins.yaml", "corpus/codes.yaml"}
     for path in sorted(glob.glob(os.path.join(cdir, "**", "*.y*ml"), recursive=True)):
@@ -1446,6 +1552,7 @@ def selftest(root):
         try:
             shutil.copytree(os.path.join(root, "corpus"), os.path.join(tmp, "corpus"))
             shutil.copytree(os.path.join(root, "docs", "adr"), os.path.join(tmp, "docs", "adr"))
+            shutil.copytree(os.path.join(root, ".github", "workflows"), os.path.join(tmp, ".github", "workflows"))
             try:
                 apply_fault(fault, tmp)
             except ValueError as exc:

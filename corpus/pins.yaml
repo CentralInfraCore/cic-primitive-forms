@@ -1,11 +1,28 @@
 # Pinned external sources the corpus refers to (ADR 0002, ADR 0005).
 # Nothing is vendored: cic-schema-registry and cic-primitives are CC BY-NC-SA 4.0.
+#
+# A grammar pin is an identity (ADR 0002): the immutable commit plus a manifest of exactly the
+# accepted file set (tools/grammar_identity.py: GRAMMAR_FILES). `files` lists each path with the
+# SHA-256 of its raw Git blob bytes at the commit, sorted by the UTF-8 bytes of the path.
+# `manifest_sha256` is the SHA-256 of the `sha256sum`-format text of those lines. The pin name
+# carries the identity, <repo>-<commit7>-<manifest8>, so re-pinning changes the name and every
+# `grammar:` reference breaks until it is migrated on purpose.
+# The offline gate checks the structure; CI reproduces every hash from the upstream commit.
 corpus_format: 2
 grammar:
-  cic-primitives-devel:
+  cic-primitives-5a26bd8-76f1d664:
     repo: CentralInfraCore/cic-primitives
     ref: devel
     commit: 5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd
+    files:
+      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}
+      - {path: proposals/atom-grammar/check_grammar.py, sha256: e6d013d9cfd25918c522b6c0fece74c6f86c5a277ba62a18ab7eb949cd10248b}
+      - {path: proposals/atom-grammar/instance-grammar.schema.yaml, sha256: fdb5e4e5a1916b089b538cc2ee5274c276d7e70570899d98e7feb2bc73118f0b}
+      - {path: schemas/aggregate/policy-surface.yaml, sha256: f80fb77b296038344e26bf2fe695cd5bf9d13aacf296b22283abd18c4a709912}
+      - {path: schemas/atomic/access.yaml, sha256: 09fb8a8e85da140a35904fd1574dab0f794a37a1b52a30a7f2a022aefeb3942d}
+      - {path: schemas/atomic/role.yaml, sha256: 71fc185a0bf78b7ba57b30bdea7fabda370a63b5c73de1cc4444aeea4f679659}
+      - {path: schemas/atomic/shape.yaml, sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea7}
+    manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1
 schemas:
   registry-network-interface:
     repo: CentralInfraCore/cic-schema-registry

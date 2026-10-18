@@ -57,6 +57,8 @@ primitive is:
 every fixture and proves with seeded faults that the check can fail. It is a
 structural check only; implementation conformance is not run until the P1 runners
 exist. Format: [ADR 0005](docs/adr/0005-conformance-corpus-contract.md).
+`make grammar-selftest` and the CI step that reproduces the pinned grammar identity from the
+upstream commit are described in [ADR 0002](docs/adr/0002-minimal-schema-contract.md).
 `make coverage` proves that the branch coverage gate fails when it must
 ([ADR 0009](docs/adr/0009-branch-coverage-measurement-contract.md)); no code is measured yet.
 

@@ -15,7 +15,7 @@ or Go conformance.
 | ADR | Subject | Status | Issue #3 point |
 |---|---|---|---|
 | [0001](0001-recognition-rule.md) | recognition rule | accepted | 1, 7 |
-| [0002](0002-minimal-schema-contract.md) | schema contract | **proposed**: grammar identity decided, implementation pending | 4 |
+| [0002](0002-minimal-schema-contract.md) | schema contract | **proposed**: grammar identity decided and implemented, awaiting the owner's review | 4 |
 | [0003](0003-presence-and-value-semantics.md) | presence and value semantics | accepted | 3 |
 | [0004](0004-access-inheritance-vocabulary.md) | inheritance vocabulary | accepted, reading contract only | 8 (not ticked) |
 | [0005](0005-conformance-corpus-contract.md) | corpus contract and gate | accepted | corpus skeleton |
@@ -27,8 +27,8 @@ or Go conformance.
 
 What still prevents P0 from closing:
 
-1. the grammar identity of ADR 0002 implemented and checked (`pins.yaml`, rule, fault, CI
-   reproduction of the seven-file manifest);
+1. the grammar identity of ADR 0002 reviewed and approved (`pins.yaml`, rules, faults and the
+   CI reproduction of the seven-file manifest are implemented);
 2. the upstream type decision behind point 8 (cic-primitives #17);
 3. the branch-coverage tool qualification behind point 10 (ADR 0009).
 
