@@ -18,12 +18,24 @@ The result is **descriptive evidence of a difference**, from A to B. It is not a
 instruction to execute, and a difference does not by itself mean drift or an
 authorized modification.
 
-A `LogicalView` is a document read under one schema, grammar and surface: the fully
-expanded logical form of ADR 0001 (every primitive position carries its value and its
-five declaration fields; short-form positions get the symbolic defaults), its lists
-keyed by the identity of ADR 0006, its sets unordered, its opaque values atomic.
+A `LogicalView` is a document read under one schema, grammar and surface. It has two
+parts:
+
+- the **logical content**: the fully expanded form of ADR 0001 (every primitive
+  position carries its value and its five declaration fields; short-form positions
+  get the symbolic defaults), its lists keyed by the identity of ADR 0006, its sets
+  unordered, its opaque values atomic. Equality of views, and so every event of
+  `changes`, is defined on this part alone;
+- the **authored form**: for each primitive position, `short` or `expanded`, the
+  recognition class (ADR 0001) of the node as it was written. It is typed
+  companion data, it takes no part in equality, and it is read only to produce
+  `representation`. A view that was not built from an authored document has no
+  authored form, and then no `representation` entry can be produced for it.
+
 Consequently none of these makes a difference: YAML mapping order, list order, flow
 versus block style, quoting, short versus expanded writing of the same declaration.
+The last of them is still reported, in `representation`, because the authored form is
+kept.
 
 `SchemaContext` is the schema identity and digest, the grammar commit and digest, and
 the surface. Two views read under different contexts are never compared silently:
@@ -85,7 +97,9 @@ Absent is `removed`, never "no value".
   too, or a different `item_choice` case) is the removal of one identity and the
   addition of another. No rename is detected or invented.
 - **Sets** have no addressable elements, so a set difference is one `set_change` on
-  the set field, with the added and removed elements sorted.
+  the set field, with the added and removed elements sorted (the order below; the gate
+  checks it on the `set_change` lists, not on set values inside fragments, which would
+  need the schema).
 - **Opaque** values are atomic: one `value_change` with both whole values, no event
   for the interior. Map key order inside an opaque value does not matter; list order
   does.
@@ -113,8 +127,17 @@ The diff therefore never invents coverage from the structure of a document. A ca
 that knows what was observed passes a **scope**: a list of canonical logical paths,
 each a subtree that is comparable. Nothing outside the scope is compared and no event
 is produced there, so a path that is not in B but also not in the scope is not a
-removal. Inside the scope, absence is absence. Entries nested in another entry add
-nothing; a scope path must resolve against the schema (`UNKNOWN_FIELD` in phase
+removal. Inside the scope, absence is absence.
+
+**The scope is applied before any merging of parent and child events.** Each scope
+entry is compared on its own subtree, and a parent that appears or disappears is
+reported only through the scope entries below it: with `scope: [$.ip.gateway]`, a
+parent `ip` that exists only in B gives `added $.ip.gateway` and nothing else; there
+is no `added $.ip`, and a sibling outside the scope (say `blob`) appears neither as an
+event nor inside a fragment, so the output says nothing about it and leaks none of it.
+An entry that is itself the appearing node (`scope: [$.ip]`) reports the whole node.
+The existence of a parent whose subtree is only partly in scope is not reported.
+Entries nested in another entry add nothing; a scope path must resolve against the schema (`UNKNOWN_FIELD` in phase
 `path_resolve` otherwise). The coverage states of ADR 0003 (`observed`, `absent`,
 `unobserved`, `unknown`) belong to the later intent-observed adapter, which turns them
 into a scope. This ADR defines no coverage state and no drift.
@@ -154,7 +177,9 @@ The bytes of a diff are fixed here and are not left to a JSON or YAML library:
 - Strings: double-quoted; `\"` and `\\`; `\b \f \n \r \t`; other control characters
   below U+0020 as `\u00xx` in lowercase hex; everything else literal UTF-8 (no `\/`,
   no escaped non-ASCII, U+007F literal). This is the rule of ADR 0006 for key values.
-- Integers: `0` or `-?[1-9][0-9]*`, within signed 64 bits. **No floats.**
+- Integers: `0` or `-?[1-9][0-9]*`, within signed 64 bits. **No floats.** The gate
+  rejects an integer outside `-9223372036854775808..9223372036854775807` and any float
+  in the expectations and in the canonical string.
 - `true`, `false`, `null`, arrays in the order defined above.
 - Absence is expressed by the event kind and by omitting the field, never by a
   placeholder value.
@@ -164,7 +189,8 @@ Every positive corpus case carries the exact string (`expect.canonical`).
 ## Corpus and gate
 
 New kinds `diff` and `diff_stability` (ADR 0005 amendment). `corpus/diff/vectors.yaml`
-holds the cases of the acceptance frame: same logical value written short and
+holds the cases of the acceptance frame (including partial scopes over appearing and
+disappearing parents): same logical value written short and
 expanded; value, declaration and representation changes separately and together
 (including `false` versus `0`, `[]` versus `inherit`, an explicit override that is not
 hidden); `Absent` versus `null`, `0` versus `false`, empty values; list reordering,
@@ -177,7 +203,7 @@ same events and bytes.
 New gate rules, each with seeded faults: `DIFF_INPUT` (operands, scope, context,
 stability variants that differ), `DIFF_EVENT` (event fields, typed values, an event
 that describes no change, redundant events below an appearing node), `DIFF_ORDER`
-(the order above), `DIFF_CANONICAL` (the bytes parse as strict JSON without floats, are
+(the order above, set elements included), `DIFF_CANONICAL` (the bytes parse as strict JSON without floats, are
 the canonical writing, and say the same as the structured events). The gate checks
 structure; it computes no diff, and a green run proves nothing about Rust or Go.
 

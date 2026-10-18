@@ -329,3 +329,18 @@ faults:
   - id: diff-phase-not-in-registry
     rule: ERROR_PHASE
     ops: [{file: corpus/diff/vectors.yaml, old: "{code: DIFF_CONTEXT_MISMATCH, phase: diff,", new: "{code: DIFF_CONTEXT_MISMATCH, phase: validate,"}]
+  - id: diff-integer-beyond-64-bits-in-events-and-bytes
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "value: 9223372036854775807}, path: $.note", new: "value: 9223372036854775808}, path: $.note"}, {file: corpus/diff/vectors.yaml, old: "\"next\":9223372036854775807", new: "\"next\":9223372036854775808"}]
+  - id: diff-integer-beyond-64-bits-in-events
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "value: 9223372036854775807}, path: $.note", new: "value: 9223372036854775808}, path: $.note"}]
+  - id: diff-set-elements-unsorted
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [z, a, \u00e9]}"}, {file: corpus/diff/vectors.yaml, old: "\"added\":[\"a\",\"z\",\"\u00e9\"]", new: "\"added\":[\"z\",\"a\",\"\u00e9\"]"}]
+  - id: diff-set-elements-text-order-not-byte-order
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [a, \u00e9, z]}"}, {file: corpus/diff/vectors.yaml, old: "\"added\":[\"a\",\"z\",\"\u00e9\"]", new: "\"added\":[\"a\",\"\u00e9\",\"z\"]"}]
+  - id: diff-set-element-a-map
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [{a: 1}, z, \u00e9]}"}]

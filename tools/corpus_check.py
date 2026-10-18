@@ -605,6 +605,38 @@ def _no_dup_pairs(pairs):
     return d
 
 
+INT64 = (-2 ** 63, 2 ** 63 - 1)
+
+
+def number_problems(v):
+    """Floats and integers outside signed 64 bits, anywhere in a value (ADR 0008)."""
+    out = []
+    if isinstance(v, float):
+        out.append("float %r" % v)
+    elif isinstance(v, int) and not isinstance(v, bool) and not INT64[0] <= v <= INT64[1]:
+        out.append("integer %d outside signed 64 bits" % v)
+    elif isinstance(v, list):
+        for x in v:
+            out += number_problems(x)
+    elif isinstance(v, dict):
+        for x in v.values():
+            out += number_problems(x)
+    return out
+
+
+def set_element_key(v):
+    """ADR 0008 element order: null, booleans, integers, then strings by UTF-8 bytes."""
+    if v is None:
+        return (0, 0)
+    if isinstance(v, bool):
+        return (1, int(v))
+    if isinstance(v, int):
+        return (2, v)
+    if isinstance(v, str):
+        return (3, v.encode("utf-8"))
+    raise TypeError("set elements are scalars")
+
+
 def check_diff_expect(expect, where, vs):
     if "errors" in expect:
         if set(expect) != {"errors"}:
@@ -668,6 +700,18 @@ def check_diff_expect(expect, where, vs):
                 for lst in (a, r):
                     if any(strict_eq(lst[i], lst[j]) for i in range(len(lst)) for j in range(i + 1, len(lst))):
                         vs.append(Violation("DIFF_EVENT", w, "a set lists an element twice"))
+        for p in number_problems(e):
+            vs.append(Violation("DIFF_EVENT", w, "%s: no canonical form (ADR 0008)" % p))
+        if k == "set_change" and isinstance(e.get("added"), dict) and isinstance(e.get("removed"), dict):
+            for side in ("added", "removed"):
+                lst = e[side].get("value")
+                if isinstance(lst, list):
+                    try:
+                        if [set_element_key(x) for x in lst] != sorted(set_element_key(x) for x in lst):
+                            vs.append(Violation("DIFF_ORDER", "%s.%s" % (w, side),
+                                                "set elements are sorted: null, booleans, integers, strings by UTF-8 bytes"))
+                    except TypeError:
+                        vs.append(Violation("DIFF_EVENT", "%s.%s" % (w, side), "set elements are scalars"))
         keyed.append((path_order_key(segs), k.encode("utf-8"), segs, k))
     # one event for an appearing or disappearing node, none below it
     for pk, kk, segs, k in keyed:
@@ -701,6 +745,8 @@ def check_diff_expect(expect, where, vs):
     except ValueError as exc:
         vs.append(Violation("DIFF_CANONICAL", where, "canonical is not strict JSON without floats: %s" % exc))
         return
+    for p in number_problems(parsed):
+        vs.append(Violation("DIFF_CANONICAL", where, "%s: no canonical form (ADR 0008)" % p))
     again = json.dumps(parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     if again != text:
         vs.append(Violation("DIFF_CANONICAL", where, "not the canonical writing (sorted keys, no whitespace, UTF-8, short escapes)"))

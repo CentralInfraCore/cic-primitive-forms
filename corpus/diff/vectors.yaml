@@ -382,6 +382,57 @@ cases:
     b: {ip: {gateway: g2}}
     scope: [$.ip, $.ip.gateway]
     expect: {canonical: '{"changes":[{"kind":"value_change","next":"g2","path":"$.ip.gateway","previous":"g1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g1}}], representation: []}
+  - id: diff.scope-applies-before-an-appearing-parent-is-merged
+    kind: diff
+    polarity: positive
+    description: no added $.ip, and the sibling outside the scope is neither an event nor part of a fragment
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {ip: {blob: secret, gateway: g}}
+    scope: [$.ip.gateway]
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"},"path":"$.ip.gateway"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: g}}, path: $.ip.gateway}], representation: []}
+  - id: diff.scope-applies-before-a-disappearing-parent-is-merged
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {blob: secret, gateway: g}}
+    b: {}
+    scope: [$.ip.gateway]
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.ip.gateway","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.ip.gateway, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: g}}}], representation: []}
+  - id: diff.scope-with-two-children-of-an-appearing-parent
+    kind: diff
+    polarity: positive
+    description: two events, one per scope entry; still nothing about blob
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {ip: {addresses: [x], blob: secret, gateway: g}}
+    scope: [$.ip.gateway, $.ip.addresses]
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":["x"]},"path":"$.ip.addresses"},{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"},"path":"$.ip.gateway"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: [x]}}, path: $.ip.addresses}, {kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: g}}, path: $.ip.gateway}], representation: []}
+  - id: diff.scope-below-an-empty-appearing-parent-reports-nothing
+    kind: diff
+    polarity: positive
+    description: the appearance of the parent itself is not reported when only a child is in scope
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {ip: {}}
+    scope: [$.ip.gateway]
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.scope-below-an-appearing-list-names-one-field
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {nics: [{name: n1, subnet: s1, zone: z}, {name: n2, subnet: s2, zone: z}]}
+    scope: ['$.nics[{name="n1",zone="z"}].subnet']
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"s1"},"path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: s1}}, path: '$.nics[{name="n1",zone="z"}].subnet'}], representation: []}
+  - id: diff.set-change-lists-are-sorted
+    kind: diff
+    polarity: positive
+    description: 'strings by UTF-8 bytes: a, z, then the two-byte é'
+    schema: {synthetic: {tree: main}}
+    a: {ip: {addresses: [m, c]}}
+    b: {ip: {addresses: [z, é, a, m]}}
+    expect: {canonical: '{"changes":[{"added":["a","z","é"],"kind":"set_change","path":"$.ip.addresses","removed":["c"]}],"representation":[],"version":1}', changes: [{added: {type: list, value: [a, z, é]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: [c]}}], representation: []}
   - id: diff.canonical-escaping-and-non-ascii
     kind: diff
     polarity: positive
