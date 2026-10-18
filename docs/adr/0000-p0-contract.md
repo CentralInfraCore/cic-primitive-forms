@@ -50,8 +50,8 @@ acceptance record and in `docs/reviews/p0-acceptance-review.md`.
 
 This is the original question list as it stood when P0 started. It is kept as a record.
 **The current status of each point is the Decision index above**, not the wording below;
-points 1 to 7 and 9 are decided and accepted, 4 and 10 are proposed, 8 is accepted only as
-a reading contract.
+points 1 to 3, 5 to 7 and 9 are decided and accepted; 4 and 10 are proposed; 8 is accepted
+only as a reading contract, with the upstream type decision open.
 
 1. **Partial expanded form.** A map with some but not all declared keys: an
    explicit error (current proposal), or accepted as a partial override?
@@ -97,7 +97,7 @@ a reading contract.
     language that enforces the same requirement. Replacing branch coverage with a
     weaker metric (for example statement coverage plus mutation score) lowers the
     gate and needs its own explicit, recorded decision.
+    *Resolution: ADR 0009 (**proposed**): the measurement contract is written; the tool per language is **open** until the tool qualification.*
 
 Points 1 and 7 describe the same recognition problem (a `type: any` value that
-happens to carry the full key set) and must be resolved together in P0.
-    *Resolution: ADR 0009 (**proposed**): the measurement contract is written; the tool per language is **open** until the tool qualification.*
+happens to carry the full key set) and were resolved together in ADR 0001.
