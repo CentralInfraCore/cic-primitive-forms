@@ -344,3 +344,24 @@ faults:
   - id: diff-set-element-a-map
     rule: DIFF_EVENT
     ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [{a: 1}, z, \u00e9]}"}]
+  - id: origin-materialized-dropped-but-mismatch-expected
+    rule: ORIGIN_CONTEXT
+    ops: [{file: corpus/conformance/vectors.yaml, old: "schema: {synthetic: {slot: access_node}}\n    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}\n    origin: materialized\n    expect: {errors:", new: "schema: {synthetic: {slot: access_node}}\n    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}\n    expect: {errors:"}]
+  - id: materialized-without-attestation-and-no-mismatch-expected
+    rule: ORIGIN_CONTEXT
+    ops: [{file: corpus/conformance/vectors.yaml, old: "    origin: materialized\n    attestation: binding:device-7@sha256:aa11\n    expect: {basis: binding_attested, valid: true}\n  - id: conformance.materialized-not-implemented", new: "    origin: materialized\n    expect: {basis: binding_attested, valid: true}\n  - id: conformance.materialized-not-implemented"}]
+  - id: origin-value-unknown
+    rule: ORIGIN_CONTEXT
+    ops: [{file: corpus/conformance/vectors.yaml, old: "    origin: authored\n", new: "    origin: trusted\n"}]
+  - id: basis-outside-the-closed-set
+    rule: BASIS
+    ops: [{file: corpus/conformance/vectors.yaml, old: "expect: {basis: binding_attested, valid: true}\n  - id: conformance.materialized-not-implemented", new: "expect: {basis: verified, valid: true}\n  - id: conformance.materialized-not-implemented"}]
+  - id: attestation-dropped-but-mismatch-expected
+    rule: ORIGIN_CONTEXT
+    ops: [{file: corpus/conformance/vectors.yaml, old: "modify: inherit, value: 4}\n    attestation: binding:device-7@sha256:aa11\n    expect: {errors:", new: "modify: inherit, value: 4}\n    expect: {errors:"}]
+  - id: attestation-empty
+    rule: ORIGIN_CONTEXT
+    ops: [{file: corpus/conformance/vectors.yaml, old: "modify: inherit, value: 4}\n    attestation: binding:device-7@sha256:aa11\n    expect: {errors:", new: "modify: inherit, value: 4}\n    attestation: \"\"\n    expect: {errors:"}]
+  - id: context-error-claims-a-source-position
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/conformance/vectors.yaml, old: "conformance: not_implemented\\n\"\n    origin: materialized\n    expect: {errors: [{code: ORIGIN_ATTESTATION_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}", new: "conformance: not_implemented\\n\"\n    origin: materialized\n    expect: {errors: [{code: ORIGIN_ATTESTATION_MISMATCH, phase: validate, source_location: {column: 1, line: 1, offset: 0}}]}"}]

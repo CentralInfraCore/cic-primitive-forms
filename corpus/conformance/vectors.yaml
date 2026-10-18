@@ -1,0 +1,188 @@
+# Provisional conformance-origin cases for ADR 0010. Format: ADR 0005 plus its origin amendment.
+# origin: authored (default) | materialized, supplied by the trusted input context, never read from the
+# YAML. attestation: the reference of the binding data; present exactly when origin is materialized.
+# basis (ADR 0010): default | authored_claim | binding_attested; only binding_attested establishes a
+# capability. slot access_node: a whole expanded Access node, validated for its conformance key.
+corpus_format: 2
+suite: conformance
+status: provisional
+defaults: {adr: ADR-0010, grammar: cic-primitives-devel}
+cases:
+  - id: conformance.authored-implemented-is-an-unverified-claim
+    kind: validate
+    polarity: positive
+    description: valid, but a claim by the author, not evidence that the device supports the field
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {basis: authored_claim, valid: true}
+  - id: conformance.authored-not-implemented-is-refused
+    kind: validate
+    polarity: negative
+    description: 'identical YAML to the materialized case below: the origin decides, not the content'
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: not_implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: CONFORMANCE_NOT_AUTHORABLE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.authored-deprecated-is-refused
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: deprecated, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: CONFORMANCE_NOT_AUTHORABLE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.authored-explicit-origin-is-the-default
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: authored
+    expect: {basis: authored_claim, valid: true}
+  - id: conformance.materialized-implemented-is-attested
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {basis: binding_attested, valid: true}
+  - id: conformance.materialized-not-implemented-is-allowed
+    kind: validate
+    polarity: positive
+    description: the same YAML as authored-not-implemented-is-refused, accepted because a trusted binding states it
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: not_implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {basis: binding_attested, valid: true}
+  - id: conformance.materialized-deprecated-is-allowed
+    kind: validate
+    polarity: positive
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: deprecated, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {basis: binding_attested, valid: true}
+  - id: conformance.authored-value-outside-the-enum
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: 'yes', default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.materialized-value-outside-the-enum
+    kind: validate
+    polarity: negative
+    description: an attestation does not widen the enum
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: maybe, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.authored-boolean-is-not-implemented-by-truthiness
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: true, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.authored-null-conformance-is-invalid
+    kind: validate
+    polarity: negative
+    description: null is not an enum value; a missing capability is not a value
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: null, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.authored-wrong-case
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: Implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: conformance.materialized-without-attestation
+    kind: validate
+    polarity: negative
+    description: 'no attested source: the capability is not credible, and it is never assumed implemented'
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    origin: materialized
+    expect: {errors: [{code: ORIGIN_ATTESTATION_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}
+    codes_status: stable
+  - id: conformance.authored-with-attestation
+    kind: validate
+    polarity: negative
+    description: a user document cannot carry a binding attestation
+    schema: {synthetic: {slot: access_node}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    attestation: binding:device-7@sha256:aa11
+    expect: {errors: [{code: ORIGIN_ATTESTATION_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}
+    codes_status: stable
+  - id: conformance.authored-not-implemented-with-source
+    kind: validate
+    polarity: negative
+    description: the anchor is the value of the conformance key
+    schema: {synthetic: {slot: access_node}}
+    input_yaml: "value: 4\naccess: inherit\nmodify: inherit\ninherit: true\ndefault_injection: null\nconformance: not_implemented\n"
+    expect: {errors: [{code: CONFORMANCE_NOT_AUTHORABLE, phase: validate, source_location: {column: 14, line: 6, offset: 92}}]}
+    codes_status: stable
+  - id: conformance.outside-the-enum-with-source
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {slot: access_node}}
+    input_yaml: "value: 4\naccess: inherit\nmodify: inherit\ninherit: true\ndefault_injection: null\nconformance: sometimes\n"
+    expect: {errors: [{code: INVALID_CONFORMANCE_VALUE, phase: validate, source_location: {column: 14, line: 6, offset: 92}}]}
+    codes_status: stable
+  - id: conformance.materialized-without-attestation-with-source
+    kind: validate
+    polarity: negative
+    description: 'a context error: no YAML node is at fault, even when the text is available'
+    schema: {synthetic: {slot: access_node}}
+    input_yaml: "value: 4\naccess: inherit\nmodify: inherit\ninherit: true\ndefault_injection: null\nconformance: not_implemented\n"
+    origin: materialized
+    expect: {errors: [{code: ORIGIN_ATTESTATION_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}
+    codes_status: stable
+  - id: conformance.authored-short-expands-to-a-default-not-evidence
+    kind: expand
+    polarity: positive
+    description: implemented is filled in symbolically; it proves nothing about the device
+    schema: {synthetic: {position: scalar}}
+    input: 4
+    expect: {basis: default, fields: {access: {type: string, value: inherit}, conformance: {type: string, value: implemented}, default_injection: {type: 'null', value: null}, inherit: {type: boolean, value: true}, modify: {type: string, value: inherit}}}
+  - id: conformance.materialized-short-position-has-no-binding-datum
+    kind: expand
+    polarity: positive
+    description: a position the binding said nothing about stays a default even in a materialized document
+    schema: {synthetic: {position: scalar}}
+    input: 4
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {basis: default, fields: {access: {type: string, value: inherit}, conformance: {type: string, value: implemented}, default_injection: {type: 'null', value: null}, inherit: {type: boolean, value: true}, modify: {type: string, value: inherit}}}
+  - id: conformance.authored-long-defaults-collapse-to-short
+    kind: collapse
+    polarity: positive
+    description: unchanged rule of ADR 0001 for authored documents
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    authored_expanded: false
+    expect: {collapse: short}
+  - id: conformance.materialized-long-defaults-stay-long
+    kind: collapse
+    polarity: positive
+    description: a long position of a materialized document is a binding datum; shortening it would turn attested into default
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    authored_expanded: false
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {collapse: expanded}
+  - id: conformance.materialized-not-implemented-stays-long
+    kind: collapse
+    polarity: positive
+    schema: {synthetic: {position: scalar}}
+    input: {access: inherit, conformance: not_implemented, default_injection: null, inherit: true, modify: inherit, value: 4}
+    authored_expanded: false
+    origin: materialized
+    attestation: binding:device-7@sha256:aa11
+    expect: {collapse: expanded}

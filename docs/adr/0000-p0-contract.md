@@ -43,6 +43,8 @@ Status: **draft, open decisions listed below.**
    is one expanded-form grammar; what may be written by hand and what is filled
    from the binding is a property of the validation contract, not of a second
    grammar.
+    *Status: proposed in ADR 0010 (only a trusted binding can state a capability;
+    origin is a trusted context, not a YAML key).*
 10. **Branch-coverage measurement.** The gate requires > 90% branch coverage in
     both languages. `go test -cover` measures statements, not branches, and Go
     has no native branch coverage; Rust branch coverage via `llvm-cov` should be
