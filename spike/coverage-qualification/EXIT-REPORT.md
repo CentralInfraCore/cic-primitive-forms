@@ -28,7 +28,7 @@ Hand counts against what each tool reports (outcomes = true/false outcomes of co
 | | Hand edges | Tool outcomes | Edges the tool does not report |
 |---|---|---|---|
 | Rust (`-Zcoverage-options=condition`) | 27 | 20 | **7**: 3 `match` arms, 2 `for` edges, 2 `?` edges |
-| Go (`gobco`, default mode) | 34 | 30 | **4** hand edges not reported (2 `range`, 4 `select`, partly offset by `gobco` counting a switch differently) |
+| Go (`gobco`, default mode) | 34 | 30 | **6** hand edges not reported (4 `select`, 2 `range`), offset by 2 extra outcomes from counting a switch as per-case conditions |
 
 Per category:
 
