@@ -148,3 +148,13 @@ codes:
     phases: {path_of: none}
     meaning: More than one item_choice case matches the element.
     trigger: ADR 0002 matching finds several cases.
+  DIFF_CONTEXT_MISMATCH:
+    status: stable
+    phases: {diff: none}
+    meaning: The two views of a diff were read under different schema, grammar or surface contexts.
+    trigger: The contexts of the operands are not identical; comparing them needs an explicit compatibility or mapping contract (ADR 0008).
+  DIFF_UNSUPPORTED_VALUE:
+    status: provisional
+    phases: {diff: none}
+    meaning: A view holds a value with no canonical serialization yet.
+    trigger: A float, or an integer outside signed 64 bits, anywhere in an operand, whether or not it takes part in a difference (ADR 0008). Provisional because a numeric contract does not exist.

@@ -23,6 +23,7 @@ order, and a position exists only where preserved source text exists.
 | `source_location` | yes | exactly one of three states (see "Source location") |
 | `logical_path` | where determinable | canonical ADR 0006 path text; never invented |
 | `path_offset` | `path_parse` only | offset in the path text (see below) |
+| `operand` | diff only | `a` or `b`: which view of a two-operand operation the error is about (ADR 0008) |
 | `message` | optional in the API | human text; **not a conformance criterion**, and not allowed in the corpus |
 
 A response is an ordered list of such errors, never empty on failure. A conforming
@@ -31,7 +32,7 @@ the corpus asserts and what the two languages must agree on.
 
 ## Phases
 
-`parse` (YAML text to document), `recognize` (short or expanded, ADR 0001), `validate`
+`parse` (YAML text to document; ADR 0008 adds an eighth phase, `diff`), `recognize` (short or expanded, ADR 0001), `validate`
 (schema, ADR 0003 and 0004), `path_parse` (path text, ADR 0006), `path_format`,
 `path_resolve` (path against schema), `path_of` (path of a document element).
 

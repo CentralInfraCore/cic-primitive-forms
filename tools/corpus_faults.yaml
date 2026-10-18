@@ -260,3 +260,87 @@ faults:
   - id: logical-path-empty-segment
     rule: ERROR_SHAPE
     ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}", new: "logical_path: $.zz., phase: validate, source_location: {column: 1, line: 2, offset: 5}"}]
+  - id: diff-operand-given-twice
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {ip: {addresses: [a]}}\n    b: {ip: {addresses: [a, b]}}\n", new: "    a: {ip: {addresses: [a]}}\n    a_yaml: \"x: 1\"\n    b: {ip: {addresses: [a, b]}}\n"}]
+  - id: diff-operand-missing
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {ip: {addresses: [a]}}\n    b: {ip: {addresses: [a, b]}}\n", new: "    b: {ip: {addresses: [a, b]}}\n"}]
+  - id: diff-scope-empty
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "    b: {mtu: 2}\n    scope: [$.mtu]\n", new: "    b: {mtu: 2}\n    scope: []\n"}]
+  - id: diff-scope-not-canonical
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "scope: [$.nope]", new: "scope: [nope]"}]
+  - id: diff-schema-b-equals-schema
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "schema_b: {synthetic: {tree: other}}", new: "schema_b: {synthetic: {tree: main}}"}]
+  - id: diff-stability-identical-variants
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: "{a_yaml: \"name: x\\nmtu: 1\\n\", b_yaml: \"name: x\\nmtu: 2\\n\"}]", new: "{a_yaml: \"mtu: 1\\nname: x\\n\", b_yaml: \"mtu: 2\\nname: x\\n\"}]"}]
+  - id: diff-stability-single-variant
+    rule: DIFF_INPUT
+    ops: [{file: corpus/diff/vectors.yaml, old: ", {a_yaml: \"name: x\\nmtu: 1\\n\", b_yaml: \"name: x\\nmtu: 2\\n\"}]", new: "]"}]
+  - id: diff-event-unknown-kind
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "previous: {type: string, value: implemented}}}, kind: policy_declaration_change", new: "previous: {type: string, value: implemented}}}, kind: policy_declaration_chang"}]
+  - id: diff-value-change-without-change
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "next: {type: integer, value: 2}, path: $.mtu, previous: {type: integer, value: 1}}], representation: []}\n  - id: diff.absence-outside-scope", new: "next: {type: integer, value: 1}, path: $.mtu, previous: {type: integer, value: 1}}], representation: []}\n  - id: diff.absence-outside-scope"}]
+  - id: diff-policy-field-listed-unchanged
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "next: {type: string, value: deprecated}, previous: {type: string, value: implemented}}}, kind:", new: "next: {type: string, value: implemented}, previous: {type: string, value: implemented}}}, kind:"}]
+  - id: diff-set-change-without-elements
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [b]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: []}}], representation: []}\n  - id: diff.set-elements-added-and-removed", new: "added: {type: list, value: []}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: []}}], representation: []}\n  - id: diff.set-elements-added-and-removed"}]
+  - id: diff-event-below-appearing-node
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "path: $.ip}], representation: []}\n  - id: diff.composite-disappears-as-one-event", new: "path: $.ip}, {kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g}}], representation: []}\n  - id: diff.composite-disappears-as-one-event"}]
+  - id: diff-events-out-of-order
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "changes: [{added: {type: list, value: [c]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: [b]}}, {kind: value_change, next: {type: string, value: b}, path: '$.nics[{name=\"n1\",zone=\"z\"}].subnet', previous: {type: string, value: a}}]", new: "changes: [{kind: value_change, next: {type: string, value: b}, path: '$.nics[{name=\"n1\",zone=\"z\"}].subnet', previous: {type: string, value: a}}, {added: {type: list, value: [c]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: [b]}}]"}]
+  - id: diff-representation-out-of-order
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500}\n    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}\n    expect: {canonical: '{\"changes\":[],\"representation\":[{\"kind\":\"representation_change\",\"next\":\"expanded\",\"path\":\"$.mtu\",\"previous\":\"short\"}],\"version\":1}', changes: [], representation: [{kind: representation_change, next: expanded, path: $.mtu, previous: short}]}\n  - id: diff.expanded-versus-short", new: "    a: {mtu: 1500}\n    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}\n    expect: {canonical: '{\"changes\":[],\"representation\":[{\"kind\":\"representation_change\",\"next\":\"expanded\",\"path\":\"$.mtu\",\"previous\":\"short\"},{\"kind\":\"representation_change\",\"next\":\"expanded\",\"path\":\"$.enabled\",\"previous\":\"short\"}],\"version\":1}', changes: [], representation: [{kind: representation_change, next: expanded, path: $.mtu, previous: short}, {kind: representation_change, next: expanded, path: $.enabled, previous: short}]}\n  - id: diff.expanded-versus-short"}]
+  - id: diff-canonical-whitespace
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1}'", new: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\": [],\"representation\":[],\"version\":1}'"}]
+  - id: diff-canonical-disagrees-with-events
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1}'", new: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":2}'"}]
+  - id: diff-canonical-unsorted-keys
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1}'", new: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"version\":1,\"changes\":[],\"representation\":[]}'"}]
+  - id: diff-canonical-float
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1}'", new: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1.0}'"}]
+  - id: diff-canonical-duplicate-key
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1}'", new: "    a: {mtu: 1500, name: x}\n    b: {mtu: 1500, name: x}\n    expect: {canonical: '{\"changes\":[],\"representation\":[],\"version\":1,\"version\":1}'"}]
+  - id: diff-error-without-operand
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/diff/vectors.yaml, old: "logical_path: '$.nics[{name=\"a\",zone=\"b\"}]', operand: b, phase: path_of", new: "logical_path: '$.nics[{name=\"a\",zone=\"b\"}]', phase: path_of"}]
+  - id: diff-operand-on-resolve-error
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/diff/vectors.yaml, old: "{code: UNKNOWN_FIELD, logical_path: $.nope, phase: path_resolve", new: "{code: UNKNOWN_FIELD, logical_path: $.nope, operand: a, phase: path_resolve"}]
+  - id: diff-error-with-wrong-state
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/diff/vectors.yaml, old: "{code: DIFF_CONTEXT_MISMATCH, phase: diff, source_location: {state: not_applicable}}", new: "{code: DIFF_CONTEXT_MISMATCH, phase: diff, source_location: {state: unavailable}}"}]
+  - id: diff-phase-not-in-registry
+    rule: ERROR_PHASE
+    ops: [{file: corpus/diff/vectors.yaml, old: "{code: DIFF_CONTEXT_MISMATCH, phase: diff,", new: "{code: DIFF_CONTEXT_MISMATCH, phase: validate,"}]
+  - id: diff-integer-beyond-64-bits-in-events-and-bytes
+    rule: DIFF_CANONICAL
+    ops: [{file: corpus/diff/vectors.yaml, old: "value: 9223372036854775807}, path: $.note", new: "value: 9223372036854775808}, path: $.note"}, {file: corpus/diff/vectors.yaml, old: "\"next\":9223372036854775807", new: "\"next\":9223372036854775808"}]
+  - id: diff-integer-beyond-64-bits-in-events
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "value: 9223372036854775807}, path: $.note", new: "value: 9223372036854775808}, path: $.note"}]
+  - id: diff-set-elements-unsorted
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [z, a, \u00e9]}"}, {file: corpus/diff/vectors.yaml, old: "\"added\":[\"a\",\"z\",\"\u00e9\"]", new: "\"added\":[\"z\",\"a\",\"\u00e9\"]"}]
+  - id: diff-set-elements-text-order-not-byte-order
+    rule: DIFF_ORDER
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [a, \u00e9, z]}"}, {file: corpus/diff/vectors.yaml, old: "\"added\":[\"a\",\"z\",\"\u00e9\"]", new: "\"added\":[\"a\",\"\u00e9\",\"z\"]"}]
+  - id: diff-set-element-a-map
+    rule: DIFF_EVENT
+    ops: [{file: corpus/diff/vectors.yaml, old: "added: {type: list, value: [a, z, \u00e9]}", new: "added: {type: list, value: [{a: 1}, z, \u00e9]}"}]

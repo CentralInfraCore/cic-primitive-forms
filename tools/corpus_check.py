@@ -14,6 +14,7 @@ Usage:
 """
 import argparse
 import glob
+import json
 import os
 import re
 import shutil
@@ -57,6 +58,10 @@ RULES = {
     "ERROR_LOCATION": "source location or path offset missing, wrong state or inconsistent with the text",
     "ERROR_ORDER": "error list not orderable or mixing phases",
     "PHASE_UNUSED": "registry lists a phase for a code that no case exercises",
+    "DIFF_INPUT": "malformed diff operands, scope, context or stability variants",
+    "DIFF_EVENT": "malformed, empty or redundant diff event",
+    "DIFF_ORDER": "diff events or representation entries not in the ADR 0008 order",
+    "DIFF_CANONICAL": "canonical bytes malformed, not canonical or disagreeing with the events",
 }
 
 
@@ -172,7 +177,9 @@ INPUT_FORMS = {
     "path_format": "segments",
     "path_resolve": "path",
     "path_of": "document, at",
-    "path_stability": "variants",  # kind -> (allowed input fields, rule on them)
+    "path_stability": "variants",
+    "diff": "a|a_yaml, b|b_yaml, optional scope, schema_b",
+    "diff_stability": "variants, optional scope, schema_b",  # kind -> (allowed input fields, rule on them)
     "recognize": "input|input_yaml",
     "validate": "input|absent|input_yaml",
     "roundtrip": "input|absent",
@@ -186,6 +193,8 @@ KIND_FIELDS = {
     "path_resolve": {"path"},
     "path_of": {"document", "at"},
     "path_stability": {"variants"},
+    "diff": {"a", "a_yaml", "b", "b_yaml", "scope", "schema_b"},
+    "diff_stability": {"variants", "scope", "schema_b"},
     "recognize": {"input", "input_yaml"},
     "validate": {"input", "absent", "input_yaml"},
     "roundtrip": {"input", "absent"},
@@ -207,6 +216,8 @@ EXPECT_KEYS = {
     "path_resolve": ({"target", "primitive_position", "errors"}, None),
     "path_of": ({"path", "errors"}, None),
     "path_stability": ({"path", "errors"}, None),
+    "diff": ({"changes", "representation", "canonical", "errors"}, None),
+    "diff_stability": ({"changes", "representation", "canonical", "errors"}, None),
     "recognize": ({"class", "elements", "errors", "opaque_value"}, None),
     "validate": ({"valid", "errors", "stays_absent", "default_candidate",
                   "kind", "is_inherit", "preserved", "upstream_conflict"}, None),
@@ -251,7 +262,7 @@ def collect_codes(expect):
     return [e["code"] for e in errs if isinstance(e, dict) and "code" in e]
 
 
-PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of")
+PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of", "diff")
 ANCHORS = ("second_key", "key", "value", "value_or_key", "mapping", "sequence", "parent", "path_text", "none")
 KIND_PHASES = {
     "recognize": {"parse", "recognize", "validate"},
@@ -261,9 +272,12 @@ KIND_PHASES = {
     "path_resolve": {"path_parse", "path_resolve"},
     "path_of": {"path_of"},
     "path_stability": {"path_of"},
+    "diff": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
+    "diff_stability": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
 }
+DIFF_KINDS = ("diff", "diff_stability")
 SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of"}
-ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset"}
+ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset", "operand"}
 
 
 _NAME_ESC = set("\\.[]{}=,")
@@ -426,7 +440,7 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
         # source location: exactly one of three states, fixed by the phase and the input form
         sl = e["source_location"]
         has_text = "input_yaml" in case
-        if phase in ("path_parse", "path_format", "path_resolve") or kind == "path_stability":
+        if phase in ("path_parse", "path_format", "path_resolve", "diff") or kind in ("path_stability", "diff_stability"):
             want = "not_applicable"
         elif phase == "path_of":
             want = "unavailable"
@@ -448,6 +462,12 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
                     vs.append(Violation("ERROR_LOCATION", ew, p))
         elif sl != {"state": want}:
             vs.append(Violation("ERROR_LOCATION", ew, "source_location must be {state: %s} here (never null, never absent)" % want))
+        # operand: which view of a two-operand operation the error is about
+        if "operand" in e:
+            if kind not in DIFF_KINDS or e["operand"] not in ("a", "b") or phase in ("path_parse", "path_resolve"):
+                vs.append(Violation("ERROR_SHAPE", ew, "operand a|b belongs to errors about one view of a diff"))
+        elif kind in DIFF_KINDS and phase in ("recognize", "validate", "path_of"):
+            vs.append(Violation("ERROR_SHAPE", ew, "an error found while reading one view of a diff names its operand"))
         # path offset: the text of the path only, never a YAML coordinate
         if phase == "path_parse":
             po = e.get("path_offset")
@@ -467,12 +487,17 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
                 except ValueError as exc:
                     vs.append(Violation("ERROR_SHAPE", ew, "logical_path is not a canonical path: %s" % exc))
                 else:
-                    if phase == "path_resolve" and isinstance(case.get("path"), str):
-                        try:
-                            csegs = parse_logical_path(case["path"])
-                        except ValueError:
-                            csegs = None
-                        if csegs is None or csegs[:len(lsegs)] != lsegs or not lsegs:
+                    if phase == "path_resolve" and (isinstance(case.get("path"), str) or isinstance(case.get("scope"), list)):
+                        texts = [case["path"]] if isinstance(case.get("path"), str) else list(case["scope"])
+                        ok = False
+                        for t in texts:
+                            try:
+                                cs = parse_logical_path(t)
+                            except ValueError:
+                                continue
+                            ok = ok or (bool(lsegs) and cs[:len(lsegs)] == lsegs)
+                        csegs = [] if ok else None
+                        if csegs is None:
                             vs.append(Violation("ERROR_SHAPE", ew,
                                                 "logical_path must be a whole-segment prefix of the resolved path"))
         elif phase == "path_resolve":
@@ -553,6 +578,184 @@ def check_recognize_expect(case, expect, where, vs):
         elif fields is not None and set(el) != fields:
             vs.append(Violation("EXPECT_FIELD", "%s[%d]" % (w, i), "fields %s differ from the record %s"
                                 % (sorted(el), sorted(fields))))
+
+
+def native_value(tv):
+    return tv["value"]
+
+
+def native_event(e):
+    out = {}
+    for k, v in e.items():
+        if k in ("previous", "next", "added", "removed") and isinstance(v, dict) and "type" in v:
+            out[k] = native_value(v)
+        elif k == "changed":
+            out[k] = {f: {"previous": native_value(x["previous"]), "next": native_value(x["next"])} for f, x in v.items()}
+        else:
+            out[k] = v
+    return out
+
+
+def _no_dup_pairs(pairs):
+    d = {}
+    for k, v in pairs:
+        if k in d:
+            raise ValueError("duplicate key %r" % k)
+        d[k] = v
+    return d
+
+
+INT64 = (-2 ** 63, 2 ** 63 - 1)
+
+
+def number_problems(v):
+    """Floats and integers outside signed 64 bits, anywhere in a value (ADR 0008)."""
+    out = []
+    if isinstance(v, float):
+        out.append("float %r" % v)
+    elif isinstance(v, int) and not isinstance(v, bool) and not INT64[0] <= v <= INT64[1]:
+        out.append("integer %d outside signed 64 bits" % v)
+    elif isinstance(v, list):
+        for x in v:
+            out += number_problems(x)
+    elif isinstance(v, dict):
+        for x in v.values():
+            out += number_problems(x)
+    return out
+
+
+def set_element_key(v):
+    """ADR 0008 element order: null, booleans, integers, then strings by UTF-8 bytes."""
+    if v is None:
+        return (0, 0)
+    if isinstance(v, bool):
+        return (1, int(v))
+    if isinstance(v, int):
+        return (2, v)
+    if isinstance(v, str):
+        return (3, v.encode("utf-8"))
+    raise TypeError("set elements are scalars")
+
+
+def check_diff_expect(expect, where, vs):
+    if "errors" in expect:
+        if set(expect) != {"errors"}:
+            vs.append(Violation("EXPECT_FIELD", where, "an error expectation carries nothing else"))
+        return
+    if set(expect) != {"changes", "representation", "canonical"}:
+        vs.append(Violation("EXPECT_FIELD", where, "a diff expectation holds changes, representation and canonical (or errors)"))
+        return
+    ch, rp = expect["changes"], expect["representation"]
+    if not isinstance(ch, list) or not isinstance(rp, list):
+        vs.append(Violation("DIFF_EVENT", where, "changes and representation are lists"))
+        return
+    keyed, paths = [], []
+    for i, e in enumerate(ch):
+        w = "%s.changes[%d]" % (where, i)
+        if not isinstance(e, dict) or e.get("kind") not in EVENT_FIELDS or set(e) != EVENT_FIELDS[e["kind"]][0]:
+            vs.append(Violation("DIFF_EVENT", w, "event kind in %s with exactly its fields" % sorted(EVENT_FIELDS)))
+            continue
+        try:
+            segs = parse_logical_path(e["path"])
+        except ValueError as exc:
+            vs.append(Violation("DIFF_EVENT", w, "path is not a canonical logical path: %s" % exc))
+            continue
+        k = e["kind"]
+        if k in ("added", "removed"):
+            tv = e["next" if k == "added" else "previous"]
+            check_typed(tv, w, vs)
+            if isinstance(tv, dict) and tv.get("type") not in ("map",):
+                vs.append(Violation("DIFF_EVENT", w, "an appearing or disappearing node carries its expanded fragment, a map"))
+        elif k == "value_change":
+            check_typed(e["previous"], w + ".previous", vs)
+            check_typed(e["next"], w + ".next", vs)
+            if strict_eq(e["previous"], e["next"]):
+                vs.append(Violation("DIFF_EVENT", w, "previous and next are identical, the event describes no change"))
+        elif k == "policy_declaration_change":
+            chg = e["changed"]
+            if not isinstance(chg, dict) or not chg or not set(chg) <= set(POLICY_FIELDS):
+                vs.append(Violation("DIFF_EVENT", w, "changed maps a non-empty subset of %s" % (POLICY_FIELDS,)))
+            else:
+                for f, x in chg.items():
+                    if not isinstance(x, dict) or set(x) != {"previous", "next"}:
+                        vs.append(Violation("DIFF_EVENT", "%s.changed.%s" % (w, f), "previous and next"))
+                        continue
+                    check_typed(x["previous"], "%s.changed.%s.previous" % (w, f), vs)
+                    check_typed(x["next"], "%s.changed.%s.next" % (w, f), vs)
+                    if strict_eq(x["previous"], x["next"]):
+                        vs.append(Violation("DIFF_EVENT", "%s.changed.%s" % (w, f), "unchanged field listed as changed"))
+        else:  # set_change
+            ok = True
+            for side in ("added", "removed"):
+                tv = e[side]
+                check_typed(tv, "%s.%s" % (w, side), vs)
+                if not (isinstance(tv, dict) and tv.get("type") == "list"):
+                    ok = False
+            if ok:
+                a, r = e["added"]["value"], e["removed"]["value"]
+                if not a and not r:
+                    vs.append(Violation("DIFF_EVENT", w, "a set_change with nothing added or removed describes no change"))
+                if any(strict_eq(x, y) for x in a for y in r):
+                    vs.append(Violation("DIFF_EVENT", w, "an element is both added and removed"))
+                for lst in (a, r):
+                    if any(strict_eq(lst[i], lst[j]) for i in range(len(lst)) for j in range(i + 1, len(lst))):
+                        vs.append(Violation("DIFF_EVENT", w, "a set lists an element twice"))
+        for p in number_problems(e):
+            vs.append(Violation("DIFF_EVENT", w, "%s: no canonical form (ADR 0008)" % p))
+        if k == "set_change" and isinstance(e.get("added"), dict) and isinstance(e.get("removed"), dict):
+            for side in ("added", "removed"):
+                lst = e[side].get("value")
+                if isinstance(lst, list):
+                    try:
+                        if [set_element_key(x) for x in lst] != sorted(set_element_key(x) for x in lst):
+                            vs.append(Violation("DIFF_ORDER", "%s.%s" % (w, side),
+                                                "set elements are sorted: null, booleans, integers, strings by UTF-8 bytes"))
+                    except TypeError:
+                        vs.append(Violation("DIFF_EVENT", "%s.%s" % (w, side), "set elements are scalars"))
+        keyed.append((path_order_key(segs), k.encode("utf-8"), segs, k))
+    # one event for an appearing or disappearing node, none below it
+    for pk, kk, segs, k in keyed:
+        if k in ("added", "removed"):
+            for pk2, kk2, segs2, k2 in keyed:
+                if len(segs2) > len(segs) and segs2[:len(segs)] == segs:
+                    vs.append(Violation("DIFF_EVENT", where, "event below %s node %s is redundant" % (k, segs)))
+    order = [(a, b) for a, b, _, _ in keyed]
+    if len(set(map(repr, order))) != len(order) or order != sorted(order):
+        vs.append(Violation("DIFF_ORDER", where + ".changes", "events are ordered by logical path (segment-wise), then kind bytes, one per pair"))
+    rkeys = []
+    for i, r in enumerate(rp):
+        w = "%s.representation[%d]" % (where, i)
+        if not (isinstance(r, dict) and set(r) == {"kind", "path", "previous", "next"} and r["kind"] == "representation_change"
+                and r["previous"] in ("short", "expanded") and r["next"] in ("short", "expanded") and r["previous"] != r["next"]):
+            vs.append(Violation("DIFF_EVENT", w, "representation_change between short and expanded, different forms"))
+            continue
+        try:
+            rkeys.append(path_order_key(parse_logical_path(r["path"])))
+        except ValueError as exc:
+            vs.append(Violation("DIFF_EVENT", w, "path is not a canonical logical path: %s" % exc))
+    if len(set(map(repr, rkeys))) != len(rkeys) or rkeys != sorted(rkeys):
+        vs.append(Violation("DIFF_ORDER", where + ".representation", "entries are ordered by logical path, one per path"))
+    # canonical bytes: well formed, canonical, and the same content as the structured expectation
+    text = expect["canonical"]
+    if not isinstance(text, str):
+        vs.append(Violation("DIFF_CANONICAL", where, "canonical is a string"))
+        return
+    try:
+        parsed = json.loads(text, object_pairs_hook=_no_dup_pairs, parse_float=lambda s: (_ for _ in ()).throw(ValueError("float")))
+    except ValueError as exc:
+        vs.append(Violation("DIFF_CANONICAL", where, "canonical is not strict JSON without floats: %s" % exc))
+        return
+    for p in number_problems(parsed):
+        vs.append(Violation("DIFF_CANONICAL", where, "%s: no canonical form (ADR 0008)" % p))
+    again = json.dumps(parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    if again != text:
+        vs.append(Violation("DIFF_CANONICAL", where, "not the canonical writing (sorted keys, no whitespace, UTF-8, short escapes)"))
+    try:
+        want = {"version": 1, "changes": [native_event(e) for e in ch], "representation": rp}
+    except (KeyError, TypeError):
+        return  # malformed events are reported above
+    if not strict_eq(parsed, want):
+        vs.append(Violation("DIFF_CANONICAL", where, "canonical bytes disagree with the structured events"))
 
 
 def check_path_expect(kind, case, expect, where, vs):
@@ -669,7 +872,7 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
     if kind in ("path_parse", "path_format"):
         if syn != {"lexical": True}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "lexical path kinds take synthetic: {lexical: true}"))
-    elif kind.startswith("path_"):
+    elif kind.startswith("path_") or kind in DIFF_KINDS:
         if set(syn) != {"tree"}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
         elif isinstance(syn["tree"], str):
@@ -751,6 +954,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
         vs.append(Violation("REF_DANGLING", where, "grammar pin %r not in pins.yaml" % (eff["grammar"],)))
     if kind and "schema" in case:
         check_schema(kind, case["schema"], pins, where + ".schema", vs, trees)
+    if kind in DIFF_KINDS and "schema_b" in case:
+        check_schema(kind, case["schema_b"], pins, where + ".schema_b", vs, trees)
     expect = case.get("expect")
     if kind and isinstance(expect, dict):
         allowed, required = EXPECT_KEYS[kind]
@@ -764,6 +969,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             check_recognize_expect(case, expect, where + ".expect", vs)
         if kind.startswith("path_"):
             check_path_expect(kind, case, expect, where + ".expect", vs)
+        if kind in DIFF_KINDS:
+            check_diff_expect(expect, where + ".expect", vs)
         if "errors" in expect:
             check_errors(kind, case, expect, codes, where + ".expect", vs, used_codes)
         found = [x for x in collect_codes(expect) if isinstance(x, str)]
@@ -873,10 +1080,75 @@ def check_path_inputs(kind, case, where, vs):
                                         "variants %d and %d have identical documents, the stability case would prove nothing" % (i, j)))
 
 
+POLICY_FIELDS = ("access", "modify", "inherit", "default_injection", "conformance")
+EVENT_FIELDS = {
+    "added": ({"kind", "path", "next"}, "next"),
+    "removed": ({"kind", "path", "previous"}, "previous"),
+    "value_change": ({"kind", "path", "previous", "next"}, None),
+    "policy_declaration_change": ({"kind", "path", "changed"}, None),
+    "set_change": ({"kind", "path", "added", "removed"}, None),
+}
+
+
+def operand_form(d, side, where, vs):
+    """One operand of a diff: a parsed document or raw YAML text, exactly one of them."""
+    has_doc, has_text = side in d, side + "_yaml" in d
+    if has_doc == has_text:
+        vs.append(Violation("DIFF_INPUT", where, "operand %s is exactly one of %s and %s_yaml" % (side, side, side)))
+        return None
+    if has_text:
+        if not isinstance(d[side + "_yaml"], str):
+            vs.append(Violation("DIFF_INPUT", where, "%s_yaml must be a string" % side))
+        return ("text", d[side + "_yaml"])
+    return ("doc", d[side])
+
+
+def check_diff_inputs(kind, case, where, vs):
+    extra = set(case) & {"a", "a_yaml", "b", "b_yaml", "variants"}
+    if kind == "diff":
+        if "variants" in case:
+            vs.append(Violation("DIFF_INPUT", where, "variants belong to diff_stability"))
+        operand_form(case, "a", where, vs)
+        operand_form(case, "b", where, vs)
+    else:
+        if extra - {"variants"}:
+            vs.append(Violation("DIFF_INPUT", where, "diff_stability takes variants only"))
+        var = case.get("variants")
+        if not isinstance(var, list) or len(var) < 2 or not all(isinstance(v, dict) for v in var):
+            vs.append(Violation("DIFF_INPUT", where, "variants: at least two {a|a_yaml, b|b_yaml}"))
+        else:
+            pairs = []
+            for i, v in enumerate(var):
+                if not set(v) <= {"a", "a_yaml", "b", "b_yaml"}:
+                    vs.append(Violation("DIFF_INPUT", "%s.variants[%d]" % (where, i), "variant holds a|a_yaml and b|b_yaml only"))
+                pairs.append((operand_form(v, "a", where, vs), operand_form(v, "b", where, vs)))
+            for i in range(len(pairs)):
+                for j in range(i + 1, len(pairs)):
+                    if all(x is not None for x in pairs[i] + pairs[j]) and all(
+                            x[0] == y[0] and strict_eq(x[1], y[1]) for x, y in zip(pairs[i], pairs[j])):
+                        vs.append(Violation("DIFF_INPUT", where, "variants %d and %d are identical, the stability case would prove nothing" % (i, j)))
+    if "scope" in case:
+        sc = case["scope"]
+        if not isinstance(sc, list) or not sc:
+            vs.append(Violation("DIFF_INPUT", where, "scope is a non-empty list of canonical logical paths"))
+        else:
+            for t in sc:
+                try:
+                    parse_logical_path(t)
+                except ValueError as exc:
+                    vs.append(Violation("DIFF_INPUT", where, "scope entry %r is not a canonical path: %s" % (t, exc)))
+    if "schema_b" in case:
+        if case["schema_b"] == case.get("schema"):
+            vs.append(Violation("DIFF_INPUT", where, "schema_b equal to schema is no context mismatch"))
+
+
 def check_inputs(kind, case, where, vs):
     has = lambda f: f in case
     if kind.startswith("path_"):
         check_path_inputs(kind, case, where, vs)
+        return
+    if kind in DIFF_KINDS:
+        check_diff_inputs(kind, case, where, vs)
         return
     if kind == "recognize":
         ok = has("input") != has("input_yaml")
