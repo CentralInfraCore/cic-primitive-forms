@@ -207,10 +207,11 @@ def evaluate(root, scope, tools, commit, require, only, reports):
         f, summ = check_language(lang, reports[lang], root, scope, tools, commit)
         fails += [(lang, r, d) for r, d in f]
         lines.append("%-5s %s" % (lang, summ or "not measured"))
-    if only is not None and not fails:
-        lines.append("DIAGNOSTIC %s: no failure found. This is NOT a conformance result (exit status 3)" % only)
-        return fails, lines, 3
     lines += ["FAIL %s %s: %s" % f for f in fails]
+    if only is not None:  # a diagnostic is never a verdict: same marker and status whatever it finds
+        lines.append("DIAGNOSTIC %s: %s. This is NOT a conformance result (exit status 3)" % (
+            only, "%d failure(s) found" % len(fails) if fails else "no failure found"))
+        return fails, lines, 3
     lines.append("BRANCH COVERAGE: %s" % ("FAIL (%d)" % len(fails) if fails else "PASS"))
     return fails, lines, 1 if fails else 0
 
@@ -260,7 +261,8 @@ def fixture_run(work, drop=None, invocation=None):
     inv = {"require": "rust,go", "only": None, "reports": ["rust", "go"]}
     inv.update(invocation or {})
     reports = {l: os.path.join(fx, "%s.report.json" % l) for l in inv["reports"] if l != drop}
-    fails, _, rc = evaluate(os.path.join(fx, "tree"), scope, tools, commit, inv["require"], inv["only"], reports)
+    fails, lines, rc = evaluate(os.path.join(fx, "tree"), scope, tools, commit, inv["require"], inv["only"], reports)
+    fixture_run.last_lines = lines
     return [(l, r) for l, r, _ in fails], rc
 
 
@@ -271,14 +273,30 @@ def selftest(root):
         shutil.copytree(os.path.join(root, "coverage"), os.path.join(tmp, "coverage"))
         base, base_rc = fixture_run(tmp)
         diag, diag_rc = fixture_run(tmp, invocation={"only": "rust", "reports": ["rust"]})
+        diag_lines = list(fixture_run.last_lines)
     finally:
         shutil.rmtree(tmp)
     if base or base_rc != 0:
         print("self-test: the unmodified fixtures are not green: %s" % base)
         return 1
-    if diag or diag_rc == 0:
-        print("self-test: a diagnostic run must never end with status 0 (got %s, %s)" % (diag, diag_rc))
-        return 1
+    # a diagnostic run: status 3 and the marker, passing or failing, even for a bad language
+    marker = "NOT a conformance result"
+    failing = next(f for f in spec["faults"] if f["id"] == "exactly-90-percent")
+    tmp = tempfile.mkdtemp(prefix="cov-diag-")
+    try:
+        shutil.copytree(os.path.join(root, "coverage"), os.path.join(tmp, "coverage"))
+        apply_ops(failing["ops"], os.path.join(tmp, "coverage", "fixtures"))
+        bad, bad_rc = fixture_run(tmp, invocation={"only": "rust", "reports": ["rust"]})
+        bad_lines = list(fixture_run.last_lines)
+        unk, unk_rc = fixture_run(tmp, invocation={"only": "cobol", "reports": []})
+        unk_lines = list(fixture_run.last_lines)
+    finally:
+        shutil.rmtree(tmp)
+    for name, f, rc_, ln, want_fail in (("passing", diag, diag_rc, diag_lines, False), ("failing", bad, bad_rc, bad_lines, True),
+                                        ("unknown language", unk, unk_rc, unk_lines, True)):
+        if rc_ != 3 or not any(marker in x for x in ln) or bool(f) != want_fail:
+            print("self-test: a %s diagnostic run must give status 3 and the marker (got %s, %s)" % (name, rc_, ln))
+            return 1
     covered, failed = set(), 0
     for fault in spec["faults"]:
         tmp = tempfile.mkdtemp(prefix="cov-fault-")
