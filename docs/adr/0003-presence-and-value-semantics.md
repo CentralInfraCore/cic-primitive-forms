@@ -73,16 +73,22 @@ list with `min_items: 1` rejects `[]`).
 8. **`state_surface`.** A missing observation is never replaced by a schema
    default, and a missing `mandatory` field on `state_surface` is a **coverage
    fact**, not automatically an authoring-validation error. An absent field does
-   not prove the field is not on the device. Three situations stay separate, in
-   the engine's coverage vocabulary (`MATERIALIZATION-SPEC.md`): the adapter did
-   not examine the path (`unobserved`); it examined it and authoritatively found
-   it not there (`absent`); there is no adequate coverage information (`unknown`,
-   the fourth value B2 adds), in which case the absence must not be called
-   `absent`. A partial observation can be processed without inventing the
-   missing field, but it does not thereby become a complete, conforming
-   observation: completeness and conformance violations are the engine's check.
-   The library knows only Absent and Present at the YAML level and does not
-   produce the coverage values.
+   not prove the field is not on the device. The engine's coverage values
+   (`MATERIALIZATION-SPEC.md` B1, B2) stay separate:
+
+   | Coverage | Meaning |
+   |---|---|
+   | `observed` | the observe call saw the field; its value is authoritative |
+   | `unobserved` | the observe call did not cover the path |
+   | `absent` | the observe call looked and authoritatively found the field not there |
+   | `unknown` | the observe call saw the field and the **device itself** reported an indeterminate value (for example a sensor reporting a fault) |
+
+   Missing coverage information is none of these: it cannot be classified into
+   any of the states automatically and must not be called `absent`. A partial
+   observation can be processed without inventing the missing field, but it does
+   not thereby become a complete, conforming observation: completeness and
+   conformance violations are the engine's check. The library knows only Absent
+   and Present at the YAML level and does not produce the coverage values.
 
 ## Round trip
 
