@@ -174,3 +174,8 @@ codes:
     meaning: The origin supplied with a document and its attestation contradict each other.
     trigger: Origin materialized without an attestation reference or without attested positions, or origin authored with either (ADR 0010). A context error, so it has no source anchor.
 
+  GRAMMAR_DIGEST_MISMATCH:
+    status: stable
+    phases: {validate: none}
+    meaning: The grammar files supplied to the library do not reproduce the declared manifest digest.
+    trigger: The digest of the manifest of the supplied (path, SHA-256) entries, sorted by the UTF-8 bytes of the path, differs from the declared digest; a missing, extra or changed file all change it (ADR 0002). A context error, so it has no source anchor.

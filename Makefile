@@ -7,3 +7,13 @@ corpus:
 # Proof that the branch coverage gate fails when it must (ADR 0009). Measures no code yet.
 coverage:
 	python3 tools/coverage_gate.py selftest
+
+.PHONY: grammar-selftest grammar-verify
+# Proof that the grammar identity verifier can fail (ADR 0002). Needs no network.
+grammar-selftest:
+	python3 tools/grammar_identity.py selftest
+
+# Reproduce the declared grammar identity from a checkout of cic-primitives at the pinned
+# commit: make grammar-verify UPSTREAM=path/to/cic-primitives (CI does this on every run).
+grammar-verify:
+	python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo $(UPSTREAM)

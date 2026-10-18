@@ -40,7 +40,7 @@ faults:
     ops: [{file: corpus/inherit/vectors.yaml, old: "adr: ADR-0004", new: "adr: ADR-0099"}]
   - id: grammar-pin-dangling
     rule: REF_DANGLING
-    ops: [{file: corpus/inherit/vectors.yaml, old: "grammar: cic-primitives-devel", new: "grammar: nowhere"}]
+    ops: [{file: corpus/inherit/vectors.yaml, old: "grammar: cic-primitives-5a26bd8-76f1d664", new: "grammar: nowhere"}]
   - id: schema-slot-unknown
     rule: SCHEMA_FIXTURE
     ops: [{file: corpus/inherit/vectors.yaml, old: "slot: inherit_key}}\n    input: true", new: "slot: inherit_keyy}}\n    input: true"}]
@@ -392,3 +392,63 @@ faults:
   - id: basis-kind-without-input
     rule: INPUT_PRESENCE
     ops: [{file: corpus/conformance/vectors.yaml, old: "    input: {mtu: 1500}\n    origin: materialized\n    attestation: binding:device-7@sha256:aa11\n    attested_positions: [$.mtu]\n    expect: {bases: {$.mtu: binding_attested}}", new: "    origin: materialized\n    attestation: binding:device-7@sha256:aa11\n    attested_positions: [$.mtu]\n    expect: {bases: {$.mtu: binding_attested}}"}]
+  - id: pin-file-hash-changed-digest-left
+    rule: PIN_DIGEST
+    ops: [{file: corpus/pins.yaml, old: "sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea7", new: "sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea8"}]
+  - id: pin-manifest-digest-wrong
+    rule: PIN_DIGEST
+    ops: [{file: corpus/pins.yaml, old: "manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1", new: "manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f2"}]
+  - id: pin-readme-removed
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n", new: ""}]
+  - id: pin-extra-file
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "    manifest_sha256:", new: "      - {path: schemas/atomic/extra.yaml, sha256: 1111111111111111111111111111111111111111111111111111111111111111}\n    manifest_sha256:"}]
+  - id: pin-files-sorted-as-lines-not-paths
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n      - {path: proposals/atom-grammar/check_grammar.py, sha256: e6d013d9cfd25918c522b6c0fece74c6f86c5a277ba62a18ab7eb949cd10248b}\n", new: "      - {path: proposals/atom-grammar/check_grammar.py, sha256: e6d013d9cfd25918c522b6c0fece74c6f86c5a277ba62a18ab7eb949cd10248b}\n      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n"}]
+  - id: pin-duplicate-path
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n", new: "      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n      - {path: proposals/atom-grammar/README.md, sha256: 146006b1a20166dd098cf34fefb5609b97d77c5ef3fd4ad5b3bff9a68f1f1629}\n"}]
+  - id: pin-sha-too-short
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "sha256: 71fc185a0bf78b7ba57b30bdea7fabda370a63b5c73de1cc4444aeea4f679659", new: "sha256: 71fc185a"}]
+  - id: pin-name-not-the-identity
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "  cic-primitives-5a26bd8-76f1d664:\n", new: "  cic-primitives-devel:\n"}]
+  - id: pin-commit-changed-without-renaming
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "commit: 5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd", new: "commit: 6a26bd8810cce0d614c2d0bb2e8c2d7477390cfd"}]
+  - id: pin-without-the-manifest
+    rule: PIN_INVALID
+    ops: [{file: corpus/pins.yaml, old: "    manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1\n", new: ""}]
+  - id: manifest-case-declared-digest-edited
+    rule: MANIFEST_CONSISTENCY
+    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f0\n    expect: {valid: true}\n  - id: grammar.input-order"}]
+  - id: manifest-case-mismatch-expected-for-a-matching-digest
+    rule: MANIFEST_CONSISTENCY
+    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f1\n    expect: {errors: [{code: GRAMMAR_DIGEST_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}\n  - id: grammar.input-order"}]
+  - id: manifest-case-duplicate-path
+    rule: MANIFEST_FIXTURE
+    ops: [{file: corpus/grammar/vectors.yaml, old: "files: [{path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}", new: "files: [{path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, {path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"}]
+  - id: manifest-case-without-declared
+    rule: MANIFEST_FIXTURE
+    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: '0000000000000000000000000000000000000000000000000000000000000000'\n", new: ""}]
+  - id: workflow-verify-step-removed
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: ""}]
+  - id: workflow-upstream-checkout-removed
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - uses: actions/checkout@v4\n        with:\n          repository: CentralInfraCore/cic-primitives\n          ref: ${{ steps.grammar_pin.outputs.commit }}\n          path: upstream/cic-primitives\n", new: ""}]
+  - id: workflow-verify-continue-on-error
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n        continue-on-error: true\n"}]
+  - id: workflow-verify-conditional
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n", new: "      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives\n        if: ${{ false }}\n"}]
+  - id: workflow-commit-copied-instead-of-read-from-the-pin
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "ref: ${{ steps.grammar_pin.outputs.commit }}", new: "ref: 5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd"}]
+  - id: workflow-pin-step-removed
+    rule: UPSTREAM_VERIFY
+    ops: [{file: .github/workflows/corpus.yml, old: "      - id: grammar_pin\n        run: echo \"commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)\" >> \"$GITHUB_OUTPUT\"\n", new: ""}]

@@ -9,7 +9,7 @@
 corpus_format: 2
 suite: conformance
 status: provisional
-defaults: {adr: ADR-0010, grammar: cic-primitives-devel}
+defaults: {adr: ADR-0010, grammar: cic-primitives-5a26bd8-76f1d664}
 trees:
   conf: {enabled: {scalar: boolean}, mtu: {scalar: integer}, name: {scalar: string}}
 cases:

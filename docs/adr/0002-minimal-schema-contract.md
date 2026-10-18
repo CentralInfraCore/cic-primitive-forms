@@ -298,16 +298,32 @@ This decision is binding; this ADR stays `proposed` until it is implemented and 
   contract, once every normative rule exists in machine-readable form.
 - The digest cross-checks the commit and does not replace it. It cannot detect a grammar
   that is simply the wrong version (the `item_choice` situation above).
-- A mismatch between the supplied digest and the content is an error (a context error
-  with no source anchor; its code joins the ADR 0007 registry in the implementing change).
+- A mismatch between the supplied digest and the content is an error: the context error
+  `GRAMMAR_DIGEST_MISMATCH` (phase `validate`, no source anchor, stable), in the ADR 0007
+  registry, with the vectors of `corpus/grammar`.
 
 ### Conditions to acceptance
 
+Implemented in the change that follows the acceptance record; the status stays `proposed`
+until the owner has reviewed it.
+
 1. `corpus/pins.yaml` carries the seven-file manifest and its digest, with a structural
-   rule and a seeded fault.
+   rule and a seeded fault. *Done:* the pin lists the seven paths with their SHA-256 and
+   `manifest_sha256`; the pin name carries the identity (`<repo>-<commit7>-<manifest8>`),
+   so re-pinning renames it and breaks every reference until migrated on purpose; `make
+   corpus` checks the structure, the exact file set, the order by path bytes and the
+   recomputed digest offline (`PIN_INVALID`, `PIN_DIGEST`), each with seeded faults.
 2. The **full** manifest is reproduced in CI by the implementing change; abbreviated
-   hashes quoted in review documents are not authoritative.
-3. The verifier checks that the digested file set is exactly the manifest.
+   hashes quoted in review documents are not authoritative. *Done:* the `corpus`
+   workflow reads the pinned commit from `pins.yaml`, checks out
+   `CentralInfraCore/cic-primitives` at exactly that commit and runs
+   `tools/grammar_identity.py verify`, which recomputes every hash from the Git blob bytes
+   and the manifest digest. The step is unconditional and mandatory: a failed download, a
+   missing file, a different commit or a different byte is red, and `make corpus` itself
+   fails if the workflow lacks the step (`UPSTREAM_VERIFY`). Nothing from upstream is
+   executed, only its bytes are read.
+3. The verifier checks that the digested file set is exactly the manifest. *Done:* the
+   accepted set is a constant of the verifier and of the offline gate.
 4. The temporary compatibility profile for `item_choice` stays labelled.
 
 ## Open questions

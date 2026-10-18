@@ -8,7 +8,7 @@
 corpus_format: 2
 suite: presence
 status: provisional
-defaults: {adr: ADR-0003, grammar: cic-primitives-devel}
+defaults: {adr: ADR-0003, grammar: cic-primitives-5a26bd8-76f1d664}
 cases:
   - id: presence.mandatory-absent
     kind: validate

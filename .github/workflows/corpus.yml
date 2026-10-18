@@ -16,3 +16,14 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: make corpus
       - run: make coverage
+      - run: make grammar-selftest
+      # Mandatory, unconditional: the declared grammar identity must reproduce from the real
+      # upstream bytes. A failed download, a missing file or a different commit is red.
+      - id: grammar_pin
+        run: echo "commit=$(python3 tools/grammar_identity.py commit --pins corpus/pins.yaml)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: CentralInfraCore/cic-primitives
+          ref: ${{ steps.grammar_pin.outputs.commit }}
+          path: upstream/cic-primitives
+      - run: python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo upstream/cic-primitives
