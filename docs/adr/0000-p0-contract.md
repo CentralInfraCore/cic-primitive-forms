@@ -15,7 +15,7 @@ or Go conformance.
 | ADR | Subject | Status | Issue #3 point |
 |---|---|---|---|
 | [0001](0001-recognition-rule.md) | recognition rule | accepted | 1, 7 |
-| [0002](0002-minimal-schema-contract.md) | schema contract | **proposed**: grammar identity decided and implemented, awaiting the owner's review | 4 |
+| [0002](0002-minimal-schema-contract.md) | schema contract | accepted (grammar identity implemented and verified; `item_choice` profile temporary) | 4 |
 | [0003](0003-presence-and-value-semantics.md) | presence and value semantics | accepted | 3 |
 | [0004](0004-access-inheritance-vocabulary.md) | inheritance vocabulary | accepted, reading contract only | 8 (not ticked) |
 | [0005](0005-conformance-corpus-contract.md) | corpus contract and gate | accepted | corpus skeleton |
@@ -25,12 +25,10 @@ or Go conformance.
 | [0009](0009-branch-coverage-measurement-contract.md) | branch coverage measurement | **proposed**: tool qualification pending | 10 |
 | [0010](0010-conformance-origin-and-authority.md) | conformance origin | accepted | 9 |
 
-What still prevents P0 from closing:
+What still prevents P0 from closing (two items; the grammar identity is done):
 
-1. the grammar identity of ADR 0002 reviewed and approved (`pins.yaml`, rules, faults and the
-   CI reproduction of the seven-file manifest are implemented);
-2. the upstream type decision behind point 8 (cic-primitives #17);
-3. the branch-coverage tool qualification behind point 10 (ADR 0009).
+1. the upstream type decision behind point 8 (cic-primitives #17);
+2. the branch-coverage tool qualification behind point 10 (ADR 0009).
 
 Everything else is a P1 proof obligation or a later-phase item, recorded in each ADR's
 acceptance record and in `docs/reviews/p0-acceptance-review.md`.
@@ -50,8 +48,8 @@ acceptance record and in `docs/reviews/p0-acceptance-review.md`.
 
 This is the original question list as it stood when P0 started. It is kept as a record.
 **The current status of each point is the Decision index above**, not the wording below;
-points 1 to 3, 5 to 7 and 9 are decided and accepted; 4 and 10 are proposed; 8 is accepted
-only as a reading contract, with the upstream type decision open.
+points 1 to 7 and 9 are decided and accepted; 10 is proposed; 8 is accepted only as a
+reading contract, with the upstream type decision open.
 
 1. **Partial expanded form.** A map with some but not all declared keys: an
    explicit error (current proposal), or accepted as a partial override?
@@ -66,7 +64,7 @@ only as a reading contract, with the upstream type decision open.
 4. **Schema contract.** What the caller supplies: which fields are primitives,
    the inheritance source, the identity key of lists (`key_fields` /
    `logical_id`).
-    *Resolution: ADR 0002 (**proposed**): the contract is written and the grammar identity is decided; it becomes accepted when that identity is implemented and checked.*
+    *Resolution: Decided in ADR 0002 (accepted): the contract, and a grammar identity that is pinned and reproduced from upstream in CI. The `item_choice` compatibility profile stays temporary.*
 5. **Diff output.** Deterministic, logical-path based, byte-identical across
    Rust and Go.
     *Resolution: Decided in ADR 0008 (accepted).*
