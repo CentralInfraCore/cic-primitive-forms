@@ -60,6 +60,64 @@ closed, names every reason, and carries seeded faults for every reason.
    fails if any reason has no fault that turns the gate red. A mutant of the gate that
    accepts exactly 90% was checked to turn the self-test red.
 
+## Decision on the measurement approach (owner, 2026-10-18)
+
+Recorded after the tool qualification spike (PR #18, `spike/coverage-qualification`). The ADR stays
+`proposed`, and `coverage/tools.yaml` keeps `selected: null` for both languages.
+
+### What the spike showed
+
+Against samples whose branches were counted by hand (27 edges in Rust, 34 in Go), neither candidate
+measures `cic-branch/1`, and neither reports categories:
+
+- Rust, `cargo-llvm-cov` with `-Zcoverage-options=condition`: 20 of 27 edges. Not reported as branches: the
+  `match` arms, the `for` edges and both edges of `?` (they exist only as plain code regions). The `--branch` flag
+  also omits the second operand of `&&` / `||`; `--mcdc` fails on the current nightly (rustc renamed the option
+  value); 0.9.1 has no `--fail-under-branches`.
+- Go, `gobco`: 30 outcomes against 34 edges, which is not a subset: `select` (4) and `range` (2) are missing and a
+  `switch` is counted as per-case conditions (2 extra outcomes). It also ignores `//go:build` constraints.
+- Go, `gocove` (beta, `v0.0.0-20260427173940-a0dceb9dadca`): 7 conditions on the same sample (no value or type
+  switch cases, no `&&` / `||` outside an `if`, no `select`, no `range`), and on Go 1.27.2 it produced no catalogue
+  at all while the tests still passed: a silent no-op. It worked on Go 1.23.12.
+
+### Decision: A
+
+`cic-branch/1` is kept in full. The measurement capability that the tools lack is provided by this project, as an
+adapter and, where a tool cannot supply the evidence, an instrumenter:
+
+- **Rust:** `cargo-llvm-cov` stays the source of execution evidence; a source classifier enumerates every edge of
+  `cic-branch/1` and assigns the evidence (branch and code regions) to it. That a `match` arm that is visible as a
+  region maps to an unambiguous edge coverage in every compound case is *not* assumed; it is shown by golden tests.
+- **Go:** an AST-based enumerator and instrumenter that implements `cic-branch/1` directly. `gobco` and `gocove` do
+  not qualify; they remain evidence in the spike.
+
+Alternatives **B** (redefine the metric as what a pinned tool reports, with `approved_deviations`) and **C**
+(Rust under A, Go under B) are rejected for the P0 acceptance contract. Documenting the Go deviations would be
+possible, but the Go tool does not measure a subset of the Rust metric: it has missing edges, differently counted
+edges (`switch`) and a wrong file selection (build tags) at the same time, so a high percentage would not be
+comparable with the Rust result or with `cic-branch/1`. The aim is not that the gate prints a number above 90%, but
+that we can show which branching possibilities it counted.
+
+### Qualification requirements for the measurement solution (per language)
+
+1. It **enumerates every edge** of `cic-branch/1` from the source, each with an identity, a location and one of the
+   five categories; the denominator comes from this enumeration, not from the tool's own counts.
+2. It attaches **execution evidence** to each edge and reports covered / total per file and per category in the
+   existing `cic-coverage-report/1`.
+3. On the qualification samples, numerator and denominator **equal the hand-counted golden tables, category by
+   category**, for the full and the reduced test set.
+4. An edge or construct it cannot reconstruct, a file of the scope that is not part of the measured build (build
+   constraints, platform files), a package it cannot instrument, or evidence it cannot attach: the pipeline **does
+   not produce a successful report** (fail closed). Silent partial results are a defect.
+5. The normalized reports are fed to the real `tools/coverage_gate.py check`, which must turn red on the reduced
+   set by the strict threshold, and which still rejects a missing report, a disabled measurement and an unselected
+   tool on the real workflow.
+6. It is deterministic (byte-identical reports on repeated runs), and every tool and compiler is pinned as a pair
+   and re-qualified together (the Rust option rename is the example).
+7. The enumerator, instrumenter and adapters are part of the trust base of the gate and are tested like code,
+   including nested and compound cases, not only the flat samples.
+8. `coverage/tools.yaml` is changed only after the solution is qualified and the owner approves it.
+
 ## Scope
 
 `coverage/scope.yaml` names, per language, the own source by `include` globs minus
