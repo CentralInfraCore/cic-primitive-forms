@@ -36,10 +36,12 @@ structure invented for Rust or Go:
    must not be reused for list identity.
 3. **The released grammar lacks `item_choice`.** `item_choice` (collection
    element as a discriminated union) is present on `cic-primitives` `devel`
-   (`5a26bd8`) and absent from `main` (`411ce80`, which carries the released
-   `primitives/@v0.2.0` line). The registry's `network-interface.yaml` already
-   uses it. The contract below is written against the `devel` grammar and the
-   grammar version is part of the schema identity.
+   (`5a26bd8`) and absent both from `main` (`411ce80`) and from the release tag
+   `primitives/@v0.2.0` (`960ee0f`; the tag is an ancestor of neither branch, so
+   `main` does not carry it). The registry's `network-interface.yaml` refers to
+   atoms as `cic:core:*@v0.2.0` yet already uses `item_choice`. The contract below
+   is written against the `devel` grammar, and the grammar version is part of the
+   schema identity.
 4. **No real schema in the registry uses a plain `choice`.** A search of
    `cic-schema-registry` found no `shape_type: choice`; the real mechanism in use
    is `item_choice`. A `choice` fixture can therefore only be synthetic, taken
