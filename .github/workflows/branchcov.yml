@@ -7,7 +7,8 @@ on:
   pull_request:
     paths: ["tools/branchcov/**", "tools/coverage_gate.py", "tools/grammar_identity.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
   push:
-    branches: ["spike/**", "feat/branchcov-**"]
+    branches: ["main", "spike/**", "feat/branchcov-**"]
+    paths: ["tools/branchcov/**", "tools/coverage_gate.py", "tools/grammar_identity.py", "coverage/**", "spike/**", ".github/workflows/branchcov.yml"]
 permissions:
   contents: read
 jobs:
