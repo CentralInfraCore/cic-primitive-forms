@@ -577,8 +577,10 @@ def check_segments(segs, where, vs, strict_names):
                 check_typed(comp["key"], "%s.item[%d].key" % (w, j), vs)
                 if strict_names and isinstance(comp["key"], dict) and comp["key"].get("type") not in ("string", "integer"):
                     vs.append(Violation("PATH_SEGMENTS", "%s.item[%d].key" % (w, j), "a parsed key is a string or an integer"))
-                if strict_names and (not comp["name"]):
-                    vs.append(Violation("PATH_SEGMENTS", "%s.item[%d]" % (w, j), "empty component name"))
+                if strict_names and (not comp["name"] or any(
+                        ord(ch) < 0x20 or ord(ch) == 0x7f for ch in comp["name"])):
+                    vs.append(Violation("PATH_SEGMENTS", "%s.item[%d]" % (w, j),
+                                        "component name must be non-empty without control characters"))
             if len(set(names)) != len(names):
                 vs.append(Violation("PATH_SEGMENTS", w, "duplicate component names"))
             prev = "item"

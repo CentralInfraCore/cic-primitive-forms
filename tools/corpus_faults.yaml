@@ -152,3 +152,6 @@ faults:
   - id: stability-single-variant
     rule: STABILITY_VARIANTS
     ops: [{file: corpus/paths/vectors.yaml, old: ", {at: [nics, 0, subnet], document: {nics: [{name: nic-1, subnet: s1, zone: us}, {name: nic-0, subnet: s0, zone: eu}]}}]", new: "]"}]
+  - id: parse-expectation-control-char-in-component-name
+    rule: PATH_SEGMENTS
+    ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: vlan_id}]}]}", new: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: \"vlan\\nid\"}]}]}"}]

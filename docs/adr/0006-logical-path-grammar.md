@@ -112,8 +112,11 @@ and the reverse), and a key type other than `string` or `integer`.
 ## Building a path from a document
 
 Constructing the path of an element of a document uses the ADR 0002 record
-matching: a record picks the one `item_choice` case whose declared fields contain
-all of its keys; zero or several is an error. Each key component must be present,
+matching: a case matches when every key of the record is a declared field of the
+case and every mandatory field of the case, key fields included, is present; the
+record must match exactly one case, zero or several is an error. (In the path
+fixtures the key fields are the only mandatory fields.) For a plain list there is
+only one case, so a missing key component is a key error, not a case error. Each key component must be present,
 of the key's type, with an Access wrapper looked through (ADR 0001 recognition). A
 second element with the same identity is an error and is never mapped to an index.
 Component order is the schema's, not the document's.
@@ -165,7 +168,7 @@ A later conversion is an explicit, checked adapter. No lossy or silent fallback.
 ## Corpus
 
 `corpus/paths/vectors.yaml` (ADR 0005 envelope, extended by the amendment in that
-ADR) carries 123 cases: `path_parse`, `path_format`, `path_resolve`, `path_of` and
+ADR) carries 125 cases: `path_parse`, `path_format`, `path_resolve`, `path_of` and
 `path_stability`. Every positive `path_parse` case is also a format case. The
 vectors cover root and nested fields, literal dots, backslashes, brackets and
 selector punctuation in names, string, integer and composite keys, delimiters and

@@ -10,7 +10,7 @@ defaults: {adr: ADR-0006, grammar: cic-primitives-devel}
 trees:
   main: {'a[0]': {scalar: string}, enabled: {scalar: boolean}, interface.name: {scalar: string}, ip: {composite: {addresses: {set: string}, blob: opaque, gateway: {scalar: string}}}, logical_interfaces: {list: {fields: {ip: {composite: {addresses: {set: string}}}, name: {scalar: string}}, key: [name]}}, mtu: {scalar: integer}, nics: {list: {fields: {name: {scalar: string}, subnet: {scalar: string}, zone: {scalar: string}}, key: [name, zone]}}, nëtz: {scalar: string}, value: {scalar: string}, vlans: {list: {choice: [{fields: {ref: {scalar: string}}, key: [ref], name: referenced}, {fields: {vlan_id: {scalar: integer}, vlan_mode: {scalar: string}}, key: [vlan_id], name: inline}]}}, weird\name: {scalar: string}}
   boolkey: {flags: {list: {fields: {note: {scalar: string}, 'on': {scalar: boolean}}, key: ['on']}}}
-  overlap: {items: {list: {choice: [{fields: {k1: {scalar: string}, x: {scalar: string}}, key: [k1], name: a}, {fields: {k2: {scalar: string}, x: {scalar: string}}, key: [k2], name: b}]}}}
+  overlap: {items: {list: {choice: [{fields: {k1: {scalar: string}, k2: {scalar: string}, x: {scalar: string}}, key: [k1], name: a}, {fields: {k1: {scalar: string}, k2: {scalar: string}, x: {scalar: string}}, key: [k2], name: b}]}}}
   accessnames: {access: {scalar: string}, ip: {composite: {gateway: {scalar: string}}}}
 cases:
   - id: paths.parse-root
@@ -814,12 +814,29 @@ cases:
   - id: paths.of-item-matches-several-cases
     kind: path_of
     polarity: negative
-    description: 'ADR 0002: zero or several matches is an error'
+    description: 'both cases declare k1, k2 and x and the record holds both key fields, so both match (ADR 0002: zero or several is an error)'
     schema: {synthetic: {tree: overlap}}
-    document: {items: [{x: '1'}]}
+    document: {items: [{k1: a, k2: b}]}
     at: [items, 0]
     expect: {error: PATH_CASE_AMBIGUOUS}
     codes_status: provisional
+  - id: paths.of-item-without-any-case-key-matches-no-case
+    kind: path_of
+    polarity: negative
+    description: every declared field is allowed by both cases, but neither case finds its key field present
+    schema: {synthetic: {tree: overlap}}
+    document: {items: [{x: '1'}]}
+    at: [items, 0]
+    expect: {error: PATH_CASE_NONE}
+    codes_status: provisional
+  - id: paths.of-overlapping-cases-one-key-selects
+    kind: path_of
+    polarity: positive
+    description: the record lacks k2, so only case a matches
+    schema: {synthetic: {tree: overlap}}
+    document: {items: [{k1: a, x: '1'}]}
+    at: [items, 0]
+    expect: {path: '$.items[{k1="a"}]'}
   - id: paths.of-boolean-key-unsupported
     kind: path_of
     polarity: negative
