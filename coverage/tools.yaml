@@ -19,7 +19,7 @@ rust:
     name: rustbranch
     version: "0.1.0"
     approved_deviations: []
-    toolchain: "rustc 1.101.0-nightly (8006091eb 2026-10-17)"
+    toolchain: "rustc 1.101.0-nightly (5d8fec066 2026-10-16)"
     source_sha256: 38077b98ee19ae5cc3a982254731755d1112062e3527a4ab04191b6a30fd6f41
 go:
   selected:

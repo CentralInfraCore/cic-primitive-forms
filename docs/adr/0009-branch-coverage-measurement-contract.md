@@ -155,7 +155,7 @@ Selected, with no `approved_deviations`, in `coverage/tools.yaml`:
 
 | Language | Tool | Version | Pinned with |
 |---|---|---|---|
-| Rust | `rustbranch` | `0.1.0` | `rustc 1.101.0-nightly (8006091eb 2026-10-17)` (`nightly-2026-10-17`), source digest in `tools.yaml` |
+| Rust | `rustbranch` | `0.1.0` | `rustc 1.101.0-nightly (5d8fec066 2026-10-16)` (the dated nightly `nightly-2026-10-17`), source digest in `tools.yaml` |
 | Go | `gobranch` | `0.1.0` | `go1.27.2`, source digest in `tools.yaml` |
 
 `cargo-llvm-cov` 0.9.1 stays as an independent cross-check of the Rust counters (not as a measurement). The version
