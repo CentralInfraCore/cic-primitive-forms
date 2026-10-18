@@ -1,6 +1,6 @@
-# ADR 0002: minimal schema contract (draft)
+# ADR 0002: minimal schema contract
 
-Status: **proposed.** Closes issue #3 point 4 once accepted. It does not decide
+Status: **accepted** (2026-10-18, see "Acceptance record" at the end). Closes issue #3 point 4. It does not decide
 the other points of #3 (`null` / absent / empty, `inherit` typing, origin of
 `conformance`, diff output, error codes, path grammar, coverage measurement); it
 only states which schema information those decisions can rely on.
@@ -272,11 +272,10 @@ and nothing more.
    needs the `cic-primitives` versioning contradiction (finding 3) resolved.
 4. Fixture licensing as above.
 
-## Grammar identity (decided at the P0 acceptance review; implementation pending)
+## Grammar identity (decided at the P0 acceptance review; implemented and verified)
 
 The grammar identity is the immutable `cic-primitives` commit **plus a file manifest**.
-This decision is binding; this ADR stays `proposed` until it is implemented and checked
-(see "Conditions to acceptance").
+This decision is binding. It is implemented and checked (see "Conditions to acceptance").
 
 - The manifest lists exactly the files the library reads. Each entry is the SHA-256 of
   the **raw Git blob bytes** of that file at the pinned commit. There is no YAML
@@ -304,8 +303,8 @@ This decision is binding; this ADR stays `proposed` until it is implemented and 
 
 ### Conditions to acceptance
 
-Implemented in the change that follows the acceptance record; the status stays `proposed`
-until the owner has reviewed it.
+All four conditions were met by the grammar identity change (PR #16) and approved by the
+owner; this ADR was then recorded as accepted.
 
 1. `corpus/pins.yaml` carries the seven-file manifest and its digest, with a structural
    rule and a seeded fault. *Done:* the pin lists the seven paths with their SHA-256 and
@@ -332,3 +331,17 @@ until the owner has reviewed it.
 2. The explicit rights grant for fixtures, if one is wanted. It is not a
    precondition for this ADR, because no file of the source repositories is
    copied into this repository.
+
+## Acceptance record
+
+Accepted on 2026-10-18 by the owner's decision, after the grammar identity change (PR #16) was reviewed and approved. *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. The corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
+
+Evidence for the acceptance: the seven-file manifest is pinned in `corpus/pins.yaml` and checked offline (`PIN_INVALID`, `PIN_DIGEST`, seeded faults); CI reproduces every hash and the manifest digest from the Git blobs of `CentralInfraCore/cic-primitives` at the pinned commit (`tools/grammar_identity.py verify`), unconditionally, and `make corpus` fails if the workflow stops doing so (`UPSTREAM_VERIFY`); the verifier's own self-test shows that every failure reason turns it red; the library-side check has the vectors of `corpus/grammar` and the stable code `GRAMMAR_DIGEST_MISMATCH`.
+
+Conditions and limits that stay in force:
+
+- **The `item_choice` compatibility profile is temporary.** `item_choice` exists on the `devel` grammar only and not in the released tag `primitives/@v0.2.0`; the contract is written against the pinned `devel` commit. Accepting this ADR does not make that profile a stable upstream release contract.
+- The grammar identity cross-checks the commit and cannot detect a grammar that is simply the wrong version. The README is part of the manifest; it may leave only through a new, versioned grammar-identity contract.
+- The instance-document mapping remains a proposal, not a citation (finding 5): no upstream specification of an authored intent document exists.
+- `operation_surface` as a processing target and the explicit rights grant for fixtures are deferred; neither blocks this contract.
+- A case against the real pinned registry schema does not exist yet (P1).
