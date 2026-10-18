@@ -18,7 +18,7 @@ The result is **descriptive evidence of a difference**, from A to B. It is not a
 instruction to execute, and a difference does not by itself mean drift or an
 authorized modification.
 
-A `LogicalView` is a document read under one schema, grammar and surface. It has two
+A `LogicalView` is a document read under one schema, grammar and surface. It has three
 parts:
 
 - the **logical content**: the fully expanded form of ADR 0001 (every primitive
@@ -30,12 +30,17 @@ parts:
   recognition class (ADR 0001) of the node as it was written. It is typed
   companion data, it takes no part in equality, and it is read only to produce
   `representation`. A view that was not built from an authored document has no
-  authored form, and then no `representation` entry can be produced for it.
+  authored form, and then no `representation` entry can be produced for it;
+- the **conformance basis** (ADR 0010): `default`, `authored_claim` or `binding_attested`
+  per position, derived from the trusted input context. It is typed companion data like
+  the authored form: it takes no part in equality, it is never a `changes` event, it is
+  not part of the canonical output, and the intent-observed adapter reads it from the
+  views separately. An empty `changes` therefore means logical equality only.
 
 Consequently none of these makes a difference: YAML mapping order, list order, flow
 versus block style, quoting, short versus expanded writing of the same declaration.
 The last of them is still reported, in `representation`, because the authored form is
-kept.
+kept. A difference of conformance basis alone is not reported at all.
 
 `SchemaContext` is the schema identity and digest, the grammar commit and digest, and
 the surface. Two views read under different contexts are never compared silently:

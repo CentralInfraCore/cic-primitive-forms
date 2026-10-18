@@ -93,8 +93,9 @@ Consequences:
 - **Diff (ADR 0008).** The diff compares the logical value, and `conformance` is one of
   the declaration fields it compares. A difference of basis alone is **not** a diff
   event, so an empty `changes` is never evidence that two views have the same
-  capability. Whether the basis becomes part of the diff output is left to the P0
-  acceptance review; the later intent-observed adapter reads the basis from the views.
+  capability. Decided at the P0 acceptance review: the basis is provenance
+  companion data of the LogicalView and is neither a diff event nor part of the diff's
+  canonical output; the later intent-observed adapter reads it from the views, separately.
 - **Effective behaviour.** Rejecting a write to a `not_implemented` field and warning on
   `deprecated` are the Relay's.
 
@@ -130,7 +131,6 @@ source location. The gate checks structure only and decides nothing about author
 
 - Verification of the attestation, and what makes a binding trusted (P5/P6, Relay).
 - Subtree entries in `attested_positions`, and per-field signatures.
-- The basis in the diff output.
 - Merging a materialized document back into an authored one.
 
 ## Acceptance record

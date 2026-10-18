@@ -2,7 +2,7 @@
 
 Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 2. It defines the
 logical path model and one canonical text form. It does **not** define diff
-operations, final error codes or source positions (the next P0 ADR), authorization
+operations, final error codes or source positions (ADR 0007), authorization
 or inheritance resolution. The error codes of the corpus are reviewed in ADR 0007
 (which merged some of the path codes: `PATH_UNKNOWN_FIELD` is `UNKNOWN_FIELD`, and
 `PATH_THROUGH_SCALAR` / `PATH_THROUGH_OPAQUE` are `PATH_NO_CHILDREN`).
@@ -186,10 +186,11 @@ implementation produces these results is for the P1 runners.
 
 ## Not decided here
 
-- Diff operations and conflicts (P0 point 5); error taxonomy and positions (point 6).
+- Diff operations (ADR 0008; patch conflicts are P4); error taxonomy and positions (ADR 0007).
 - Path syntax through a plain `choice` (no real schema uses one, ADR 0002 finding 4).
 - Boolean, number and bytes key encodings, and integers beyond 64 bits.
-- How Access components are addressed.
+- A possible later, separate API-level addressing of Access attributes. It is not part of
+  the logical path, which identifies a primitive position (see "Path versus Access").
 - Conversion from the engine's path syntax.
 - Source-preserving editing (P3b).
 

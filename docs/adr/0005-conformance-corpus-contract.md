@@ -206,13 +206,15 @@ are not mechanical:
 
 ## Not decided here
 
-- The grammar digest required by ADR 0002 (decision 3). `pins.yaml` pins the grammar
-  by commit only; which bytes the digest covers is not defined yet and is not
-  invented here.
+- The implementation of the grammar identity. It is decided in ADR 0002 (the
+  immutable commit plus a seven-file manifest of raw blob bytes). What is missing is
+  the implementation: `pins.yaml` still carries a commit only, and the structural
+  rule, the seeded fault and the CI reproduction of the manifest are a separate
+  change (ADR 0002 stays proposed until then).
 - A case against the real pinned schema. The `pin` reference path is exercised by a
   seeded fault only; no semantic case uses it before the schema-driven runner exists.
-- The diff format (P0 point 5). The path grammar is ADR 0006 and the error contract
-  is ADR 0007.
+- The diff format, the path grammar and the error contract: decided in ADR 0008, ADR
+  0006 and ADR 0007; this ADR only carries their corpus amendments.
 - The runnable Rust and Go runners (P1). The format is designed so that both read
   the same files and may add kinds, never reinterpret existing ones.
 - Branch-coverage measurement (P0 point 10).
