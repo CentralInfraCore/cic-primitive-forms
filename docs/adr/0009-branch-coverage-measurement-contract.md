@@ -85,9 +85,12 @@ measures `cic-branch/1`, and neither reports categories:
 `cic-branch/1` is kept in full. The measurement capability that the tools lack is provided by this project, as an
 adapter and, where a tool cannot supply the evidence, an instrumenter:
 
-- **Rust:** `cargo-llvm-cov` stays the source of execution evidence; a source classifier enumerates every edge of
-  `cic-branch/1` and assigns the evidence (branch and code regions) to it. That a `match` arm that is visible as a
-  region maps to an unambiguous edge coverage in every compound case is *not* assumed; it is shown by golden tests.
+- **Rust:** the primary measurement is our own: a `syn`-based enumerator and instrumenter (`rustbranch`) that counts
+  every edge of `cic-branch/1` in a throwaway copy of the crate. `cargo-llvm-cov` is kept as an **independent
+  cross-check** for the edges LLVM reports as branch regions. The first version of this decision kept `cargo-llvm-cov`
+  as the evidence base with a source classifier on top; the owner approved the change after the compound-sample
+  examination showed that the region data does not map unambiguously to the edges (a `match` arm region starts at the
+  first expression of the arm body, a `for` loop has no exit region, an empty arm may have no region).
 - **Go:** an AST-based enumerator and instrumenter that implements `cic-branch/1` directly. `gobco` and `gocove` do
   not qualify; they remain evidence in the spike.
 
@@ -115,7 +118,13 @@ that we can show which branching possibilities it counted.
 6. It is deterministic (byte-identical reports on repeated runs), and every tool and compiler is pinned as a pair
    and re-qualified together (the Rust option rename is the example).
 7. The enumerator, instrumenter and adapters are part of the trust base of the gate and are tested like code,
-   including nested and compound cases, not only the flat samples.
+   including nested and compound cases, not only the flat samples. A defect found in review (a Go switch clause
+   entered by `fallthrough` was counted as selected) is the example: an edge is the *selection* of a branch, not the
+   execution of its body.
+   An instrumented copy is a different program from the shipped one, with the same decisions; the Rust copy
+   even relaxes `forbid(unsafe_code)` to `deny` for the generated counter module. This is a stated qualification risk,
+   covered by the golden samples and the cross-check, and must never be described as the shipped program being measured
+   byte for byte.
 8. `coverage/tools.yaml` is changed only after the solution is qualified and the owner approves it.
 
 ## Scope
