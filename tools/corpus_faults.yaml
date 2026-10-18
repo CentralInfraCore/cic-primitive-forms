@@ -17,15 +17,9 @@ faults:
   - id: suite-dir-mismatch
     rule: ENVELOPE
     ops: [{file: corpus/inherit/vectors.yaml, old: "suite: inherit\n", new: "suite: presence\n"}]
-  - id: format-version
-    rule: FORMAT_VERSION
-    ops: [{file: corpus/codes.yaml, old: "corpus_format: 1", new: "corpus_format: 2"}]
   - id: pin-short-commit
     rule: PIN_INVALID
     ops: [{file: corpus/pins.yaml, old: "commit: 5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd", new: "commit: 5a26bd8"}]
-  - id: code-lowercase
-    rule: CODE_REGISTRY
-    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD: provisional", new: "  unknown_field: provisional"}]
   - id: case-missing-polarity
     rule: CASE_FIELD
     ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n", new: "  - id: inherit.key-true-ok\n    kind: validate\n"}]
@@ -38,9 +32,6 @@ faults:
   - id: kind-unknown
     rule: KIND_UNKNOWN
     ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-true-ok\n    kind: validate", new: "  - id: inherit.key-true-ok\n    kind: validat"}]
-  - id: null-input-dropped
-    rule: INPUT_PRESENCE
-    ops: [{file: corpus/presence/vectors.yaml, old: "    input: null\n    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.mandatory-nullable-null", new: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.mandatory-nullable-null"}]
   - id: absent-and-input-both
     rule: INPUT_PRESENCE
     ops: [{file: corpus/presence/vectors.yaml, old: "  - id: presence.mandatory-absent\n    kind: validate\n    polarity: negative\n", new: "  - id: presence.mandatory-absent\n    kind: validate\n    polarity: negative\n    input: null\n"}]
@@ -56,15 +47,6 @@ faults:
   - id: negative-marked-positive
     rule: POLARITY
     ops: [{file: corpus/inherit/vectors.yaml, old: "  - id: inherit.key-one-rejected\n    kind: validate\n    polarity: negative", new: "  - id: inherit.key-one-rejected\n    kind: validate\n    polarity: positive"}]
-  - id: code-not-registered
-    rule: CODE_UNKNOWN
-    ops: [{file: corpus/codes.yaml, old: "  INVALID_INHERIT: provisional\n", new: ""}]
-  - id: code-status-dropped
-    rule: CODE_STATUS
-    ops: [{file: corpus/inherit/vectors.yaml, old: "    expect: {error: INVALID_INHERIT}\n    codes_status: provisional\n  - id: inherit.key-string-true-rejected", new: "    expect: {error: INVALID_INHERIT}\n  - id: inherit.key-string-true-rejected"}]
-  - id: code-unused
-    rule: CODE_UNUSED
-    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD: provisional", new: "  UNKNOWN_FIELD: provisional\n  NEVER_USED: provisional"}]
   - id: typed-value-malformed
     rule: TYPED_VALUE
     ops: [{file: corpus/inherit/vectors.yaml, old: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: true\n    expect: {preserved: {type: boolean, value: true}", new: "id: inherit.key-true-ok\n    kind: validate\n    polarity: positive\n    schema: {synthetic: {slot: inherit_key}}\n    input: true\n    expect: {preserved: {type: boolean}"}]
@@ -80,18 +62,12 @@ faults:
   - id: null-declared-as-absent-mismatch
     rule: TYPED_MISMATCH
     ops: [{file: corpus/presence/vectors.yaml, old: "expect: {collapsed: {type: list, value: []}, expanded: {type: list, value: []}}", new: "expect: {collapsed: {type: list, value: []}, expanded: {type: map, value: []}}"}]
-  - id: expect-unknown-key
-    rule: EXPECT_FIELD
-    ops: [{file: corpus/presence/vectors.yaml, old: "expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.optional-nullable-null", new: "expect: {error: NULL_NOT_ALLOWED, bogus: 1}\n    codes_status: provisional\n  - id: presence.optional-nullable-null"}]
   - id: schema-pin-dangling
     rule: REF_DANGLING
     ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {pin: no-such-schema}"}]
   - id: record-position-malformed
     rule: SCHEMA_FIXTURE
     ops: [{file: corpus/recognition/vectors.yaml, old: "position: {list_of: {record: {host: scalar, port: scalar}}}", new: "position: {list_of: {structured: [host]}}"}]
-  - id: empty-scalar-case-loses-codes-status
-    rule: CODE_STATUS
-    ops: [{file: corpus/presence/vectors.yaml, old: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.map-with-code", new: "    expect: {error: NULL_NOT_ALLOWED}\n  - id: presence.map-with-code"}]
   - id: elements-not-a-list
     rule: EXPECT_FIELD
     ops: [{file: corpus/recognition/vectors.yaml, old: "expect: {elements: [{host: short, port: short}, {host: short, port: expanded}]}", new: "expect: {elements: nonsense}"}]
@@ -107,9 +83,6 @@ faults:
   - id: class-unknown
     rule: EXPECT_FIELD
     ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: short}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}\n    input: 4\n    expect: {class: shorter}"}]
-  - id: anchor-in-fixture
-    rule: YAML_ANCHOR
-    ops: [{file: corpus/codes.yaml, old: "  CONTRACT_VIOLATION: provisional", new: "  CONTRACT_VIOLATION: &a provisional"}]
   - id: tree-key-not-a-field
     rule: SCHEMA_FIXTURE
     ops: [{file: corpus/paths/vectors.yaml, old: "key: ['on']}}}", new: "key: [nope]}}}"}]
@@ -155,3 +128,114 @@ faults:
   - id: parse-expectation-control-char-in-component-name
     rule: PATH_SEGMENTS
     ops: [{file: corpus/paths/vectors.yaml, old: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: vlan_id}]}]}", new: "expect: {segments: [{field: vlans}, {item: [{key: {type: integer, value: 0}, name: \"vlan\\nid\"}]}]}"}]
+  - id: format-version
+    rule: FORMAT_VERSION
+    ops: [{file: corpus/codes.yaml, old: "corpus_format: 2", new: "corpus_format: 3"}]
+  - id: code-lowercase
+    rule: CODE_REGISTRY
+    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD:\n", new: "  unknown_field:\n"}]
+  - id: registry-anchor-unknown
+    rule: CODE_REGISTRY
+    ops: [{file: corpus/codes.yaml, old: "phases: {recognize: mapping}", new: "phases: {recognize: sideways}"}]
+  - id: registry-path-parse-without-path-text-anchor
+    rule: CODE_REGISTRY
+    ops: [{file: corpus/codes.yaml, old: "phases: {path_parse: path_text}\n    meaning: A backslash", new: "phases: {path_parse: key}\n    meaning: A backslash"}]
+  - id: registry-entry-without-trigger
+    rule: CODE_REGISTRY
+    ops: [{file: corpus/codes.yaml, old: "    trigger: Set elements are not independently addressable (ADR 0006).\n", new: ""}]
+  - id: null-input-dropped
+    rule: INPUT_PRESENCE
+    ops: [{file: corpus/presence/vectors.yaml, old: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n", new: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n"}]
+  - id: input-and-input-yaml-both
+    rule: INPUT_PRESENCE
+    ops: [{file: corpus/presence/vectors.yaml, old: "    input_yaml: \"a: null\\n\"\n", new: "    input_yaml: \"a: null\\n\"\n    input: {a: null}\n"}]
+  - id: code-not-registered
+    rule: CODE_UNKNOWN
+    ops: [{file: corpus/codes.yaml, old: "  INVALID_INHERIT:\n", new: "  INVALID_INHERITT:\n"}]
+  - id: code-status-dropped
+    rule: CODE_STATUS
+    ops: [{file: corpus/inherit/vectors.yaml, old: "    codes_status: provisional\n  - id: inherit.key-string-true-rejected", new: "  - id: inherit.key-string-true-rejected"}]
+  - id: code-status-contradicts-registry
+    rule: CODE_STATUS
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse, source_location: {state: not_applicable}}]}\n    codes_status: stable", new: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse, source_location: {state: not_applicable}}]}\n    codes_status: provisional"}]
+  - id: code-unused
+    rule: CODE_UNUSED
+    ops: [{file: corpus/codes.yaml, old: "  UNKNOWN_FIELD:\n", new: "  NEVER_USED:\n    status: stable\n    phases: {validate: key}\n    meaning: unused code\n    trigger: never\n  UNKNOWN_FIELD:\n"}]
+  - id: registry-phase-without-vector
+    rule: PHASE_UNUSED
+    ops: [{file: corpus/codes.yaml, old: "phases: {path_resolve: none, validate: key}", new: "phases: {path_resolve: none, recognize: key, validate: key}"}]
+  - id: expect-unknown-key
+    rule: EXPECT_FIELD
+    ops: [{file: corpus/presence/vectors.yaml, old: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {", new: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {bogus: 1, "}]
+  - id: anchor-in-fixture
+    rule: YAML_ANCHOR
+    ops: [{file: corpus/codes.yaml, old: "phases: {parse: second_key}", new: "phases: &a {parse: second_key}"}]
+  - id: error-has-message
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, message: second a, phase: parse, source_location: {column: 1, line: 3, offset: 12}}"}]
+  - id: error-without-source-location
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse}"}]
+  - id: parse-error-claims-logical-path
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, logical_path: $.b, phase: parse, source_location: {column: 1, line: 3, offset: 12}}"}]
+  - id: resolve-error-without-logical-path
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope, phase:", new: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, phase:"}]
+  - id: resolve-logical-path-not-a-prefix
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope,", new: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.other,"}]
+  - id: phase-not-allowed-for-code
+    rule: ERROR_PHASE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: validate, source_location: {column: 1, line: 3, offset: 12}}"}]
+  - id: phase-not-allowed-for-kind
+    rule: ERROR_PHASE
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse,", new: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: validate,"}]
+  - id: source-location-null
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/presence/vectors.yaml, old: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}", new: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: null}"}]
+  - id: source-location-claimed-for-parsed-input
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/presence/vectors.yaml, old: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}", new: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {column: 1, line: 1, offset: 0}}"}]
+  - id: source-location-unavailable-for-text-input
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {state: unavailable}}"}]
+  - id: source-location-column-wrong
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 2, line: 3, offset: 12}}"}]
+  - id: source-location-offset-counts-characters-not-bytes
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "source_location: {column: 1, line: 3, offset: 18}", new: "source_location: {column: 1, line: 3, offset: 16}"}]
+  - id: source-location-offset-inside-character
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "source_location: {column: 1, line: 3, offset: 18}", new: "source_location: {column: 3, line: 1, offset: 3}"}]
+  - id: source-location-offset-inside-crlf
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 2, offset: 5}}"}]
+  - id: source-location-beyond-text
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 9, offset: 99}}"}]
+  - id: source-location-bom-counted-as-column
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/recognition/vectors.yaml, old: "source_location: {column: 11, line: 1, offset: 13}", new: "source_location: {column: 12, line: 1, offset: 13}"}]
+  - id: path-offset-missing
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase:", new: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, phase:"}]
+  - id: path-offset-beyond-text
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase:", new: "path: .enabled\n    expect: {errors: [{code: PATH_SYNTAX, path_offset: 99, phase:"}]
+  - id: path-offset-on-a-yaml-phase
+    rule: ERROR_LOCATION
+    ops: [{file: corpus/presence/vectors.yaml, old: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, phase:", new: "id: presence.mandatory-null\n    kind: validate\n    polarity: negative\n    schema: {synthetic: {shape: {presence: mandatory, type: string}}}\n    input: null\n    expect: {errors: [{code: NULL_NOT_ALLOWED, path_offset: 0, phase:"}]
+  - id: errors-duplicate-path-and-code
+    rule: ERROR_ORDER
+    ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,", new: "logical_path: $.a, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,"}]
+  - id: errors-without-logical-path
+    rule: ERROR_ORDER
+    ops: [{file: corpus/presence/vectors.yaml, old: "{code: MISSING_MANDATORY, logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,", new: "{code: MISSING_MANDATORY, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,"}]
+  - id: errors-mix-phases
+    rule: ERROR_ORDER
+    ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.c, phase: validate, source_location: {state: unavailable}}]}", new: "logical_path: $.c, phase: recognize, source_location: {state: unavailable}}]}"}]
+  - id: several-parse-errors
+    rule: ERROR_ORDER
+    ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}, {code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 2, offset: 6}}"}]

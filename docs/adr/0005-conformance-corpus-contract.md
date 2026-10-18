@@ -67,17 +67,17 @@ may override them.
 
 | Kind | Input fields | Expectation keys |
 |---|---|---|
-| `recognize` | `input` or `input_yaml` (raw text, for parse-phase cases) | `class`, `elements` (non-empty list, one `{field: class}` map per input element, fields equal to the record's), `validate`, `opaque_value`, `phase`, `code` |
-| `validate` | `input` or `absent: true` | `valid`, `error`, `stays_absent`, `default_candidate`, `path`, `kind`, `is_inherit`, `preserved`, `upstream_conflict` |
+| `recognize` | `input` or `input_yaml` (raw source text) | `class`, `elements` (non-empty list, one `{field: class}` map per input element, fields equal to the record's), `errors`, `opaque_value` |
+| `validate` | exactly one of `input`, `absent: true`, `input_yaml` | `valid`, `errors`, `stays_absent`, `default_candidate`, `kind`, `is_inherit`, `preserved`, `upstream_conflict` |
 | `roundtrip` | `input` or `absent: true` | `expanded`, `collapsed`, `fields` (typed values) |
 | `collapse` | `input`, boolean `authored_expanded` | `collapse` (required), `fields` |
 | `expand` | `input` | `fields` (required) |
 | `equality` | `a`, `b` | `equal` (required) |
-| `path_parse` | `path` (text) | `segments` or `error` |
-| `path_format` | `segments` | `text` or `error` |
-| `path_resolve` | `path` | `target` and `primitive_position`, or `error` |
-| `path_of` | `document`, `at` | `path` or `error` |
-| `path_stability` | `variants` (at least two `{document or document_yaml, at}`) | `path` or `error` |
+| `path_parse` | `path` (text) | `segments` or `errors` |
+| `path_format` | `segments` | `text` or `errors` |
+| `path_resolve` | `path` | `target` and `primitive_position`, or `errors` |
+| `path_of` | `document`, `at` | `path` or `errors` |
+| `path_stability` | `variants` (at least two `{document or document_yaml, at}`) | `path` or `errors` |
 
 ### Schema reference
 
@@ -115,15 +115,16 @@ fixture reads the same in every YAML implementation.
 
 ### Polarity and codes
 
-A case is `negative` exactly when its expectation carries an error code, `positive`
-otherwise; the gate cross-checks. Codes are read only from the declared places
-`expect.error`, `expect.code` and `expect.validate.code`. Typed values are data and
-are never searched, so a map with `code` or `error` keys is not a code.
-Codes must be listed in `corpus/codes.yaml`. **All codes are `provisional`** until
-the error-contract ADR (issue #3 point 6) closes. A case that uses a code carries
-`codes_status: provisional`, so the provisional state is machine readable and a
-case becomes stable only when its codes do. A registry code no case uses is an
-error (`CODE_UNUSED`), so renames cannot leave stale entries.
+A case is `negative` exactly when its expectation carries `errors`, `positive`
+otherwise; the gate cross-checks. Codes are read only from `expect.errors[*].code`.
+Typed values are data and are never searched, so a map with `code` or `error` keys is
+not a code. The error object (code, phase, source location, logical path, path
+offset) and the registry (`corpus/codes.yaml`: status, phases with anchors, meaning,
+trigger) are defined by ADR 0007, which also moved `corpus_format` to 2. A case that
+uses a code carries `codes_status` equal to the registry status, so the provisional
+state stays machine readable and a case is stable only when its codes are. A
+registry code no case uses (`CODE_UNUSED`), or a registry phase no case exercises
+(`PHASE_UNUSED`), is an error, so renames cannot leave stale entries.
 
 ## Amendment for ADR 0006 (path kinds)
 
@@ -148,7 +149,7 @@ The five `path_*` kinds above are added. Their rules:
   would prove nothing. A variant that must differ only in YAML mapping order holds
   raw `document_yaml` text instead of a parsed `document`, since a parsed mapping has
   no order to vary.
-- An expectation holds exactly one of its success key and `error`.
+- An expectation holds exactly one of its success key and `errors`.
 
 ## The gate and its proof
 
@@ -198,10 +199,8 @@ are not mechanical:
   invented here.
 - A case against the real pinned schema. The `pin` reference path is exercised by a
   seeded fault only; no semantic case uses it before the schema-driven runner exists.
-- The path grammar and the diff format. No case carries a path expression beyond
-  the existing `path: a` hint of one validate case; the `path` key is part of the
-  provisional error contract and will be revisited with it.
-- Error codes, their names and source positions (P0 point 6).
+- The diff format (P0 point 5). The path grammar is ADR 0006 and the error contract
+  is ADR 0007.
 - The runnable Rust and Go runners (P1). The format is designed so that both read
   the same files and may add kinds, never reinterpret existing ones.
 - Branch-coverage measurement (P0 point 10).

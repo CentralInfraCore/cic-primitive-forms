@@ -1,6 +1,6 @@
 # Pinned external sources the corpus refers to (ADR 0002, ADR 0005).
 # Nothing is vendored: cic-schema-registry and cic-primitives are CC BY-NC-SA 4.0.
-corpus_format: 1
+corpus_format: 2
 grammar:
   cic-primitives-devel:
     repo: CentralInfraCore/cic-primitives

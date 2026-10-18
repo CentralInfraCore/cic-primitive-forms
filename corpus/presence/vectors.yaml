@@ -5,7 +5,7 @@
 # absent: true means the key is missing (not a value); otherwise input holds the present value,
 # which may be null, "", [], {}, 0 or false. roundtrip expectations are typed values; Absent is
 # {type: absent}.
-corpus_format: 1
+corpus_format: 2
 suite: presence
 status: provisional
 defaults: {adr: ADR-0003, grammar: cic-primitives-devel}
@@ -15,15 +15,15 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {presence: mandatory, type: string}}}
     absent: true
-    expect: {error: MISSING_MANDATORY}
-    codes_status: provisional
+    expect: {errors: [{code: MISSING_MANDATORY, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.mandatory-null
     kind: validate
     polarity: negative
     schema: {synthetic: {shape: {presence: mandatory, type: string}}}
     input: null
-    expect: {error: NULL_NOT_ALLOWED}
-    codes_status: provisional
+    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.mandatory-nullable-null
     kind: validate
     polarity: positive
@@ -35,8 +35,8 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {nullable: true, presence: mandatory, type: string}}}
     absent: true
-    expect: {error: MISSING_MANDATORY}
-    codes_status: provisional
+    expect: {errors: [{code: MISSING_MANDATORY, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.mandatory-empty-string
     kind: validate
     polarity: positive
@@ -54,8 +54,8 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {presence: optional, type: string}}}
     input: null
-    expect: {error: NULL_NOT_ALLOWED}
-    codes_status: provisional
+    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.optional-nullable-null
     kind: validate
     polarity: positive
@@ -91,8 +91,8 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {default: 5, presence: optional, type: integer}}}
     input: null
-    expect: {default_candidate: false, error: NULL_NOT_ALLOWED}
-    codes_status: provisional
+    expect: {default_candidate: false, errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.default-not-triggered-by-empty-string
     kind: validate
     polarity: positive
@@ -110,8 +110,8 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {min_items: 1, presence: optional, type: list}}}
     input: []
-    expect: {error: CONTRACT_VIOLATION}
-    codes_status: provisional
+    expect: {errors: [{code: MIN_ITEMS_NOT_MET, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.map-empty-composite-all-optional
     kind: validate
     polarity: positive
@@ -123,8 +123,8 @@ cases:
     polarity: negative
     schema: {synthetic: {shape: {fields: {a: mandatory}, presence: optional, type: composite}}}
     input: {}
-    expect: {error: MISSING_MANDATORY, path: a}
-    codes_status: provisional
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.absent-stays-absent
     kind: roundtrip
     polarity: positive
@@ -169,16 +169,16 @@ cases:
     description: an expanded node lacks the value key, so by ADR 0001 it is short and then rejected at a scalar position
     schema: {synthetic: {position: scalar}}
     input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit}
-    expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
-    codes_status: provisional
+    expect: {class: short, errors: [{code: MAP_AT_SCALAR_POSITION, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.null-spelled-as-empty-scalar
     kind: validate
     polarity: negative
-    description: "`input:` with no value is YAML null, the same as `input: null` (ADR 0003); it is not an empty string"
+    description: '`input:` with no value is YAML null, the same as `input: null` (ADR 0003); it is not an empty string'
     schema: {synthetic: {shape: {presence: mandatory, type: string}}}
-    input:
-    expect: {error: NULL_NOT_ALLOWED}
-    codes_status: provisional
+    input: null
+    expect: {errors: [{code: NULL_NOT_ALLOWED, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: presence.map-with-code-and-error-keys-is-data
     kind: roundtrip
     polarity: positive
@@ -186,3 +186,71 @@ cases:
     schema: {synthetic: {position: opaque}}
     input: {code: '200', error: none-so-far}
     expect: {collapsed: {type: map, value: {code: '200', error: none-so-far}}, expanded: {type: map, value: {code: '200', error: none-so-far}}}
+  - id: presence.text-unknown-field
+    kind: validate
+    polarity: negative
+    description: the anchor is the key of the unknown field
+    schema: {synthetic: {shape: {fields: {a: optional}, presence: optional, type: composite}}}
+    input_yaml: "a: 1\nzz: 2\n"
+    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}}]}
+    codes_status: stable
+  - id: presence.text-missing-mandatory-anchors-parent
+    kind: validate
+    polarity: negative
+    description: an absent field has no position; the parent mapping, which starts at its first key, is the anchor
+    schema: {synthetic: {shape: {fields: {a: mandatory, b: optional}, presence: optional, type: composite}}}
+    input_yaml: "\n# nothing\nb: 1\n"
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {column: 1, line: 3, offset: 11}}]}
+    codes_status: stable
+  - id: presence.text-null-explicit-anchors-value
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {fields: {a: mandatory}, presence: optional, type: composite}}}
+    input_yaml: "a: null\n"
+    expect: {errors: [{code: NULL_NOT_ALLOWED, logical_path: $.a, phase: validate, source_location: {column: 4, line: 1, offset: 3}}]}
+    codes_status: stable
+  - id: presence.text-null-empty-scalar-anchors-key
+    kind: validate
+    polarity: negative
+    description: an empty scalar has no text of its own; the key is the anchor
+    schema: {synthetic: {shape: {fields: {a: mandatory}, presence: optional, type: composite}}}
+    input_yaml: "a:\n"
+    expect: {errors: [{code: NULL_NOT_ALLOWED, logical_path: $.a, phase: validate, source_location: {column: 1, line: 1, offset: 0}}]}
+    codes_status: stable
+  - id: presence.text-min-items-anchors-sequence
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {min_items: 1, presence: optional, type: list}}}
+    input_yaml: "# c\n[]\n"
+    expect: {errors: [{code: MIN_ITEMS_NOT_MET, phase: validate, source_location: {column: 1, line: 2, offset: 4}}]}
+    codes_status: stable
+  - id: presence.errors-sorted-by-logical-path-not-declaration
+    kind: validate
+    polarity: negative
+    description: order is fixed by the logical path, so a different traversal order cannot change the response
+    schema: {synthetic: {shape: {fields: {a: mandatory, b: mandatory, c: mandatory}, presence: optional, type: composite}}}
+    input: {}
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: presence.errors-mixed-codes-sorted-by-path
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {fields: {a: mandatory, b: mandatory}, presence: optional, type: composite}}}
+    input: {b: null, zz: 1}
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {state: unavailable}}, {code: NULL_NOT_ALLOWED, logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: UNKNOWN_FIELD, logical_path: $.zz, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: presence.text-errors-with-locations
+    kind: validate
+    polarity: negative
+    schema: {synthetic: {shape: {fields: {a: mandatory, b: mandatory}, presence: optional, type: composite}}}
+    input_yaml: "b: null\nzz: 1\n"
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {column: 1, line: 1, offset: 0}}, {code: NULL_NOT_ALLOWED, logical_path: $.b, phase: validate, source_location: {column: 4, line: 1, offset: 3}}, {code: UNKNOWN_FIELD, logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 8}}]}
+    codes_status: stable
+  - id: presence.text-errors-order-ignores-source-order
+    kind: validate
+    polarity: negative
+    description: zz comes first in the text and last in the response
+    schema: {synthetic: {shape: {fields: {a: mandatory, b: mandatory}, presence: optional, type: composite}}}
+    input_yaml: "zz: 1\nb: null\n"
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {column: 1, line: 1, offset: 0}}, {code: NULL_NOT_ALLOWED, logical_path: $.b, phase: validate, source_location: {column: 4, line: 2, offset: 9}}, {code: UNKNOWN_FIELD, logical_path: $.zz, phase: validate, source_location: {column: 1, line: 1, offset: 0}}]}
+    codes_status: stable

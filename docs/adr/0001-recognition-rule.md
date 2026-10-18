@@ -79,8 +79,8 @@ ever dropped.
 
 Recognition has one error, `EXPANDED_WITH_EXTRA_KEY`, with logical path and
 source position. Errors from `validate` (map at scalar position, unknown field,
-unknown key) are defined with the error contract, issue #3 point 6; the codes
-in the vectors are provisional. A duplicate key is a `parse`-phase error.
+unknown key) and the structure of every error are defined in ADR 0007. A
+duplicate key is a `parse`-phase error.
 
 ## Vectors
 

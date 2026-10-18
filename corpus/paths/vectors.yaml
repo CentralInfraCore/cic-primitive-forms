@@ -3,7 +3,7 @@
 # (format of the parsed segments gives the same text). Codes are provisional (codes.yaml).
 # trees: synthetic schema fixtures for the path kinds; a notation, not a schema. A list key is the
 # resolved identity of ADR 0002 (role: key / item_key; per case for item_choice).
-corpus_format: 1
+corpus_format: 2
 suite: paths
 status: provisional
 defaults: {adr: ADR-0006, grammar: cic-primitives-devel}
@@ -165,217 +165,217 @@ cases:
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: .enabled
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-no-root-bare-name
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: enabled
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-empty-text
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: ''
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 0, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-empty-name-trailing-dot
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.a.
-    expect: {error: PATH_EMPTY_NAME}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_EMPTY_NAME, path_offset: 4, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-empty-name-double-dot
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.a..b
-    expect: {error: PATH_EMPTY_NAME}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_EMPTY_NAME, path_offset: 4, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-empty-name-after-root
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.
-    expect: {error: PATH_EMPTY_NAME}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_EMPTY_NAME, path_offset: 2, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-unknown-escape
     kind: path_parse
     polarity: negative
     description: unknown escape sequences are errors
     schema: {synthetic: {lexical: true}}
     path: $.a\x
-    expect: {error: PATH_BAD_ESCAPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_BAD_ESCAPE, path_offset: 3, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-trailing-backslash
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.a\
-    expect: {error: PATH_BAD_ESCAPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_BAD_ESCAPE, path_offset: 3, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-unescaped-bracket-in-name
     kind: path_parse
     polarity: negative
     description: the name characters that need escaping are never taken literally
     schema: {synthetic: {lexical: true}}
     path: $.a]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 3, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-unescaped-brace-in-name
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.a{b
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 3, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-control-char-in-name
     kind: path_parse
     polarity: negative
     description: a control character cannot be part of a name
     schema: {synthetic: {lexical: true}}
     path: "$.a\x01b"
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 3, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-index-selector
     kind: path_parse
     polarity: negative
     description: an index never substitutes for a declared key
     schema: {synthetic: {lexical: true}}
     path: $.vlans[0]
-    expect: {error: PATH_INDEX_SELECTOR}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_INDEX_SELECTOR, path_offset: 7, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-negative-index-selector
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[-1]
-    expect: {error: PATH_INDEX_SELECTOR}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_INDEX_SELECTOR, path_offset: 7, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-without-braces
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[vlan_id=100]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 8, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-empty
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 9, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-empty-name
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{=100}]
-    expect: {error: PATH_EMPTY_NAME}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_EMPTY_NAME, path_offset: 9, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-unclosed-bracket
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=100}
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 21, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-unclosed-brace
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=100]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 20, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-unquoted-string
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name=eth0}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 27, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-unterminated-string
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="eth0}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 34, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-space-after-bracket
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[ {vlan_id=100}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 8, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-space-after-equals
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id= 100}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-adjacent-items
     kind: path_parse
     polarity: negative
     description: a list element is a record, not a list
     schema: {synthetic: {lexical: true}}
     path: $.nics[{name="a",zone="b"}][{name="a",zone="b"}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 27, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-before-any-field
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $[{vlan_id=1}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SYNTAX, path_offset: 1, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-duplicate-component
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.nics[{name="a",name="b"}]
-    expect: {error: PATH_DUPLICATE_COMPONENT}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_DUPLICATE_COMPONENT, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-bad-string-escape
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="a\xb"}]
-    expect: {error: PATH_BAD_ESCAPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_BAD_ESCAPE, path_offset: 29, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-integer-leading-zero
     kind: path_parse
     polarity: negative
     description: a valid reading exists but it is not the canonical text
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=007}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-integer-plus-sign
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=+7}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-integer-negative-zero
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=-0}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-integer-out-of-range
     kind: path_parse
     polarity: negative
     description: keys outside signed 64-bit are rejected until a numeric contract exists
     schema: {synthetic: {lexical: true}}
     path: $.vlans[{vlan_id=9223372036854775808}]
-    expect: {error: PATH_INTEGER_RANGE}
+    expect: {errors: [{code: PATH_INTEGER_RANGE, path_offset: 17, phase: path_parse, source_location: {state: not_applicable}}]}
     codes_status: provisional
   - id: paths.parse-selector-unicode-escape-of-printable
     kind: path_parse
@@ -383,29 +383,29 @@ cases:
     description: \u is canonical only for control characters without a short escape
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="\u0041"}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 28, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-uppercase-hex-escape
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="\u001F"}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 28, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-long-escape-of-newline
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="\u000a"}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 28, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.parse-selector-escaped-slash
     kind: path_parse
     polarity: negative
     schema: {synthetic: {lexical: true}}
     path: $.logical_interfaces[{name="a\/b"}]
-    expect: {error: PATH_NONCANONICAL}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NONCANONICAL, path_offset: 29, phase: path_parse, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.format-root
     kind: path_format
     polarity: positive
@@ -428,9 +428,7 @@ cases:
     kind: path_format
     polarity: positive
     schema: {synthetic: {lexical: true}}
-    segments: [{field: l}, {item: [{key: {type: string, value: 'q"\
-
-            '}, name: name}]}]
+    segments: [{field: l}, {item: [{key: {type: string, value: "q\"\\\n"}, name: name}]}]
     expect: {text: '$.l[{name="q\"\\\n"}]'}
   - id: paths.format-composite-order-as-given
     kind: path_format
@@ -444,32 +442,30 @@ cases:
     polarity: negative
     schema: {synthetic: {lexical: true}}
     segments: [{field: ''}]
-    expect: {error: PATH_EMPTY_NAME}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_EMPTY_NAME, phase: path_format, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.format-control-char-in-name
     kind: path_format
     polarity: negative
     description: a name that cannot be written as canonical text is an error, not an approximation
     schema: {synthetic: {lexical: true}}
-    segments: [{field: 'a
-
-      b'}]
-    expect: {error: PATH_SYNTAX}
-    codes_status: provisional
+    segments: [{field: "a\nb"}]
+    expect: {errors: [{code: PATH_SYNTAX, phase: path_format, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.format-boolean-key
     kind: path_format
     polarity: negative
     description: boolean, number and bytes key encodings are not defined (ADR 0006)
     schema: {synthetic: {lexical: true}}
     segments: [{field: flags}, {item: [{key: {type: boolean, value: true}, name: 'on'}]}]
-    expect: {error: PATH_KEY_UNSUPPORTED}
+    expect: {errors: [{code: PATH_KEY_UNSUPPORTED, phase: path_format, source_location: {state: not_applicable}}]}
     codes_status: provisional
   - id: paths.format-integer-key-out-of-range
     kind: path_format
     polarity: negative
     schema: {synthetic: {lexical: true}}
     segments: [{field: vlans}, {item: [{key: {type: integer, value: 9223372036854775808}, name: vlan_id}]}]
-    expect: {error: PATH_INTEGER_RANGE}
+    expect: {errors: [{code: PATH_INTEGER_RANGE, phase: path_format, source_location: {state: not_applicable}}]}
     codes_status: provisional
   - id: paths.resolve-root
     kind: path_resolve
@@ -570,139 +566,140 @@ cases:
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nope
-    expect: {error: PATH_UNKNOWN_FIELD}
-    codes_status: provisional
+    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-unknown-nested-field
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.ip.nope
-    expect: {error: PATH_UNKNOWN_FIELD}
-    codes_status: provisional
+    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.ip.nope, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-unknown-field-below-item
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nics[{name="a",zone="b"}].nope
-    expect: {error: PATH_UNKNOWN_FIELD}
-    codes_status: provisional
+    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: '$.nics[{name="a",zone="b"}].nope', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-through-scalar
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.mtu.x
-    expect: {error: PATH_THROUGH_SCALAR}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NO_CHILDREN, logical_path: $.mtu.x, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-into-opaque
     kind: path_resolve
     polarity: negative
     description: an opaque value is one position; the walker never descends into it
     schema: {synthetic: {tree: main}}
     path: $.ip.blob.x
-    expect: {error: PATH_THROUGH_OPAQUE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NO_CHILDREN, logical_path: $.ip.blob.x, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-set-element-selector
     kind: path_resolve
     polarity: negative
     description: a set element is not independently addressable
     schema: {synthetic: {tree: main}}
     path: $.ip.addresses[{name="a"}]
-    expect: {error: PATH_SET_ELEMENT}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SET_ELEMENT, logical_path: '$.ip.addresses[{name="a"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-set-descent
     kind: path_resolve
     polarity: negative
+    description: a field below a set field has no addressable children
     schema: {synthetic: {tree: main}}
     path: $.ip.addresses.x
-    expect: {error: PATH_SET_ELEMENT}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NO_CHILDREN, logical_path: $.ip.addresses.x, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-on-scalar
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.mtu[{k=1}]
-    expect: {error: PATH_NOT_A_LIST}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NOT_A_LIST, logical_path: '$.mtu[{k=1}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-on-composite
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.ip[{k=1}]
-    expect: {error: PATH_NOT_A_LIST}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_NOT_A_LIST, logical_path: '$.ip[{k=1}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-list-without-selector
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nics.subnet
-    expect: {error: PATH_LIST_NOT_SELECTED}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_LIST_NOT_SELECTED, logical_path: $.nics.subnet, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-missing-component
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nics[{name="a"}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.nics[{name="a"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-extra-component
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nics[{name="a",zone="b",colour="c"}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.nics[{name="a",zone="b",colour="c"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-unknown-component
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.nics[{name="a",region="b"}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.nics[{name="a",region="b"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-wrong-order
     kind: path_resolve
     polarity: negative
     description: canonical text uses the declared key order
     schema: {synthetic: {tree: main}}
     path: $.nics[{zone="b",name="a"}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.nics[{zone="b",name="a"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-selector-non-key-field
     kind: path_resolve
     polarity: negative
     description: a field of the record that is not part of the key
     schema: {synthetic: {tree: main}}
     path: $.logical_interfaces[{ip="a"}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.logical_interfaces[{ip="a"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-item-choice-mixed-cases
     kind: path_resolve
     polarity: negative
     description: one selector cannot name keys of two cases
     schema: {synthetic: {tree: main}}
     path: $.vlans[{ref="x",vlan_id=1}]
-    expect: {error: PATH_SELECTOR_MISMATCH}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_SELECTOR_MISMATCH, logical_path: '$.vlans[{ref="x",vlan_id=1}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-integer-key-given-string
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.vlans[{vlan_id="100"}]
-    expect: {error: PATH_KEY_TYPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_KEY_TYPE, logical_path: '$.vlans[{vlan_id="100"}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-string-key-given-integer
     kind: path_resolve
     polarity: negative
     schema: {synthetic: {tree: main}}
     path: $.logical_interfaces[{name=1}]
-    expect: {error: PATH_KEY_TYPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_KEY_TYPE, logical_path: '$.logical_interfaces[{name=1}]', phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
   - id: paths.resolve-boolean-key-unsupported
     kind: path_resolve
     polarity: negative
     description: only string and integer keys are measured in the pinned corpus
     schema: {synthetic: {tree: boolkey}}
     path: $.flags[{on=1}]
-    expect: {error: PATH_KEY_UNSUPPORTED}
+    expect: {errors: [{code: PATH_KEY_UNSUPPORTED, logical_path: '$.flags[{on=1}]', phase: path_resolve, source_location: {state: not_applicable}}]}
     codes_status: provisional
   - id: paths.of-simple-field
     kind: path_of
@@ -784,24 +781,24 @@ cases:
     schema: {synthetic: {tree: main}}
     document: {logical_interfaces: [{name: eth0}, {name: eth0}]}
     at: [logical_interfaces, 1]
-    expect: {error: PATH_DUPLICATE_IDENTITY}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_DUPLICATE_IDENTITY, logical_path: '$.logical_interfaces[{name="eth0"}]', phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-missing-key-component
     kind: path_of
     polarity: negative
     schema: {synthetic: {tree: main}}
     document: {nics: [{name: nic-0, subnet: s}]}
     at: [nics, 0]
-    expect: {error: PATH_KEY_MISSING}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_KEY_MISSING, logical_path: $.nics, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-key-wrong-type
     kind: path_of
     polarity: negative
     schema: {synthetic: {tree: main}}
     document: {vlans: [{vlan_id: '100'}]}
     at: [vlans, 0]
-    expect: {error: PATH_KEY_TYPE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_KEY_TYPE, logical_path: $.vlans, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-item-matches-no-case
     kind: path_of
     polarity: negative
@@ -809,8 +806,8 @@ cases:
     schema: {synthetic: {tree: main}}
     document: {vlans: [{ref: x, vlan_id: 1}]}
     at: [vlans, 0]
-    expect: {error: PATH_CASE_NONE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_CASE_NONE, logical_path: $.vlans, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-item-matches-several-cases
     kind: path_of
     polarity: negative
@@ -818,8 +815,8 @@ cases:
     schema: {synthetic: {tree: overlap}}
     document: {items: [{k1: a, k2: b}]}
     at: [items, 0]
-    expect: {error: PATH_CASE_AMBIGUOUS}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_CASE_AMBIGUOUS, logical_path: $.items, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-item-without-any-case-key-matches-no-case
     kind: path_of
     polarity: negative
@@ -827,8 +824,8 @@ cases:
     schema: {synthetic: {tree: overlap}}
     document: {items: [{x: '1'}]}
     at: [items, 0]
-    expect: {error: PATH_CASE_NONE}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_CASE_NONE, logical_path: $.items, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
   - id: paths.of-overlapping-cases-one-key-selects
     kind: path_of
     polarity: positive
@@ -843,7 +840,7 @@ cases:
     schema: {synthetic: {tree: boolkey}}
     document: {flags: [{'on': true}]}
     at: [flags, 0]
-    expect: {error: PATH_KEY_UNSUPPORTED}
+    expect: {errors: [{code: PATH_KEY_UNSUPPORTED, logical_path: $.flags, phase: path_of, source_location: {state: unavailable}}]}
     codes_status: provisional
   - id: paths.stability-list-reordered
     kind: path_stability
@@ -863,15 +860,7 @@ cases:
     polarity: positive
     description: YAML mapping order does not change the path
     schema: {synthetic: {tree: main}}
-    variants: [{at: [enabled], document_yaml: 'mtu: 1
-
-      enabled: true
-
-      '}, {at: [enabled], document_yaml: 'enabled: true
-
-      mtu: 1
-
-      '}]
+    variants: [{at: [enabled], document_yaml: "mtu: 1\nenabled: true\n"}, {at: [enabled], document_yaml: "enabled: true\nmtu: 1\n"}]
     expect: {path: $.enabled}
   - id: paths.stability-record-field-order-changed
     kind: path_stability
@@ -898,5 +887,5 @@ cases:
     description: reordering cannot make an ambiguous identity valid
     schema: {synthetic: {tree: main}}
     variants: [{at: [logical_interfaces, 0], document: {logical_interfaces: [{name: a}, {name: a}]}}, {at: [logical_interfaces, 1], document: {logical_interfaces: [{name: a}, {name: a}, {name: b}]}}]
-    expect: {error: PATH_DUPLICATE_IDENTITY}
-    codes_status: provisional
+    expect: {errors: [{code: PATH_DUPLICATE_IDENTITY, logical_path: '$.logical_interfaces[{name="a"}]', phase: path_of, source_location: {state: not_applicable}}]}
+    codes_status: stable
