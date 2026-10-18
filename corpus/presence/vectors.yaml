@@ -254,3 +254,11 @@ cases:
     input_yaml: "zz: 1\nb: null\n"
     expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {column: 1, line: 1, offset: 0}}, {code: NULL_NOT_ALLOWED, logical_path: $.b, phase: validate, source_location: {column: 4, line: 2, offset: 9}}, {code: UNKNOWN_FIELD, logical_path: $.zz, phase: validate, source_location: {column: 1, line: 1, offset: 0}}]}
     codes_status: stable
+  - id: presence.errors-sorted-by-segments-not-by-text
+    kind: validate
+    polarity: negative
+    description: "'$.a b' sorts before '$.a.x' as text (space before dot) but after it segment by segment (name a before name 'a b'); the segment order is the contract"
+    schema: {synthetic: {shape: {fields: {a: {fields: {x: mandatory}, presence: optional}, a b: mandatory}, presence: optional, type: composite}}}
+    input: {a: {}}
+    expect: {errors: [{code: MISSING_MANDATORY, logical_path: $.a.x, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.a b, phase: validate, source_location: {state: unavailable}}]}
+    codes_status: stable

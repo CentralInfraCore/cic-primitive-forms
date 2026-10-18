@@ -239,3 +239,24 @@ faults:
   - id: several-parse-errors
     rule: ERROR_ORDER
     ops: [{file: corpus/recognition/vectors.yaml, old: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}", new: "{code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 3, offset: 12}}, {code: DUPLICATE_KEY, phase: parse, source_location: {column: 1, line: 2, offset: 6}}"}]
+  - id: errors-out-of-order
+    rule: ERROR_ORDER
+    ops: [{file: corpus/presence/vectors.yaml, old: "{code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,", new: "{code: MISSING_MANDATORY, logical_path: $.b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.a, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.c,"}]
+  - id: errors-in-text-order-not-segment-order
+    rule: ERROR_ORDER
+    ops: [{file: corpus/presence/vectors.yaml, old: "{code: MISSING_MANDATORY, logical_path: $.a.x, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.a b, phase: validate, source_location: {state: unavailable}}", new: "{code: MISSING_MANDATORY, logical_path: $.a b, phase: validate, source_location: {state: unavailable}}, {code: MISSING_MANDATORY, logical_path: $.a.x, phase: validate, source_location: {state: unavailable}}"}]
+  - id: logical-path-character-prefix-only
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope,", new: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.no,"}]
+  - id: logical-path-longer-than-resolved-path
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/paths/vectors.yaml, old: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope,", new: "path: $.nope\n    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope.x,"}]
+  - id: logical-path-without-root
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}", new: "logical_path: zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}"}]
+  - id: logical-path-non-canonical-escape
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}", new: "logical_path: $.z\\x, phase: validate, source_location: {column: 1, line: 2, offset: 5}"}]
+  - id: logical-path-empty-segment
+    rule: ERROR_SHAPE
+    ops: [{file: corpus/presence/vectors.yaml, old: "logical_path: $.zz, phase: validate, source_location: {column: 1, line: 2, offset: 5}", new: "logical_path: $.zz., phase: validate, source_location: {column: 1, line: 2, offset: 5}"}]

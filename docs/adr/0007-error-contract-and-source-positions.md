@@ -203,7 +203,12 @@ The corpus format moves to `corpus_format: 2`:
 New structural rules, each with seeded faults: `ERROR_SHAPE`, `ERROR_PHASE`,
 `ERROR_LOCATION` (state per phase and input form, coordinates consistent with the
 text, path offset in range), `ERROR_ORDER` (one phase per response, single-error
-phases, ordering key present and unique), `PHASE_UNUSED`. The gate checks structure
+phases, ordering key present and unique, and the list really in the order above,
+compared on typed path segments and not on text), `PHASE_UNUSED`. A `logical_path`
+must be a canonical ADR 0006 path, and for `path_resolve` a prefix of the resolved
+path in whole segments (`$.no` is not a prefix of `$.nope`). The gate carries a small
+lexer for that, which decides only whether a path text is canonical and how two
+compare; it knows no schema and no document. The gate checks structure
 only. It does not produce parse, recognition or validation errors, and a green run
 still says nothing about Rust or Go.
 

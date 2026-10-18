@@ -266,6 +266,112 @@ SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "pa
 ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset"}
 
 
+_NAME_ESC = set("\\.[]{}=,")
+
+
+def parse_logical_path(text):
+    """Canonical ADR 0006 path text -> typed segments, or ValueError.
+
+    Used to check the *structure* of an expectation (is this a canonical path, is it a
+    segment prefix of that one, in which order do these come). It knows nothing of
+    schemas and decides nothing about a document.
+    """
+    if not isinstance(text, str) or not text.startswith("$"):
+        raise ValueError("no root marker")
+    i, segs = 1, []
+
+    def name(i, stop):
+        out = []
+        while i < len(text) and text[i] not in stop:
+            ch = text[i]
+            if ch == "\\":
+                if i + 1 >= len(text) or text[i + 1] not in _NAME_ESC:
+                    raise ValueError("bad escape at %d" % i)
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch in _NAME_ESC or ord(ch) < 0x20 or ord(ch) == 0x7F:
+                raise ValueError("unescaped %r at %d" % (ch, i))
+            out.append(ch)
+            i += 1
+        if not out:
+            raise ValueError("empty name at %d" % i)
+        return "".join(out), i
+
+    while i < len(text):
+        if text[i] == ".":
+            n, i = name(i + 1, ".[")
+            segs.append(("field", n))
+        elif text[i] == "[" and segs and segs[-1][0] == "field" and text[i + 1:i + 2] == "{":
+            i += 2
+            comps = []
+            while True:
+                n, i = name(i, "=")
+                i += 1
+                if i < len(text) and text[i] == '"':
+                    i += 1
+                    val = []
+                    while True:
+                        if i >= len(text):
+                            raise ValueError("unterminated string")
+                        ch = text[i]
+                        if ch == '"':
+                            i += 1
+                            break
+                        if ch == "\\":
+                            d = text[i + 1:i + 2]
+                            esc = {'"': '"', "\\": "\\", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+                            if d in esc:
+                                val.append(esc[d])
+                                i += 2
+                            elif d == "u" and re.fullmatch(r"00[01][0-9a-f]", text[i + 2:i + 6]) \
+                                    and int(text[i + 2:i + 6], 16) not in (8, 9, 10, 12, 13):
+                                val.append(chr(int(text[i + 2:i + 6], 16)))
+                                i += 6
+                            else:
+                                raise ValueError("non-canonical escape at %d" % i)
+                            continue
+                        if ord(ch) < 0x20:
+                            raise ValueError("control character in string")
+                        val.append(ch)
+                        i += 1
+                    comps.append((n, "string", "".join(val)))
+                else:
+                    m = re.match(r"-?(?:0|[1-9][0-9]*)", text[i:])
+                    if not m or m.group() == "-0":
+                        raise ValueError("bad integer at %d" % i)
+                    v = int(m.group())
+                    if not -2 ** 63 <= v < 2 ** 63:
+                        raise ValueError("integer out of range")
+                    i += len(m.group())
+                    comps.append((n, "integer", v))
+                if text[i:i + 1] == ",":
+                    i += 1
+                    continue
+                if text[i:i + 2] == "}]":
+                    i += 2
+                    break
+                raise ValueError("bad selector at %d" % i)
+            if len({c[0] for c in comps}) != len(comps):
+                raise ValueError("duplicate component")
+            segs.append(("item", tuple(comps)))
+        else:
+            raise ValueError("unexpected %r at %d" % (text[i:i + 1], i))
+    return segs
+
+
+def path_order_key(segs):
+    """Segment-wise order of ADR 0007: prefix first, names by UTF-8 bytes, integer keys numerically."""
+    key = []
+    for kind, v in segs:
+        if kind == "field":
+            key.append((0, v.encode("utf-8")))
+        else:
+            key.append((1, tuple((n.encode("utf-8"), (0, x) if k == "integer" else (1, x.encode("utf-8")))
+                                 for n, k, x in v)))
+    return key
+
+
 def location_problem(text, loc):
     """Do line, column (code points, 1-based) and offset (UTF-8 bytes, 0-based) agree on this text?"""
     data = text.encode("utf-8")
@@ -355,10 +461,20 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
         if "logical_path" in e:
             if phase in ("parse", "path_parse", "path_format"):
                 vs.append(Violation("ERROR_SHAPE", ew, "no logical_path in phase %s: it cannot be determined" % phase))
-            elif not isinstance(lp, str) or not lp.startswith("$"):
-                vs.append(Violation("ERROR_SHAPE", ew, "logical_path is a canonical path text starting with $"))
-            elif phase == "path_resolve" and isinstance(case.get("path"), str) and not case["path"].startswith(lp):
-                vs.append(Violation("ERROR_SHAPE", ew, "logical_path must be a prefix of the resolved path text"))
+            else:
+                try:
+                    lsegs = parse_logical_path(lp)
+                except ValueError as exc:
+                    vs.append(Violation("ERROR_SHAPE", ew, "logical_path is not a canonical path: %s" % exc))
+                else:
+                    if phase == "path_resolve" and isinstance(case.get("path"), str):
+                        try:
+                            csegs = parse_logical_path(case["path"])
+                        except ValueError:
+                            csegs = None
+                        if csegs is None or csegs[:len(lsegs)] != lsegs or not lsegs:
+                            vs.append(Violation("ERROR_SHAPE", ew,
+                                                "logical_path must be a whole-segment prefix of the resolved path"))
         elif phase == "path_resolve":
             vs.append(Violation("ERROR_SHAPE", ew, "a resolution error names the logical path it stopped at"))
     if len(phases) > 1:
@@ -369,6 +485,14 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
         keys = [(e.get("logical_path"), e.get("code")) for e in errs if isinstance(e, dict)]
         if any(k[0] is None for k in keys) or len(set(keys)) != len(keys):
             vs.append(Violation("ERROR_ORDER", w, "several errors need a logical_path each and distinct (path, code) pairs"))
+        else:
+            try:
+                order = [(path_order_key(parse_logical_path(p)), c.encode("utf-8")) for p, c in keys]
+            except ValueError:
+                order = None  # a malformed logical_path is reported as ERROR_SHAPE above
+            if order is not None and order != sorted(order):
+                vs.append(Violation("ERROR_ORDER", w,
+                                    "errors are not in the order of ADR 0007 (logical path segment-wise, then code)"))
 
 
 def check_typed(tv, where, vs):
@@ -580,8 +704,14 @@ def check_shape(shape, where, vs):
         vs.append(Violation("SCHEMA_FIXTURE", where, "shape.min_items must be an integer"))
     if "fields" in shape:
         f = shape["fields"]
-        if not isinstance(f, dict) or any(v not in PRESENCE for v in f.values()):
-            vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional"))
+        if not isinstance(f, dict) or not f:
+            vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional or a nested shape"))
+            return
+        for v in f.values():
+            if isinstance(v, dict):
+                check_shape(dict({"type": "composite"}, **v), where, vs)
+            elif v not in PRESENCE:
+                vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional or a nested shape"))
 
 
 def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes, trees=None):
@@ -940,6 +1070,16 @@ def loader_invariants():
         ("strict equality: null is not ''", not strict_eq(None, "")),
         ("strict equality: nested", strict_eq({"a": [0, None]}, {"a": [0, None]})
          and not strict_eq({"a": [0]}, {"a": [False]})),
+    ]
+    k = lambda t: path_order_key(parse_logical_path(t))
+    checks += [
+        ("order: prefix before extension", k("$.a") < k("$.a.x")),
+        ("order: segments, not text ('$.a.x' before '$.a b')", k("$.a.x") < k("$.a b") and "$.a b" < "$.a.x"),
+        ("order: names by UTF-8 bytes", k("$.b") < k("$.\u00e9")),
+        ("order: integer keys numerically", k("$.l[{k=2}]") < k("$.l[{k=10}]") and "$.l[{k=10}]" < "$.l[{k=2}]"),
+        ("path: canonical text accepted", parse_logical_path('$.l[{name="a,b"}].x') is not None),
+        ("path: whole segment prefix only", parse_logical_path("$.nope")[:len(parse_logical_path("$.no"))]
+         != parse_logical_path("$.no")),
     ]
     bad = [name for name, ok in checks if not ok]
     for name in bad:
