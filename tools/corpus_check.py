@@ -83,7 +83,7 @@ def _reset_resolvers():
     StrictLoader.yaml_implicit_resolvers = {}
     add = StrictLoader.add_implicit_resolver
     add("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false)$"), list("tf"))
-    add("tag:yaml.org,2002:null", re.compile(r"^(?:null|~)$"), list("n~"))
+    add("tag:yaml.org,2002:null", re.compile(r"^(?:null|~|)$"), ["n", "~", ""])
     add("tag:yaml.org,2002:int", re.compile(r"^[-+]?(?:0|[1-9][0-9]*)$"), list("-+0123456789"))
     add("tag:yaml.org,2002:float",
         re.compile(r"^[-+]?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?$"),
@@ -169,7 +169,7 @@ COMMON_FIELDS = {"id", "kind", "polarity", "description", "adr", "grammar",
                  "schema", "codes_status", "expect"}
 REQUIRED_COMMON = ("id", "kind", "polarity", "schema", "expect")
 EXPECT_KEYS = {
-    "recognize": ({"class", "classes", "validate", "opaque_value", "phase", "code"}, None),
+    "recognize": ({"class", "elements", "validate", "opaque_value", "phase", "code"}, None),
     "validate": ({"valid", "error", "stays_absent", "default_candidate", "path",
                   "kind", "is_inherit", "preserved", "upstream_conflict"}, None),
     "roundtrip": ({"expanded", "collapsed", "fields"}, None),
@@ -190,20 +190,31 @@ def valid_position(p):
         if k == "structured":
             return isinstance(v, list) and all(isinstance(x, str) and x for x in v)
         if k == "list_of":
-            return valid_position(v)
+            return valid_record(v)
     return False
 
 
-def collect_codes(node, out):
-    if isinstance(node, dict):
-        for k, v in node.items():
-            if k in ("error", "code") and isinstance(v, str):
-                out.append(v)
-            else:
-                collect_codes(v, out)
-    elif isinstance(node, list):
-        for v in node:
-            collect_codes(v, out)
+def valid_record(r):
+    """A list element is a structural record, not a position (ADR 0002); its fields are."""
+    if isinstance(r, dict) and set(r) == {"record"} and isinstance(r["record"], dict) and r["record"]:
+        return all(valid_position(p) for p in r["record"].values())
+    return False
+
+
+def collect_codes(expect):
+    """Codes live only at expect.error, expect.code and expect.validate.code.
+
+    Typed values (`fields`, `preserved`, `expanded`, `collapsed`) are data and are
+    never searched: a map that happens to hold `code` or `error` keys is not a code.
+    """
+    out = []
+    for key in ("error", "code"):
+        if key in expect:
+            out.append(expect[key])
+    v = expect.get("validate")
+    if isinstance(v, dict) and "code" in v:
+        out.append(v["code"])
+    return out
 
 
 def check_typed(tv, where, vs):
@@ -337,8 +348,10 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             if r not in expect:
                 vs.append(Violation("EXPECT_FIELD", where, "expect.%s is required for %s" % (r, kind)))
         check_expect_types(kind, expect, where + ".expect", vs)
-        found = []
-        collect_codes(expect, found)
+        found = collect_codes(expect)
+        if not all(isinstance(x, str) for x in found):
+            vs.append(Violation("EXPECT_FIELD", where, "error and code expectations must be strings"))
+            found = [x for x in found if isinstance(x, str)]
         used_codes.update(found)
         negative = bool(found)
         if case.get("polarity") in ("positive", "negative") and (case["polarity"] == "negative") != negative:
@@ -498,7 +511,30 @@ def apply_fault(fault, root):
             fh.write(text.replace(op["old"], op["new"]))
 
 
+def loader_invariants():
+    """The strict loader must keep the YAML meaning the corpus relies on (ADR 0003)."""
+    def load(text):
+        return yaml.load(text, Loader=StrictLoader)
+    checks = [
+        ("empty scalar is null", load("a:\n") == {"a": None}),
+        ("empty scalar equals explicit null", load("a:\n") == load("a: null\n")),
+        ("tilde is null", load("a: ~\n") == {"a": None}),
+        ("empty string stays a string", load("a: ''\n") == {"a": ""}),
+        ("0 is an integer, not a boolean", yaml_type(load("a: 0\n")["a"]) == "integer"),
+        ("false is a boolean", yaml_type(load("a: false\n")["a"]) == "boolean"),
+        ("quoted 0 is a string", yaml_type(load("a: '0'\n")["a"]) == "string"),
+        ("empty flow list is a list", load("a: []\n") == {"a": []}),
+        ("empty flow map is a map", load("a: {}\n") == {"a": {}}),
+    ]
+    bad = [name for name, ok in checks if not ok]
+    for name in bad:
+        print("  loader invariant broken: %s" % name)
+    return 1 if bad else 0
+
+
 def selftest(root):
+    if loader_invariants():
+        return 1
     spec_path = os.path.join(root, "tools", "corpus_faults.yaml")
     spec = load_file(spec_path)
     base, _ = check_corpus(root)

@@ -140,13 +140,20 @@ cases:
     input: {access: inherit, conformance: implemented, default_injection: null, host: a, inherit: true, modify: inherit, value: 4}
     expect: {class: error, code: EXPANDED_WITH_EXTRA_KEY}
     codes_status: provisional
-  - id: recognition.list-elements-recognized-individually
+  - id: recognition.list-record-fields-recognized-individually
     kind: recognize
     polarity: positive
-    description: provisional, depends on the schema contract (issue 3 point 4)
-    schema: {synthetic: {position: {list_of: {structured: [host]}}}}
-    input: [{host: a}, {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}]
-    expect: {classes: [short, expanded]}
+    description: a list element is a structural record, not a position (ADR 0002); each field of the record is recognized on its own
+    schema: {synthetic: {position: {list_of: {record: {host: scalar, port: scalar}}}}}
+    input: [{host: a, port: 22}, {host: b, port: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 22}}]
+    expect: {elements: [{host: short, port: short}, {host: short, port: expanded}]}
+  - id: recognition.list-record-is-not-recognized-as-a-whole
+    kind: recognize
+    polarity: positive
+    description: a record whose field names equal the Access key set is still a record; only its fields are positions
+    schema: {synthetic: {position: {list_of: {record: {value: scalar, access: scalar, modify: scalar, inherit: scalar, default_injection: scalar, conformance: scalar}}}}}
+    input: [{access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}]
+    expect: {elements: [{access: short, conformance: short, default_injection: short, inherit: short, modify: short, value: short}]}
   - id: recognition.duplicate-key
     kind: recognize
     polarity: negative

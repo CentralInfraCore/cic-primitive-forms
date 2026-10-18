@@ -171,3 +171,18 @@ cases:
     input: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit}
     expect: {class: short, validate: {code: MAP_AT_SCALAR_POSITION}}
     codes_status: provisional
+  - id: presence.null-spelled-as-empty-scalar
+    kind: validate
+    polarity: negative
+    description: "`input:` with no value is YAML null, the same as `input: null` (ADR 0003); it is not an empty string"
+    schema: {synthetic: {shape: {presence: mandatory, type: string}}}
+    input:
+    expect: {error: NULL_NOT_ALLOWED}
+    codes_status: provisional
+  - id: presence.map-with-code-and-error-keys-is-data
+    kind: roundtrip
+    polarity: positive
+    description: keys named code and error inside data are data, never test-control metadata
+    schema: {synthetic: {position: opaque}}
+    input: {code: '200', error: none-so-far}
+    expect: {collapsed: {type: map, value: {code: '200', error: none-so-far}}, expanded: {type: map, value: {code: '200', error: none-so-far}}}

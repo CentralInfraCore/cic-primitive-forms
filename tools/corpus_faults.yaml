@@ -83,3 +83,13 @@ faults:
   - id: expect-unknown-key
     rule: EXPECT_FIELD
     ops: [{file: corpus/presence/vectors.yaml, old: "expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.optional-nullable-null", new: "expect: {error: NULL_NOT_ALLOWED, bogus: 1}\n    codes_status: provisional\n  - id: presence.optional-nullable-null"}]
+  - id: schema-pin-dangling
+    rule: REF_DANGLING
+    ops: [{file: corpus/recognition/vectors.yaml, old: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {synthetic: {position: scalar}}", new: "id: recognition.scalar-short\n    kind: recognize\n    polarity: positive\n    schema: {pin: no-such-schema}"}]
+  - id: record-position-malformed
+    rule: SCHEMA_FIXTURE
+    ops: [{file: corpus/recognition/vectors.yaml, old: "position: {list_of: {record: {host: scalar, port: scalar}}}", new: "position: {list_of: {structured: [host]}}"}]
+  - id: empty-scalar-case-loses-codes-status
+    rule: CODE_STATUS
+    ops: [{file: corpus/presence/vectors.yaml, old: "    expect: {error: NULL_NOT_ALLOWED}\n    codes_status: provisional\n  - id: presence.map-with-code", new: "    expect: {error: NULL_NOT_ALLOWED}\n  - id: presence.map-with-code"}]
+

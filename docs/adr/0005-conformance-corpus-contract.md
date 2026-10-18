@@ -67,7 +67,7 @@ may override them.
 
 | Kind | Input fields | Expectation keys |
 |---|---|---|
-| `recognize` | `input` or `input_yaml` (raw text, for parse-phase cases) | `class`, `classes`, `validate`, `opaque_value`, `phase`, `code` |
+| `recognize` | `input` or `input_yaml` (raw text, for parse-phase cases) | `class`, `elements` (per list element: field to class), `validate`, `opaque_value`, `phase`, `code` |
 | `validate` | `input` or `absent: true` | `valid`, `error`, `stays_absent`, `default_candidate`, `path`, `kind`, `is_inherit`, `preserved`, `upstream_conflict` |
 | `roundtrip` | `input` or `absent: true` | `expanded`, `collapsed`, `fields` (typed values) |
 | `collapse` | `input`, boolean `authored_expanded` | `collapse` (required), `fields` |
@@ -77,7 +77,7 @@ may override them.
 ### Schema reference
 
 `schema: {synthetic: {...}}` is an inline fixture notation, never a schema
-definition: `position` (`scalar | opaque | {structured: [..]} | {list_of: ..}`),
+definition: `position` (`scalar | opaque | {structured: [..]} | {list_of: {record: {field: position}}}`; a list element is a record, not a position, ADR 0002),
 `shape` (the ADR 0003 shorthand) or `slot` (`inherit_key | inherit_policy |
 access_modify`, the atom slot under test). `schema: {pin: <id>}` points at a real
 schema pinned in `pins.yaml`. Pins carry repo, commit, path and sha256 (or repo,
@@ -110,8 +110,10 @@ fixture reads the same in every YAML implementation.
 
 ### Polarity and codes
 
-A case is `negative` exactly when its expectation carries an error code (an
-`error` or `code` key at any depth), `positive` otherwise; the gate cross-checks.
+A case is `negative` exactly when its expectation carries an error code, `positive`
+otherwise; the gate cross-checks. Codes are read only from the declared places
+`expect.error`, `expect.code` and `expect.validate.code`. Typed values are data and
+are never searched, so a map with `code` or `error` keys is not a code.
 Codes must be listed in `corpus/codes.yaml`. **All codes are `provisional`** until
 the error-contract ADR (issue #3 point 6) closes. A case that uses a code carries
 `codes_status: provisional`, so the provisional state is machine readable and a
@@ -131,12 +133,21 @@ red. It also requires the unmodified corpus to be clean, each replacement to mat
 exactly once (so a stale fault cannot pass silently), and **every rule of the
 checker to have at least one fault**. A new rule without a fault fails the gate.
 
-Current state: 3 suites, 83 cases, 22 rules, 27 faults.
+The self-test also asserts loader invariants first: an empty scalar is `null`
+(equal to `null`), `''` stays a string, `0` is an integer, `false` a boolean.
+
+Current state: 3 suites, 86 cases, 22 rules, 30 faults.
 
 ## Migration of the existing vectors
 
-The 83 vectors of ADR 0001, 0003 and 0004 were converted mechanically; inputs and
-meanings are unchanged. Changes that are not mechanical:
+The 83 vectors of ADR 0001, 0003 and 0004 were converted mechanically. Changes that
+are not mechanical:
+
+- `list-elements-recognized-individually` treated whole list elements as
+  primitives, which ADR 0002 superseded. It is replaced by
+  `list-record-fields-recognized-individually` and
+  `list-record-is-not-recognized-as-a-whole`: the record's fields are recognized,
+  the record is not;
 
 - ids gain the `<suite>.` prefix; three ids lost an uppercase letter; inherit ids
   gain `key-`, `policy-` or `access-` where they would collide;
@@ -150,6 +161,11 @@ meanings are unchanged. Changes that are not mechanical:
 
 ## Not decided here
 
+- The grammar digest required by ADR 0002 (decision 3). `pins.yaml` pins the grammar
+  by commit only; which bytes the digest covers is not defined yet and is not
+  invented here.
+- A case against the real pinned schema. The `pin` reference path is exercised by a
+  seeded fault only; no semantic case uses it before the schema-driven runner exists.
 - The path grammar and the diff format. No case carries a path expression beyond
   the existing `path: a` hint of one validate case; the `path` key is part of the
   provisional error contract and will be revisited with it.
