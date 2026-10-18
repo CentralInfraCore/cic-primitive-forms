@@ -78,6 +78,8 @@ may override them.
 | `path_resolve` | `path` | `target` and `primitive_position`, or `errors` |
 | `path_of` | `document`, `at` | `path` or `errors` |
 | `path_stability` | `variants` (at least two `{document or document_yaml, at}`) | `path` or `errors` |
+| `diff` | `a` or `a_yaml`, `b` or `b_yaml`, optional `scope`, optional `schema_b` | `changes`, `representation`, `canonical`, or `errors` |
+| `diff_stability` | `variants` (at least two `{a|a_yaml, b|b_yaml}`), optional `scope`, optional `schema_b` | same as `diff` |
 
 ### Schema reference
 
@@ -150,6 +152,16 @@ The five `path_*` kinds above are added. Their rules:
   raw `document_yaml` text instead of a parsed `document`, since a parsed mapping has
   no order to vary.
 - An expectation holds exactly one of its success key and `errors`.
+
+## Amendment for ADR 0008 (diff kinds)
+
+`diff` and `diff_stability` use the `trees` of the suite (`schema: {synthetic: {tree:
+name}}`). An operand is a parsed document or raw YAML text; `scope` is a list of
+canonical logical paths; `schema_b`, if present, must differ from `schema` (a context
+mismatch case). Variants of a stability case must differ in their operands. The
+expectation is `changes`, `representation` and `canonical` together, or `errors`;
+events, their order and the canonical bytes are checked by the rules of ADR 0008. An
+error about one view carries `operand`.
 
 ## The gate and its proof
 

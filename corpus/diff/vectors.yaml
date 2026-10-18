@@ -1,0 +1,470 @@
+# Provisional diff cases for ADR 0008. Format: ADR 0005 plus its diff amendment.
+# A diff compares two logical views (documents read under one schema tree) A to B and describes the
+# difference; it is evidence, not an instruction. Events carry typed previous/next values. An appearing
+# or disappearing node carries its expanded logical fragment (value plus the five Access declaration
+# fields). representation lists short/expanded differences and never counts as a difference.
+# canonical is the byte-exact serialization (ADR 0008): sorted keys, no whitespace, UTF-8.
+corpus_format: 2
+suite: diff
+status: provisional
+defaults: {adr: ADR-0008, grammar: cic-primitives-devel}
+trees:
+  main: {enabled: {scalar: boolean}, ip: {composite: {addresses: {set: string}, blob: opaque, gateway: {scalar: string}}}, mtu: {scalar: integer}, name: {scalar: string}, nics: {list: {fields: {name: {scalar: string}, subnet: {scalar: string}, zone: {scalar: string}}, key: [name, zone]}}, note: opaque, vlans: {list: {choice: [{fields: {ref: {scalar: string}}, key: [ref], name: referenced}, {fields: {vlan_id: {scalar: integer}, vlan_mode: {scalar: string}}, key: [vlan_id], name: inline}]}}}
+  other: {mtu: {scalar: string}}
+cases:
+  - id: diff.identical-documents
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1500, name: x}
+    b: {mtu: 1500, name: x}
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.short-versus-expanded-same-logical-value
+    kind: diff
+    polarity: positive
+    description: a representation change alone is not a difference of the views
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1500}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}
+    expect: {canonical: '{"changes":[],"representation":[{"kind":"representation_change","next":"expanded","path":"$.mtu","previous":"short"}],"version":1}', changes: [], representation: [{kind: representation_change, next: expanded, path: $.mtu, previous: short}]}
+  - id: diff.expanded-versus-short-same-logical-value
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}
+    b: {mtu: 1500}
+    expect: {canonical: '{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":"$.mtu","previous":"expanded"}],"version":1}', changes: [], representation: [{kind: representation_change, next: short, path: $.mtu, previous: expanded}]}
+  - id: diff.both-expanded-with-default-declaration
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.value-change-and-representation-change
+    kind: diff
+    polarity: positive
+    description: the representation entry is reported next to, not instead of, the value change
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1500}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1600}}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":1600,"path":"$.mtu","previous":1500}],"representation":[{"kind":"representation_change","next":"expanded","path":"$.mtu","previous":"short"}],"version":1}', changes: [{kind: value_change, next: {type: integer, value: 1600}, path: $.mtu, previous: {type: integer, value: 1500}}], representation: [{kind: representation_change, next: expanded, path: $.mtu, previous: short}]}
+  - id: diff.explicit-policy-override-is-not-a-representation-change
+    kind: diff
+    polarity: positive
+    description: an explicit override written in the expanded form is a declaration change; it is never hidden as a representation change
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1500}
+    b: {mtu: {access: [OU=ops], conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1500}}
+    expect: {canonical: '{"changes":[{"changed":{"access":{"next":["OU=ops"],"previous":"inherit"}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[{"kind":"representation_change","next":"expanded","path":"$.mtu","previous":"short"}],"version":1}', changes: [{changed: {access: {next: {type: list, value: [OU=ops]}, previous: {type: string, value: inherit}}}, kind: policy_declaration_change, path: $.mtu}], representation: [{kind: representation_change, next: expanded, path: $.mtu, previous: short}]}
+  - id: diff.policy-change-between-two-expanded-nodes
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: [OU=a], value: 1}}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: [OU=b], value: 1}}
+    expect: {canonical: '{"changes":[{"changed":{"modify":{"next":["OU=b"],"previous":["OU=a"]}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}', changes: [{changed: {modify: {next: {type: list, value: [OU=b]}, previous: {type: list, value: [OU=a]}}}, kind: policy_declaration_change, path: $.mtu}], representation: []}
+  - id: diff.policy-list-versus-empty-list
+    kind: diff
+    polarity: positive
+    description: an empty list (nobody) differs from the symbol inherit
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: [], conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    expect: {canonical: '{"changes":[{"changed":{"access":{"next":"inherit","previous":[]}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}', changes: [{changed: {access: {next: {type: string, value: inherit}, previous: {type: list, value: []}}}, kind: policy_declaration_change, path: $.mtu}], representation: []}
+  - id: diff.inherit-false-versus-zero-is-a-declaration-change
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: false, modify: inherit, value: 1}}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: 0, modify: inherit, value: 1}}
+    expect: {canonical: '{"changes":[{"changed":{"inherit":{"next":0,"previous":false}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}', changes: [{changed: {inherit: {next: {type: integer, value: 0}, previous: {type: boolean, value: false}}}, kind: policy_declaration_change, path: $.mtu}], representation: []}
+  - id: diff.default-injection-null-versus-zero
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    b: {mtu: {access: inherit, conformance: implemented, default_injection: 0, inherit: true, modify: inherit, value: 1}}
+    expect: {canonical: '{"changes":[{"changed":{"default_injection":{"next":0,"previous":null}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}', changes: [{changed: {default_injection: {next: {type: integer, value: 0}, previous: {type: 'null', value: null}}}, kind: policy_declaration_change, path: $.mtu}], representation: []}
+  - id: diff.conformance-change
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    b: {mtu: {access: inherit, conformance: deprecated, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    expect: {canonical: '{"changes":[{"changed":{"conformance":{"next":"deprecated","previous":"implemented"}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}', changes: [{changed: {conformance: {next: {type: string, value: deprecated}, previous: {type: string, value: implemented}}}, kind: policy_declaration_change, path: $.mtu}], representation: []}
+  - id: diff.value-and-declaration-change-at-one-position
+    kind: diff
+    polarity: positive
+    description: two events at one path are ordered by kind, bytewise
+    schema: {synthetic: {tree: main}}
+    a: {mtu: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 1}}
+    b: {mtu: {access: [OU=a], conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 2}}
+    expect: {canonical: '{"changes":[{"changed":{"access":{"next":["OU=a"],"previous":"inherit"}},"kind":"policy_declaration_change","path":"$.mtu"},{"kind":"value_change","next":2,"path":"$.mtu","previous":1}],"representation":[],"version":1}', changes: [{changed: {access: {next: {type: list, value: [OU=a]}, previous: {type: string, value: inherit}}}, kind: policy_declaration_change, path: $.mtu}, {kind: value_change, next: {type: integer, value: 2}, path: $.mtu, previous: {type: integer, value: 1}}], representation: []}
+  - id: diff.opaque-zero-versus-false
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: 0}
+    b: {note: false}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":false,"path":"$.note","previous":0}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: boolean, value: false}, path: $.note, previous: {type: integer, value: 0}}], representation: []}
+  - id: diff.absent-versus-null-added
+    kind: diff
+    polarity: positive
+    description: Absent to null is an appearance, not a change of value
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {note: null}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":null},"path":"$.note"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: null}}, path: $.note}], representation: []}
+  - id: diff.null-versus-absent-removed
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: null}
+    b: {}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.note","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":null}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.note, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: null}}}], representation: []}
+  - id: diff.opaque-null-versus-empty-string
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: null}
+    b: {note: ''}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"","path":"$.note","previous":null}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: ''}, path: $.note, previous: {type: 'null', value: null}}], representation: []}
+  - id: diff.opaque-empty-list-versus-empty-map
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: []}
+    b: {note: {}}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":{},"path":"$.note","previous":[]}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: map, value: {}}, path: $.note, previous: {type: list, value: []}}], representation: []}
+  - id: diff.opaque-map-key-order-is-irrelevant
+    kind: diff
+    polarity: positive
+    description: the YAML mapping order of an opaque value is not a difference
+    schema: {synthetic: {tree: main}}
+    a_yaml: "note: {x: 1, y: 2}\n"
+    b_yaml: "note: {y: 2, x: 1}\n"
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.opaque-list-order-is-significant
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: [1, 2]}
+    b: {note: [2, 1]}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":[2,1],"path":"$.note","previous":[1,2]}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: list, value: [2, 1]}, path: $.note, previous: {type: list, value: [1, 2]}}], representation: []}
+  - id: diff.opaque-is-atomic
+    kind: diff
+    polarity: positive
+    description: one event with both whole values; no event for the interior
+    schema: {synthetic: {tree: main}}
+    a: {note: {x: 1, 'y': {z: 2}}}
+    b: {note: {x: 1, 'y': {z: 3}}}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":{"x":1,"y":{"z":3}},"path":"$.note","previous":{"x":1,"y":{"z":2}}}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: map, value: {x: 1, 'y': {z: 3}}}, path: $.note, previous: {type: map, value: {x: 1, 'y': {z: 2}}}}], representation: []}
+  - id: diff.scalar-zero-versus-absent
+    kind: diff
+    polarity: positive
+    description: 0 is a value, not a missing value
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 0}
+    b: {}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.mtu","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":0}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.mtu, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 0}}}], representation: []}
+  - id: diff.scalar-false-versus-absent
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {enabled: false}
+    b: {}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.enabled","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":false}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.enabled, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: false}}}], representation: []}
+  - id: diff.field-added
+    kind: diff
+    polarity: positive
+    description: 'direction A to B: a field only in B is added'
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {name: x}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"x"},"path":"$.name"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: x}}, path: $.name}], representation: []}
+  - id: diff.field-removed
+    kind: diff
+    polarity: positive
+    description: the swapped operands give the swapped event
+    schema: {synthetic: {tree: main}}
+    a: {name: x}
+    b: {}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.name","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"x"}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.name, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: x}}}], representation: []}
+  - id: diff.composite-appears-as-one-event
+    kind: diff
+    polarity: positive
+    description: no separate events for the children of an appearing parent
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {ip: {addresses: [x], gateway: g}}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":{"addresses":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":["x"]},"gateway":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"}}},"path":"$.ip"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {addresses: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: [x]}, gateway: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: g}}}}, path: $.ip}], representation: []}
+  - id: diff.composite-disappears-as-one-event
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {gateway: g}}
+    b: {}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.ip","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":{"gateway":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"}}}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.ip, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {gateway: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: g}}}}}], representation: []}
+  - id: diff.composite-child-change-only
+    kind: diff
+    polarity: positive
+    description: a changed child produces no event for its parent
+    schema: {synthetic: {tree: main}}
+    a: {ip: {gateway: g1}}
+    b: {ip: {gateway: g2}}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"g2","path":"$.ip.gateway","previous":"g1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g1}}], representation: []}
+  - id: diff.empty-composite-versus-absent
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {ip: {}}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":{}},"path":"$.ip"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: {}}}, path: $.ip}], representation: []}
+  - id: diff.list-reordered-no-change
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, subnet: s1, zone: z}, {name: n2, subnet: s2, zone: z}]}
+    b: {nics: [{name: n2, subnet: s2, zone: z}, {name: n1, subnet: s1, zone: z}]}
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.list-item-added
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, zone: z}]}
+    b: {nics: [{name: n1, zone: z}, {name: n2, subnet: s2, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n2"},"subnet":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"s2"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}},"path":"$.nics[{name=\"n2\",zone=\"z\"}]"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n2}, subnet: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: s2}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}}, path: '$.nics[{name="n2",zone="z"}]'}], representation: []}
+  - id: diff.list-item-removed
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, zone: z}, {name: n2, zone: z}]}
+    b: {nics: [{name: n1, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.nics[{name=\"n2\",zone=\"z\"}]","previous":{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n2"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}}}],"representation":[],"version":1}', changes: [{kind: removed, path: '$.nics[{name="n2",zone="z"}]', previous: {type: map, value: {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n2}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}}}], representation: []}
+  - id: diff.list-item-field-changed
+    kind: diff
+    polarity: positive
+    description: the item is paired by its identity, never by its position
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, subnet: s1, zone: z}]}
+    b: {nics: [{name: n1, subnet: s2, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"s2","path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet","previous":"s1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: s2}, path: '$.nics[{name="n1",zone="z"}].subnet', previous: {type: string, value: s1}}], representation: []}
+  - id: diff.list-item-field-changed-after-reorder
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, subnet: s1, zone: z}, {name: n2, zone: z}]}
+    b: {nics: [{name: n2, zone: z}, {name: n1, subnet: s2, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"s2","path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet","previous":"s1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: s2}, path: '$.nics[{name="n1",zone="z"}].subnet', previous: {type: string, value: s1}}], representation: []}
+  - id: diff.composite-key-change-is-removal-plus-addition
+    kind: diff
+    polarity: positive
+    description: no rename is invented; two identities, one gone and one new
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, zone: z}]}
+    b: {nics: [{name: n1, zone: 'y'}]}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n1"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"y"}},"path":"$.nics[{name=\"n1\",zone=\"y\"}]"},{"kind":"removed","path":"$.nics[{name=\"n1\",zone=\"z\"}]","previous":{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n1"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}}}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n1}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 'y'}}}, path: '$.nics[{name="n1",zone="y"}]'}, {kind: removed, path: '$.nics[{name="n1",zone="z"}]', previous: {type: map, value: {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n1}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}}}], representation: []}
+  - id: diff.list-field-appears-as-one-event
+    kind: diff
+    polarity: positive
+    description: items in the payload are in identity order
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {nics: [{name: n2, zone: z}, {name: n1, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":[{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n1"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}},{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n2"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}}]},"path":"$.nics"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: [{name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n1}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}, {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n2}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}]}}, path: $.nics}], representation: []}
+  - id: diff.empty-list-versus-absent
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {}
+    b: {nics: []}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":[]},"path":"$.nics"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: []}}, path: $.nics}], representation: []}
+  - id: diff.empty-list-versus-items
+    kind: diff
+    polarity: positive
+    description: both lists are present, so the change is on the item, not on the list field
+    schema: {synthetic: {tree: main}}
+    a: {nics: []}
+    b: {nics: [{name: n1, zone: z}]}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"name":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"n1"},"zone":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"z"}},"path":"$.nics[{name=\"n1\",zone=\"z\"}]"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {name: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: n1}, zone: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: z}}}, path: '$.nics[{name="n1",zone="z"}]'}], representation: []}
+  - id: diff.item-choice-identity-change
+    kind: diff
+    polarity: positive
+    description: the same VLAN written as a reference and inline is two identities (ADR 0006)
+    schema: {synthetic: {tree: main}}
+    a: {vlans: [{ref: x}]}
+    b: {vlans: [{vlan_id: 100}]}
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.vlans[{ref=\"x\"}]","previous":{"ref":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"x"}}},{"kind":"added","next":{"vlan_id":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":100}},"path":"$.vlans[{vlan_id=100}]"}],"representation":[],"version":1}', changes: [{kind: removed, path: '$.vlans[{ref="x"}]', previous: {type: map, value: {ref: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: x}}}}, {kind: added, next: {type: map, value: {vlan_id: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: 100}}}, path: '$.vlans[{vlan_id=100}]'}], representation: []}
+  - id: diff.set-reordered-no-change
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a_yaml: "ip: {addresses: [a, b]}\n"
+    b_yaml: "ip: {addresses: [b, a]}\n"
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.set-element-added
+    kind: diff
+    polarity: positive
+    description: 'set elements are not addressable: one event on the set field'
+    schema: {synthetic: {tree: main}}
+    a: {ip: {addresses: [a]}}
+    b: {ip: {addresses: [a, b]}}
+    expect: {canonical: '{"changes":[{"added":["b"],"kind":"set_change","path":"$.ip.addresses","removed":[]}],"representation":[],"version":1}', changes: [{added: {type: list, value: [b]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: []}}], representation: []}
+  - id: diff.set-elements-added-and-removed
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {addresses: [c, a]}}
+    b: {ip: {addresses: [b, a]}}
+    expect: {canonical: '{"changes":[{"added":["b"],"kind":"set_change","path":"$.ip.addresses","removed":["c"]}],"representation":[],"version":1}', changes: [{added: {type: list, value: [b]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: [c]}}], representation: []}
+  - id: diff.set-appears-sorted
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {}}
+    b: {ip: {addresses: [b, a]}}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":["a","b"]},"path":"$.ip.addresses"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: [a, b]}}, path: $.ip.addresses}], representation: []}
+  - id: diff.empty-set-versus-absent
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {}}
+    b: {ip: {addresses: []}}
+    expect: {canonical: '{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":[]},"path":"$.ip.addresses"}],"representation":[],"version":1}', changes: [{kind: added, next: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: []}}, path: $.ip.addresses}], representation: []}
+  - id: diff.scope-limits-the-comparison
+    kind: diff
+    polarity: positive
+    description: 'name is outside the scope: B says nothing about it, which is not the same as B lacking it'
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1, name: x}
+    b: {mtu: 2}
+    scope: [$.mtu]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":2,"path":"$.mtu","previous":1}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: integer, value: 2}, path: $.mtu, previous: {type: integer, value: 1}}], representation: []}
+  - id: diff.absence-outside-scope-is-not-removal
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {name: x}
+    b: {}
+    scope: [$.mtu]
+    expect: {canonical: '{"changes":[],"representation":[],"version":1}', changes: [], representation: []}
+  - id: diff.absence-inside-scope-is-removal
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {name: x}
+    b: {}
+    scope: [$.name]
+    expect: {canonical: '{"changes":[{"kind":"removed","path":"$.name","previous":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"x"}}],"representation":[],"version":1}', changes: [{kind: removed, path: $.name, previous: {type: map, value: {access: inherit, conformance: implemented, default_injection: null, inherit: true, modify: inherit, value: x}}}], representation: []}
+  - id: diff.scope-subtree
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {ip: {gateway: g1}, mtu: 1}
+    b: {ip: {gateway: g2}, mtu: 2}
+    scope: [$.ip]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"g2","path":"$.ip.gateway","previous":"g1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g1}}], representation: []}
+  - id: diff.scope-names-one-list-item
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: n1, subnet: a, zone: z}, {name: n2, subnet: a, zone: z}]}
+    b: {nics: [{name: n1, subnet: b, zone: z}, {name: n2, subnet: b, zone: z}, {name: n3, zone: z}]}
+    scope: ['$.nics[{name="n1",zone="z"}]']
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"b","path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet","previous":"a"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: b}, path: '$.nics[{name="n1",zone="z"}].subnet', previous: {type: string, value: a}}], representation: []}
+  - id: diff.scope-overlapping-entries
+    kind: diff
+    polarity: positive
+    description: a scope entry inside another adds nothing
+    schema: {synthetic: {tree: main}}
+    a: {ip: {gateway: g1}}
+    b: {ip: {gateway: g2}}
+    scope: [$.ip, $.ip.gateway]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"g2","path":"$.ip.gateway","previous":"g1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g1}}], representation: []}
+  - id: diff.canonical-escaping-and-non-ascii
+    kind: diff
+    polarity: positive
+    description: string escaping follows the ADR 0006 canonical string rules
+    schema: {synthetic: {tree: main}}
+    a: {name: é}
+    b: {name: "a\"b\n\\"}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"a\"b\n\\","path":"$.name","previous":"é"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: "a\"b\n\\"}, path: $.name, previous: {type: string, value: é}}], representation: []}
+  - id: diff.canonical-integer-extremes
+    kind: diff
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    a: {note: -9223372036854775808}
+    b: {note: 9223372036854775807}
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":9223372036854775807,"path":"$.note","previous":-9223372036854775808}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: integer, value: 9223372036854775807}, path: $.note, previous: {type: integer, value: -9223372036854775808}}], representation: []}
+  - id: diff.scope-names-an-unknown-field
+    kind: diff
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    a: {mtu: 1}
+    b: {mtu: 2}
+    scope: [$.nope]
+    expect: {errors: [{code: UNKNOWN_FIELD, logical_path: $.nope, phase: path_resolve, source_location: {state: not_applicable}}]}
+    codes_status: stable
+  - id: diff.context-mismatch
+    kind: diff
+    polarity: negative
+    description: two views of different schemas are never compared silently
+    schema: {synthetic: {tree: main}}
+    schema_b: {synthetic: {tree: other}}
+    a: {mtu: 1}
+    b: {mtu: '1'}
+    expect: {errors: [{code: DIFF_CONTEXT_MISMATCH, phase: diff, source_location: {state: not_applicable}}]}
+    codes_status: stable
+  - id: diff.unsupported-float
+    kind: diff
+    polarity: negative
+    description: floats have no canonical form yet; even equal ones are refused, so the error does not depend on the data being compared
+    schema: {synthetic: {tree: main}}
+    a: {note: 1.5}
+    b: {note: 1.5}
+    expect: {errors: [{code: DIFF_UNSUPPORTED_VALUE, logical_path: $.note, operand: a, phase: diff, source_location: {state: not_applicable}}]}
+    codes_status: provisional
+  - id: diff.unsupported-integer-beyond-64-bits
+    kind: diff
+    polarity: negative
+    schema: {synthetic: {tree: main}}
+    a: {note: 1}
+    b: {note: 9223372036854775808}
+    expect: {errors: [{code: DIFF_UNSUPPORTED_VALUE, logical_path: $.note, operand: b, phase: diff, source_location: {state: not_applicable}}]}
+    codes_status: provisional
+  - id: diff.duplicate-identity-in-an-operand
+    kind: diff
+    polarity: negative
+    description: building the view fails before any comparison
+    schema: {synthetic: {tree: main}}
+    a: {nics: [{name: a, zone: b}]}
+    b: {nics: [{name: a, zone: b}, {name: a, zone: b}]}
+    expect: {errors: [{code: PATH_DUPLICATE_IDENTITY, logical_path: '$.nics[{name="a",zone="b"}]', operand: b, phase: path_of, source_location: {state: unavailable}}]}
+    codes_status: stable
+  - id: diff.stability-mapping-order
+    kind: diff_stability
+    polarity: positive
+    description: the same diff whatever the mapping order of either operand
+    schema: {synthetic: {tree: main}}
+    variants: [{a_yaml: "mtu: 1\nname: x\n", b_yaml: "mtu: 2\nname: x\n"}, {a_yaml: "name: x\nmtu: 1\n", b_yaml: "name: x\nmtu: 2\n"}]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":2,"path":"$.mtu","previous":1}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: integer, value: 2}, path: $.mtu, previous: {type: integer, value: 1}}], representation: []}
+  - id: diff.stability-list-and-set-order
+    kind: diff_stability
+    polarity: positive
+    description: 'events are ordered by logical path: ip before nics'
+    schema: {synthetic: {tree: main}}
+    variants: [{a_yaml: "nics:\n  - {name: n1, zone: z, subnet: a}\n  - {name: n2, zone: z}\nip: {addresses: [a, b]}\n", b_yaml: "nics:\n  - {name: n1, zone: z, subnet: b}\n  - {name: n2, zone: z}\nip: {addresses: [a, c]}\n"}, {a_yaml: "ip: {addresses: [b, a]}\nnics:\n  - {zone: z, name: n2}\n  - {subnet: a, zone: z, name: n1}\n", b_yaml: "ip: {addresses: [c, a]}\nnics:\n  - {zone: z, name: n2}\n  - {subnet: b, name: n1, zone: z}\n"}]
+    expect: {canonical: '{"changes":[{"added":["c"],"kind":"set_change","path":"$.ip.addresses","removed":["b"]},{"kind":"value_change","next":"b","path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet","previous":"a"}],"representation":[],"version":1}', changes: [{added: {type: list, value: [c]}, kind: set_change, path: $.ip.addresses, removed: {type: list, value: [b]}}, {kind: value_change, next: {type: string, value: b}, path: '$.nics[{name="n1",zone="z"}].subnet', previous: {type: string, value: a}}], representation: []}
+  - id: diff.stability-flow-versus-block-style
+    kind: diff_stability
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    variants: [{a_yaml: "ip: {gateway: g1}\n", b_yaml: "ip: {gateway: g2}\n"}, {a_yaml: "ip:\n  gateway: g1\n", b_yaml: "ip:\n  gateway: g2\n"}]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"g2","path":"$.ip.gateway","previous":"g1"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: g2}, path: $.ip.gateway, previous: {type: string, value: g1}}], representation: []}
+  - id: diff.stability-key-quoting
+    kind: diff_stability
+    polarity: positive
+    schema: {synthetic: {tree: main}}
+    variants: [{a_yaml: "name: x\n", b_yaml: "name: y\n"}, {a_yaml: "\"name\": \"x\"\n", b_yaml: "'name': 'y'\n"}]
+    expect: {canonical: '{"changes":[{"kind":"value_change","next":"y","path":"$.name","previous":"x"}],"representation":[],"version":1}', changes: [{kind: value_change, next: {type: string, value: 'y'}, path: $.name, previous: {type: string, value: x}}], representation: []}
