@@ -175,11 +175,11 @@ func FuzzAccess(f *testing.F) {
 				t.Fatalf("%q: accepted the pattern %q", text, p)
 			}
 		}
-		for _, version := range forms.SupportedGrammars {
+		for _, version := range forms.SupportedGrammars() {
 			g := grammarOf(t, version)
 			mode, v := forms.ReadMode(n, g)
 			known(v)
-			if v == nil && !forms.WriteMode(mode, g).Same(n) {
+			if w, werr := forms.WriteMode(mode, g); v == nil && (werr != nil || !w.Same(n)) {
 				t.Fatalf("%q: grammar %d lost the spelling", text, version)
 			}
 		}

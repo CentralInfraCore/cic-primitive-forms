@@ -312,3 +312,33 @@ fn reading_leaves_the_input_alone() {
     assert!(list.same(&before));
     assert_eq!(list.pos, before.pos);
 }
+
+/// In Rust the two Go hazards cannot be written: `Grammar` has a private field, no `Default` and no
+/// constructor except a successful `bind_grammar`, `Mode` is a closed enum with exactly three states, and
+/// `SUPPORTED_GRAMMARS` is a constant. This pins the behaviour that makes those types sufficient.
+#[test]
+fn a_grammar_exists_only_after_a_successful_binding_and_every_mode_is_writable() {
+    for version in -3i64..6 {
+        let v = Value::Int(version);
+        match bind_grammar(Some(&v), Some(&v)) {
+            Ok(grammar) => {
+                assert!(SUPPORTED_GRAMMARS.contains(&version));
+                assert_eq!(grammar.version(), version);
+            }
+            Err(e) => {
+                assert!(!SUPPORTED_GRAMMARS.contains(&version));
+                assert_eq!(e.code(), "UNKNOWN_GRAMMAR_VERSION");
+            }
+        }
+    }
+    for version in SUPPORTED_GRAMMARS {
+        let grammar = g(version);
+        for mode in [Mode::Inherit, Mode::NoInherit, Mode::Reset] {
+            // Total: there is no Mode that cannot be written, and what is written reads back.
+            assert_eq!(
+                read_mode(&write_mode(mode, grammar), grammar).unwrap(),
+                mode
+            );
+        }
+    }
+}

@@ -34,8 +34,14 @@ import (
 	"unicode"
 )
 
-// SupportedGrammars are the grammar versions the pinned contract defines.
-var SupportedGrammars = []int64{1, 2}
+// supportedGrammars are the grammar versions the pinned contract defines. It is not exported as a
+// variable: a caller must not be able to add a version the contract does not define.
+var supportedGrammars = []int64{1, 2}
+
+// SupportedGrammars returns a copy of the grammar versions the pinned contract defines.
+func SupportedGrammars() []int64 { return slices.Clone(supportedGrammars) }
+
+func isSupported(version int64) bool { return slices.Contains(supportedGrammars, version) }
 
 // Grammar is a grammar version, bound once for a whole document.
 type Grammar struct{ version int64 }
@@ -49,7 +55,7 @@ func isMissing(v *Node) bool { return v == nil || v.Kind == KindNull }
 
 // checked: a version is an integer that is one of SupportedGrammars.
 func checked(v *Node) (int64, error) {
-	if v.Kind != KindInt || !slices.Contains(SupportedGrammars, v.Int) {
+	if v.Kind != KindInt || !isSupported(v.Int) {
 		return 0, binding("UNKNOWN_GRAMMAR_VERSION")
 	}
 	return v.Int, nil
@@ -149,6 +155,11 @@ func invalid(code string, n *Node) *Violation {
 //
 // A violation is anchored at the value.
 func ReadMode(n *Node, g Grammar) (Mode, *Violation) {
+	// A Grammar that was not bound to a supported version (the zero value, or any other) reads nothing:
+	// there is no implicit grammar 2.
+	if !isSupported(g.version) {
+		return ModeInvalid, invalid("UNKNOWN_GRAMMAR_VERSION", n)
+	}
 	isEnum := n.Kind == KindStr && slices.Contains(modeNames, n.Str)
 	isLegacy := n.Kind == KindBool || (n.Kind == KindInt && n.Int == 0)
 	if g.version == 1 {
@@ -174,18 +185,26 @@ func ReadMode(n *Node, g Grammar) (Mode, *Violation) {
 }
 
 // WriteMode is the inverse of ReadMode: a bijection per grammar version, so a round trip keeps the
-// spelling.
-func WriteMode(m Mode, g Grammar) *Node {
+// spelling. Only the three states can be written, under a bound supported grammar: an invalid or unknown
+// Mode, or a Grammar that is not bound to a supported version, gives no Node and an error (the upstream
+// code UNKNOWN_GRAMMAR_VERSION for the grammar; ErrUnsupported for a Mode that is not a state).
+func WriteMode(m Mode, g Grammar) (*Node, error) {
+	if !isSupported(g.version) {
+		return nil, binding("UNKNOWN_GRAMMAR_VERSION")
+	}
+	if m < ModeInherit || m > ModeReset {
+		return nil, unsupported("%d is not one of the three InheritanceMode states", m)
+	}
 	if g.version == 1 {
 		switch m {
 		case ModeInherit:
-			return &Node{Kind: KindBool, Bool: true}
+			return &Node{Kind: KindBool, Bool: true}, nil
 		case ModeNoInherit:
-			return &Node{Kind: KindBool}
+			return &Node{Kind: KindBool}, nil
 		}
-		return &Node{Kind: KindInt}
+		return &Node{Kind: KindInt}, nil
 	}
-	return &Node{Kind: KindStr, Str: modeNames[m]}
+	return &Node{Kind: KindStr, Str: modeNames[m]}, nil
 }
 
 // InheritSymbol is the access/modify symbol that means "no field-level rule".

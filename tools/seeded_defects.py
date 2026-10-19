@@ -53,6 +53,14 @@ DEFECTS = [
      [("\treturn ModeInvalid, invalid(\"LEGACY_INHERIT_IN_GRAMMAR_2\", n)", "\treturn ModeInherit, nil")]),
     ("go", "a violation drops its source position", "access.go",
      [("Location: loc(n.Pos)}", "Location: Location{}}")]),
+    ("go", "an unbound or unknown Grammar is read as grammar 2", "access.go",
+     [("\tif !isSupported(g.version) {\n\t\treturn ModeInvalid, invalid(", "\tif false {\n\t\treturn ModeInvalid, invalid(")]),
+    ("go", "an unbound or unknown Grammar is written as grammar 2", "access.go",
+     [("\tif !isSupported(g.version) {\n\t\treturn nil, binding(", "\tif false {\n\t\treturn nil, binding(")]),
+    ("go", "an invalid Mode is written as reset", "access.go",
+     [("\tif m < ModeInherit || m > ModeReset {\n\t\treturn nil, unsupported(", "\tif false {\n\t\treturn nil, unsupported(")]),
+    ("go", "a caller can change the supported versions", "access.go",
+     [("func SupportedGrammars() []int64 { return slices.Clone(supportedGrammars) }", "func SupportedGrammars() []int64 { return supportedGrammars }")]),
 ]
 
 

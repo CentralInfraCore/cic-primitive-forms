@@ -608,7 +608,11 @@ func TestInheritValidateCasesMatchTheCorpus(t *testing.T) {
 				mode, v := forms.ReadMode(node, grammar)
 				violation = v
 				if v == nil {
-					preservedType, preservedValue = typedOf(forms.WriteMode(mode, grammar))
+					written, err := forms.WriteMode(mode, grammar)
+					if err != nil {
+						t.Fatalf("%s: %v", id, err)
+					}
+					preservedType, preservedValue = typedOf(written)
 				}
 			}
 			if !reflect.DeepEqual(node, before) {

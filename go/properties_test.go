@@ -442,7 +442,7 @@ func TestPropertyWhatReadsIsWrittenBackToTheSameSpelling(t *testing.T) {
 		n := nodeGen(2).Draw(t, "node")
 		v := rapid.Int64Range(1, 2).Draw(t, "version")
 		g := grammarOf(t, v)
-		if mode, viol := forms.ReadMode(n, g); viol == nil && !forms.WriteMode(mode, g).Same(n) {
+		if mode, viol := forms.ReadMode(n, g); viol == nil && !mustWrite(t, mode, g).Same(n) {
 			t.Fatalf("%+v was read as %v and written back differently", n, mode)
 		}
 		_, v1 := forms.ReadMode(n, grammarOf(t, 1))
@@ -458,7 +458,7 @@ func TestPropertyEveryModeHasOneSpellingPerVersionAndReadsBack(t *testing.T) {
 		mode := forms.Mode(rapid.IntRange(0, 2).Draw(t, "mode"))
 		v := rapid.Int64Range(1, 2).Draw(t, "version")
 		g := grammarOf(t, v)
-		w := forms.WriteMode(mode, g)
+		w := mustWrite(t, mode, g)
 		if back, viol := forms.ReadMode(w, g); viol != nil || back != mode {
 			t.Fatalf("%v: %v %v", mode, back, viol)
 		}

@@ -83,7 +83,7 @@ func TestReadModeVectors(t *testing.T) {
 			t.Errorf("%s: got %s, want %s", v.Name, names[mode], v.Expect)
 		}
 		// The round trip keeps the spelling, to the type.
-		if !forms.WriteMode(mode, g).Same(node) {
+		if !mustWrite(t, mode, g).Same(node) {
 			t.Errorf("%s: spelling lost", v.Name)
 		}
 	}
@@ -172,25 +172,25 @@ func TestTheEmptyListIsNobodyAndNeverTheSymbol(t *testing.T) {
 
 func TestWriteModeIsABijectionPerVersion(t *testing.T) {
 	all := []forms.Mode{forms.ModeInherit, forms.ModeNoInherit, forms.ModeReset}
-	for _, version := range forms.SupportedGrammars {
+	for _, version := range forms.SupportedGrammars() {
 		g := gram(t, version)
 		for i, m := range all {
-			w := forms.WriteMode(m, g)
+			w := mustWrite(t, m, g)
 			if back, v := forms.ReadMode(w, g); v != nil || back != m {
 				t.Errorf("v%d %v: %v %v", version, m, back, v)
 			}
 			for j, other := range all {
-				if w.Same(forms.WriteMode(other, g)) != (i == j) {
+				if w.Same(mustWrite(t, other, g)) != (i == j) {
 					t.Errorf("v%d: spellings %d and %d", version, i, j)
 				}
 			}
 		}
 	}
 	// The two spellings never cross.
-	if _, v := forms.ReadMode(forms.WriteMode(forms.ModeReset, gram(t, 1)), gram(t, 2)); v == nil {
+	if _, v := forms.ReadMode(mustWrite(t, forms.ModeReset, gram(t, 1)), gram(t, 2)); v == nil {
 		t.Error("grammar 1 spelling read as grammar 2")
 	}
-	if _, v := forms.ReadMode(forms.WriteMode(forms.ModeReset, gram(t, 2)), gram(t, 1)); v == nil {
+	if _, v := forms.ReadMode(mustWrite(t, forms.ModeReset, gram(t, 2)), gram(t, 1)); v == nil {
 		t.Error("grammar 2 spelling read as grammar 1")
 	}
 }
@@ -296,7 +296,7 @@ func TestReadingGoesByKindNotByStrayFields(t *testing.T) {
 }
 
 func TestAViolationCarriesNoMode(t *testing.T) {
-	for _, version := range forms.SupportedGrammars {
+	for _, version := range forms.SupportedGrammars() {
 		for _, n := range []*forms.Node{{Kind: forms.KindNull}, {Kind: forms.KindInt, Int: 1}, {Kind: forms.KindStr, Str: "reset"}, {Kind: forms.KindStr, Str: "x"}, {Kind: forms.KindBool}} {
 			g := gram(t, version)
 			mode, v := forms.ReadMode(n, g)
@@ -307,5 +307,69 @@ func TestAViolationCarriesNoMode(t *testing.T) {
 				t.Errorf("grammar %d, %+v: %d is not a state", version, n, mode)
 			}
 		}
+	}
+}
+
+func mustWrite(t interface{ Fatal(args ...any) }, m forms.Mode, g forms.Grammar) *forms.Node {
+	n, err := forms.WriteMode(m, g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestOnlyTheThreeStatesCanBeWritten(t *testing.T) {
+	for _, version := range forms.SupportedGrammars() {
+		g := gram(t, version)
+		for _, m := range []forms.Mode{forms.ModeInvalid, forms.Mode(3), forms.Mode(-2), forms.Mode(100)} {
+			n, err := forms.WriteMode(m, g)
+			var fe *forms.Error
+			if n != nil || !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+				t.Errorf("grammar %d, mode %d: %+v %v", version, m, n, err)
+			}
+		}
+		for _, m := range []forms.Mode{forms.ModeInherit, forms.ModeNoInherit, forms.ModeReset} {
+			if n, err := forms.WriteMode(m, g); n == nil || err != nil {
+				t.Errorf("grammar %d, mode %d: %v", version, m, err)
+			}
+		}
+	}
+}
+
+func TestAnUnboundGrammarReadsNothingAndWritesNothing(t *testing.T) {
+	var zero forms.Grammar
+	values := []*forms.Node{
+		{Kind: forms.KindBool, Bool: true}, {Kind: forms.KindBool}, {Kind: forms.KindInt},
+		{Kind: forms.KindStr, Str: "inherit"}, {Kind: forms.KindStr, Str: "reset"}, {Kind: forms.KindNull},
+	}
+	for _, n := range values {
+		mode, v := forms.ReadMode(n, zero)
+		if v == nil || v.Code != "UNKNOWN_GRAMMAR_VERSION" || mode != forms.ModeInvalid {
+			t.Errorf("%+v read under Grammar{}: %v %+v", n, mode, v)
+		}
+	}
+	for _, m := range []forms.Mode{forms.ModeInherit, forms.ModeNoInherit, forms.ModeReset} {
+		n, err := forms.WriteMode(m, zero)
+		var fe *forms.Error
+		if n != nil || !errors.As(err, &fe) || fe.Kind != forms.ErrBinding || fe.Code() != "UNKNOWN_GRAMMAR_VERSION" {
+			t.Errorf("mode %d written under Grammar{}: %+v %v", m, n, err)
+		}
+	}
+}
+
+func TestTheSupportedVersionsCannotBeChangedFromOutside(t *testing.T) {
+	got := forms.SupportedGrammars()
+	if len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("%v", got)
+	}
+	got[0], got[1] = 7, 8
+	got = append(got, 9)
+	again := forms.SupportedGrammars()
+	if len(again) != 2 || again[0] != 1 || again[1] != 2 {
+		t.Errorf("a caller changed the supported versions: %v", again)
+	}
+	n := &forms.Node{Kind: forms.KindInt, Int: 7}
+	if _, err := forms.BindGrammar(n, n); err == nil || err.(*forms.Error).Code() != "UNKNOWN_GRAMMAR_VERSION" {
+		t.Errorf("7 bound: %v", err)
 	}
 }

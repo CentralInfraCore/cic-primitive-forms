@@ -78,7 +78,7 @@ nothing (P3), decides no permission and applies no default.
   represented values (`inherit`, `no-inherit`, `reset`); `1`, `"true"`, `"0"`, `null`, a list or a mapping is
   `INVALID_INHERIT`; an enum name is `INHERIT_ENUM_IN_GRAMMAR_1`. Grammar 2: the enum names; a legacy spelling is
   `LEGACY_INHERIT_IN_GRAMMAR_2`. No conversion between versions, and writing a mode back gives the spelling that was
-  read (a bijection per version, tested).
+  read (a bijection per version, tested). **Fail-closed in Go as well as Rust:** a `Grammar` that was not bound to a supported version (the zero value or any other) reads nothing (`UNKNOWN_GRAMMAR_VERSION`, the upstream code) and writes nothing; only the three states can be written, and an invalid or unknown `Mode` gives no Node and an error; the set of supported versions is returned as a copy, so a caller cannot extend it. Rust enforces the same by type: a `Grammar` exists only after `bind_grammar` succeeds, `Mode` is a closed enum, and the supported set is a constant.
 * **`access` / `modify`.** The symbol `inherit` is not a CertPattern list; `[]` is an explicit "nobody" and never the
   symbol; `[inherit]` is `INVALID_CERT_PATTERN`; `null`, a bare pattern string, a boolean or a mapping is
   `INVALID_ACCESS_VALUE`. A CertPattern is the upstream expression `attr=value` pairs joined by `,`
@@ -170,9 +170,9 @@ prints the same table.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
-| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (908/915) | 100.00% (470/470) |
-| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.70% (426/436) | 100.00% (471/471) |
-| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (227 caught, 0 missed, 23 unviable) | 98.18% (485 killed, 9 survived) |
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (908/915) | 100.00% (478/478) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.70% (426/436) | 100.00% (481/481) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (227 caught, 0 missed, 23 unviable) | 98.40% (493 killed, 8 survived) |
 | Property tests | `proptest` / `rapid` | 14 properties, 512 cases each | the same properties (13 tests: "no value is a valid mode in both grammars" is part of the type-preservation test), 1000 cases |
 | Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse`, `validate` and `access`, 60 s each in CI | `FuzzParse`, `FuzzValidate` and `FuzzAccess`, 60 s each in CI |
 | Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 presence and 21 of 21 inheritance `validate` | the same |
@@ -181,7 +181,7 @@ prints the same table.
 seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
 `BELOW_THRESHOLD`, exactly 90% is red).
 
-**The nine Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
+**The eight Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
 that returns the same line (`line >= len`), a CRLF look-ahead whose only difference is a line start
 nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), an operand that is always false for the segments it
 guards, the value that is returned next to an error (`return -1` instead of `return 0` where the caller never reads it),
@@ -201,13 +201,13 @@ and that reading an `access`/`modify` value and an `InheritanceMode` under both 
 
 | Gate | Seeded fault | Result |
 |---|---|---|
-| Line coverage | only the subset test runs | Rust 41.72% (378/906), Go 21.70% (102/470), both `BELOW_THRESHOLD`; reproduced in CI |
+| Line coverage | only the subset test runs | Rust 41.72% (378/906), Go 21.34% (102/478), both `BELOW_THRESHOLD`; reproduced in CI |
 | Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
-| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 50.22% (219/436), Go 0.00% (0/471), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 50.22% (219/436), Go 0.00% (0/481), both `BELOW_THRESHOLD`; reproduced in CI |
 | Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
 | Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
 | Fuzz job | a committed input starting with `CANARY` fails each of the six targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
-| Seeded defects (`tools/seeded_defects.py`) | 14 deliberate defects in the access reading, 7 per language: `0` coerced to `false`, a missing version silently defaulting to 1, the pin used without verifying its digest, a string without `=` accepted as a CertPattern, the empty list read as the symbol, grammar 2 accepting the legacy boolean, a violation dropping its position | every defect is caught by the suites (the unmodified copy passes first); reproduced in CI (job `seeded-defects`) |
+| Seeded defects (`tools/seeded_defects.py`) | 18 deliberate defects in the access reading (7 in Rust, 11 in Go; the Go set adds an unbound `Grammar` read or written as grammar 2, an invalid `Mode` written as `reset`, and a caller-changeable supported-version set): `0` coerced to `false`, a missing version silently defaulting to 1, the pin used without verifying its digest, a string without `=` accepted as a CertPattern, the empty list read as the symbol, grammar 2 accepting the legacy boolean, a violation dropping its position | every defect is caught by the suites (the unmodified copy passes first); reproduced in CI (job `seeded-defects`) |
 | Performance of duplicate keys | the previous linear scan put back by hand (Go) | 16.9 s against a 5 s bound; not reproduced in CI |
 
 ## What these gates found (all fixed, with a regression test or a vector each)
