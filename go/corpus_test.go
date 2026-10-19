@@ -187,7 +187,6 @@ func runCase(t *testing.T, c obj, id string) run {
 }
 
 func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
-	skipIfReduced(t)
 	ran := 0
 	notRun := map[string]int{}
 	for _, suite := range suites(t) {
@@ -255,7 +254,6 @@ func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
 }
 
 func TestAMatchesTheCorpus(t *testing.T) {
-	skipIfReduced(t)
 	for _, suite := range suites(t) {
 		if suite["suite"] != "recognition" {
 			continue
@@ -283,7 +281,6 @@ func TestAMatchesTheCorpus(t *testing.T) {
 
 // Every document the recognize cases feed in survives Emit then Parse.
 func TestCorpusDocumentsSurviveEmitAndParse(t *testing.T) {
-	skipIfReduced(t)
 	checked := 0
 	for _, suite := range suites(t) {
 		for _, raw := range suite["cases"].([]any) {

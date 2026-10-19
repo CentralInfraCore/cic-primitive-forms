@@ -1,4 +1,4 @@
-# P1: the implemented slice and its supported subset
+# P1: the implemented slice, its supported subset and its quality gates
 
 Status: **first vertical slice**, Rust (`rust/`) and Go (`go/`), one shared corpus. It is
 implementation, not a decision: it follows the accepted ADRs and re-opens none of them.
@@ -11,64 +11,120 @@ implementation, not a decision: it follows the accepted ADRs and re-opens none o
 | recognize / validate | `recognize` | `Recognize` | ADR 0001 recognition at a synthetic position, then the position validation of ADR 0003/0007 (`MAP_AT_SCALAR_POSITION`, `UNKNOWN_FIELD`, `EXPANDED_WITH_EXTRA_KEY`) |
 | emit | `emit` | `Emit` | Deterministic block-style YAML; the text always parses back to the same value |
 
-The expanded key set `A` is an argument, never a constant of the library. The input is
-never modified (a test per language checks it).
+The expanded key set `A` is an argument, never a constant of the library. The input is never
+modified (a test per language checks it).
 
-## Evidence
-
-- **Shared corpus.** Every case of kind `recognize` (31: 30 in `recognition`, 1 in `presence`) runs in both
-  languages, loaded with an independent YAML library, and compares class, `elements`, `opaque_value` and the
-  complete error list including phase and source location. The runner counts the other kinds and prints them as
-  `NOT RUN`; a green run does not cover them (`rust/tests/corpus.rs`, `go/corpus_test.go`).
-- **Shared subset vectors** (`testdata/p1/subset.json`): what `parse` reads, what it refuses, what `emit`
-  writes. Hand-written expectations, read by both languages. These are not corpus cases (the corpus format is
-  closed by ADR 0005).
-- Every document of the recognize cases survives `emit` then `parse` in both languages.
-- **Branch coverage** (ADR 0009, `cic-branch/1`, the pinned `gobranch` and `rustbranch`) is gated in CI on
-  product code, fail closed: workflow `p1`. At the time of writing 95.62% (Rust) and 93.58% (Go).
+The machine response of `recognize` is the ADR 0007 one: each violation carries `code`, `phase`,
+`source_location` and the canonical ADR 0006 `logical_path`, every validation error is reported,
+and they are ordered by path, then code. The path is left out where ADR 0007 leaves it out: the
+parse phase, a single position with no structure around it, a name that cannot be written (empty
+or holding U+0000 to U+001F or U+007F), and a list element, whose identity the synthetic schema
+does not declare. Only those path-less errors cannot be told apart, so only they collapse to one
+per code.
 
 ## Supported subset
 
-`parse` reads: one document; block and flow collections; quoted and block scalars (strings); plain scalars
-`null`, `~`, empty, `true`/`false` (`true`, `True`, `TRUE`, and the same for `false`), decimal integers that fit
-64 bits (`+`/`-` allowed); every other plain scalar is a string. Mapping keys are the text of a scalar.
+`parse` reads: one document; block and flow collections; quoted and block scalars (strings); plain
+scalars `null`, `~`, empty, `true`/`false` (`true`, `True`, `TRUE`, and the same for `false`),
+decimal integers that fit 64 bits (`+`/`-` allowed); every other plain scalar is a string. Mapping
+keys are the text of a scalar. `emit` writes keys longer than 512 characters in the explicit
+`? key` form, because YAML limits an implicit key to 1024.
 
-Refused with an explicit error, never reinterpreted (`UNSUPPORTED_SYNTAX`): anchors, aliases, tags, merge keys
-(`<<`), non-scalar keys, more than one document, plain scalars that look like floats (`1.5`, `.5`, `1e3`, `.inf`,
-`.nan`), hex/octal (`0x1F`, `0o17`), integers with a leading zero, integers beyond 64 bits. `YAML_SYNTAX` when the
-YAML library rejects the text. `LIMIT_EXCEEDED` past the limits (1 MiB, depth 64, 100 000 nodes).
+## Explicitly not supported (each is an error, never a reinterpretation)
 
-The three codes above are **not** in `corpus/codes.yaml`; they mark the boundary of this slice and are not part
-of the ADR 0007 machine response. The limits are implementation defaults, not decided values.
+| Input | Answer |
+|---|---|
+| anchors, aliases, tags, merge keys (`<<`), non-scalar keys, more than one document | `UNSUPPORTED_SYNTAX` |
+| plain scalars that look like floats (`1.5`, `.5`, `5.`, `1e3`, `.inf`, `.nan`), hex or octal (`0x1F`, `0o17`), integers with a leading zero, integers beyond 64 bits | `UNSUPPORTED_SYNTAX` |
+| the characters U+0085, U+2028, U+2029 anywhere in the text | `UNSUPPORTED_SYNTAX` (see finding 2) |
+| text the YAML library rejects | `YAML_SYNTAX` |
+| more than 1 MiB, depth 64 or 100 000 nodes | `LIMIT_EXCEEDED` |
+| a scalar where a mapping or a list is declared, a non-record list element, a list inside a record | `UNSUPPORTED_SYNTAX` (the slice has no rule) |
 
-Positions: the vectors' coordinates are reproduced by both YAML libraries (`saphyr-parser`, `yaml.v3`):
-second-key, mapping (first key in block style, opening brace in flow style), BOM, CRLF, lone CR, non-ASCII.
+These three codes are **not** in `corpus/codes.yaml`; they mark the boundary of the slice and are
+not part of the ADR 0007 machine response. The limits are implementation defaults, not decided
+values. Also out of the slice: the other corpus kinds (`validate` 66, `path_*` 125, `diff` 66,
+`collapse`, `expand`, `roundtrip`, `basis`, `equality`), the `shape` presence rules and type checks,
+the Access vocabulary, schema loading from the pinned real schemas, source-preserving emit (P3b),
+expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P5).
 
-`recognize` works at the synthetic positions of the corpus (`scalar`, `opaque`, `structured`, `list_of` records).
-A shape it has no rule for (a scalar where a mapping or a list is declared) is `UNSUPPORTED_SYNTAX`, not accepted.
+## What agreement between the two languages is claimed for
 
-## Findings
+* the 31 `recognize` cases of the corpus: class, `elements`, `opaque_value` and the complete
+  machine response (code, phase, source location, logical path), compared in both languages;
+* `testdata/p1/subset.json`: what `parse` reads and refuses and what `emit` writes (hand-written
+  expectations, one file read by both languages);
+* the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
+  style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-1. **One error where ADR 0007 says "all".** `recognition.structured-partial-is-short-then-rejected` feeds two
-   unknown keys (`access`, `value`) and expects one `UNKNOWN_FIELD` without a `logical_path`. ADR 0007 says
-   `validate` reports all errors and that `(logical_path, code)` is unique in a response. Both fit only if the
-   response carries no path and so holds one error per code, which is what this slice does (the one with the
-   smallest path). Reporting every unknown field needs `logical_path` in the response, and no vector asserts it.
-2. The two YAML libraries differ outside the vectors. `yaml.v3` parses the whole text first, so a syntax error
-   later in the text hides an earlier duplicate key (the Rust parser reports the duplicate); this difference
-   remains. U+0085, U+2028 and U+2029 are line breaks to `yaml.v3` and not to `saphyr-parser`
-   (`a: 1<U+0085>b: 2` is two entries in Go and a syntax error in Rust, found by a probe), so a text containing
-   one is refused in both languages (`UNSUPPORTED_SYNTAX`) instead of being read two ways. Both libraries have
-   their own nesting limit, which answers `YAML_SYNTAX` before ours for absurd depth.
-3. `saphyr-parser` does not accept a tab after the `:` of a block mapping value (`b:\t2`); a tab inside flow
-   collections is accepted and counted as one column.
+**Not claimed:** agreement on the error *code* for an arbitrary faulty input. It is known to
+differ: `yaml.v3` reads the whole text before the tree is walked, so a later YAML syntax error hides
+an earlier duplicate key, while the Rust parser stops at the first problem in event order and reports
+the duplicate. `documented_divergence_duplicate_key_before_a_later_syntax_error` (Rust) and
+`TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError` (Go) assert each language's actual
+answer. The two libraries also have their own nesting limit and their own wording of a syntax error.
 
-## Not in this slice (stated, not hidden)
+## Quality gates (docs/PHASES.md, "Quality gates")
 
-- Other corpus kinds: `validate` (66), `path_*` (125), `diff` (66), `collapse`, `expand`, `roundtrip`, `basis`,
-  `equality`, `grammar_manifest` (the last is run by `make corpus`'s own tooling).
-- The `shape` presence rules and type checks, Access vocabulary (`inherit`), `conformance` origin.
-- Schema loading from the pinned real schemas; positions come from the synthetic model only.
-- The remaining ADR 0009 / PHASES.md gates: mutation score above 90%, property tests, fuzzing, line coverage
-  reporting. They are follow-up work and are **not** satisfied by this change.
-- Source-preserving emit (P3b), expand/collapse (P2), normalize (P3), diff/patch (P4), materialize/receipt (P5).
+All on the product code of this slice (`rust/src`, `go/*.go` without tests), strictly above 90%,
+failing closed, in workflow `p1`. Numbers are from the final code on the development machine; CI
+prints the same table.
+
+| Gate | Tool (pinned) | Rust | Go |
+|---|---|---|---|
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.19% (613/618) | 100.00% (311/311) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.20% (278/286) | 100.00% (258/258) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (151 caught, 0 missed, 14 unviable) | 98.76% (318 killed, 4 survived) |
+| Property tests | `proptest` / `rapid` | 4 properties, 512 cases each | the same 4, 1000 cases |
+| Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | target `parse`, 60 s in CI | `FuzzParse`, 60 s in CI |
+| Corpus parity | the shared corpus runners | 31 of 31 `recognize` cases | 31 of 31 |
+
+`tools/quality_gate.py` decides line coverage and mutation score (`check`), and `selftest` runs 21
+seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
+`BELOW_THRESHOLD`, exactly 90% is red).
+
+**The four Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
+that returns the same line (`line >= len`), a CRLF look-ahead whose only difference is a line start
+nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), and an operand that is
+always false for the segments it guards.
+
+**What each property checks** (Rust and Go identically): emit then parse gives back the value for any
+value of the subset including any string and key (long ones too); emit is a fixed point under parse;
+parse never panics on arbitrary text and its positions lie inside the text on character boundaries;
+recognition follows the key set and leaves its input unchanged. **Fuzzing** checks on every input
+that parse does not panic, that a document that parses survives emit then parse, and that its
+positions lie inside the text; the seeds are the shared vectors.
+
+### Proof that each gate can fail (what was run, and what it did)
+
+| Gate | Seeded fault | Result |
+|---|---|---|
+| Line coverage | only the subset test runs | Rust 61.74% (376/609), Go 32.15% (100/311), both `BELOW_THRESHOLD`; reproduced in CI |
+| Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 75.52% (216/286), Go 0.00% (0/258), both `BELOW_THRESHOLD`; reproduced in CI |
+| Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
+| Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
+| Fuzz job | a committed input starting with `CANARY` fails the target when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
+| Performance of duplicate keys | the previous linear scan put back by hand (Go) | 16.9 s against a 5 s bound; not reproduced in CI |
+
+## What these gates found (all fixed, with a regression test or a vector each)
+
+1. `emit` wrote the key `<<` plain, which `parse` reads as a merge key and refuses: emit then parse
+   was not a round trip. Found by a mutation survivor that led to the seed, then to a property
+   generator that now draws it. `<<` is always quoted.
+2. `emit` wrote a key longer than 1024 characters as an implicit key, which YAML forbids; the Rust
+   fuzz target found it in under a minute (`regression-long-key` is in the seed corpus). Keys longer
+   than 512 characters use the explicit `? key` form, in both languages.
+3. A remaining difference was removed rather than documented: U+0085 is a line break to `yaml.v3`
+   and not to `saphyr-parser` (`a: 1<U+0085>b: 2` is two entries in Go and a syntax error in Rust,
+   found by a probe), so texts containing U+0085, U+2028 or U+2029 are refused in both.
+
+## Findings about the contract
+
+1. `recognition.structured-partial-is-short-then-rejected` expected one error for two unknown fields
+   and the two structured vectors lacked their `logical_path`. That contradicted ADR 0007. The
+   vectors are corrected (`$.access` and `$.value`, in path order); the code was not narrowed to fit.
+2. `saphyr-parser` rejects a tab after the `:` of a block mapping value (`b:\t2`); a tab inside flow
+   collections is accepted and counts as one column.
+3. The banners of `make corpus` and `make coverage` ("implementation conformance NOT RUN", "no Rust or
+   Go code is measured yet") describe those structural tools and are stale next to the new runners.

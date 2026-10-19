@@ -1,0 +1,11 @@
+# 2026/10/19 09:17:55.844561 [TestPropertyParseNeverPanicsAndItsPositionsLieInsideTheText] [rapid] draw text: "-"
+# 2026/10/19 09:17:55.844576 [TestPropertyParseNeverPanicsAndItsPositionsLieInsideTheText] "-": emit/parse changed the value (<nil>)
+# 
+v0.4.8#2714181222935398220
+0x1fce2c01522f2b
+0xffffffffffffffff
+0xc1eee70adc04b
+0x0
+0x181d4f9150adb7
+0x10
+0x400f23c36ff4e

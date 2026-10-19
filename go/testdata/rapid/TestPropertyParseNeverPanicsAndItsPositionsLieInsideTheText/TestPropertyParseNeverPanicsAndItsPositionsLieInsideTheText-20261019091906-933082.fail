@@ -1,0 +1,19 @@
+# 2026/10/19 09:19:06.213748 [TestPropertyParseNeverPanicsAndItsPositionsLieInsideTheText] [rapid] draw text: "\U000e005f⌖:"
+# 2026/10/19 09:19:06.213759 [TestPropertyParseNeverPanicsAndItsPositionsLieInsideTheText] {Line:1 Column:4 Offset:1} splits a character of "\U000e005f⌖:"
+# 
+v0.4.8#11850464226556158441
+0x504fc88a0bf4f
+0x0
+0xf6f7d670c44d9
+0x26
+0x172b4601800f9a
+0x89
+0x17e1c29adbd3ce
+0x20
+0x12b2e5fe55db9e
+0x105
+0xfbc6486fe8711
+0xc
+0x1b9e9229315b01
+0x12
+0x4500aa463cb4

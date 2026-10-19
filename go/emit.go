@@ -18,13 +18,13 @@ import (
 func Emit(n *Node) string {
 	var b strings.Builder
 	switch {
-	case n.Kind == KindSeq && len(n.Items) > 0:
-		blockSeq(&b, n.Items, 0)
-	case n.Kind == KindMap && len(n.Entries) > 0:
-		blockMap(&b, n, 0)
-	default:
+	case !isBlock(n):
 		b.WriteString(inline(n))
 		b.WriteByte('\n')
+	case n.Kind == KindSeq:
+		blockSeq(&b, n.Items, 0)
+	default:
+		blockMap(&b, n, 0)
 	}
 	return b.String()
 }
@@ -52,7 +52,13 @@ func inline(n *Node) string {
 }
 
 func isBlock(n *Node) bool {
-	return (n.Kind == KindSeq && len(n.Items) > 0) || (n.Kind == KindMap && len(n.Entries) > 0)
+	switch n.Kind {
+	case KindSeq:
+		return len(n.Items) > 0
+	case KindMap:
+		return len(n.Entries) > 0
+	}
+	return false
 }
 
 func blockSeq(b *strings.Builder, items []*Node, level int) {
@@ -65,8 +71,18 @@ func blockSeq(b *strings.Builder, items []*Node, level int) {
 
 func blockMap(b *strings.Builder, n *Node, level int) {
 	for _, e := range n.Entries {
+		key := str(e.Key)
 		indent(b, level)
-		b.WriteString(str(e.Key))
+		if utf8.RuneCountInString(key) > implicitKeyMax {
+			// YAML limits an implicit key ("key: value") to 1024 characters: a longer one is
+			// written in the explicit form, which has no limit.
+			b.WriteString("? ")
+			b.WriteString(key)
+			b.WriteByte('\n')
+			indent(b, level)
+		} else {
+			b.WriteString(key)
+		}
 		b.WriteByte(':')
 		itemTail(b, e.Value, level)
 	}
@@ -96,23 +112,28 @@ func str(s string) string {
 	return quoted(s)
 }
 
-// yaml11Bools are the spellings YAML 1.1 reads as booleans; quoted so no reader takes them
-// for one.
-var yaml11Bools = []string{"y", "Y", "yes", "Yes", "YES", "n", "N", "no", "No", "NO", "on", "On", "ON", "off", "Off", "OFF"}
+// implicitKeyMax: a key written longer than this many characters uses the explicit "? key"
+// form. The YAML limit is 1024; staying well under it keeps the choice independent of how a
+// reader counts quotes and escapes.
+const implicitKeyMax = 512
 
+// alwaysQuoted are strings written quoted although they read back fine as plain text: the
+// spellings YAML 1.1 reads as booleans (so no reader takes them for one) and "<<", which as a
+// mapping key is the merge key and is refused by Parse.
+var alwaysQuoted = []string{"y", "Y", "yes", "Yes", "YES", "n", "N", "no", "No", "NO", "on", "On", "ON", "off", "Off", "OFF", "<<"}
+
+// plainSafe says whether s can be written without quotes. It is deliberately defined by the
+// round trip: s is plain when reading it back as a document gives the same string. That one
+// test covers a leading indicator, ": ", " #", surrounding spaces, anything that reads as another
+// type or as a collection, and an unsupported spelling, so none of those is listed again here.
+// What the round trip cannot see is excluded first: control characters (a tab or a newline
+// reads back fine alone but not in every context) and the strings of alwaysQuoted.
 func plainSafe(s string) bool {
-	if contains(yaml11Bools, s) {
-		return false
-	}
-	first, _ := utf8.DecodeRuneInString(s)
-	if s == "" || strings.ContainsRune("-?:,[]{}#&*!|>'\"%@`", first) || first == ' ' || strings.HasSuffix(s, " ") {
-		return false
-	}
-	if strings.Contains(s, ": ") || strings.Contains(s, " #") || strings.HasSuffix(s, ":") {
+	if contains(alwaysQuoted, s) {
 		return false
 	}
 	for _, c := range s {
-		if unicode.IsControl(c) || isLineOrBOM(c) {
+		if unicode.IsControl(c) {
 			return false
 		}
 	}
@@ -121,7 +142,7 @@ func plainSafe(s string) bool {
 }
 
 func isLineOrBOM(c rune) bool {
-	return c == 0x85 || c == 0x2028 || c == 0x2029 || c == 0xFEFF
+	return c == 0x2028 || c == 0x2029 || c == 0xFEFF
 }
 
 func quoted(s string) string {

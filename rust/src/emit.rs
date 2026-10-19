@@ -65,8 +65,18 @@ fn block_map(node: &Node, level: usize, out: &mut String) {
         _ => return,
     };
     for e in entries {
+        let key = string(&e.key);
         indent(out, level);
-        out.push_str(&string(&e.key));
+        if key.chars().count() > IMPLICIT_KEY_MAX {
+            // YAML limits an implicit key (`key: value`) to 1024 characters: a longer one is
+            // written in the explicit form, which has no limit.
+            out.push_str("? ");
+            out.push_str(&key);
+            out.push('\n');
+            indent(out, level);
+        } else {
+            out.push_str(&key);
+        }
         out.push(':');
         item_tail(&e.value, level, out);
     }
@@ -96,30 +106,29 @@ fn string(s: &str) -> String {
     }
 }
 
-/// Spellings YAML 1.1 reads as booleans; quoted so no reader takes them for one.
-const YAML11_BOOLS: [&str; 16] = [
+/// A key written longer than this many characters uses the explicit `? key` form. The YAML limit
+/// is 1024; staying well under it keeps the choice independent of how a reader counts quotes and
+/// escapes.
+const IMPLICIT_KEY_MAX: usize = 512;
+
+/// Strings that are written quoted although they read back fine as plain text: the spellings
+/// YAML 1.1 reads as booleans (so no reader takes them for one) and `<<`, which as a mapping key
+/// is the merge key and is refused by `parse`.
+const ALWAYS_QUOTED: [&str; 17] = [
     "y", "Y", "yes", "Yes", "YES", "n", "N", "no", "No", "NO", "on", "On", "ON", "off", "Off",
-    "OFF",
+    "OFF", "<<",
 ];
 
+/// Whether `s` can be written without quotes. It is deliberately defined by the round trip: `s`
+/// is plain when reading it back as a document gives the same string. That one test covers a
+/// leading indicator, `: `, ` #`, surrounding spaces, anything that reads as another type or as a
+/// collection, and an unsupported spelling, so none of those is listed again here. What the
+/// round trip cannot see is excluded first: control characters (a tab or a newline reads back
+/// fine alone but not in every context) and the strings of `ALWAYS_QUOTED`.
 fn plain_safe(s: &str) -> bool {
-    if YAML11_BOOLS.contains(&s) {
+    if ALWAYS_QUOTED.contains(&s) || s.chars().any(char::is_control) {
         return false;
     }
-    let first = match s.chars().next() {
-        Some(first) => first,
-        None => return false,
-    };
-    if "-?:,[]{}#&*!|>'\"%@`".contains(first) || first == ' ' || s.ends_with(' ') {
-        return false;
-    }
-    if s.contains(": ") || s.contains(" #") || s.ends_with(':') {
-        return false;
-    }
-    if s.chars().any(|c| c.is_control() || is_line_or_bom(c)) {
-        return false;
-    }
-    // Anything that does not read back as the same string is quoted.
     match crate::parse::parse(s) {
         Ok(Node {
             value: Value::Str(r),
@@ -130,7 +139,7 @@ fn plain_safe(s: &str) -> bool {
 }
 
 fn is_line_or_bom(c: char) -> bool {
-    ['\u{85}', '\u{2028}', '\u{2029}', '\u{FEFF}'].contains(&c)
+    ['\u{2028}', '\u{2029}', '\u{FEFF}'].contains(&c)
 }
 
 fn quoted(s: &str) -> String {

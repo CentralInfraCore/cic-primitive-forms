@@ -374,3 +374,31 @@ fn is_float_like(s: &str) -> bool {
         None => !int.is_empty() && exp.is_some(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The table clamps a char index the YAML library should never report; this reaches the
+    // clamp, which no document can.
+    #[test]
+    fn the_position_table_clamps_an_index_past_the_end() {
+        let t = Table::new("a: 1\nb", 3);
+        assert_eq!(
+            t.pos(99),
+            Pos {
+                line: 2,
+                column: 2,
+                offset: 3 + 6
+            }
+        );
+        assert_eq!(
+            t.pos(5),
+            Pos {
+                line: 2,
+                column: 1,
+                offset: 3 + 5
+            }
+        );
+    }
+}

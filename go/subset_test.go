@@ -63,7 +63,7 @@ func treeOf(t *testing.T, raw json.RawMessage) *forms.Node {
 	return nil
 }
 
-func must(t *testing.T, err error) {
+func must(t testing.TB, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +91,7 @@ type refusal struct {
 	Code string `json:"code"`
 }
 
-func vectors(t *testing.T) subset {
+func vectors(t testing.TB) subset {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "testdata", "p1", "subset.json"))
 	must(t, err)
@@ -104,7 +104,6 @@ func vectors(t *testing.T) subset {
 }
 
 func TestParseReadsTheSupportedSubset(t *testing.T) {
-	skipIfReduced(t)
 	for _, v := range vectors(t).ParseOK {
 		got, err := forms.Parse(v.YAML)
 		if err != nil {
@@ -117,7 +116,6 @@ func TestParseReadsTheSupportedSubset(t *testing.T) {
 }
 
 func TestParseRefusesWhatIsOutsideTheSubset(t *testing.T) {
-	skipIfReduced(t)
 	s := vectors(t)
 	for _, v := range append(append([]refusal{}, s.Unsupported...), s.Syntax...) {
 		_, err := forms.Parse(v.YAML)
@@ -133,7 +131,6 @@ func TestParseRefusesWhatIsOutsideTheSubset(t *testing.T) {
 }
 
 func TestEmitWritesThePinnedTextAndItReadsBack(t *testing.T) {
-	skipIfReduced(t)
 	for _, v := range vectors(t).Emit {
 		node := treeOf(t, v.Node)
 		text := forms.Emit(node)

@@ -6,7 +6,6 @@ package forms_test
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,15 +13,6 @@ import (
 
 	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
 )
-
-// skipIfReduced drops the corpus-driven tests. CI runs the coverage gate once with them
-// dropped to prove that the gate turns red on product code when tests are missing.
-func skipIfReduced(t *testing.T) {
-	t.Helper()
-	if os.Getenv("CIC_FORMS_REDUCED") != "" {
-		t.Skip("CIC_FORMS_REDUCED: corpus-driven tests dropped")
-	}
-}
 
 const expanded = "value: 1\naccess: inherit\nmodify: inherit\ninherit: true\ndefault_injection: null\nconformance: implemented\n"
 
@@ -361,5 +351,118 @@ func TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError(t *testing.T) {
 	_, err = forms.Parse("a: 1\na: 2\nb: []\n")
 	if !errors.As(err, &fe) || fe.Kind != forms.ErrContract || fe.Violations[0].Code != "DUPLICATE_KEY" {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestTheDefaultLimitsAreThePublishedOnes(t *testing.T) {
+	if got := forms.DefaultLimits(); got != (forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 100_000}) {
+		t.Errorf("%+v", got)
+	}
+}
+
+func TestLimitBoundariesAreInclusive(t *testing.T) {
+	text := "a: 12345" // 8 bytes
+	if _, err := forms.ParseWith(text, forms.Limits{MaxBytes: 8, MaxDepth: 64, MaxNodes: 100}); err != nil {
+		t.Errorf("exactly MaxBytes is allowed: %v", err)
+	}
+	if _, err := forms.ParseWith(text, forms.Limits{MaxBytes: 7, MaxDepth: 64, MaxNodes: 100}); kindOf(err) != forms.ErrLimit {
+		t.Errorf("one byte over: %v", err)
+	}
+	// A mapping as deep as MaxDepth is allowed, one deeper is not.
+	if _, err := forms.ParseWith("a: {b: 1}", forms.Limits{MaxBytes: 1 << 20, MaxDepth: 2, MaxNodes: 100}); err != nil {
+		t.Errorf("depth 2: %v", err)
+	}
+}
+
+func TestSameComparesEveryPartOfTheValue(t *testing.T) {
+	cases := []struct{ a, b string }{
+		{"[1, 2]", "[1, 2, 3]"},    // sequence length
+		{"[1, 2]", "[1, 3]"},       // sequence item
+		{"{a: 1}", "{a: 1, b: 2}"}, // mapping size
+		{"{a: 1}", "{b: 1}"},       // mapping key
+		{"{a: 1}", "{a: 2}"},       // mapping value
+		{"true", "false"},          // bool
+		{"1", "'1'"},               // type
+		{"null", "[]"},             // kind
+	}
+	for _, c := range cases {
+		if mustParse(t, c.a).Same(mustParse(t, c.b)) || mustParse(t, c.b).Same(mustParse(t, c.a)) {
+			t.Errorf("%s vs %s", c.a, c.b)
+		}
+	}
+	for _, text := range []string{"[1, [2]]", "{a: [1], b: {c: 'x'}}", "'s'", "7", "~", "true"} {
+		if !mustParse(t, text).Same(mustParse(t, text)) {
+			t.Errorf("%s", text)
+		}
+	}
+	// With a repeated key (only a hand-built node can have one) the first match decides.
+	dup := func(vals ...int64) *forms.Node {
+		n := &forms.Node{Kind: forms.KindMap}
+		for _, v := range vals {
+			n.Entries = append(n.Entries, forms.Entry{Key: "a", Value: &forms.Node{Kind: forms.KindInt, Int: v}})
+		}
+		return n
+	}
+	if !dup(1, 1).Same(dup(1, 2)) {
+		t.Error("the first entry with the key decides")
+	}
+}
+
+func TestPositionsAfterLeadingLineBreaks(t *testing.T) {
+	for text, want := range map[string]forms.Pos{
+		"\na: 1":     {Line: 2, Column: 1, Offset: 1},
+		"\r\na: 1":   {Line: 2, Column: 1, Offset: 2},
+		"\n\r\na: 1": {Line: 3, Column: 1, Offset: 3},
+		"\r\ra: 1":   {Line: 3, Column: 1, Offset: 2},
+	} {
+		n := mustParse(t, text)
+		if got := *n.Entries[0].KeyPos; got != want {
+			t.Errorf("%q: %+v, want %+v", text, got, want)
+		}
+	}
+}
+
+func TestACodeIsTheFirstViolationsCode(t *testing.T) {
+	e := &forms.Error{Kind: forms.ErrContract, Violations: []forms.Violation{{Code: "FIRST"}, {Code: "SECOND"}}}
+	if e.Code() != "FIRST" {
+		t.Error(e.Code())
+	}
+}
+
+func TestAKnownFieldDoesNotHideAnUnknownOneAfterIt(t *testing.T) {
+	structured := forms.Position{Kind: forms.PosStructured, Fields: []string{"host", "port"}}
+	got := violationsOf(t, "host: a\ncolour: red\nport: 1\nshade: x\n", structured)
+	if len(got) != 2 || got[0].path != "$.colour" || got[1].path != "$.shade" {
+		t.Errorf("%+v", got)
+	}
+	list := forms.Position{Kind: forms.PosListOf, Record: []forms.RecordField{{Name: "host", Position: forms.Position{Kind: forms.PosScalar}}}}
+	got = violationsOf(t, "- host: a\n  colour: red\n", list)
+	if len(got) != 1 || got[0].code != "UNKNOWN_FIELD" {
+		t.Errorf("%+v", got)
+	}
+	// An unknown field does not stop the fields after it from being checked.
+	got = violationsOf(t, "- colour: x\n  host: {a: 1}\n", list)
+	if len(got) != 2 || got[0].code != "UNKNOWN_FIELD" || got[1].code != "MAP_AT_SCALAR_POSITION" {
+		t.Errorf("%+v", got)
+	}
+}
+
+func TestAnEmptyExpandedKeySetNeverMakesAScalarExpanded(t *testing.T) {
+	for _, text := range []string{"x", "[1]", "~"} {
+		out, err := forms.Recognize(mustParse(t, text), forms.Position{Kind: forms.PosOpaque}, nil)
+		if err != nil || out.Class != forms.ClassShort {
+			t.Errorf("%s: %v %+v", text, err, out)
+		}
+	}
+}
+
+func TestTheLowestWritableNameCharacterAndTheLastUnwritableOne(t *testing.T) {
+	structured := forms.Position{Kind: forms.PosStructured, Fields: []string{"host"}}
+	pathOf := func(text string) string { return violationsOf(t, text, structured)[0].path }
+	if got := pathOf(`"a\u001Fb": 1`); got != "" {
+		t.Errorf("U+001F is unwritable: %q", got)
+	}
+	if got := pathOf(`"a b": 1`); got != "$.a b" {
+		t.Errorf("U+0020 is writable: %q", got)
 	}
 }

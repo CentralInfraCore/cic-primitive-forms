@@ -1,7 +1,9 @@
 package forms
 
 import (
-	"sort"
+	"cmp"
+	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -66,39 +68,28 @@ type found struct {
 	v    Violation
 }
 
+// key orders a segment: every field sorts before every list index, fields by the UTF-8 bytes of
+// the name, indexes numerically.
+func (s seg) key() string {
+	if s.isIdx {
+		return fmt.Sprintf("\x01%020d", s.index)
+	}
+	return "\x00" + s.field
+}
+
+func (f found) keys() []string {
+	out := make([]string, len(f.path))
+	for i, s := range f.path {
+		out[i] = s.key()
+	}
+	return out
+}
+
 func loc(p *Pos) Location {
 	if p == nil {
 		return Location{}
 	}
 	return Location{Available: true, Pos: *p}
-}
-
-func segLess(a, b seg) bool {
-	if a.isIdx != b.isIdx {
-		return !a.isIdx // a Field sorts before an Index, as in the Rust peer
-	}
-	if a.isIdx {
-		return a.index < b.index
-	}
-	return a.field < b.field
-}
-
-func pathCompare(a, b []seg) int {
-	for i := 0; i < len(a) && i < len(b); i++ {
-		if segLess(a[i], b[i]) {
-			return -1
-		}
-		if segLess(b[i], a[i]) {
-			return 1
-		}
-	}
-	switch {
-	case len(a) < len(b):
-		return -1
-	case len(a) > len(b):
-		return 1
-	}
-	return 0
 }
 
 // logicalPath is the canonical ADR 0006 text of a path made of field names; "" where ADR 0007
@@ -136,28 +127,21 @@ func logicalPath(path []seg) string {
 // names) cannot be told apart in the response, so only the first of each code, in path order,
 // is kept.
 func sorted(fs []found) []Violation {
-	sort.SliceStable(fs, func(i, j int) bool {
-		if c := pathCompare(fs[i].path, fs[j].path); c != 0 {
-			return c < 0
-		}
-		return fs[i].v.Code < fs[j].v.Code
+	slices.SortStableFunc(fs, func(a, b found) int {
+		return cmp.Or(slices.Compare(a.keys(), b.keys()), strings.Compare(a.v.Code, b.v.Code))
 	})
 	out := []Violation{}
+	pathless := map[string]bool{}
 	for _, f := range fs {
 		v := f.v
 		v.LogicalPath = logicalPath(f.path)
-		dup := false
 		if v.LogicalPath == "" {
-			for _, o := range out {
-				if o.LogicalPath == "" && o.Code == v.Code {
-					dup = true
-					break
-				}
+			if pathless[v.Code] {
+				continue
 			}
+			pathless[v.Code] = true
 		}
-		if !dup {
-			out = append(out, v)
-		}
+		out = append(out, v)
 	}
 	return out
 }

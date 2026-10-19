@@ -1,0 +1,7 @@
+# 2026/10/19 09:17:52.888579 [TestPropertyEmitThenParseGivesBackTheValue] [rapid] draw node: &forms.Node{Kind:5, Bool:false, Int:0, Str:"", Items:[]*forms.Node(nil), Entries:[]forms.Entry{}, Pos:(*forms.Pos)(nil)}
+# 2026/10/19 09:17:52.888586 [TestPropertyEmitThenParseGivesBackTheValue] "" -> <nil> / &{Kind:0 Bool:false Int:0 Str: Items:[] Entries:[] Pos:<nil>}
+# 
+v0.4.8#3230707540337715903
+0x111ef6930d258d
+0x2
+0x1d71b62e5b88e

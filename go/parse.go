@@ -3,6 +3,7 @@ package forms
 import (
 	"errors"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -149,9 +150,9 @@ func (w *walker) mapping(n *yaml.Node, depth int) (*Node, error) {
 	out := &Node{Kind: KindMap, Pos: w.at(n), Entries: []Entry{}}
 	// The keys so far: a duplicate is found in expected O(1), not by comparing with every
 	// earlier key.
-	seen := make(map[string]struct{}, len(n.Content)/2)
-	for i := 0; i+1 < len(n.Content); i += 2 {
-		k, v := n.Content[i], n.Content[i+1]
+	seen := map[string]struct{}{}
+	for i := range len(n.Content) / 2 {
+		k, v := n.Content[2*i], n.Content[2*i+1]
 		if err := common(k); err != nil {
 			return nil, err
 		}
@@ -206,12 +207,20 @@ func (t *table) pos(line, col int) *Pos {
 		line = len(t.lineStarts)
 	}
 	off := t.lineStarts[line-1]
-	for c := 1; c < col && off < len(t.body); c++ {
+	for c := 1; c < col; c++ {
 		_, size := utf8.DecodeRuneInString(t.body[off:])
 		off += size
 	}
 	return &Pos{Line: line, Column: col, Offset: t.bomLen + off}
 }
+
+var (
+	decimalRe = regexp.MustCompile(`^[+-]?([0-9]+)$`)
+	// A float spelling: a decimal point with digits on either side, or an exponent, or an
+	// infinity or a NaN.
+	floatRe = regexp.MustCompile(`^[+-]?(\.[0-9]+|[0-9]+\.[0-9]*)([eE][+-]?[0-9]+)?$|^[+-]?[0-9]+[eE][+-]?[0-9]+$|^[+-]?\.(inf|Inf|INF)$|^\.(nan|NaN|NAN)$`)
+	radixRe = regexp.MustCompile(`^0[xo][0-9a-fA-F]+$`)
+)
 
 func resolvePlain(s string, out *Node) error {
 	switch s {
@@ -225,8 +234,8 @@ func resolvePlain(s string, out *Node) error {
 		out.Kind, out.Bool = KindBool, false
 		return nil
 	}
-	if digits, ok := decimalDigits(s); ok {
-		if len(digits) > 1 && digits[0] == '0' {
+	if m := decimalRe.FindStringSubmatch(s); m != nil {
+		if len(m[1]) > 1 && m[1][0] == '0' {
 			return unsupported("integer with a leading zero: %s", s)
 		}
 		i, err := strconv.ParseInt(strings.TrimPrefix(s, "+"), 10, 64)
@@ -236,86 +245,9 @@ func resolvePlain(s string, out *Node) error {
 		out.Kind, out.Int = KindInt, i
 		return nil
 	}
-	if isFloatLike(s) || isRadixNumber(s) {
+	if floatRe.MatchString(s) || radixRe.MatchString(s) {
 		return unsupported("number spelling: %s", s)
 	}
 	out.Kind, out.Str = KindStr, s
 	return nil
-}
-
-func stripSign(s string) string {
-	if s != "" && (s[0] == '+' || s[0] == '-') {
-		return s[1:]
-	}
-	return s
-}
-
-func allDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// decimalDigits returns the digits of [+-]?[0-9]+, if s is exactly that.
-func decimalDigits(s string) (string, bool) {
-	d := stripSign(s)
-	return d, d != "" && allDigits(d)
-}
-
-func isHex(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
-			return false
-		}
-	}
-	return true
-}
-
-func isRadixNumber(s string) bool {
-	for _, p := range []string{"0x", "0o"} {
-		if rest, ok := strings.CutPrefix(s, p); ok && isHex(rest) {
-			return true
-		}
-	}
-	return false
-}
-
-func isFloatLike(s string) bool {
-	t := stripSign(s)
-	switch t {
-	case ".inf", ".Inf", ".INF":
-		return true
-	}
-	switch s {
-	case ".nan", ".NaN", ".NAN":
-		return true
-	}
-	mantissa, exp, hasExp := t, "", false
-	if i := strings.IndexAny(t, "eE"); i >= 0 {
-		mantissa, exp, hasExp = t[:i], t[i+1:], true
-	}
-	if hasExp {
-		e := stripSign(exp)
-		if e == "" || !allDigits(e) {
-			return false
-		}
-	}
-	intPart, frac, hasFrac := mantissa, "", false
-	if i := strings.IndexByte(mantissa, '.'); i >= 0 {
-		intPart, frac, hasFrac = mantissa[:i], mantissa[i+1:], true
-	}
-	if !allDigits(intPart) || (hasFrac && !allDigits(frac)) {
-		return false
-	}
-	if hasFrac {
-		return intPart != "" || frac != ""
-	}
-	return intPart != "" && hasExp
 }

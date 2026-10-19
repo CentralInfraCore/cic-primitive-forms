@@ -60,6 +60,42 @@ fn limits_are_enforced_and_explicit() {
 }
 
 #[test]
+fn the_default_limits_are_the_published_ones() {
+    assert_eq!(
+        Limits::default(),
+        Limits {
+            max_bytes: 1 << 20,
+            max_depth: 64,
+            max_nodes: 100_000
+        }
+    );
+}
+
+#[test]
+fn limit_boundaries_are_inclusive() {
+    let text = "a: 12345"; // 8 bytes
+    let at = |max_bytes| Limits {
+        max_bytes,
+        max_depth: 64,
+        max_nodes: 100,
+    };
+    assert!(
+        parse_with(text, at(8)).is_ok(),
+        "exactly max_bytes is allowed"
+    );
+    assert!(
+        matches!(parse_with(text, at(7)), Err(Error::Limit(_))),
+        "one byte over"
+    );
+    let two = Limits {
+        max_bytes: 1 << 20,
+        max_depth: 2,
+        max_nodes: 100,
+    };
+    assert!(parse_with("a: {b: 1}", two).is_ok(), "depth 2");
+}
+
+#[test]
 fn deep_nesting_is_refused_not_overflowed() {
     // Past our limit but below the YAML library's own: ours answers.
     let text = "[".repeat(200) + &"]".repeat(200);
@@ -281,6 +317,28 @@ fn paths(text: &str, position: &Position) -> Vec<(&'static str, Option<String>, 
         .into_iter()
         .map(|v| (v.code, v.logical_path, v.location))
         .collect()
+}
+
+#[test]
+fn a_known_field_does_not_hide_an_unknown_one_and_the_reverse() {
+    let structured = Position::Structured(vec!["host".into(), "port".into()]);
+    let got = paths("host: a\ncolour: red\nport: 1\nshade: x\n", &structured);
+    assert_eq!(
+        got.iter().map(|g| g.1.clone().unwrap()).collect::<Vec<_>>(),
+        ["$.colour", "$.shade"]
+    );
+    let list = Position::ListOf(vec![("host".into(), Position::Scalar)]);
+    let got = paths("- host: a\n  colour: red\n", &list);
+    assert_eq!(
+        got.iter().map(|g| g.0).collect::<Vec<_>>(),
+        ["UNKNOWN_FIELD"]
+    );
+    // An unknown field does not stop the fields after it from being checked.
+    let got = paths("- colour: x\n  host: {a: 1}\n", &list);
+    assert_eq!(
+        got.iter().map(|g| g.0).collect::<Vec<_>>(),
+        ["UNKNOWN_FIELD", "MAP_AT_SCALAR_POSITION"]
+    );
 }
 
 #[test]
