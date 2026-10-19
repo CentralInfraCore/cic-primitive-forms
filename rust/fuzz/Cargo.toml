@@ -20,5 +20,12 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "validate"
+path = "fuzz_targets/validate.rs"
+test = false
+doc = false
+bench = false
+
 # Not part of the product crate's build: cargo-fuzz needs its own package and workspace root.
 [workspace]

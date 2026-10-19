@@ -119,7 +119,11 @@ func (w *walker) node(n *yaml.Node, depth int) (*Node, error) {
 	}
 	switch n.Kind {
 	case yaml.ScalarNode:
-		out := &Node{Pos: w.at(n)}
+		out := &Node{}
+		// A plain empty scalar has no text of its own, so no position (ADR 0007).
+		if n.Value != "" || !isPlain(n) {
+			out.Pos = w.at(n)
+		}
 		if !isPlain(n) {
 			out.Kind, out.Str = KindStr, n.Value
 			return out, nil

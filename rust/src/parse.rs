@@ -116,6 +116,9 @@ pub fn parse_with(text: &str, limits: Limits) -> Result<Node, Error> {
                 }
                 nodes += 1;
                 check_nodes(nodes, limits)?;
+                // A plain empty scalar has no text of its own, so no position (ADR 0007). The parser
+                // reports it as `~` with an empty span; an explicit `~` has a span of one.
+                let has_text = !(plain && span.is_empty());
                 let v = if plain {
                     resolve_plain(&value)?
                 } else {
@@ -126,7 +129,7 @@ pub fn parse_with(text: &str, limits: Limits) -> Result<Node, Error> {
                     &mut root,
                     Node {
                         value: v,
-                        pos: Some(at),
+                        pos: has_text.then_some(at),
                     },
                 );
             }
