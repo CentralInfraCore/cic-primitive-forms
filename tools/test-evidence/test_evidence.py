@@ -29,7 +29,8 @@ ENV = {
     "runner": {"image_os": "ubuntu24", "image_version": "20261001.1", "os": "Linux", "arch": "X64"},
     "actions": {"actions/checkout": "a" * 40, "actions/setup-go": "b" * 40},
 }
-CHECKS = json.load(open(os.path.join(HERE, "required-checks.json")))
+with open(os.path.join(HERE, "required-checks.json")) as _fh:
+    CHECKS = json.load(_fh)
 FILES = ["rust/Cargo.toml", "rust/Cargo.lock", "rust/fuzz/Cargo.toml", "rust/fuzz/Cargo.lock", "go/go.mod", "go/go.sum",
          "coverage/tools.yaml", "coverage/scope.yaml", "tools/quality_gate.py", "tools/test-evidence/x.py", "corpus/pins.yaml",
          "testdata/p1/a.json", ".github/workflows/p1.yml", ".github/actions/a/action.yml"]
@@ -76,7 +77,7 @@ class Fixture:
                 "rust_branches": {"covered": 97, "total": 100}, "go_branches": {"covered": 100, "total": 100},
                 "rust_mutation": {"killed": 99, "survived": 1, "unviable": 3}, "go_mutation": {"killed": 97, "survived": 3, "uncompilable": 2},
                 "thresholds": {"line": 90, "mutation": 90, "branch": 90},
-                "gate_verdict": "PASS" if outcome == "pass" else "FAIL", "shards": {"rust": 4, "go": 6}, "completeness": "complete"},
+                "gate_verdict": "PASS", "shards": {"rust": 4, "go": 6}, "completeness": "complete"},
             "required_checks": [{"name": n, "conclusion": "success" if outcome == "pass" or i else "failure",
                                  "job_url": "https://github.com/x/y/actions/runs/1/job/%d" % i, "run_id": 1, "artifact_digest": None}
                                 for i, n in enumerate(CHECKS)],
@@ -100,14 +101,16 @@ def raw_of(rec):
     return raw, hashlib.sha256(raw).hexdigest() + ".json"
 
 
-def context(fx, att=None, ancestor=True, now=NOW, artifacts=None, target=C2, **kw):
+def context(fx, att=None, ancestor=True, now=NOW, artifacts=None, target=C2, tree_of=lambda c: TREE, parents_of=lambda c: [C2, C3], **kw):
     return verify.Context(now=now, target_commit=target, root=fx.root, environment=fx.env, is_ancestor=lambda a, d: ancestor,
-                          attestation=att or Attested(), expected_checks=CHECKS, artifacts=artifacts, **kw)
+                          attestation=att or Attested(), expected_checks=CHECKS, artifacts=artifacts, tree_of=tree_of,
+                          parents_of=parents_of, **kw)
 
 
 class CanonTests(unittest.TestCase):
     def test_the_vectors(self):
-        doc = json.load(open(os.path.join(HERE, "vectors", "canon.json")))
+        with open(os.path.join(HERE, "vectors", "canon.json")) as fh:
+            doc = json.load(fh)
         self.assertGreater(len(doc["cases"]), 50)
         for c in doc["cases"]:
             with self.subTest(c["name"]):
@@ -177,6 +180,56 @@ class KeyTests(unittest.TestCase):
         pats = keymod.load_patterns()
         pats["include"] = pats["include"] + ["go/go.mod"]  # a pattern that adds no file still changes the list
         self.assertNotEqual(base, keymod.validity_key(fx.root, fx.env, pats)[0])
+
+    def test_a_symlink_to_a_directory_is_never_skipped(self):
+        fx = Fixture(self)
+        base = fx.key()[0]
+        other = os.path.join(fx.root, "elsewhere")
+        os.makedirs(other)
+        with open(os.path.join(other, "f.txt"), "w") as fh:
+            fh.write("not in the key")
+
+        def refused(rel):
+            link = os.path.join(fx.root, rel)
+            os.makedirs(os.path.dirname(link), exist_ok=True)
+            os.symlink(other, link)
+            try:
+                with self.assertRaises(keymod.KeyError_) as cm:
+                    fx.key()
+                self.assertEqual(cm.exception.kind, "NOT_A_REGULAR_FILE")
+                self.assertIn("symlink", str(cm.exception))
+            finally:
+                os.unlink(link)
+
+        refused("tools/linkdir")                      # inside a selected tree
+        refused("testdata/p1/linkdir")
+        refused(".github/workflows/linkdir")
+        refused("corpus/linkdir")
+        # a directory that a selected file is under, replaced by a link
+        moved = os.path.join(fx.root, "coverage")
+        os.rename(moved, moved + ".real")
+        os.symlink("elsewhere", moved)
+        with self.assertRaises(keymod.KeyError_) as cm:
+            fx.key()
+        self.assertEqual(cm.exception.kind, "NOT_A_REGULAR_FILE")
+        os.unlink(moved)
+        os.rename(moved + ".real", moved)
+        # even a literal file: the directory above it is a link
+        moved = os.path.join(fx.root, "rust")
+        os.rename(moved, moved + ".real")
+        os.symlink("rust.real", moved)
+        with self.assertRaises(keymod.KeyError_):
+            fx.key()
+        os.unlink(moved)
+        os.rename(moved + ".real", moved)
+        # a link that nothing selected can be under, or that is excluded, is no concern of the key
+        for rel in ("docs", "rust/target", "tools/__pycache__"):
+            link = os.path.join(fx.root, rel)
+            os.makedirs(os.path.dirname(link), exist_ok=True)
+            os.symlink(other, link)
+            self.assertEqual(base, fx.key()[0], rel)
+            os.unlink(link)
+        self.assertEqual(base, fx.key()[0])
 
     def test_generated_files_do_not_move_it(self):
         fx = Fixture(self)
@@ -305,6 +358,52 @@ class SchemaTests(unittest.TestCase):
         failed["anchor"] = False
         self.refuses(failed, "CONSISTENCY")  # fail, but everything passed
 
+    def test_the_numbers_decide_the_verdict(self):
+        """PASS has to be what the counts give, in integers, strictly above the threshold, as the gates compute it."""
+        def with_q(**counts):
+            rec = self.fx.record()
+            rec["quality_full"].update(counts)
+            return rec
+        metrics = {"rust_lines": ("covered", "total"), "go_statements": ("covered", "total"),
+                   "rust_branches": ("covered", "total"), "go_branches": ("covered", "total")}
+        for name, (a, b) in metrics.items():
+            for label, (cov, tot), ok in (("above", (91, 100), True), ("exactly 90 percent", (90, 100), False),
+                                          ("below", (89, 100), False), ("nothing measured", (0, 0), False),
+                                          ("90.0001 percent", (900001, 1000000), True), ("89.9999 percent", (899999, 1000000), False),
+                                          ("all covered", (7, 7), True)):
+                with self.subTest("%s %s" % (name, label)):
+                    rec = with_q(**{name: {a: cov, b: tot}})
+                    if ok:
+                        record.validate(rec, CHECKS)
+                    else:
+                        self.refuses(rec, "CONSISTENCY")
+        for name, last in (("rust_mutation", "unviable"), ("go_mutation", "uncompilable")):
+            for label, (k, sv), ok in (("91 of 100", (91, 9), True), ("exactly 90 of 100", (90, 10), False), ("below", (50, 50), False),
+                                       ("nothing viable", (0, 0), False), ("one killed, none survived", (1, 0), True),
+                                       ("none killed, one survived", (0, 1), False)):
+                with self.subTest("%s %s" % (name, label)):
+                    rec = with_q(**{name: {"killed": k, "survived": sv, last: 1000}})  # unviable mutants count for nothing
+                    if ok:
+                        record.validate(rec, CHECKS)
+                    else:
+                        self.refuses(rec, "CONSISTENCY")
+        # the verdict follows the numbers in both directions, and the completeness
+        rec = self.fx.record()
+        rec["quality_full"]["gate_verdict"] = "FAIL"
+        self.refuses(rec, "CONSISTENCY")  # the numbers pass, the record says they do not
+        rec = self.fx.record(outcome="fail")
+        rec["quality_full"]["rust_lines"] = {"covered": 50, "total": 100}
+        self.refuses(rec, "CONSISTENCY")  # the numbers fail, the record says PASS
+        rec["quality_full"]["gate_verdict"] = "FAIL"
+        record.validate(rec, CHECKS)      # a failed gate that says so is a genuine audit record
+        rec = self.fx.record(outcome="fail")
+        rec["quality_full"]["completeness"] = "incomplete"
+        self.refuses(rec, "CONSISTENCY")  # incomplete shards are a FAIL, not a PASS
+        # a higher threshold is honoured
+        rec = self.fx.record()
+        rec["quality_full"]["thresholds"]["line"] = 99
+        self.refuses(rec, "CONSISTENCY")  # 98 of 100 is not above 99
+
     def test_the_checks_have_to_be_the_expected_ones(self):
         rec = self.fx.record()
         self.refuses(rec, "CHECKS", checks=CHECKS + ["one more"])
@@ -413,6 +512,32 @@ class VerifyTests(unittest.TestCase):
         ctx.environment["rustc"] = "stable"
         self.assertEqual(self.code(verify.verify_baseline, raw, name, ctx), "KEY_UNAVAILABLE")
 
+    def test_the_tree_is_the_tree_of_the_commit(self):
+        raw, name = raw_of(self.fx.record())
+        wrong = lambda c: "5" * 40
+        self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, tree_of=wrong)), "TREE_MISMATCH")
+        self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, tree_of=lambda c: None)), "TREE_UNKNOWN")
+        self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, tree_of=None)), "TREE_UNCHECKED")
+        self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, parents_of=None)), "TREE_UNCHECKED")
+        # the record is asked about the commit it names, not about the target of the verifier
+        asked = []
+        verify.verify_baseline(raw, name, context(self.fx, tree_of=lambda c: asked.append(c) or TREE))
+        self.assertEqual(asked, [C1])
+        # a record that names another tree for the same commit
+        raw2, name2 = raw_of(self.fx.record(tree="6" * 40))
+        self.assertEqual(self.code(verify.verify_baseline, raw2, name2, context(self.fx)), "TREE_MISMATCH")
+
+    def test_a_merge_candidate_is_the_merge_of_its_base_and_head(self):
+        raw, name = raw_of(self.fx.record(kind="merge_candidate"))  # base C2, head C3
+        verify.verify_record(raw, name, context(self.fx, parents_of=lambda c: [C2, C3]))
+        for label, parents in (("swapped", [C3, C2]), ("another base", [C1, C3]), ("another head", [C2, C1]), ("three parents", [C2, C3, C1]),
+                               ("one parent", [C2]), ("none", []), ("unknown", None)):
+            with self.subTest(label):
+                self.assertEqual(self.code(verify.verify_record, raw, name, context(self.fx, parents_of=lambda c, p=parents: p)), "MERGE_BINDING")
+        # a record of main has no parents to match
+        raw, name = raw_of(self.fx.record())
+        verify.verify_record(raw, name, context(self.fx, parents_of=lambda c: [C3]))
+
     def test_ancestry(self):
         raw, name = raw_of(self.fx.record(commit=C1))
         self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, ancestor=False)), "NOT_ANCESTOR")
@@ -442,6 +567,90 @@ class VerifyTests(unittest.TestCase):
         self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, artifacts=found)), "ARTIFACT_DIGEST")
         raw, name = raw_of(self.fx.record(mutants=ref))
         self.assertEqual(self.code(verify.verify_baseline, raw, name, context(self.fx, artifacts=lambda n: b"other")), "ARTIFACT_DIGEST")
+
+
+def git_env():
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    return env
+
+
+class GitTests(unittest.TestCase):
+    """The binding against a real repository: no hooks, no global configuration."""
+
+    def setUp(self):
+        try:
+            subprocess.run(["git", "--version"], capture_output=True, check=True)
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("no git")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = self.tmp.name
+        self.git("init", "-q", "-b", "main")
+        self.a = self.commit("a")
+        self.git("checkout", "-q", "-b", "feature")
+        self.head = self.commit("c")
+        self.git("checkout", "-q", "main")
+        self.base = self.commit("b")
+        self.git("merge", "-q", "--no-ff", "-m", "merge", "feature")
+        self.merge = self.git("rev-parse", "HEAD")
+        self.repo = verify.GitRepo(self.path)
+
+    def git(self, *args):
+        done = subprocess.run(["git", "-C", self.path, "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgsign=false"] + list(args),
+                              capture_output=True, text=True, env=git_env())
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stdout.strip()
+
+    def commit(self, name):
+        with open(os.path.join(self.path, name), "w") as fh:
+            fh.write(name)
+        self.git("add", name)
+        self.git("commit", "-q", "-m", name)
+        return self.git("rev-parse", "HEAD")
+
+    def test_the_questions(self):
+        self.assertEqual(self.repo.tree_of(self.merge), self.git("rev-parse", self.merge + "^{tree}"))
+        self.assertEqual(self.repo.parents_of(self.merge), [self.base, self.head])
+        self.assertEqual(self.repo.parents_of(self.a), [])
+        self.assertTrue(self.repo.is_ancestor(self.a, self.merge))
+        self.assertTrue(self.repo.is_ancestor(self.head, self.merge))
+        self.assertFalse(self.repo.is_ancestor(self.merge, self.a))
+        self.assertFalse(self.repo.is_ancestor(self.head, self.base))
+
+    def test_nothing_but_a_full_commit_id_reaches_git(self):
+        tree = self.repo.tree_of(self.merge)
+        for arg in ("HEAD", "main", "--version", "--help", self.merge[:12], self.merge.upper(), "", None, "../x", tree, "0" * 40):
+            with self.subTest(arg=arg):
+                self.assertIsNone(self.repo.tree_of(arg))  # a tree id is not a commit either
+                self.assertIsNone(self.repo.parents_of(arg))
+        self.assertFalse(self.repo.is_ancestor("HEAD", self.merge))
+        self.assertFalse(self.repo.is_ancestor(self.a, "HEAD"))
+
+    def test_a_merge_candidate_record_against_the_real_repository(self):
+        fx = Fixture(self)
+        tree = self.repo.tree_of(self.merge)
+        rec = fx.record(kind="merge_candidate", commit=self.merge, tree=tree)
+        rec["target"]["base_commit"], rec["target"]["head_commit"] = self.base, self.head
+        raw, name = raw_of(rec)
+
+        def ctx(**kw):
+            return context(fx, tree_of=self.repo.tree_of, parents_of=self.repo.parents_of, **kw)
+        verify.verify_record(raw, name, ctx())
+        for label, edit in (("a tree of another commit", lambda r: r["target"].update(tree=self.repo.tree_of(self.a))),
+                            ("a tree that is not one", lambda r: r["target"].update(tree="7" * 40)),
+                            ("a commit that does not exist", lambda r: (r["target"].update(commit="8" * 40), r["run"].update(commit="8" * 40))),
+                            ("the head as the base", lambda r: r["target"].update(base_commit=self.head, head_commit=self.base)),
+                            ("the base of another history", lambda r: r["target"].update(base_commit=self.a)),
+                            ("a tree id as the commit", lambda r: (r["target"].update(commit=tree), r["run"].update(commit=tree)))):
+            with self.subTest(label):
+                bad = copy.deepcopy(rec)
+                edit(bad)
+                braw, bname = raw_of(bad)
+                with self.assertRaises(verify.VerifyError) as cm:
+                    verify.verify_record(braw, bname, ctx())
+                self.assertIn(cm.exception.code, ("TREE_MISMATCH", "TREE_UNKNOWN", "MERGE_BINDING"))
 
 
 class GhTests(unittest.TestCase):

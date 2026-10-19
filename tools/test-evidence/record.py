@@ -190,11 +190,29 @@ FIELDS = {
 }
 
 
+def above(covered, total, threshold):
+    """Strictly above the threshold, in integers, and a measurement of nothing is not above anything: the semantics of
+    quality_gate.py (Fraction(100 * covered, total) > threshold) and coverage_gate.py (total > 0 and covered * 100 > total * threshold)."""
+    return total > 0 and covered * 100 > total * threshold
+
+
+def numbers_pass(q):
+    """Whether the six measurements of `quality_full` meet their thresholds, worked out from the counts alone.
+    Mutation is killed / (killed + survived): unviable and uncompilable mutants count for nothing, as in the gate."""
+    t = q["thresholds"]
+    m = (("rust_lines", t["line"]), ("go_statements", t["line"]), ("rust_branches", t["branch"]), ("go_branches", t["branch"]))
+    return all(above(q[k]["covered"], q[k]["total"], th) for k, th in m) and all(
+        above(q[k]["killed"], q[k]["killed"] + q[k]["survived"], t["mutation"]) for k in ("rust_mutation", "go_mutation"))
+
+
 def validate(rec, expected_checks=None):
     """The record is exactly the schema, and consistent in itself. `expected_checks` is the list of required checks
     the record has to answer for (required-checks.json at the commit): each once, no more, no fewer."""
     _obj(rec, "record", FIELDS)
     q, checks = rec["quality_full"], rec["required_checks"]
+    # the verdict is not taken on the record's word: it has to be what the numbers and the completeness give
+    if q["gate_verdict"] != ("PASS" if numbers_pass(q) and q["completeness"] == "complete" else "FAIL"):
+        _fail("CONSISTENCY", "gate_verdict is not what the measurements give: no measurement, exactly the threshold or below it is not a pass")
     green = q["gate_verdict"] == "PASS" and q["completeness"] == "complete" and all(c["conclusion"] == "success" for c in checks)
     if rec["outcome"] == "pass" and not green:
         _fail("CONSISTENCY", "outcome is pass but the gate or a required check did not pass")
@@ -204,8 +222,8 @@ def validate(rec, expected_checks=None):
         _fail("CONSISTENCY", "anchor is true exactly when the outcome is pass")
     if rec["slot"] is not None and rec["target"]["kind"] != "main":
         _fail("CONSISTENCY", "only a record of main has a slot")
-    if rec["target"]["commit"] != rec["run"]["commit"] and rec["target"]["kind"] == "main":
-        _fail("CONSISTENCY", "a record of main is made by the run on that commit")
+    if rec["target"]["commit"] != rec["run"]["commit"]:
+        _fail("CONSISTENCY", "a record is made by the run on the commit it names (the merge commit, for a merge candidate)")
     if "environment" not in rec["validity_inputs"]:
         _fail("CONSISTENCY", "validity_inputs lacks the environment digest")
     if rec["outcome"] == "pass" and min(q["thresholds"].values()) < 90:

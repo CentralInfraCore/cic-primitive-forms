@@ -12,6 +12,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -79,6 +80,45 @@ class GhAttestation(Attestation):
         return [f for f in GH_FLAGS if f not in text] if done.returncode == 0 else list(GH_FLAGS)
 
 
+class GitRepo:
+    """The questions the verifier asks of a git repository, asked of git itself. An argument that is not a full commit id
+    is never passed to git."""
+
+    FULL = re.compile(r"[0-9a-f]{40}\Z")
+
+    def __init__(self, path):
+        self.path = path
+
+    def _git(self, *args):
+        done = subprocess.run(["git", "-C", self.path] + list(args), capture_output=True, timeout=60)
+        return done.returncode, done.stdout.decode("utf-8", "replace").strip()
+
+    def _commit(self, sha):
+        if not isinstance(sha, str) or not self.FULL.match(sha):
+            return False
+        rc, kind = self._git("cat-file", "-t", sha)
+        return rc == 0 and kind == "commit"
+
+    def tree_of(self, commit):
+        """The tree of a commit, or None when it is not a commit of this repository."""
+        if not self._commit(commit):
+            return None
+        rc, out = self._git("rev-parse", "--verify", "--quiet", commit + "^{tree}")
+        return out if rc == 0 and self.FULL.match(out) else None
+
+    def parents_of(self, commit):
+        if not self._commit(commit):
+            return None
+        rc, out = self._git("rev-list", "--parents", "-n", "1", commit)
+        return out.split()[1:] if rc == 0 else None
+
+    def is_ancestor(self, ancestor, descendant):
+        if not (self._commit(ancestor) and self._commit(descendant)):
+            return False
+        rc, _ = self._git("merge-base", "--is-ancestor", ancestor, descendant)
+        return rc == 0
+
+
 @dataclass
 class Context:
     now: datetime.datetime
@@ -90,6 +130,8 @@ class Context:
     expected_checks: list
     trust: Trust = field(default_factory=Trust)
     artifacts: object = None      # name -> bytes or None
+    tree_of: object = None        # commit -> tree id, or None if it is not a commit of the repository
+    parents_of: object = None     # commit -> list of parent ids, or None
     max_age: datetime.timedelta = MAX_AGE
 
 
@@ -116,6 +158,7 @@ def _check_envelope(raw, filename, ctx):
         record.validate(rec, ctx.expected_checks)
     except record.RecordError as e:
         raise VerifyError("SCHEMA", "%s %s" % (e.kind, e.detail))
+    _check_binding(rec, ctx)
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, filename)
         with open(path, "wb") as fh:
@@ -123,6 +166,25 @@ def _check_envelope(raw, filename, ctx):
         if ctx.attestation.verify(path, digest, ctx.trust, rec["run"]["commit"]) is not True:
             raise VerifyError("ATTESTATION", "no valid attestation for %s from %s" % (digest, ctx.trust.signer_workflow))
     return Verified(rec, digest)
+
+
+def _check_binding(rec, ctx):
+    """The tree the record names is the tree of the commit it names, in this repository; for a merge candidate the commit is
+    the merge of exactly the base and the head the record names (the first parent the base, the second the head). Without
+    a way to ask git there is no answer."""
+    if ctx.tree_of is None or ctx.parents_of is None:
+        raise VerifyError("TREE_UNCHECKED", "the verifier has no way to ask git")
+    t = rec["target"]
+    tree = ctx.tree_of(t["commit"])
+    if tree is None:
+        raise VerifyError("TREE_UNKNOWN", "%s is not a commit of this repository" % t["commit"])
+    if tree != t["tree"]:
+        raise VerifyError("TREE_MISMATCH", "the tree of %s is %s, the record says %s" % (t["commit"], tree, t["tree"]))
+    if t["kind"] == "merge_candidate":
+        parents = ctx.parents_of(t["commit"])
+        if parents != [t["base_commit"], t["head_commit"]]:
+            raise VerifyError("MERGE_BINDING", "the parents of %s are %s, the record says base %s and head %s"
+                              % (t["commit"], parents, t["base_commit"], t["head_commit"]))
 
 
 def verify_record(raw, filename, ctx):

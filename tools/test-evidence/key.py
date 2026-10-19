@@ -69,14 +69,40 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def _literal_prefix(pattern):
+    cut = [i for i, c in enumerate(pattern) if c in "*?"]
+    return pattern[:cut[0]] if cut else pattern
+
+
 def expand(root, patterns):
-    """The files the patterns select under root, sorted by path. Every include pattern has to select something."""
+    """The files the patterns select under root, sorted by path. Every include pattern has to select something, and no
+    symlink may be in the way: neither a file that is selected nor a directory that a selected file could be under."""
     inc = [(p, glob_regex(p)) for p in patterns["include"]]
     exc = [glob_regex(p) for p in patterns["exclude"]]
     hit = {p: 0 for p, _ in inc}
     files = []
+
+    def excluded(rel):
+        return any(rx.match(rel) or rx.match(rel + "/") for rx in exc)
+
+    def could_hold_selected(rel):
+        return any(rx.match(rel) or rx.match(rel + "/") or (rel + "/").startswith(_literal_prefix(p)) or _literal_prefix(p).startswith(rel + "/")
+                   for p, rx in inc)
+
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = sorted(d for d in dirnames if d != ".git")
+        kept = []
+        for d in sorted(dirnames):
+            if d == ".git":
+                continue
+            rel = os.path.relpath(os.path.join(dirpath, d), root).replace(os.sep, "/")
+            if os.path.islink(os.path.join(dirpath, d)):
+                # os.walk lists a symlink to a directory among the directories and does not enter it: without this it would
+                # be skipped without a word, and what is under it would not be in the key
+                if could_hold_selected(rel) and not excluded(rel):
+                    raise KeyError_("NOT_A_REGULAR_FILE", "%s is a symlink to a directory" % rel)
+                continue
+            kept.append(d)
+        dirnames[:] = kept
         for name in sorted(filenames):
             full = os.path.join(dirpath, name)
             rel = os.path.relpath(full, root).replace(os.sep, "/")
