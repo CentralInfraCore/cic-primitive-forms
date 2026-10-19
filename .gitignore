@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 /rust/target/
+# written by rapid when a property fails, e.g. under a mutant; never a seed of this repository
+/go/testdata/rapid/
