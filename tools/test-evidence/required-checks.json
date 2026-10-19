@@ -1,0 +1,12 @@
+[
+ "branch-coverage",
+ "corpus",
+ "evidence-selftest",
+ "fuzz",
+ "go",
+ "parity",
+ "quality",
+ "quality-gate-selftest",
+ "rust",
+ "seeded-defects"
+]

@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Seeded defects of the test evidence tools: the probes must catch an implementation that is deliberately wrong.
+
+A verifier whose probes have never been shown to fail on the defect they exist for proves nothing. For each defect
+below this copies the tool directory to a temporary place, applies one textual change (it must match exactly once, so
+a stale entry cannot pass silently), runs the unit tests there and requires them to FAIL. The unmodified copy has to
+pass first. Nothing in the repository is modified.
+
+    seeded.py
+"""
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+# (name, file, [(old, new), ...])
+DEFECTS = [
+    ("duplicate member names are accepted", "canon.py",
+     [('if k in out:\n                raise CanonError("DUPLICATE_KEY", k)', 'if False:\n                raise CanonError("DUPLICATE_KEY", k)')]),
+    ("members are sorted by code point, not by UTF-16 code unit", "canon.py",
+     [("return s.encode(\"utf-16-be\", \"surrogatepass\")", "return s.encode(\"utf-32-be\")")]),
+    ("a document that is not canonical is read as canonical", "canon.py",
+     [('if canonicalize(v) != bytes(data):\n        raise CanonError("NOT_CANONICAL")', 'if False:\n        raise CanonError("NOT_CANONICAL")')]),
+    ("-0 is a number", "canon.py",
+     [('if n == 0:\n                raise CanonError("NUMBER", "-0")', 'if False:\n                raise CanonError("NUMBER", "-0")')]),
+    ("a fraction is a number", "canon.py",
+     [('if k < len(self.s) and self.s[k] in ".eE":\n            raise CanonError("NUMBER", "fraction or exponent")', 'if False:\n            raise CanonError("NUMBER", "fraction or exponent")')]),
+    ("a lone surrogate escape is read", "canon.py",
+     [('if 0xDC00 <= cu <= 0xDFFF:\n                    raise CanonError("LONE_SURROGATE")', 'if False:\n                    raise CanonError("LONE_SURROGATE")')]),
+    ("the name of a record is not checked against its hash", "verify.py",
+     [('if filename != digest + ".json":', 'if False:')]),
+    ("the attestation result is ignored", "verify.py",
+     [('if ctx.attestation.verify(path, digest, ctx.trust, rec["run"]["commit"]) is not True:', 'if False:')]),
+    ("anything truthy passes as an attestation", "verify.py",
+     [('verify(path, digest, ctx.trust, rec["run"]["commit"]) is not True', 'verify(path, digest, ctx.trust, rec["run"]["commit"]) is False')]),
+    ("the attestation is asked about the wrong commit", "verify.py",
+     [('ctx.attestation.verify(path, digest, ctx.trust, rec["run"]["commit"])', 'ctx.attestation.verify(path, digest, ctx.trust, ctx.target_commit)')]),
+    ("gh is asked for any workflow", "verify.py",
+     [('"--signer-workflow", "%s/%s" % (trust.repository, trust.signer_workflow),', '')]),
+    ("a missing gh is a pass", "verify.py",
+     [("        except (OSError, subprocess.SubprocessError):\n            return False\n        return done.returncode == 0", "        except (OSError, subprocess.SubprocessError):\n            return True\n        return done.returncode == 0")]),
+    ("the validity key is not compared", "verify.py",
+     [('if rec["validity_key"] != want:', 'if False:')]),
+    ("the key is not checked against the inputs written in the record", "verify.py",
+     [('if keymod.key_of(rec["validity_inputs"]) != rec["validity_key"]:', 'if False:')]),
+    ("the ancestry is not checked", "verify.py",
+     [('if commit != ctx.target_commit and not ctx.is_ancestor(commit, ctx.target_commit):', 'if False:')]),
+    ("a record of the future is fresh", "verify.py",
+     [('if age > ctx.max_age or age < datetime.timedelta(0):', 'if age > ctx.max_age:')]),
+    ("age is not checked", "verify.py",
+     [('if age > ctx.max_age or age < datetime.timedelta(0):', 'if False:')]),
+    ("a failed record is a baseline", "verify.py",
+     [('if rec["outcome"] != "pass" or rec["anchor"] is not True:', 'if False:')]),
+    ("a missing artifact is fine", "verify.py",
+     [("        if data is None:\n            raise VerifyError(\"ARTIFACT_MISSING\", ref[\"artifact\"])", "        if data is None:\n            continue")]),
+    ("an artifact digest is not checked", "verify.py",
+     [('if hashlib.sha256(data).hexdigest() != ref["digest"] or len(data) != ref["size"]:', 'if False:')]),
+    ("a missed run does not break the chain", "verify.py",
+     [('if not any(v.rec["slot"] == slot for v in mains):', 'if False:')]),
+    ("a failed newest record does not break the chain", "verify.py",
+     [('if newest.rec["outcome"] != "pass" or newest.rec["anchor"] is not True:', 'if False:')]),
+    ("a pass before a failure is a baseline", "verify.py",
+     [("and (last_fail is None or v.measured_at > last_fail)]", "]")]),
+    ("records of the same second that disagree are not uncertain", "verify.py",
+     [('if len({v.rec["outcome"] for v in ties}) > 1:', 'if False:')]),
+    ("a listed record that is missing is skipped", "verify.py",
+     [("        if raw is None:\n            return Choice(None, \"UNCERTAIN\", \"listed record %s is missing\" % digest)", "        if raw is None:\n            continue")]),
+    ("a listed record that does not verify is skipped", "verify.py",
+     [("        except VerifyError as e:\n            return Choice(None, \"UNCERTAIN\", \"listed record %s does not verify: %s\" % (digest, e.code))", "        except VerifyError as e:\n            continue")]),
+    ("the chosen baseline is not verified for the target", "verify.py",
+     [("        verify_baseline(raw, choice.baseline.digest + \".json\", ctx)", "        pass")]),
+    ("an extra member in a record is allowed", "record.py",
+     [('    if extra:\n        _fail("EXTRA"', '    if False:\n        _fail("EXTRA"')]),
+    ("a missing member in a record is allowed", "record.py",
+     [('    if missing:\n        _fail("MISSING"', '    if False:\n        _fail("MISSING"')]),
+    ("an action may be named by a tag", "record.py",
+     [('"actions": _map_of(_re(SHA1)),', '"actions": _map_of(_str),')]),
+    ("a toolchain may be a label", "record.py",
+     [('"rustc": version, "cargo": version,', '"rustc": _str, "cargo": version,')]),
+    ("the anchor may disagree with the outcome", "record.py",
+     [('    if rec["anchor"] != (rec["outcome"] == "pass"):', '    if False:')]),
+    ("a pass with a failed required check", "record.py",
+     [('    if rec["outcome"] == "pass" and not green:', '    if False:')]),
+    ("the required checks may differ from the expected ones", "record.py",
+     [("    if expected_checks is not None and sorted", "    if False and sorted")]),
+    ("a pattern that matches nothing is fine", "key.py",
+     [("        if n == 0:\n            raise KeyError_(\"NO_MATCH\", p)", "        if n == 0:\n            pass")]),
+    ("a symlink is followed", "key.py",
+     [("            if os.path.islink(full) or not os.path.isfile(full):", "            if not os.path.isfile(full):")]),
+    ("the environment is not part of the key", "key.py",
+     [('    out["environment"] = canon.content_hash(environment)', '    out["environment"] = "0" * 64')]),
+    ("the selector version is not part of the key", "key.py",
+     [('    out["selector"] = _sha("selector-version:%d" % SELECTOR_VERSION)', '    out["selector"] = _sha("selector-version:1")')]),
+    ("the pattern list is not part of the key", "key.py",
+     [('    out["patterns"] = canon.content_hash(patterns)', '    out["patterns"] = "0" * 64')]),
+    ("a verdict that the numbers do not give is accepted", "record.py",
+     [('    if q["gate_verdict"] != ("PASS" if numbers_pass(q) and q["completeness"] == "complete" else "FAIL"):', '    if False:')]),
+    ("exactly the threshold is a pass", "record.py",
+     [("    return total > 0 and covered * 100 > total * threshold", "    return total > 0 and covered * 100 >= total * threshold")]),
+    ("a measurement of nothing is a pass", "record.py",
+     [("    return total > 0 and covered * 100 > total * threshold", "    return total == 0 or covered * 100 > total * threshold")]),
+    ("survivors do not count against the mutation score", "record.py",
+     [('above(q[k]["killed"], q[k]["killed"] + q[k]["survived"], t["mutation"])', 'above(q[k]["killed"], q[k]["killed"], t["mutation"])')]),
+    ("unviable mutants count against the mutation score", "record.py",
+     [('above(q[k]["killed"], q[k]["killed"] + q[k]["survived"], t["mutation"])', 'above(q[k]["killed"], q[k]["killed"] + q[k]["survived"] + q[k]["unviable" if k == "rust_mutation" else "uncompilable"], t["mutation"])')]),
+    ("a record made by a run on another commit is accepted", "record.py",
+     [('    if rec["target"]["commit"] != rec["run"]["commit"]:', '    if False:')]),
+    ("the tree of the commit is not compared", "verify.py",
+     [('    if tree != t["tree"]:', '    if False:')]),
+    ("an unknown commit is not noticed", "verify.py",
+     [('    if tree is None:', '    if False:')]),
+    ("the parents of a merge candidate are not compared", "verify.py",
+     [('        if parents != [t["base_commit"], t["head_commit"]]:', '        if False:')]),
+    ("the parents of a merge candidate may come in any order", "verify.py",
+     [('        if parents != [t["base_commit"], t["head_commit"]]:', '        if sorted(parents or []) != sorted([t["base_commit"], t["head_commit"]]):')]),
+    ("no way to ask git is a pass", "verify.py",
+     [('    if ctx.tree_of is None or ctx.parents_of is None:', '    if False:')]),
+    ("any argument reaches git", "verify.py",
+     [('        if not isinstance(sha, str) or not self.FULL.match(sha):', '        if not isinstance(sha, str):')]),
+    ("a tree id is taken for a commit", "verify.py",
+     [('        return rc == 0 and kind == "commit"', '        return rc == 0')]),
+    ("a symlink to a directory is skipped without a word", "key.py",
+     [('                if could_hold_selected(rel) and not excluded(rel):', '                if False:')]),
+    ("a symlink to a directory in an excluded place is refused", "key.py",
+     [('                if could_hold_selected(rel) and not excluded(rel):', '                if could_hold_selected(rel):')]),
+    ("workflows are not part of the key", "key-inputs.json",
+     [('  ".github/workflows/**",\n', '')]),
+]
+
+
+def run_tests(directory):
+    env = dict(os.environ)
+    p = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", directory, "-p", "test_*.py"],
+                       capture_output=True, text=True, env=env, cwd=directory)
+    return p.returncode, p.stdout + p.stderr
+
+
+def main():
+    bad = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        work = os.path.join(tmp, "te")
+        shutil.copytree(HERE, work, ignore=shutil.ignore_patterns("__pycache__"))
+        rc, out = run_tests(work)
+        print("%-62s: %s" % ("baseline (unmodified)", "pass" if rc == 0 else "FAIL"))
+        if rc != 0:
+            print(out[-2000:])
+            return 1
+        for name, rel, ops in DEFECTS:
+            path = os.path.join(work, rel)
+            original = open(path, encoding="utf-8").read()
+            text = original
+            stale = False
+            for old, new in ops:
+                if text.count(old) != 1:
+                    print("%-62s: STALE %r occurs %d times" % (name, old[:50], text.count(old)))
+                    stale = True
+                    break
+                text = text.replace(old, new)
+            if stale:
+                bad += 1
+                continue
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            rc, out = run_tests(work)
+            caught = rc != 0
+            print("%-62s: %s" % (name, "CAUGHT" if caught else "NOT CAUGHT"))
+            bad += 0 if caught else 1
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(original)
+    print("SEEDED DEFECTS: %s" % ("every defect is caught (%d)" % len(DEFECTS) if bad == 0 else "FAILED (%d)" % bad))
+    return 0 if bad == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

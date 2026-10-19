@@ -1,0 +1,383 @@
+{
+ "schema": "test-evidence-canon-vectors/1",
+ "cases": [
+  {
+   "name": "empty object",
+   "input_hex": "7b7d",
+   "canonical_hex": "7b7d",
+   "refuse": null
+  },
+  {
+   "name": "empty array",
+   "input_hex": "5b5d",
+   "canonical_hex": "5b5d",
+   "refuse": null
+  },
+  {
+   "name": "scalars",
+   "input_hex": "5b6e756c6c2c747275652c66616c73652c302c2d312c2278225d",
+   "canonical_hex": "5b6e756c6c2c747275652c66616c73652c302c2d312c2278225d",
+   "refuse": null
+  },
+  {
+   "name": "members are sorted",
+   "input_hex": "7b2261223a312c2262223a327d",
+   "canonical_hex": "7b2261223a312c2262223a327d",
+   "refuse": null
+  },
+  {
+   "name": "members out of order are sorted",
+   "input_hex": "7b2262223a322c2261223a317d",
+   "canonical_hex": "7b2261223a312c2262223a327d",
+   "refuse": null
+  },
+  {
+   "name": "white space is dropped",
+   "input_hex": "207b20226122203a205b2031202c2032205d207d0a",
+   "canonical_hex": "7b2261223a5b312c325d7d",
+   "refuse": null
+  },
+  {
+   "name": "nested order",
+   "input_hex": "7b2262223a7b2264223a312c2263223a327d2c2261223a5b7b2279223a312c2278223a327d5d7d",
+   "canonical_hex": "7b2261223a5b7b2278223a322c2279223a317d5d2c2262223a7b2263223a322c2264223a317d7d",
+   "refuse": null
+  },
+  {
+   "name": "order by UTF-16 code unit, not code point",
+   "input_hex": "7b22efbfbf223a312c22f09f9880223a327d",
+   "canonical_hex": "7b22f09f9880223a322c22efbfbf223a317d",
+   "refuse": null
+  },
+  {
+   "name": "order of a prefix",
+   "input_hex": "7b226162223a312c2261223a327d",
+   "canonical_hex": "7b2261223a322c226162223a317d",
+   "refuse": null
+  },
+  {
+   "name": "an escaped name sorts as its character",
+   "input_hex": "7b2262223a312c225c7530303631223a327d",
+   "canonical_hex": "7b2261223a322c2262223a317d",
+   "refuse": null
+  },
+  {
+   "name": "non-ASCII is written as is",
+   "input_hex": "22c3a9e4b8adf09f988022",
+   "canonical_hex": "22c3a9e4b8adf09f988022",
+   "refuse": null
+  },
+  {
+   "name": "an escaped non-ASCII is written as is",
+   "input_hex": "225c75303065395c75346532645c75643833645c756465303022",
+   "canonical_hex": "22c3a9e4b8adf09f988022",
+   "refuse": null
+  },
+  {
+   "name": "escapes with a short form",
+   "input_hex": "225c225c5c5c625c665c6e5c725c7422",
+   "canonical_hex": "225c225c5c5c625c665c6e5c725c7422",
+   "refuse": null
+  },
+  {
+   "name": "the solidus is not escaped",
+   "input_hex": "225c2f22",
+   "canonical_hex": "222f22",
+   "refuse": null
+  },
+  {
+   "name": "other control characters are \\u00xx lower case",
+   "input_hex": "225c75303030305c75303031665c753030304222",
+   "canonical_hex": "225c75303030305c75303031665c753030306222",
+   "refuse": null
+  },
+  {
+   "name": "DEL, U+2028 and U+0085 are written as is",
+   "input_hex": "227fe280a8c28522",
+   "canonical_hex": "227fe280a8c28522",
+   "refuse": null
+  },
+  {
+   "name": "upper case hex in an escape is read",
+   "input_hex": "225c753030453922",
+   "canonical_hex": "22c3a922",
+   "refuse": null
+  },
+  {
+   "name": "integers",
+   "input_hex": "5b302c312c2d312c393030373139393235343734303939312c2d393030373139393235343734303939315d",
+   "canonical_hex": "5b302c312c2d312c393030373139393235343734303939312c2d393030373139393235343734303939315d",
+   "refuse": null
+  },
+  {
+   "name": "depth 64 is allowed",
+   "input_hex": "5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d",
+   "canonical_hex": "5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d",
+   "refuse": null
+  },
+  {
+   "name": "empty input",
+   "input_hex": "",
+   "canonical_hex": null,
+   "refuse": "EMPTY"
+  },
+  {
+   "name": "only white space",
+   "input_hex": "200a",
+   "canonical_hex": null,
+   "refuse": "EMPTY"
+  },
+  {
+   "name": "a byte order mark",
+   "input_hex": "efbbbf7b7d",
+   "canonical_hex": null,
+   "refuse": "BOM"
+  },
+  {
+   "name": "invalid UTF-8",
+   "input_hex": "22ff22",
+   "canonical_hex": null,
+   "refuse": "INVALID_UTF8"
+  },
+  {
+   "name": "an overlong UTF-8 form",
+   "input_hex": "22c08022",
+   "canonical_hex": null,
+   "refuse": "INVALID_UTF8"
+  },
+  {
+   "name": "an encoded surrogate",
+   "input_hex": "22eda08022",
+   "canonical_hex": null,
+   "refuse": "INVALID_UTF8"
+  },
+  {
+   "name": "a truncated UTF-8 sequence",
+   "input_hex": "22e4b822",
+   "canonical_hex": null,
+   "refuse": "INVALID_UTF8"
+  },
+  {
+   "name": "a duplicate member name",
+   "input_hex": "7b2261223a312c2261223a327d",
+   "canonical_hex": null,
+   "refuse": "DUPLICATE_KEY"
+  },
+  {
+   "name": "a duplicate member name once escaped",
+   "input_hex": "7b2261223a312c225c7530303631223a327d",
+   "canonical_hex": null,
+   "refuse": "DUPLICATE_KEY"
+  },
+  {
+   "name": "a duplicate in a nested object",
+   "input_hex": "7b2278223a7b226b223a312c226b223a317d7d",
+   "canonical_hex": null,
+   "refuse": "DUPLICATE_KEY"
+  },
+  {
+   "name": "a lone high surrogate",
+   "input_hex": "225c756438303022",
+   "canonical_hex": null,
+   "refuse": "LONE_SURROGATE"
+  },
+  {
+   "name": "a lone low surrogate",
+   "input_hex": "225c756463303022",
+   "canonical_hex": null,
+   "refuse": "LONE_SURROGATE"
+  },
+  {
+   "name": "a high surrogate and no low one",
+   "input_hex": "225c75643830305c753030343122",
+   "canonical_hex": null,
+   "refuse": "LONE_SURROGATE"
+  },
+  {
+   "name": "a lone surrogate in a member name",
+   "input_hex": "7b225c7564666666223a317d",
+   "canonical_hex": null,
+   "refuse": "LONE_SURROGATE"
+  },
+  {
+   "name": "a raw control character in a string",
+   "input_hex": "22610a6222",
+   "canonical_hex": null,
+   "refuse": "CONTROL_CHAR"
+  },
+  {
+   "name": "a raw tab in a string",
+   "input_hex": "2261096222",
+   "canonical_hex": null,
+   "refuse": "CONTROL_CHAR"
+  },
+  {
+   "name": "an unknown escape",
+   "input_hex": "225c78343122",
+   "canonical_hex": null,
+   "refuse": "ESCAPE"
+  },
+  {
+   "name": "a short \\u escape",
+   "input_hex": "225c75313222",
+   "canonical_hex": null,
+   "refuse": "ESCAPE"
+  },
+  {
+   "name": "a \\u escape that is not hex",
+   "input_hex": "225c7530307a7a22",
+   "canonical_hex": null,
+   "refuse": "ESCAPE"
+  },
+  {
+   "name": "trailing bytes",
+   "input_hex": "7b7d2078",
+   "canonical_hex": null,
+   "refuse": "TRAILING"
+  },
+  {
+   "name": "two documents",
+   "input_hex": "7b7d7b7d",
+   "canonical_hex": null,
+   "refuse": "TRAILING"
+  },
+  {
+   "name": "a trailing comma in an array",
+   "input_hex": "5b312c5d",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a trailing comma in an object",
+   "input_hex": "7b2261223a312c7d",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a missing colon",
+   "input_hex": "7b22612220317d",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a name that is not a string",
+   "input_hex": "7b613a317d",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "an unterminated string",
+   "input_hex": "22616263",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "an unclosed array",
+   "input_hex": "5b312c32",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a single-quoted string",
+   "input_hex": "276127",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "NaN",
+   "input_hex": "4e614e",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "Infinity",
+   "input_hex": "496e66696e697479",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a plus sign",
+   "input_hex": "2b31",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a leading dot",
+   "input_hex": "2e35",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "True with a capital",
+   "input_hex": "54727565",
+   "canonical_hex": null,
+   "refuse": "SYNTAX"
+  },
+  {
+   "name": "a leading zero",
+   "input_hex": "3031",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "minus zero",
+   "input_hex": "2d30",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a fraction",
+   "input_hex": "312e30",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "an exponent",
+   "input_hex": "316532",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "an upper case exponent",
+   "input_hex": "314532",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a minus and no digit",
+   "input_hex": "2d",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a minus and a letter",
+   "input_hex": "2d61",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a number past 2^53-1",
+   "input_hex": "39303037313939323534373430393932",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a negative number past 2^53-1",
+   "input_hex": "2d39303037313939323534373430393932",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "a very long integer",
+   "input_hex": "31313131313131313131313131313131313131313131313131313131313131313131313131313131",
+   "canonical_hex": null,
+   "refuse": "NUMBER"
+  },
+  {
+   "name": "depth 65",
+   "input_hex": "5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d",
+   "canonical_hex": null,
+   "refuse": "DEPTH"
+  }
+ ]
+}

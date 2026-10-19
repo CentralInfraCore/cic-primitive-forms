@@ -1,0 +1,22 @@
+{
+ "include": [
+  "rust/Cargo.toml",
+  "rust/Cargo.lock",
+  "rust/fuzz/Cargo.toml",
+  "rust/fuzz/Cargo.lock",
+  "go/go.mod",
+  "go/go.sum",
+  "coverage/**",
+  "tools/**",
+  "corpus/**",
+  "testdata/**",
+  ".github/workflows/**",
+  ".github/actions/**"
+ ],
+ "exclude": [
+  "**/__pycache__/**",
+  "**/*.pyc",
+  "**/target/**",
+  "go/testdata/rapid/**"
+ ]
+}
