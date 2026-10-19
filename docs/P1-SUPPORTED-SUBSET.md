@@ -261,15 +261,15 @@ green, a fix) and requires the right verdict, in the same job. `make_corpus.py` 
 ## Quality gates (docs/PHASES.md, "Quality gates")
 
 All on the product code of this slice (`rust/src`, `go/*.go` without tests), strictly above 90%,
-failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 at commit `36809bab`, on all of
+failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 at commit `fe80d559`, on all of
 `rust/src` and `go/*.go`, not only on the parser. Later commits of the PR change documentation, tests, the corpus, the CI workflow (the `quality` job in shards, `docs/QUALITY-SHARDING.md`) and the PR text only;
-`git diff 36809bab..HEAD -- rust/src ':(glob)go/*.go' ':(exclude)go/*_test.go'` (the product code, without the tests) is empty, which is what makes the numbers the ones of the head.
+`git diff fe80d559..HEAD -- rust/src ':(glob)go/*.go' ':(exclude)go/*_test.go'` (the product code, without the tests) is empty, which is what makes the numbers the ones of the head.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
-| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 98.69% (1278/1295) | 100.00% (600/600) |
-| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.23% (633/651) | 100.00% (730/730) |
-| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 99.77% (432 of 433 viable mutants caught or timed out, 1 missed) | 97.67% (798 killed, 19 survived) |
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 98.69% (1279/1296) | 100.00% (601/601) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.25% (638/656) | 100.00% (735/735) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 99.77% (438 of 439 viable mutants caught or timed out, 1 missed) | 97.82% (806 killed, 18 survived) |
 | Property tests | `proptest` / `rapid` | 14 properties, 512 cases each | the same properties (13 tests: "no value is a valid mode in both grammars" is part of the type-preservation test), 1000 cases |
 | Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse`, `validate` and `access`, 60 s each in CI | `FuzzParse`, `FuzzValidate` and `FuzzAccess`, 60 s each in CI |
 | Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 presence and 21 of 21 inheritance `validate` | the same |
@@ -278,10 +278,9 @@ failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 at c
 seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
 `BELOW_THRESHOLD`, exactly 90% is red).
 
-**The 19 Go survivors at `36809bab`** (798 of 817 mutants killed; the CI count, reproduced exactly by the six local
-shards of `tools/mutation_shard_exec.sh` and by `go-mutesting ./...` before): 7 in `access.go`, `emit.go` and
-`recognize.go`, 12 in `parse.go`. All are equivalent mutants (the behaviour cannot differ) except one, which a test
-now kills:
+**The 18 Go survivors at `fe80d559`** (806 of 824 mutants killed; the CI count, reproduced exactly by the six local
+shards of `tools/mutation_shard_exec.sh`): 7 in `access.go`, `emit.go` and `recognize.go`, 11 in `parse.go`. All are
+equivalent mutants, the behaviour cannot differ:
 
 * `access.go`, `emit.go`, `recognize.go`: the value returned next to an error that the caller never reads
   (`UNKNOWN_GRAMMAR_VERSION`, two mutants); the numeric value of the `ModeInvalid` sentinel; the early `return nil`
@@ -294,15 +293,13 @@ now kills:
   loop over two candidates that exclude each other; the look-ahead for `''` at the end of an unterminated string; a
   longer slice for a prefix test whose next condition looks at the character after the marker; the leading flag
   updated inside a quoted scalar, where it is already false (two mutants).
-* The one that was not equivalent: the reset of the block-scalar state after the block ends (`_ = block`). A line
-  indented deeper than the block scalar was, after it, was still taken for its content. Covered now by the case
-  `k:\n  a: |\n    x\n  b:\n    - [? q]\n` in each language and in the corpus.
 
-An earlier run of 33 survivors (at `9bf7d1aa`) had 14 more, which the tests added since kill: the end of a block
-scalar, a marker or an explicit key at the end of the text, a `&` followed by a lone CR, a `%` at the start of a line
-inside a quoted scalar, and the key anchor behind the scan (`the_edges_of_the_text_scan_give_the_yaml_answer`,
-`the_checks_behind_the_prescan_still_refuse`, the corpus). The comment skip of `scan_words` was redundant (a word after
-text is never a scalar start) and is gone with its mutants.
+Earlier heads had more survivors, which tests killed since: 33 at `9bf7d1aa` (the end of a block scalar, a marker or an
+explicit key at the end of the text, a `&` followed by a lone CR, a `%` at the start of a line inside a quoted
+scalar, the key anchor behind the scan: `the_edges_of_the_text_scan_give_the_yaml_answer`,
+`the_checks_behind_the_prescan_still_refuse`, the corpus) and 19 at `36809bab` (one not equivalent: a line indented
+deeper than a block scalar was, after it, still taken for its content). The comment skip of `scan_words` was redundant
+(a word after text is never a scalar start) and is gone with its mutants.
 
 **What each property checks** (Rust and Go identically): emit then parse gives back the value for any
 value of the subset including any string and key (long ones too); emit is a fixed point under parse;
@@ -317,9 +314,9 @@ and that reading an `access`/`modify` value and an `InheritanceMode` under both 
 
 | Gate | Seeded fault | Result |
 |---|---|---|
-| Line coverage | only the subset test runs | Rust 50.55% (595/1177), Go 32.33% (194/600), both `BELOW_THRESHOLD`; reproduced in CI |
+| Line coverage | only the subset test runs | Rust 50.59% (596/1178), Go 32.45% (195/601), both `BELOW_THRESHOLD`; reproduced in CI |
 | Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
-| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 63.59% (414/651), Go 0.00% (0/730), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 67.22% (441/656), Go 0.00% (0/735), both `BELOW_THRESHOLD`; reproduced in CI |
 | Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
 | Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
 | Fuzz job | a committed input starting with `CANARY` fails each of the six targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
