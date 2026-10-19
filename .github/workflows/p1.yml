@@ -153,6 +153,7 @@ jobs:
           cargo install --locked cargo-mutants --version 27.1.0
       - name: Mutation, Rust (cargo-mutants), one shard
         run: |
+          mkdir -p "$RUNNER_TEMP/q"
           # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
           (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --shard ${{ matrix.shard }}/4 --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
       - uses: actions/upload-artifact@v4
