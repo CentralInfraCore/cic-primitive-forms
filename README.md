@@ -3,9 +3,10 @@
 Schema-driven processing of CIC primitive documents, with two independent
 implementations (Rust and Go) held to one shared conformance corpus.
 
-> **Status: design phase.** No code yet. The scope and the phase plan are
-> fixed in [`docs/PHASES.md`](docs/PHASES.md); the open contract decisions are
-> collected in [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md).
+> **Status: P0 contract accepted, P1 first slice implemented.** The scope and the phase plan are
+> fixed in [`docs/PHASES.md`](docs/PHASES.md); the contract decisions are indexed in
+> [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and
+> Go (`go/`) and what is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md).
 
 ## What it does
 
@@ -55,12 +56,13 @@ primitive is:
 
 `make corpus` (needs `pip install -r tools/requirements.txt`) checks the structure of
 every fixture and proves with seeded faults that the check can fail. It is a
-structural check only; implementation conformance is not run until the P1 runners
-exist. Format: [ADR 0005](docs/adr/0005-conformance-corpus-contract.md).
+structural check only. Implementation conformance is run by the P1 runners
+(`rust/tests/corpus.rs`, `go/corpus_test.go`, workflow `p1`), for the kinds listed in
+`docs/P1-SUPPORTED-SUBSET.md`. Format: [ADR 0005](docs/adr/0005-conformance-corpus-contract.md).
 `make grammar-selftest` and the CI step that reproduces the pinned grammar identity from the
 upstream commit are described in [ADR 0002](docs/adr/0002-minimal-schema-contract.md).
 `make coverage` proves that the branch coverage gate fails when it must
-([ADR 0009](docs/adr/0009-branch-coverage-measurement-contract.md)); no code is measured yet.
+([ADR 0009](docs/adr/0009-branch-coverage-measurement-contract.md)); the product code is measured by workflow `p1`.
 
 ## What does not belong here
 

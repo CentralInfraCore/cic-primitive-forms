@@ -1,0 +1,200 @@
+name: p1
+# The P1 implementation (rust/, go/): format, lint, tests with the shared corpus, and the
+# mandatory branch coverage gate of ADR 0009 on product code, measured with the pinned
+# gobranch and rustbranch (coverage/tools.yaml).
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    paths: ["rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", ".github/workflows/p1.yml"]
+permissions:
+  contents: read
+jobs:
+  quality-gate-selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 tools/quality_gate.py selftest
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+      - run: cargo +stable fmt --check
+        working-directory: rust
+      - run: cargo +stable clippy --locked --all-targets -- -D warnings
+        working-directory: rust
+      - run: cargo +stable test --locked
+        working-directory: rust
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - run: test -z "$(gofmt -l .)"
+        working-directory: go
+      - run: go vet ./...
+        working-directory: go
+      - run: go test -race -count=1 -rapid.checks=1000 ./...
+        working-directory: go
+  branch-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Pinned Rust nightly
+        run: |
+          rustup toolchain install nightly-2026-10-17 --profile minimal --component llvm-tools-preview
+          rustup default nightly-2026-10-17
+          rustc --version
+      - name: Build the pinned measurement tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/bc"
+          (cd tools/branchcov/go && go build -o "$RUNNER_TEMP/bc/gobranch" ./cmd/gobranch)
+          (cd tools/branchcov/rust && CARGO_TARGET_DIR="$RUNNER_TEMP/bc/rt" cargo build --release --locked)
+      - name: Measure, report and gate
+        env:
+          CIC_FORMS_ROOT: ${{ github.workspace }}
+        run: |
+          set -e
+          BC="$RUNNER_TEMP/bc"
+          COMMIT=$(git rev-parse HEAD)
+          (cd go && "$BC/gobranch" run -C . -o "$BC/go-run.json")
+          CARGO_TARGET_DIR="$BC/rust-sample" "$BC/rt/release/rustbranch" run --dir rust --out "$BC/rust-run.json"
+          for l in go rust; do
+            python3 tools/branchcov/adapter.py $l --run "$BC/$l-run.json" --root . --module-dir $l \
+              --scope coverage/scope.yaml --commit "$COMMIT" --out "$BC/$l-report.json"
+          done
+          python3 tools/coverage_gate.py check --root . --scope coverage/scope.yaml --tools coverage/tools.yaml \
+            --commit "$COMMIT" --report rust="$BC/rust-report.json" --report go="$BC/go-report.json"
+      # A gate that cannot fail proves nothing: with almost all tests dropped (Rust: only the
+      # behaviour tests; Go: one test) the same gate must be red on product code, for both languages.
+      - name: Seeded proof, the gate turns red on product code
+        env:
+          CIC_FORMS_ROOT: ${{ github.workspace }}
+        run: |
+          BC="$RUNNER_TEMP/bc"
+          COMMIT=$(git rev-parse HEAD)
+          (cd go && GOFLAGS='-run=^TestTheDefaultLimitsAreThePublishedOnes$' "$BC/gobranch" run -C . -o "$BC/go-reduced.json")
+          CARGO_TARGET_DIR="$BC/rust-sample" "$BC/rt/release/rustbranch" run --dir rust --out "$BC/rust-reduced.json" -- --test behaviour
+          for l in go rust; do
+            python3 tools/branchcov/adapter.py $l --run "$BC/$l-reduced.json" --root . --module-dir $l \
+              --scope coverage/scope.yaml --commit "$COMMIT" --out "$BC/$l-reduced-report.json"
+          done
+          set +e
+          OUT=$(python3 tools/coverage_gate.py check --root . --scope coverage/scope.yaml --tools coverage/tools.yaml \
+            --commit "$COMMIT" --report rust="$BC/rust-reduced-report.json" --report go="$BC/go-reduced-report.json")
+          RC=$?
+          echo "$OUT"
+          test "$RC" -eq 1
+          echo "$OUT" | grep -q "FAIL rust BELOW_THRESHOLD"
+          echo "$OUT" | grep -q "FAIL go BELOW_THRESHOLD"
+
+  # PHASES.md quality gates, on the product code of rust/ and go/: line coverage and mutation score
+  # strictly above 90% in both languages. Property tests run with the unit tests above; the
+  # parser fuzz targets are in the `fuzz` job. Each measurement is followed by a seeded proof that
+  # the same gate turns red when the tests are weakened.
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Tools (pinned)
+        run: |
+          rustup toolchain install stable --profile minimal --component llvm-tools-preview
+          cargo install --locked cargo-llvm-cov --version 0.9.1
+          cargo install --locked cargo-mutants --version 27.1.0
+          go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Line coverage
+        run: |
+          mkdir -p "$RUNNER_TEMP/q"
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable llvm-cov --locked --json --summary-only --output-path "$RUNNER_TEMP/q/rust-lines.json")
+          (cd go && go test -count=1 -covermode=set -coverprofile="$RUNNER_TEMP/q/go-lines.out" ./...)
+      - name: Mutation, Rust (cargo-mutants)
+        run: |
+          # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+      - name: Mutation, Go (go-mutesting)
+        run: |
+          (cd go && go-mutesting ./... > "$RUNNER_TEMP/q/mut-go.txt") || true
+      - name: Gate
+        run: |
+          Q="$RUNNER_TEMP/q"
+          python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines.json" --go-lines "$Q/go-lines.out" \
+            --rust-mutants "$Q/mut-rust/mutants.out/outcomes.json" --go-mutants "$Q/mut-go.txt"
+      # A gate that cannot fail proves nothing. With the tests weakened, the same gate is red.
+      - name: Seeded proof, weakened tests turn the line coverage red
+        run: |
+          Q="$RUNNER_TEMP/q"
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable llvm-cov --locked --json --summary-only --output-path "$Q/rust-lines-weak.json" --test subset)
+          (cd go && go test -count=1 -covermode=set -coverprofile="$Q/go-lines-weak.out" -run '^TestParseReadsTheSupportedSubset$' ./...)
+          set +e
+          OUT=$(python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines-weak.json" --go-lines "$Q/go-lines-weak.out" \
+            --rust-mutants "$Q/mut-rust/mutants.out/outcomes.json" --go-mutants "$Q/mut-go.txt")
+          RC=$?
+          echo "$OUT"
+          test "$RC" -eq 1
+          echo "$OUT" | grep -q "FAIL rust line coverage .*BELOW_THRESHOLD"
+          echo "$OUT" | grep -q "FAIL go statement coverage .*BELOW_THRESHOLD"
+      - name: Seeded proof, weakened tests turn the mutation score red
+        run: |
+          Q="$RUNNER_TEMP/q"
+          # Mutate only recognize.* and run only tests that do not exercise it: every mutant survives.
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --file src/recognize.rs --output "$Q/mut-rust-weak" --jobs 1 --timeout 120 -- --test subset) || true
+          (cd go && CIC_MUTATION_RUN='^TestParseReadsTheSupportedSubset$' go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_reduced_exec.sh" recognize.go > "$Q/mut-go-weak.txt") || true
+          set +e
+          OUT=$(python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines.json" --go-lines "$Q/go-lines.out" \
+            --rust-mutants "$Q/mut-rust-weak/mutants.out/outcomes.json" --go-mutants "$Q/mut-go-weak.txt")
+          RC=$?
+          echo "$OUT"
+          test "$RC" -eq 1
+          echo "$OUT" | grep -q "FAIL rust mutation score .*BELOW_THRESHOLD"
+          echo "$OUT" | grep -q "FAIL go mutation score .*BELOW_THRESHOLD"
+
+  # Parser fuzzing (PHASES.md: from P1). Go: native fuzzing. Rust: cargo-fuzz on the pinned nightly.
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Go, 60 seconds
+        run: cd go && go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
+      - name: Rust nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly-2026-10-17 --profile minimal
+          cargo install --locked cargo-fuzz --version 0.13.2
+      - name: Rust, 60 seconds
+        working-directory: rust
+        run: cargo +nightly-2026-10-17 fuzz run parse -- -max_total_time=60
+      # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
+      - name: Seeded proof, the canary turns both fuzz targets red
+        run: |
+          set +e
+          (cd go && CIC_FUZZ_CANARY=1 go test -run '^FuzzParse$' ./...)
+          test $? -ne 0 || { echo "Go canary did not fail"; exit 1; }
+          (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run parse fuzz/canary/CANARY)
+          test $? -ne 0 || { echo "Rust canary did not fail"; exit 1; }
+          (cd rust && cargo +nightly-2026-10-17 fuzz run parse fuzz/canary/CANARY)
+          test $? -eq 0 || { echo "the canary input must pass when the switch is off"; exit 1; }

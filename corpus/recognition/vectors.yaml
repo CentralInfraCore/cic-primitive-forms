@@ -96,7 +96,7 @@ cases:
     polarity: negative
     schema: {synthetic: {position: {structured: [host, port]}}}
     input: {access: inherit, value: 1}
-    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}}]}
+    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}, logical_path: '$.access'}, {code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}, logical_path: '$.value'}]}
     codes_status: stable
   - id: recognition.structured-child-named-like-access-key
     kind: recognize
@@ -109,7 +109,7 @@ cases:
     polarity: negative
     schema: {synthetic: {position: {structured: [host, port]}}}
     input: {colour: red, host: a}
-    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}}]}
+    expect: {class: short, errors: [{code: UNKNOWN_FIELD, phase: validate, source_location: {state: unavailable}, logical_path: '$.colour'}]}
     codes_status: stable
   - id: recognition.scalar-plain-map-short-then-rejected
     kind: recognize
