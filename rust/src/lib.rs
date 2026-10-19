@@ -9,6 +9,7 @@
 //!
 //! The expanded-form key set `A` is never hardcoded: the caller passes it in.
 
+pub mod access;
 pub mod emit;
 pub mod error;
 pub mod node;
@@ -16,6 +17,10 @@ pub mod parse;
 pub mod recognize;
 pub mod validate;
 
+pub use access::{
+    bind_grammar, is_cert_pattern, pinned_grammar_version, read_mode, read_rule, sha256_hex,
+    write_mode, Grammar, Mode, Rule, INHERIT_SYMBOL, SUPPORTED_GRAMMARS,
+};
 pub use emit::emit;
 pub use error::{Error, Location, Phase, Violation};
 pub use node::{Entry, Node, Pos, Value};

@@ -55,6 +55,11 @@ pub enum Error {
     Syntax(String),
     /// A resource limit was exceeded.
     Limit(String),
+    /// The grammar version or the pinned schema could not be bound. The code is the upstream
+    /// contract's own (`GRAMMAR_VERSION_MISSING`, `UNKNOWN_GRAMMAR_VERSION`,
+    /// `GRAMMAR_VERSION_CONFLICT`) or `GRAMMAR_DIGEST_MISMATCH` (ADR 0002); none of them is
+    /// renamed. Nothing falls back to a default version.
+    Binding(&'static str),
 }
 
 impl Error {
@@ -67,6 +72,7 @@ impl Error {
             Error::Unsupported(_) => "UNSUPPORTED_SYNTAX",
             Error::Syntax(_) => "YAML_SYNTAX",
             Error::Limit(_) => "LIMIT_EXCEEDED",
+            Error::Binding(code) => code,
         }
     }
 }

@@ -28,3 +28,22 @@ func TestAnAliasNodeIsRefused(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 }
+
+// Outside the package a Grammar can only come from BindGrammar, so a version the contract does not define
+// has to be built here. Such a Grammar is not grammar 2: it reads nothing and writes nothing.
+func TestAGrammarOfAnUnknownVersionIsNeitherReadNorWritten(t *testing.T) {
+	for _, version := range []int64{-1, 0, 3, 100} {
+		g := Grammar{version: version}
+		for _, n := range []*Node{{Kind: KindStr, Str: "inherit"}, {Kind: KindBool, Bool: true}, {Kind: KindInt}} {
+			mode, v := ReadMode(n, g)
+			if v == nil || v.Code != "UNKNOWN_GRAMMAR_VERSION" || mode != ModeInvalid {
+				t.Errorf("version %d read %+v: %v %+v", version, n, mode, v)
+			}
+		}
+		for _, m := range []Mode{ModeInherit, ModeNoInherit, ModeReset} {
+			if n, err := WriteMode(m, g); n != nil || err == nil {
+				t.Errorf("version %d wrote mode %d: %+v", version, m, n)
+			}
+		}
+	}
+}

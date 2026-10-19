@@ -10,8 +10,10 @@ package forms_test
 //   - recognition depends on the key set only, and Recognize does not change its input.
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -378,6 +380,134 @@ func TestPropertyAnyDocumentAgainstAnyShapeGivesAnOrderedUniqueResponse(t *testi
 		}
 		if len(phases) > 1 {
 			t.Fatal("more than one phase in one response")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Reading access-policy/1 (cic-primitives D-018). The Rust peer checks the same properties.
+//
+//   - type preservation: whatever reads is written back to the same spelling, to the type, and a value
+//     is never valid in both grammars (false and 0 stay two values);
+//   - version binding agrees with an independently written oracle for any pair of candidates;
+//   - CertPattern agrees with the upstream regular expression for any string;
+//   - reading never changes its input.
+// ---------------------------------------------------------------------------
+
+func grammarOf(t interface{ Fatal(args ...any) }, v int64) forms.Grammar {
+	n := &forms.Node{Kind: forms.KindInt, Int: v}
+	g, err := forms.BindGrammar(n, n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return g
+}
+
+// upstreamPattern is the upstream PATTERN_RE with Python's \s spelled out: the Unicode White_Space
+// property (\p{Z}, the controls U+0009..U+000D and U+0085) and U+001C..U+001F.
+var upstreamPattern = func() *regexp.Regexp {
+	pair := `[A-Za-z][A-Za-z0-9.-]*=[^=,\p{Z}\t-\r\x{85}\x{1c}-\x{1f}][^=,]*`
+	return regexp.MustCompile("^" + pair + "(," + pair + ")*$")
+}()
+
+func candidateGen() *rapid.Generator[*forms.Node] {
+	return rapid.OneOf(
+		rapid.Just((*forms.Node)(nil)),
+		rapid.Just(&forms.Node{Kind: forms.KindNull}),
+		rapid.Map(rapid.Int64Range(-2, 4), func(n int64) *forms.Node { return &forms.Node{Kind: forms.KindInt, Int: n} }),
+		rapid.Map(rapid.Bool(), func(b bool) *forms.Node { return &forms.Node{Kind: forms.KindBool, Bool: b} }),
+		rapid.Map(rapid.StringMatching(`[0-9a-z]{0,2}`), func(s string) *forms.Node { return &forms.Node{Kind: forms.KindStr, Str: s} }),
+		rapid.Just(&forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{}}),
+	)
+}
+
+// oracle: missing, then unknown, then conflict - written without the library's helpers.
+func oracle(c, p *forms.Node) (int64, string) {
+	missing := func(n *forms.Node) bool { return n == nil || n.Kind == forms.KindNull }
+	if missing(c) || missing(p) {
+		return 0, "GRAMMAR_VERSION_MISSING"
+	}
+	known := func(n *forms.Node) bool { return n.Kind == forms.KindInt && (n.Int == 1 || n.Int == 2) }
+	switch {
+	case !known(c) || !known(p):
+		return 0, "UNKNOWN_GRAMMAR_VERSION"
+	case c.Int != p.Int:
+		return 0, "GRAMMAR_VERSION_CONFLICT"
+	}
+	return c.Int, ""
+}
+
+func TestPropertyWhatReadsIsWrittenBackToTheSameSpelling(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := nodeGen(2).Draw(t, "node")
+		v := rapid.Int64Range(1, 2).Draw(t, "version")
+		g := grammarOf(t, v)
+		if mode, viol := forms.ReadMode(n, g); viol == nil && !mustWrite(t, mode, g).Same(n) {
+			t.Fatalf("%+v was read as %v and written back differently", n, mode)
+		}
+		_, v1 := forms.ReadMode(n, grammarOf(t, 1))
+		_, v2 := forms.ReadMode(n, grammarOf(t, 2))
+		if v1 == nil && v2 == nil {
+			t.Fatalf("%+v is a valid mode in both grammars", n)
+		}
+	})
+}
+
+func TestPropertyEveryModeHasOneSpellingPerVersionAndReadsBack(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		mode := forms.Mode(rapid.IntRange(0, 2).Draw(t, "mode"))
+		v := rapid.Int64Range(1, 2).Draw(t, "version")
+		g := grammarOf(t, v)
+		w := mustWrite(t, mode, g)
+		if back, viol := forms.ReadMode(w, g); viol != nil || back != mode {
+			t.Fatalf("%v: %v %v", mode, back, viol)
+		}
+		if _, viol := forms.ReadMode(w, grammarOf(t, 3-v)); viol == nil {
+			t.Fatal("a spelling is valid in the other grammar")
+		}
+	})
+}
+
+func TestPropertyBindingAgreesWithTheOracle(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		c, p := candidateGen().Draw(t, "context"), candidateGen().Draw(t, "pinned")
+		g, err := forms.BindGrammar(c, p)
+		want, wantCode := oracle(c, p)
+		if wantCode == "" {
+			if err != nil || g.Version() != want {
+				t.Fatalf("%v %v, want %d", g, err, want)
+			}
+			return
+		}
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Code() != wantCode {
+			t.Fatalf("%v, want %s", err, wantCode)
+		}
+	})
+}
+
+func TestPropertyCertPatternAgreesWithTheUpstreamExpression(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		s := rapid.OneOf(
+			rapid.String(),
+			rapid.StringMatching("[A-Za-z0-9.=,  \u001c\t*-]{0,14}"),
+			rapid.StringMatching(`[A-Za-z][A-Za-z0-9.-]{0,3}=[A-Za-z0-9*]{1,3}(,[A-Za-z][A-Za-z0-9.-]{0,3}=[A-Za-z0-9*]{1,3}){0,2}`),
+		).Draw(t, "pattern")
+		if got, want := forms.IsCertPattern(s), upstreamPattern.MatchString(s); got != want {
+			t.Fatalf("%q: library %v, upstream expression %v", s, got, want)
+		}
+	})
+}
+
+func TestPropertyReadingNeverChangesItsInput(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		n := nodeGen(2).Draw(t, "node")
+		before := forms.Emit(n)
+		_, _ = forms.ReadRule(n)
+		_, _ = forms.ReadMode(n, grammarOf(t, 1))
+		_, _ = forms.ReadMode(n, grammarOf(t, 2))
+		if forms.Emit(n) != before {
+			t.Fatal("the input changed")
 		}
 	})
 }

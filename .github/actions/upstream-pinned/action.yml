@@ -1,0 +1,22 @@
+name: upstream-pinned
+description: >
+  Check out CentralInfraCore/cic-primitives at the commit pinned in corpus/pins.yaml and point
+  CIC_PRIMITIVES_ROOT at it. The corpus runners read the pinned schemas/atomic/access.yaml from there and
+  verify its SHA-256 against the pin before they derive the Access grammar version from it. Nothing is
+  vendored (CC BY-NC-SA 4.0); a wrong commit is a failed digest, not a silent difference.
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: |
+        echo "commit=$(sed -n 's/^    commit: //p' corpus/pins.yaml | head -1)" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@v4
+      with:
+        repository: CentralInfraCore/cic-primitives
+        ref: ${{ steps.pin.outputs.commit }}
+        path: upstream/cic-primitives
+    - shell: bash
+      run: |
+        test "$(git -C upstream/cic-primitives rev-parse HEAD)" = "${{ steps.pin.outputs.commit }}"
+        echo "CIC_PRIMITIVES_ROOT=$GITHUB_WORKSPACE/upstream/cic-primitives" >> "$GITHUB_ENV"

@@ -1,6 +1,6 @@
 # ADR 0004: Access inheritance vocabulary
 
-Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end). Addresses issue #3 point 8 (the type of the symbolic
+Status: **accepted** (2026-10-18, P0 acceptance review; see "Acceptance record" at the end); **amended by the D-018 adoption record** at the end of this ADR, which supersedes the "open upstream" statements below without rewriting them. Addresses issue #3 point 8 (the type of the symbolic
 `inherit`) and fixes how the library reads the three-valued `inherit` key. It
 does **not** define how inheritance is resolved: the normative semantics are
 open upstream (see "Upstream status"), and resolution is P3.
@@ -135,3 +135,63 @@ Two questions must never be merged:
 ADR 0004 is accepted as the library's **reading contract** for the `inherit` key and for the `access` / `modify` / `inherit_policy` values: type-strict, lossless, `false` never equal to `0`, an empty list never equal to `inherit`. It does **not** define the meaning of `false` versus `0`, an enum, the evaluation of inheritance or any effective permission; those wait for the upstream decision, and the codes `INVALID_ACCESS_VALUE`, `INVALID_CERT_PATTERN` and `INVALID_INHERIT` stay provisional. Accepting it must not be read as accepting an inheritance semantics.
 
 Box 8 of issue #3 is not ticked by this acceptance and its wording is not narrowed: the type contradiction is real upstream and waits for cic-primitives #17.
+
+## Amendment: adoption of D-018 (`access-policy/1`)
+
+Recorded with the change that pins `cic-primitives` at `73ae4692f0680a316d367179ce057195a0031688`
+(PR #19 and #20, grammar identity `cic-primitives-73ae469-71ee71ca`). The text above is left as it was
+accepted; this record says what upstream has settled since, what it means for this ADR, and what is still
+open. It changes no accepted decision of this ADR, and it does not accept an inheritance semantics.
+
+### What upstream settled
+
+| Statement above | After D-018 |
+|---|---|
+| "Upstream status": the three-state `inherit` is not a stable boolean, a real enum is needed, P0.4 is outside the grammar | `InheritanceMode = inherit \| no-inherit \| reset`, one concept at two scopes (`Access.inherit`, `PolicySurface.inherit_policy`), with two spellings: grammar 1 `true \| false \| 0`, grammar 2 the enum names. The spelling is told apart by YAML scalar type and never coerced |
+| the normative difference between `false` and `0` is unknown | `no-inherit` and `reset` are defined and separated by vectors upstream; that is semantics, so it is P3 here, not this ADR |
+| item 4: `access.yaml` types the key `list<CertPattern>` but defaults it to a symbol | the type is the union `list<CertPattern> \| inherit`, as this ADR proposed |
+| item 7 and the type conflict of `inherit_policy` (`boolean` against `0`) | `inherit_policy` is typed `InheritanceMode`; the contradiction is gone. A grammar-1 `0` is a valid value of the declared type, so a vector no longer needs to flag an upstream conflict |
+| "Open questions" 1 and 2 | closed upstream by D-018 |
+| (not covered) the grammar version | a property of the pinned schema (`spec.access_grammar.version`) and of the processing context, never a key of a document; it has no default (`GRAMMAR_VERSION_MISSING`), must be a supported integer (`UNKNOWN_GRAMMAR_VERSION`) and must agree (`GRAMMAR_VERSION_CONFLICT`) |
+
+### Compatibility findings
+
+1. **ADR 0001 (recognition) is unaffected.** Upstream states the same rule over the same six keys and adds no
+   seventh key; the version is not a document key.
+2. **ADR 0004 items 1 to 3, 5 and 7 hold as written under grammar 1**: `true`, `false` and `0` by scalar
+   type, `false` never equal to `0`, a lossless round trip, `[]` is nobody and never the symbol, `[inherit]`
+   is a list with an invalid pattern, `inherit_policy` is read with the same rule.
+3. **The error codes `INVALID_INHERIT`, `INVALID_ACCESS_VALUE` and `INVALID_CERT_PATTERN` have the same
+   names and triggers upstream.** Their registry status stays `provisional`: the blocker named in ADR 0007
+   (cic-primitives #17) is resolved, but turning the status into `stable` is a decision of the owner, not of
+   an implementation change.
+4. **Five upstream codes are not in `corpus/codes.yaml`**: `INHERIT_ENUM_IN_GRAMMAR_1`,
+   `LEGACY_INHERIT_IN_GRAMMAR_2`, `GRAMMAR_VERSION_MISSING`, `UNKNOWN_GRAMMAR_VERSION`,
+   `GRAMMAR_VERSION_CONFLICT`. The library emits them unchanged and traces them to the pinned
+   specification; no vector uses them, so they cannot enter the registry without cases (the gate rejects an
+   unused code). A gap to report, not guessed away.
+5. **`CertPattern` is now defined exactly** (`attr=value` pairs joined by `,`, `attr` `[A-Za-z][A-Za-z0-9.-]*`,
+   a value that is not empty, does not start with `=`, `,` or whitespace, and holds no `=` or `,`). This
+   ADR only said "`field=value`, wildcard `*` allowed". The library adopts the upstream definition; its
+   whitespace class is the Unicode White_Space property plus U+001C to U+001F, which is what the upstream
+   Python `\s` matches.
+6. **`0.0` as text.** Upstream lists `0.0` as `INVALID_INHERIT`. In this library a float spelling is refused
+   earlier by the YAML subset (`UNSUPPORTED_SYNTAX`, `docs/P1-SUPPORTED-SUBSET.md`), so the value never
+   reaches the `inherit` reading when it comes from text.
+7. **ADR 0002 and the grammar identity.** The file set grows from seven to ten files (the specification
+   `P0-4-ACCESS-GRAMMAR.md`, its migration rules `P0-4-MIGRATION.md`, and the upstream `LICENSE.md`); the
+   old pin is replaced and every `grammar:` reference was migrated deliberately. The reference model and the
+   187 upstream vectors are contract evidence and are not in the file set.
+8. **ADR 0010 is unaffected**: upstream states that `conformance` stays where it is.
+
+### Corpus consequence
+
+`inherit.policy-zero-ok-despite-boolean-declaration` carried `upstream_conflict: true`. The conflict no
+longer exists, so the expectation key is removed and a description records why. The id is unchanged (ids are
+stable); it is now a plain grammar-1 case.
+
+### Still open, and not decided here
+
+* The effective permission that follows from the three modes, and the system defaults: P3.
+* The registry status of the three provisional codes, and the registry entries for the five upstream codes.
+* A text-level case for `0.0`: the YAML subset refuses it before it can be read.

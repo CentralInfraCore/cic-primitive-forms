@@ -345,3 +345,23 @@ Conditions and limits that stay in force:
 - The instance-document mapping remains a proposal, not a citation (finding 5): no upstream specification of an authored intent document exists.
 - `operation_surface` as a processing target and the explicit rights grant for fixtures are deferred; neither blocks this contract.
 - A case against the real pinned registry schema does not exist yet (P1).
+
+## Amendment: grammar identity after D-018
+
+The identity decided above is kept; its inputs changed. `cic-primitives` D-018 (`access-policy/1`, PR #19 and
+#20) was adopted by pinning `73ae4692f0680a316d367179ce057195a0031688` on `devel`
+(`5a26bd8810cce0d614c2d0bb2e8c2d7477390cfd` is its ancestor). The pin is the new immutable
+`cic-primitives-73ae469-71ee71ca`; the old one, `cic-primitives-5a26bd8-76f1d664`, is gone and every
+`grammar:` reference, the `grammar` manifest vectors and the seeded faults were migrated on purpose.
+
+* **The accepted file set grows from seven to ten** (`tools/grammar_identity.py: GRAMMAR_FILES`):
+  `proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md` and `proposals/atom-grammar/P0-4-MIGRATION.md`, the normative
+  text the changed schemas refer to, and `LICENSE.md`, so that the licence of the pinned bytes (CC BY-NC-SA
+  4.0) is part of the verified manifest. The README stays in it. The reference model (`access_policy.py`) and
+  the 187 golden vectors are contract evidence: they are not in the set and are not executed.
+* **The Access grammar version comes from the verified schema.** `schemas/atomic/access.yaml` declares
+  `spec.access_grammar.version`; the library derives the version from those bytes only after their SHA-256
+  has matched the pin, and the processing context must supply the same integer. It is never taken from a
+  document and never defaulted (ADR 0004, adoption record).
+* The pinned schema list under "Corpus and licensing" above is historical; the current pin is
+  `corpus/pins.yaml`.

@@ -6,7 +6,7 @@
 corpus_format: 2
 suite: inherit
 status: provisional
-defaults: {adr: ADR-0004, grammar: cic-primitives-5a26bd8-76f1d664}
+defaults: {adr: ADR-0004, grammar: cic-primitives-73ae469-71ee71ca}
 cases:
   - id: inherit.key-true-ok
     kind: validate
@@ -76,10 +76,10 @@ cases:
   - id: inherit.policy-zero-ok-despite-boolean-declaration
     kind: validate
     polarity: positive
-    description: the schema declares boolean but its description defines 0; the library accepts it by documented meaning and flags the contradiction upstream
+    description: grammar 1 reads 0 as reset at object scope too; D-018 types inherit_policy as InheritanceMode, so the former upstream boolean-against-0 conflict no longer exists (ADR 0004, adoption record). The id is kept because ids are stable.
     schema: {synthetic: {slot: inherit_policy}}
     input: 0
-    expect: {preserved: {type: integer, value: 0}, upstream_conflict: true, valid: true}
+    expect: {preserved: {type: integer, value: 0}, valid: true}
   - id: inherit.policy-one-rejected
     kind: validate
     polarity: negative

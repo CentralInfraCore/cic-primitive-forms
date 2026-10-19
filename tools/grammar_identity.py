@@ -24,9 +24,17 @@ import tempfile
 
 import yaml
 
-# The accepted file set (ADR 0002, owner decision). Changing it changes the identity and
-# needs an ADR change; the README is part of it deliberately.
+# The accepted file set (ADR 0002, owner decision, amended for D-018). Changing it changes the
+# identity and needs an ADR change; the README is part of it deliberately.
+# The three files after the seven are the amendment: the normative text of the access-policy/1
+# grammar and its migration rules (cic-primitives D-018, P0.4), which the schemas refer to, and the
+# upstream licence text (CC BY-NC-SA 4.0), so that the licence of the pinned bytes is part of the
+# verified identity. The reference model and the 187 golden vectors of P0.4 are contract evidence,
+# not part of the file set.
 GRAMMAR_FILES = (
+    "LICENSE.md",
+    "proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md",
+    "proposals/atom-grammar/P0-4-MIGRATION.md",
     "proposals/atom-grammar/README.md",
     "proposals/atom-grammar/check_grammar.py",
     "proposals/atom-grammar/instance-grammar.schema.yaml",
