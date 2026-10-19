@@ -56,14 +56,14 @@ pub struct Outcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum Seg {
+pub(crate) enum Seg {
     Field(String),
     Index(usize),
 }
 
-type Path = Vec<Seg>;
+pub(crate) type Path = Vec<Seg>;
 
-fn location(pos: Option<crate::node::Pos>) -> Location {
+pub(crate) fn location(pos: Option<crate::node::Pos>) -> Location {
     pos.map_or(Location::Unavailable, Location::At)
 }
 
@@ -75,7 +75,7 @@ fn keys_of(node: &Node) -> Option<Vec<&str>> {
 }
 
 /// ADR 0001 for one node.
-fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
+pub(crate) fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
     let keys = match keys_of(node) {
         Some(keys) => keys,
         None => return Ok(Class::Short),
@@ -151,7 +151,7 @@ fn validate_short(
 /// path out. That is the root alone (a single position with no structure around it), a list
 /// element (the synthetic schema declares no identity, so the item cannot be named) and a
 /// field name that cannot be written (empty, or holding a control character).
-fn logical_path(path: &Path) -> Option<String> {
+pub(crate) fn logical_path(path: &Path) -> Option<String> {
     if path.is_empty() {
         return None;
     }
@@ -181,7 +181,7 @@ fn logical_path(path: &Path) -> Option<String> {
 /// distinct by construction (a field occurs once); the ones without a path (list elements,
 /// unwritable names) cannot be told apart in the response, so only the first of each code, in
 /// path order, is kept.
-fn sorted(mut found: Vec<(Path, Violation)>) -> Vec<Violation> {
+pub(crate) fn sorted(mut found: Vec<(Path, Violation)>) -> Vec<Violation> {
     found.sort_by(|(pa, va), (pb, vb)| pa.cmp(pb).then_with(|| va.code.cmp(vb.code)));
     let mut out: Vec<Violation> = Vec::new();
     for (path, mut v) in found {

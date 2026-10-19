@@ -230,7 +230,14 @@ fn recognize_cases_match_the_corpus() {
             let id = text(get(case, "id").expect("id"), "id");
             let kind = text(get(case, "kind").expect("kind"), "kind");
             if kind != "recognize" {
-                *not_run.entry(kind.to_string()).or_default() += 1;
+                // A shape-based validate case is run by `presence_validate_cases_match_the_corpus`.
+                let shape_based = get(case, "schema")
+                    .and_then(|s| get(s, "synthetic"))
+                    .and_then(|s| get(s, "shape"))
+                    .is_some();
+                if !(kind == "validate" && shape_based) {
+                    *not_run.entry(kind.to_string()).or_default() += 1;
+                }
                 continue;
             }
             ran += 1;
@@ -363,4 +370,167 @@ fn corpus_documents_survive_emit_and_parse() {
         }
     }
     assert!(checked >= 25, "checked only {checked}");
+}
+
+// ---------------------------------------------------------------------------
+// kind `validate` against `schema.synthetic.shape` (the presence suite, ADR 0003).
+//
+// The fixture notation is bound here to the members of the Shape: `type` string/integer/boolean to
+// `shape_type: scalar` with a `scalar_type`, `list` to a collection with `min_items`, `composite` or a
+// bare `fields` to a composite, and a child written as just `mandatory`/`optional` to an opaque
+// field. No schema of its own is defined; the library takes the Shape members only.
+// ---------------------------------------------------------------------------
+
+use cic_primitive_forms::{validate, Presence, ScalarType, Shape, ShapeType};
+
+fn presence_of(y: &YamlOwned) -> Presence {
+    match text(y, "presence") {
+        "mandatory" => Presence::Mandatory,
+        "optional" => Presence::Optional,
+        other => panic!("unknown presence {other:?}"),
+    }
+}
+
+fn shape_of(y: &YamlOwned) -> Shape {
+    if let Some(p) = y.as_str() {
+        // A child written as just its presence: any value, nothing below it.
+        return Shape {
+            shape_type: ShapeType::Opaque,
+            presence: presence_of(&YamlOwned::Value(ScalarOwned::String(p.to_string()))),
+            nullable: false,
+            has_default: false,
+        };
+    }
+    let shape_type = match get(y, "type").map(|t| text(t, "type")) {
+        Some("string") => ShapeType::Scalar(ScalarType::String),
+        Some("integer") => ShapeType::Scalar(ScalarType::Integer),
+        Some("boolean") => ShapeType::Scalar(ScalarType::Boolean),
+        Some("list") => ShapeType::List {
+            min_items: get(y, "min_items")
+                .and_then(YamlOwned::as_integer)
+                .map(|n| usize::try_from(n).expect("min_items is not negative")),
+        },
+        Some("composite") | None if get(y, "fields").is_some() => {
+            let mut fields: Vec<(String, Shape)> = get(y, "fields")
+                .and_then(YamlOwned::as_mapping)
+                .expect("fields: a mapping")
+                .iter()
+                .map(|(k, v)| (text(k, "field name").to_string(), shape_of(v)))
+                .collect();
+            fields.sort_by(|a, b| a.0.cmp(&b.0));
+            ShapeType::Composite(fields)
+        }
+        None => ShapeType::Opaque,
+        Some(other) => panic!("unsupported fixture type {other:?}"),
+    };
+    Shape {
+        shape_type,
+        presence: presence_of(get(y, "presence").expect("presence")),
+        nullable: get(y, "nullable")
+            .and_then(YamlOwned::as_bool)
+            .unwrap_or(false),
+        has_default: get(y, "default").is_some(),
+    }
+}
+
+#[test]
+fn presence_validate_cases_match_the_corpus() {
+    let mut ran = 0;
+    let mut not_run: BTreeMap<String, usize> = BTreeMap::new();
+    let mut failures = Vec::new();
+    for (_, suite) in suites() {
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let synthetic = get(get(case, "schema").expect("schema"), "synthetic");
+            let shape_fixture = synthetic.and_then(|s| get(s, "shape"));
+            if text(get(case, "kind").expect("kind"), "kind") != "validate" {
+                continue;
+            }
+            let Some(shape_fixture) = shape_fixture else {
+                *not_run
+                    .entry("validate (slot or pin)".to_string())
+                    .or_default() += 1;
+                continue;
+            };
+            ran += 1;
+            let shape = shape_of(shape_fixture);
+            let parsed;
+            let node = if let Some(src) = get(case, "input_yaml") {
+                parsed = parse(text(src, "input_yaml")).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+                Some(&parsed)
+            } else if get(case, "absent").is_some() {
+                None
+            } else {
+                parsed = node_of(get(case, "input").expect("input"));
+                Some(&parsed)
+            };
+            let before = node.cloned();
+            let got = validate(node, &shape, &a()).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+            if let (Some(n), Some(b)) = (node, before) {
+                if !n.same(&b) || n.pos != b.pos {
+                    failures.push(format!("{id}: validation changed its input"));
+                }
+            }
+            let expect = get(case, "expect").expect("expect");
+            let want: Vec<Wire> = get(expect, "errors")
+                .map(|es| {
+                    es.as_vec()
+                        .expect("errors")
+                        .iter()
+                        .map(expected_wire)
+                        .collect()
+                })
+                .unwrap_or_default();
+            let have: Vec<Wire> = got.violations.iter().map(wire).collect();
+            if want != have {
+                failures.push(format!("{id}: errors: got {have:?}, want {want:?}"));
+            }
+            if let Some(v) = get(expect, "valid").and_then(YamlOwned::as_bool) {
+                if v != got.violations.is_empty() {
+                    failures.push(format!(
+                        "{id}: valid: got {}, want {v}",
+                        got.violations.is_empty()
+                    ));
+                }
+            }
+            if let Some(want_candidate) =
+                get(expect, "default_candidate").and_then(YamlOwned::as_bool)
+            {
+                let have_candidate = got.default_candidates.iter().any(|p| p == "$");
+                if have_candidate != want_candidate {
+                    failures.push(format!(
+                        "{id}: default_candidate: got {have_candidate}, want {want_candidate}"
+                    ));
+                }
+            }
+            if get(expect, "stays_absent").is_some()
+                && !(node.is_none() && got.violations.is_empty())
+            {
+                failures.push(format!("{id}: stays_absent expected"));
+            }
+            for key in ["kind", "is_inherit", "preserved", "upstream_conflict"] {
+                assert!(
+                    get(expect, key).is_none(),
+                    "{id}: expectation {key} is not a presence one"
+                );
+            }
+        }
+    }
+    println!("presence validate cases run: {ran}");
+    for (kind, n) in &not_run {
+        println!("NOT RUN: {kind}: {n} cases");
+    }
+    assert_eq!(
+        ran, 29,
+        "the presence suite has 29 shape-based validate cases"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
 }

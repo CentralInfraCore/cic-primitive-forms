@@ -60,3 +60,73 @@ func FuzzParse(f *testing.F) {
 		walk(n)
 	})
 }
+
+// fuzzShape is a fixed shape that uses every rule of presence validation.
+func fuzzShape() forms.Shape {
+	str := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}
+	opt := func(s forms.Shape) forms.Shape { s.Presence = forms.Optional; return s }
+	nullable := func(s forms.Shape) forms.Shape { s.Nullable = true; return s }
+	withDefault := func(s forms.Shape) forms.Shape { s.HasDefault = true; return s }
+	list := func(min int) forms.Shape {
+		return forms.Shape{Kind: forms.ShapeList, MinItems: min, HasMinItems: true, Presence: forms.Optional}
+	}
+	boolean := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean, Presence: forms.Mandatory}
+	inner := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "d", Shape: boolean},
+		{Name: "e", Shape: list(1)},
+		{Name: "f", Shape: forms.Shape{Kind: forms.ShapeOpaque, Presence: forms.Optional}},
+	}}
+	return forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "a", Shape: str},
+		{Name: "b", Shape: withDefault(nullable(opt(forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger})))},
+		{Name: "c", Shape: inner},
+		{Name: "g", Shape: list(2)},
+	}}
+}
+
+// FuzzValidate checks, on every input that parses, that presence validation does not panic, leaves
+// the document alone, and gives either an unsupported answer or a response of one phase that is
+// ordered by path and has no repeated (path, code). CIC_FUZZ_CANARY works as in FuzzParse.
+func FuzzValidate(f *testing.F) {
+	s := vectors(f)
+	for _, v := range s.ParseOK {
+		f.Add(v.YAML)
+	}
+	for _, seed := range []string{"", "a: x\n", "a: null\nb:\nc: {}\n", "a: x\nc: {d: true, e: [1]}\ng: [1, 2]\n", "zz: 1\na:\n"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(n)
+		v, err := forms.Validate(n, fuzzShape(), keySet)
+		if forms.Emit(n) != before {
+			t.Fatalf("%q: the input changed", text)
+		}
+		if err != nil {
+			return
+		}
+		type key struct{ path, code string }
+		seen := map[key]bool{}
+		phases := map[forms.Phase]bool{}
+		for _, x := range v.Violations {
+			k := key{x.LogicalPath, x.Code}
+			if seen[k] {
+				t.Fatalf("%q: duplicate %+v", text, k)
+			}
+			seen[k] = true
+			phases[x.Phase] = true
+		}
+		if len(phases) > 1 {
+			t.Fatalf("%q: more than one phase", text)
+		}
+	})
+}

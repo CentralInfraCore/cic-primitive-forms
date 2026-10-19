@@ -179,22 +179,31 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27.2"
-      - name: Go, 60 seconds
-        run: cd go && go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
+      - name: Go, 60 seconds per target
+        run: |
+          cd go
+          go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
+          go test -run '^$' -fuzz '^FuzzValidate$' -fuzztime 60s ./...
       - name: Rust nightly and cargo-fuzz
         run: |
           rustup toolchain install nightly-2026-10-17 --profile minimal
           cargo install --locked cargo-fuzz --version 0.13.2
-      - name: Rust, 60 seconds
+      - name: Rust, 60 seconds per target
         working-directory: rust
-        run: cargo +nightly-2026-10-17 fuzz run parse -- -max_total_time=60
+        run: |
+          cargo +nightly-2026-10-17 fuzz run parse -- -max_total_time=60
+          cargo +nightly-2026-10-17 fuzz run validate -- -max_total_time=60
       # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
       - name: Seeded proof, the canary turns both fuzz targets red
         run: |
           set +e
-          (cd go && CIC_FUZZ_CANARY=1 go test -run '^FuzzParse$' ./...)
-          test $? -ne 0 || { echo "Go canary did not fail"; exit 1; }
-          (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run parse fuzz/canary/CANARY)
-          test $? -ne 0 || { echo "Rust canary did not fail"; exit 1; }
-          (cd rust && cargo +nightly-2026-10-17 fuzz run parse fuzz/canary/CANARY)
-          test $? -eq 0 || { echo "the canary input must pass when the switch is off"; exit 1; }
+          for target in Parse Validate; do
+            (cd go && CIC_FUZZ_CANARY=1 go test -run "^Fuzz${target}\$" ./...)
+            test $? -ne 0 || { echo "Go canary did not fail for $target"; exit 1; }
+          done
+          for target in parse validate; do
+            (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
+            test $? -ne 0 || { echo "Rust canary did not fail for $target"; exit 1; }
+            (cd rust && cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
+            test $? -eq 0 || { echo "the canary input must pass when the switch is off ($target)"; exit 1; }
+          done

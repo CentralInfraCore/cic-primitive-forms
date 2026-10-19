@@ -10,7 +10,11 @@ package forms_test
 //   - recognition depends on the key set only, and Recognize does not change its input.
 
 import (
+	"fmt"
 	"reflect"
+	"slices"
+	"sort"
+	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -151,6 +155,229 @@ func TestPropertyRecognitionFollowsTheKeySetAndLeavesTheInputAlone(t *testing.T)
 		}
 		if forms.Emit(n) != before || !reflect.DeepEqual(snapshot, reflect.ValueOf(n).Elem().Interface()) {
 			t.Fatal("the input changed")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Presence validation (ADR 0003, ADR 0007). The Rust peer checks the same properties.
+//
+//   - a document built to conform to a shape has no violation;
+//   - leaving out one mandatory field gives only MISSING_MANDATORY errors, at most one at its path;
+//   - default candidates are exactly the absent optional fields that declare a default;
+//   - for any shape and any document: an unsupported answer or a response that is sorted, unique by
+//     (path, code) and of one phase, and the input is left alone.
+// ---------------------------------------------------------------------------
+
+func presenceGen() *rapid.Generator[forms.Presence] {
+	return rapid.SampledFrom([]forms.Presence{forms.Mandatory, forms.Optional})
+}
+
+func shapeGen(depth int) *rapid.Generator[forms.Shape] {
+	return rapid.Custom(func(t *rapid.T) forms.Shape {
+		s := forms.Shape{
+			Presence:   presenceGen().Draw(t, "presence"),
+			Nullable:   rapid.Bool().Draw(t, "nullable"),
+			HasDefault: rapid.Bool().Draw(t, "default"),
+		}
+		kind := rapid.IntRange(0, 4).Draw(t, "kind")
+		if depth == 0 && kind == 4 {
+			kind = 0
+		}
+		switch kind {
+		case 0, 1, 2:
+			s.Kind, s.Scalar = forms.ShapeScalar, forms.ScalarType(kind)
+		case 3:
+			s.Kind = forms.ShapeList
+			s.HasMinItems = rapid.Bool().Draw(t, "hasMin")
+			s.MinItems = rapid.IntRange(0, 2).Draw(t, "min")
+		default:
+			s.Kind = forms.ShapeComposite
+			names := rapid.SliceOfNDistinct(rapid.StringMatching(`[a-d]{1,2}`), 0, 3, func(s string) string { return s }).Draw(t, "names")
+			sort.Strings(names)
+			for _, n := range names {
+				s.Fields = append(s.Fields, forms.NamedShape{Name: n, Shape: shapeGen(depth-1).Draw(t, n)})
+			}
+		}
+		return s
+	})
+}
+
+type xorshift uint64
+
+func (x *xorshift) next() uint64 {
+	*x ^= *x << 13
+	*x ^= *x >> 7
+	*x ^= *x << 17
+	return uint64(*x)
+}
+
+func (x *xorshift) coin() bool { return x.next()%2 == 0 }
+
+// conforming builds a node that conforms to shape; omit is a path whose field is left out.
+func conforming(s forms.Shape, rng *xorshift, path []string, omit []string) *forms.Node {
+	if s.Nullable && rng.coin() {
+		return &forms.Node{Kind: forms.KindNull}
+	}
+	switch s.Kind {
+	case forms.ShapeScalar:
+		switch s.Scalar {
+		case forms.ScalarString:
+			return &forms.Node{Kind: forms.KindStr, Str: fmt.Sprintf("s%d", rng.next()%9)}
+		case forms.ScalarInteger:
+			return &forms.Node{Kind: forms.KindInt, Int: int64(rng.next() % 9)}
+		default:
+			return &forms.Node{Kind: forms.KindBool, Bool: rng.coin()}
+		}
+	case forms.ShapeList:
+		n := int(rng.next() % 2)
+		if s.HasMinItems {
+			n += s.MinItems
+		}
+		list := &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{}}
+		for i := 0; i < n; i++ {
+			list.Items = append(list.Items, &forms.Node{Kind: forms.KindInt, Int: int64(i)})
+		}
+		return list
+	case forms.ShapeComposite:
+		m := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{}}
+		for _, f := range s.Fields {
+			p := append(slices.Clone(path), f.Name)
+			present := !slices.Equal(p, omit) && (f.Shape.Presence == forms.Mandatory || rng.coin())
+			if present {
+				m.Entries = append(m.Entries, forms.Entry{Key: f.Name, Value: conforming(f.Shape, rng, p, omit)})
+			}
+		}
+		return m
+	}
+	return &forms.Node{Kind: forms.KindStr, Str: "any"}
+}
+
+func mandatoryPaths(s forms.Shape, n *forms.Node, prefix []string, out *[][]string) {
+	if s.Kind != forms.ShapeComposite || n.Kind != forms.KindMap {
+		return
+	}
+	for _, f := range s.Fields {
+		p := append(slices.Clone(prefix), f.Name)
+		for _, e := range n.Entries {
+			if e.Key == f.Name {
+				if f.Shape.Presence == forms.Mandatory {
+					*out = append(*out, p)
+				}
+				mandatoryPaths(f.Shape, e.Value, p, out)
+			}
+		}
+	}
+}
+
+func TestPropertyAConformingDocumentHasNoViolation(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		s := shapeGen(2).Draw(t, "shape")
+		seed := xorshift(rapid.Uint64Min(1).Draw(t, "seed"))
+		n := conforming(s, &seed, nil, nil)
+		before := forms.Emit(n)
+		v, err := forms.Validate(n, s, keySet)
+		if err != nil || len(v.Violations) != 0 {
+			t.Fatalf("%v %+v", err, v)
+		}
+		if forms.Emit(n) != before {
+			t.Fatal("the input changed")
+		}
+	})
+}
+
+func TestPropertyLeavingOutOneMandatoryFieldAddsExactlyItsMissingError(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		s := shapeGen(2).Draw(t, "shape")
+		start := rapid.Uint64Min(1).Draw(t, "seed")
+		seed := xorshift(start)
+		n := conforming(s, &seed, nil, nil)
+		var paths [][]string
+		mandatoryPaths(s, n, nil, &paths)
+		if len(paths) == 0 {
+			return // nothing to leave out in this document
+		}
+		omit := paths[rapid.IntRange(0, len(paths)-1).Draw(t, "pick")]
+		seed = xorshift(start)
+		without := conforming(s, &seed, nil, omit)
+		v, err := forms.Validate(without, s, keySet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := "$." + strings.Join(omit, ".")
+		hits := 0
+		for _, x := range v.Violations {
+			if x.Code != "MISSING_MANDATORY" {
+				t.Fatalf("unexpected %+v", x)
+			}
+			if x.LogicalPath == text {
+				hits++
+			}
+		}
+		if hits > 1 {
+			t.Fatalf("%d errors at %s", hits, text)
+		}
+	})
+}
+
+func TestPropertyDefaultCandidatesAreTheAbsentOptionalFieldsWithADefault(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		s := shapeGen(2).Draw(t, "shape")
+		if s.Kind != forms.ShapeComposite {
+			return // only a composite has fields to leave absent
+		}
+		v, err := forms.Validate(&forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{}}, s, keySet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{}
+		for _, f := range s.Fields {
+			if f.Shape.Presence == forms.Optional && f.Shape.HasDefault {
+				want = append(want, "$."+f.Name)
+			}
+		}
+		sort.Strings(want)
+		if !reflect.DeepEqual(v.DefaultCandidates, want) {
+			t.Fatalf("%v, want %v", v.DefaultCandidates, want)
+		}
+	})
+}
+
+func TestPropertyAnyDocumentAgainstAnyShapeGivesAnOrderedUniqueResponse(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		s := shapeGen(2).Draw(t, "shape")
+		n := nodeGen(3).Draw(t, "node")
+		before := forms.Emit(n)
+		v, err := forms.Validate(n, s, keySet)
+		if forms.Emit(n) != before {
+			t.Fatal("the input changed")
+		}
+		if err != nil {
+			return
+		}
+		type key struct{ path, code string }
+		seen := map[key]bool{}
+		phases := map[forms.Phase]bool{}
+		escaped := false
+		var last []string
+		for _, x := range v.Violations {
+			k := key{x.LogicalPath, x.Code}
+			if seen[k] {
+				t.Fatalf("duplicate %+v", k)
+			}
+			seen[k] = true
+			phases[x.Phase] = true
+			escaped = escaped || strings.Contains(x.LogicalPath, `\`)
+			if !escaped {
+				segs := append(strings.Split(x.LogicalPath, "."), x.Code)
+				if last != nil && slices.Compare(last, segs) > 0 && x.LogicalPath != "" {
+					t.Fatalf("not sorted: %v after %v", segs, last)
+				}
+				last = segs
+			}
+		}
+		if len(phases) > 1 {
+			t.Fatal("more than one phase in one response")
 		}
 	})
 }

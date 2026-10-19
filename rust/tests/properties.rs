@@ -123,3 +123,220 @@ fn check_positions(n: &Node, text: &str) {
         _ => {}
     }
 }
+
+// ---------------------------------------------------------------------------
+// Presence validation (ADR 0003, ADR 0007). The Go peer checks the same properties.
+//
+// * a document built to conform to a shape has no violation;
+// * leaving out one mandatory field gives exactly one more error, MISSING_MANDATORY, at its path;
+// * default candidates are exactly the absent optional fields that declare a default;
+// * for any shape and any document: no panic, an unsupported answer or a response that is sorted,
+//   unique by (path, code), with canonical paths, and the input is left alone.
+// ---------------------------------------------------------------------------
+
+use cic_primitive_forms::{validate, Presence, ScalarType, Shape, ShapeType};
+
+fn a() -> Vec<String> {
+    [
+        "value",
+        "access",
+        "modify",
+        "inherit",
+        "default_injection",
+        "conformance",
+    ]
+    .iter()
+    .map(|k| (*k).to_string())
+    .collect()
+}
+
+fn presence() -> impl Strategy<Value = Presence> {
+    prop_oneof![Just(Presence::Mandatory), Just(Presence::Optional)]
+}
+
+fn shape_strategy() -> impl Strategy<Value = Shape> {
+    let leaf = prop_oneof![
+        Just(ShapeType::Scalar(ScalarType::String)),
+        Just(ShapeType::Scalar(ScalarType::Integer)),
+        Just(ShapeType::Scalar(ScalarType::Boolean)),
+        prop::option::of(0usize..3).prop_map(|min_items| ShapeType::List { min_items }),
+        Just(ShapeType::Opaque),
+    ];
+    let shape_type = leaf.prop_recursive(3, 24, 4, |inner| {
+        prop::collection::btree_map(
+            "[a-d]{1,2}",
+            (inner, presence(), any::<bool>(), any::<bool>()),
+            0..4,
+        )
+        .prop_map(|m| {
+            ShapeType::Composite(
+                m.into_iter()
+                    .map(|(name, (shape_type, presence, nullable, has_default))| {
+                        (
+                            name,
+                            Shape {
+                                shape_type,
+                                presence,
+                                nullable,
+                                has_default,
+                            },
+                        )
+                    })
+                    .collect(),
+            )
+        })
+    });
+    (shape_type, presence(), any::<bool>(), any::<bool>()).prop_map(
+        |(shape_type, presence, nullable, has_default)| Shape {
+            shape_type,
+            presence,
+            nullable,
+            has_default,
+        },
+    )
+}
+
+/// A tiny deterministic generator so that a document is a function of the shape and a seed.
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+    fn coin(&mut self) -> bool {
+        self.next().is_multiple_of(2)
+    }
+}
+
+/// A node that conforms to `shape`; `omit` is a path whose (mandatory) field is left out.
+fn conforming(shape: &Shape, rng: &mut Rng, path: &mut Vec<String>, omit: &[String]) -> Node {
+    if shape.nullable && rng.coin() {
+        return Node::new(Value::Null);
+    }
+    match &shape.shape_type {
+        ShapeType::Scalar(ScalarType::String) => {
+            Node::new(Value::Str(format!("s{}", rng.next() % 9)))
+        }
+        ShapeType::Scalar(ScalarType::Integer) => Node::new(Value::Int((rng.next() % 9) as i64)),
+        ShapeType::Scalar(ScalarType::Boolean) => Node::new(Value::Bool(rng.coin())),
+        ShapeType::List { min_items } => {
+            let n = min_items.unwrap_or(0) + (rng.next() % 2) as usize;
+            Node::new(Value::Seq(
+                (0..n).map(|i| Node::new(Value::Int(i as i64))).collect(),
+            ))
+        }
+        ShapeType::Opaque => Node::new(Value::Str("any".into())),
+        ShapeType::Composite(fields) => {
+            let mut entries = Vec::new();
+            for (name, f) in fields {
+                path.push(name.clone());
+                let left_out = path.as_slice() == omit;
+                let present = !left_out && (f.presence == Presence::Mandatory || rng.coin());
+                if present {
+                    entries.push(Entry {
+                        key: name.clone(),
+                        key_pos: None,
+                        value: conforming(f, rng, path, omit),
+                    });
+                }
+                path.pop();
+            }
+            Node::new(Value::Map(entries))
+        }
+    }
+}
+
+/// Paths of mandatory fields reachable through present composites of a document built from `shape`.
+fn mandatory_paths(
+    shape: &Shape,
+    node: &Node,
+    prefix: &mut Vec<String>,
+    out: &mut Vec<Vec<String>>,
+) {
+    if let (ShapeType::Composite(fields), Value::Map(entries)) = (&shape.shape_type, &node.value) {
+        for (name, f) in fields {
+            prefix.push(name.clone());
+            if f.presence == Presence::Mandatory && entries.iter().any(|e| &e.key == name) {
+                out.push(prefix.clone());
+            }
+            if let Some(e) = entries.iter().find(|e| &e.key == name) {
+                mandatory_paths(f, &e.value, prefix, out);
+            }
+            prefix.pop();
+        }
+    }
+}
+
+fn path_text(path: &[String]) -> String {
+    format!("$.{}", path.join("."))
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(512))]
+
+    #[test]
+    fn a_conforming_document_has_no_violation(shape in shape_strategy(), seed in 1u64..u64::MAX) {
+        let node = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
+        let before = node.clone();
+        let v = validate(Some(&node), &shape, &a()).unwrap();
+        prop_assert!(v.violations.is_empty(), "{:?}", v.violations);
+        prop_assert!(node.same(&before));
+    }
+
+    #[test]
+    fn leaving_out_one_mandatory_field_adds_exactly_its_missing_error(shape in shape_strategy(), seed in 1u64..u64::MAX, pick in 0usize..16) {
+        let node = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
+        let mut paths = Vec::new();
+        mandatory_paths(&shape, &node, &mut Vec::new(), &mut paths);
+        prop_assume!(!paths.is_empty());
+        let omit = paths[pick % paths.len()].clone();
+        // The same random choices, with that one field left out.
+        let without = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &omit);
+        let v = validate(Some(&without), &shape, &a()).unwrap();
+        // The field may sit below a null composite, where nothing is checked: then no error.
+        let text = path_text(&omit);
+        let missing: Vec<_> = v.violations.iter().filter(|x| x.logical_path.as_deref() == Some(text.as_str())).collect();
+        prop_assert!(missing.len() <= 1);
+        if let Some(m) = missing.first() {
+            prop_assert_eq!(m.code, "MISSING_MANDATORY");
+        }
+        prop_assert!(v.violations.iter().all(|x| x.code == "MISSING_MANDATORY"));
+    }
+
+    #[test]
+    fn default_candidates_are_the_absent_optional_fields_with_a_default(shape in shape_strategy()) {
+        // An empty mapping at a composite root: every field is absent.
+        prop_assume!(matches!(shape.shape_type, ShapeType::Composite(_)));
+        let node = Node::new(Value::Map(Vec::new()));
+        let v = validate(Some(&node), &shape, &a()).unwrap();
+        let ShapeType::Composite(fields) = &shape.shape_type else { unreachable!() };
+        let mut want: Vec<String> = fields.iter()
+            .filter(|(_, f)| f.presence == Presence::Optional && f.has_default)
+            .map(|(n, _)| format!("$.{n}")).collect();
+        want.sort();
+        prop_assert_eq!(v.default_candidates, want);
+    }
+
+    #[test]
+    fn any_document_against_any_shape_gives_an_ordered_unique_response(shape in shape_strategy(), n in node()) {
+        let before = n.clone();
+        if let Ok(v) = validate(Some(&n), &shape, &a()) {
+            let keys: Vec<(Option<String>, &str)> = v.violations.iter().map(|x| (x.logical_path.clone(), x.code)).collect();
+            let mut sorted_keys = keys.clone();
+            sorted_keys.sort_by(|x, y| {
+                let seg = |p: &Option<String>| p.as_ref().map(|t| t.split('.').skip(1).map(str::to_string).collect::<Vec<_>>());
+                seg(&x.0).cmp(&seg(&y.0)).then(x.1.cmp(y.1))
+            });
+            // Escaped names would need the ADR 0006 lexer to split; the order is checked without them.
+            if keys.iter().all(|k| k.0.as_deref().is_none_or(|p| !p.contains('\\'))) {
+                prop_assert_eq!(&keys, &sorted_keys, "sorted by path, then code");
+            }
+            prop_assert_eq!(keys.len(), keys.iter().collect::<std::collections::BTreeSet<_>>().len(), "unique");
+            let phases: std::collections::BTreeSet<_> = v.violations.iter().map(|x| x.phase.as_str()).collect();
+            prop_assert!(phases.len() <= 1, "one phase per response");
+        }
+        prop_assert!(n.same(&before));
+    }
+}

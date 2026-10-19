@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"testing"
 
@@ -194,7 +195,11 @@ func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
 			c := raw.(obj)
 			id, kind := c["id"].(string), c["kind"].(string)
 			if kind != "recognize" {
-				notRun[kind]++
+				// A shape-based validate case is run by TestPresenceValidateCasesMatchTheCorpus.
+				synthetic, _ := c["schema"].(obj)["synthetic"].(obj)
+				if _, shapeBased := synthetic["shape"]; !(kind == "validate" && shapeBased) {
+					notRun[kind]++
+				}
 				continue
 			}
 			ran++
@@ -310,4 +315,169 @@ func TestCorpusDocumentsSurviveEmitAndParse(t *testing.T) {
 	if checked < 25 {
 		t.Fatalf("checked only %d", checked)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// kind validate against schema.synthetic.shape (the presence suite, ADR 0003).
+//
+// The fixture notation is bound here to the members of the Shape: type string/integer/boolean to
+// shape_type scalar with a scalar_type, list to a collection with min_items, composite or a bare
+// fields to a composite, and a child written as just mandatory/optional to an opaque field. No
+// schema of its own is defined; the library takes the Shape members only.
+// ---------------------------------------------------------------------------
+
+func presenceOf(t *testing.T, v any) forms.Presence {
+	t.Helper()
+	switch v {
+	case "mandatory":
+		return forms.Mandatory
+	case "optional":
+		return forms.Optional
+	}
+	t.Fatalf("unknown presence %v", v)
+	return 0
+}
+
+func shapeOf(t *testing.T, v any) forms.Shape {
+	t.Helper()
+	if p, ok := v.(string); ok {
+		// A child written as just its presence: any value, nothing below it.
+		return forms.Shape{Kind: forms.ShapeOpaque, Presence: presenceOf(t, p)}
+	}
+	m := v.(obj)
+	s := forms.Shape{Presence: presenceOf(t, m["presence"])}
+	s.Nullable, _ = m["nullable"].(bool)
+	_, s.HasDefault = m["default"]
+	typ, hasType := m["type"].(string)
+	switch {
+	case hasType && typ == "string":
+		s.Kind, s.Scalar = forms.ShapeScalar, forms.ScalarString
+	case hasType && typ == "integer":
+		s.Kind, s.Scalar = forms.ShapeScalar, forms.ScalarInteger
+	case hasType && typ == "boolean":
+		s.Kind, s.Scalar = forms.ShapeScalar, forms.ScalarBoolean
+	case hasType && typ == "list":
+		s.Kind = forms.ShapeList
+		if n, ok := m["min_items"].(int); ok {
+			s.MinItems, s.HasMinItems = n, true
+		}
+	case (!hasType || typ == "composite") && m["fields"] != nil:
+		s.Kind = forms.ShapeComposite
+		names := []string{}
+		for name := range m["fields"].(obj) {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			s.Fields = append(s.Fields, forms.NamedShape{Name: name, Shape: shapeOf(t, m["fields"].(obj)[name])})
+		}
+	case !hasType:
+		s.Kind = forms.ShapeOpaque
+	default:
+		t.Fatalf("unsupported fixture type %q", typ)
+	}
+	return s
+}
+
+func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
+	ran := 0
+	notRun := 0
+	for _, suite := range suites(t) {
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			if c["kind"] != "validate" {
+				continue
+			}
+			id := c["id"].(string)
+			synthetic, _ := c["schema"].(obj)["synthetic"].(obj)
+			fixture, ok := synthetic["shape"]
+			if !ok {
+				notRun++
+				continue
+			}
+			ran++
+			shape := shapeOf(t, fixture)
+			var node *forms.Node
+			if src, ok := c["input_yaml"]; ok {
+				n, err := forms.Parse(src.(string))
+				if err != nil {
+					t.Fatalf("%s: %v", id, err)
+				}
+				node = n
+			} else if _, absent := c["absent"]; !absent {
+				node = nodeOf(t, c["input"])
+			}
+			var before *forms.Node
+			if node != nil {
+				before = cloneNode(node)
+			}
+			got, err := forms.Validate(node, shape, accessKeys)
+			if err != nil {
+				t.Fatalf("%s: %v", id, err)
+			}
+			if node != nil && !reflect.DeepEqual(node, before) {
+				t.Errorf("%s: validation changed its input", id)
+			}
+			expect := c["expect"].(obj)
+			want := []wire{}
+			if es, ok := expect["errors"]; ok {
+				for _, e := range es.([]any) {
+					want = append(want, expectedWire(t, e))
+				}
+			}
+			have := []wire{}
+			for _, v := range got.Violations {
+				have = append(have, wireOf(v))
+			}
+			if !reflect.DeepEqual(want, have) {
+				t.Errorf("%s: errors: got %v, want %v", id, have, want)
+			}
+			if v, ok := expect["valid"].(bool); ok && v != (len(have) == 0) {
+				t.Errorf("%s: valid: got %v, want %v", id, len(have) == 0, v)
+			}
+			if want, ok := expect["default_candidate"].(bool); ok && want != slices.Contains(got.DefaultCandidates, "$") {
+				t.Errorf("%s: default_candidate: want %v", id, want)
+			}
+			if _, ok := expect["stays_absent"]; ok && !(node == nil && len(have) == 0) {
+				t.Errorf("%s: stays_absent expected", id)
+			}
+			for _, key := range []string{"kind", "is_inherit", "preserved", "upstream_conflict"} {
+				if _, ok := expect[key]; ok {
+					t.Errorf("%s: expectation %s is not a presence one", id, key)
+				}
+			}
+		}
+	}
+	t.Logf("presence validate cases run: %d", ran)
+	t.Logf("NOT RUN: validate (slot or pin): %d cases", notRun)
+	if ran != 29 {
+		t.Fatalf("the presence suite has 29 shape-based validate cases, ran %d", ran)
+	}
+}
+
+// cloneNode is a deep copy, to prove validation leaves its input alone.
+func cloneNode(n *forms.Node) *forms.Node {
+	c := *n
+	if n.Pos != nil {
+		p := *n.Pos
+		c.Pos = &p
+	}
+	if n.Items != nil {
+		c.Items = []*forms.Node{}
+	}
+	for _, it := range n.Items {
+		c.Items = append(c.Items, cloneNode(it))
+	}
+	if n.Entries != nil {
+		c.Entries = []forms.Entry{}
+	}
+	for _, e := range n.Entries {
+		ce := forms.Entry{Key: e.Key, Value: cloneNode(e.Value)}
+		if e.KeyPos != nil {
+			p := *e.KeyPos
+			ce.KeyPos = &p
+		}
+		c.Entries = append(c.Entries, ce)
+	}
+	return &c
 }
