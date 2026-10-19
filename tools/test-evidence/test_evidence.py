@@ -40,6 +40,12 @@ def ts(dt):
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+
+def load_json(path):
+    with open(path) as fh:
+        return json.load(fh)
+
+
 class Fixture:
     """A checkout with the files the key reads, an environment, and records made for it."""
 

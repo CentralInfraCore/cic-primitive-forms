@@ -196,13 +196,23 @@ def above(covered, total, threshold):
     return total > 0 and covered * 100 > total * threshold
 
 
+def quality_pass(q):
+    """The line and statement coverage and the mutation scores: what quality_gate.py decides."""
+    t = q["thresholds"]
+    return all(above(q[k]["covered"], q[k]["total"], t["line"]) for k in ("rust_lines", "go_statements")) and all(
+        above(q[k]["killed"], q[k]["killed"] + q[k]["survived"], t["mutation"]) for k in ("rust_mutation", "go_mutation"))
+
+
+def branch_pass(q):
+    """The branch coverage of both languages: what coverage_gate.py decides."""
+    t = q["thresholds"]
+    return all(above(q[k]["covered"], q[k]["total"], t["branch"]) for k in ("rust_branches", "go_branches"))
+
+
 def numbers_pass(q):
     """Whether the six measurements of `quality_full` meet their thresholds, worked out from the counts alone.
     Mutation is killed / (killed + survived): unviable and uncompilable mutants count for nothing, as in the gate."""
-    t = q["thresholds"]
-    m = (("rust_lines", t["line"]), ("go_statements", t["line"]), ("rust_branches", t["branch"]), ("go_branches", t["branch"]))
-    return all(above(q[k]["covered"], q[k]["total"], th) for k, th in m) and all(
-        above(q[k]["killed"], q[k]["killed"] + q[k]["survived"], t["mutation"]) for k in ("rust_mutation", "go_mutation"))
+    return quality_pass(q) and branch_pass(q)
 
 
 def validate(rec, expected_checks=None):

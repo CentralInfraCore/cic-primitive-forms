@@ -123,7 +123,8 @@ must pass anyway; the probe `test_a_pass_before_a_failure_is_not_a_fallback` was
 
 ## What is not here
 
-* Producing, signing, publishing a record, the `ci-evidence` branch, the App and the ruleset, pinning the actions by
+* Producing a record from a run (the builder, the environment, the pinned actions) is step B1, `docs/EVIDENCE-PRODUCTION.md`.
+* Signing, publishing a record, the `ci-evidence` branch, the App and the ruleset, pinning the actions by
   SHA, the daily workflow: step B. The trust expected of an attestation (`Trust`: repository, signer workflow path
   `.github/workflows/evidence.yml`, ref `refs/heads/main`) is a default that B has to make true; the isolation of the
   App token and the binding of the attestation to the workflow are B's closing conditions.

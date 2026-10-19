@@ -11,7 +11,7 @@ runs:
       shell: bash
       run: |
         echo "commit=$(sed -n 's/^    commit: //p' corpus/pins.yaml | head -1)" >> "$GITHUB_OUTPUT"
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       with:
         repository: CentralInfraCore/cic-primitives
         ref: ${{ steps.pin.outputs.commit }}

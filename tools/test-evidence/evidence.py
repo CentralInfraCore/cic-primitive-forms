@@ -5,6 +5,9 @@
     evidence.py hash FILE                 the content hash of a record or any canonical document
     evidence.py key --root DIR --env FILE the validity key of a checkout in an environment
     evidence.py check-gh                  that `gh attestation verify` knows the flags the verifier uses
+    evidence.py pins [--root DIR]         that every action the workflows use is pinned to a commit
+    evidence.py env --fields F --out FILE [--toolchain T]
+                                          the part of the execution environment a job is responsible for
     evidence.py selftest                  the unit tests and probes, and the Go implementation on the vectors
 
 Producing and publishing records is not here: that is step B.
@@ -20,7 +23,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import canon  # noqa: E402
+import envcap  # noqa: E402
 import key as keymod  # noqa: E402
+import pins  # noqa: E402
 import verify  # noqa: E402
 
 
@@ -34,6 +39,12 @@ def main(argv=None):
     k.add_argument("--root", required=True)
     k.add_argument("--env", required=True)
     sub.add_parser("check-gh")
+    pn = sub.add_parser("pins")
+    pn.add_argument("--root", default=os.path.abspath(os.path.join(HERE, "..", "..")))
+    ev = sub.add_parser("env")
+    ev.add_argument("--fields", required=True)
+    ev.add_argument("--out", required=True)
+    ev.add_argument("--toolchain")
     sub.add_parser("selftest")
     a = ap.parse_args(argv)
     try:
@@ -46,6 +57,16 @@ def main(argv=None):
             with open(a.env, "rb") as fh:
                 env = canon.parse_strict(fh.read())
             print(keymod.validity_key(a.root, env)[0])
+        elif a.cmd == "env":
+            return envcap.main(["--fields", a.fields, "--out", a.out] + (["--toolchain", a.toolchain] if a.toolchain else []))
+        elif a.cmd == "pins":
+            actions, problems = pins.scan(a.root)
+            for line in problems:
+                print(line)
+            if problems or not actions:
+                print("pins: %d problem(s), %d action(s) pinned" % (len(problems) or 1, len(actions)))
+                return 1
+            print("pins: %d actions, all pinned to a commit" % len(actions))
         elif a.cmd == "check-gh":
             missing = verify.GhAttestation().missing_flags()
             if missing:
@@ -56,6 +77,9 @@ def main(argv=None):
             return selftest()
     except canon.CanonError as e:
         print(e.kind, file=sys.stderr)
+        return 1
+    except envcap.EnvError as e:
+        print("%s %s" % (e.kind, e), file=sys.stderr)
         return 1
     except keymod.KeyError_ as e:
         print("%s %s" % (e.kind, e), file=sys.stderr)
