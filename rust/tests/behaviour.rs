@@ -607,3 +607,20 @@ fn the_order_in_which_problems_are_reported_is_fixed() {
     assert_eq!(class_of(parse("a: 1\na: 2\nb: 1.5\n")), "contract");
     assert_eq!(class_of(parse("a: 1\na: 2\n")), "contract");
 }
+
+/// Found by the fuzz job: a key past the implicit-key limit is emitted as `? key`, and a plain key
+/// that starts with `-`, `?` or `:` (not followed by a space) must read back.
+#[test]
+fn a_long_key_that_starts_with_an_indicator_reads_back() {
+    for first in ["-", "-x", ":", ":x", "?x", "k", "\u{a0}"] {
+        let key = format!("{first}{}", "k".repeat(600));
+        let n = Node::new(Value::Map(vec![cic_primitive_forms::Entry {
+            key,
+            key_pos: None,
+            value: Node::new(Value::Int(1)),
+        }]));
+        let text = emit(&n);
+        let back = parse(&text).unwrap_or_else(|e| panic!("{first:?}: {e:?}"));
+        assert!(back.same(&n), "{first:?}");
+    }
+}

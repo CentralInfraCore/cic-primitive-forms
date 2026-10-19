@@ -492,8 +492,9 @@ fn block_header(c: &[char], i: usize) -> bool {
 }
 
 /// The `? key` form the emitter writes for a key past the implicit-key limit, the only explicit
-/// key the subset reads: the `?` starts its line, one space follows, then the key's own text,
-/// which does not begin with another indicator.
+/// key the subset reads: the `?` starts its line, one space follows, then the key's own text. The
+/// text may begin with `-`, `?` or `:` (`-x` is a plain scalar) but not with one of them followed
+/// by a space or the end of the line (`- x` is a block sequence, a key the subset does not read).
 fn block_explicit_key(chars: &[char], i: usize) -> bool {
     let starts_line = chars[..i]
         .iter()
@@ -502,7 +503,10 @@ fn block_explicit_key(chars: &[char], i: usize) -> bool {
         .all(|&c| c == ' ');
     starts_line
         && chars.get(i + 1) == Some(&' ')
-        && chars.get(i + 2).is_some_and(|c| !" \n\r-?:".contains(*c))
+        && chars.get(i + 2).is_some_and(|c| {
+            !" \n\r".contains(*c)
+                && (!"-?:".contains(*c) || chars.get(i + 3).is_some_and(|d| !" \n\r".contains(*d)))
+        })
 }
 
 fn check_nodes(count: usize, limits: Limits) -> Result<(), Error> {

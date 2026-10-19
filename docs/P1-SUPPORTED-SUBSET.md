@@ -159,7 +159,7 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-* the 473 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+* the 480 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
   the complete outcome of `parse` (the tree with the position of every node and key, or the contract
   violation, or the refusal) is pinned and read by both languages.
 
@@ -184,7 +184,7 @@ different trees or positions, a contract error against anything else, is a diver
 | | divergent inputs of 30 005 |
 |---|---|
 | before (main, `2c58713`) | 3 134 in 12 groups |
-| after | 256 in 4 groups, all in the open classes below (224 hold a flow collection or a quote followed by `#`, 32 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
+| after | 274 in 5 groups, all in the open classes below (240 hold a flow collection or a quote followed by `#`, 34 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
 
 What the differential found and what was done about it (each has pinned cases in `parity.json`):
 
@@ -249,7 +249,8 @@ mutation Go 95.48% (444 of 465 mutants detected, the rest equivalent index and b
 initialisations); line coverage Rust 98.3%, Go 99.3% (whole crate and module, before the last test
 additions). 33 seeded defects, 15 of them for this work, all caught. The property
 tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
-scan took for an anchor and an alias), both fixed and pinned.
+scan took for an anchor and an alias), both fixed and pinned. The fuzz job found a third (a key past 512 characters that starts with `-` or `:` is
+emitted as `? -kkk…`, which the explicit-key rule refused): fixed, with a regression test in each language.
 
 Run it: `python3 tools/parity/gen_inputs.py in.hex --upstream "$CIC_PRIMITIVES_ROOT"`, then
 `PARITY_IN=in.hex PARITY_OUT=rust.jsonl cargo test --test parity_dump` and

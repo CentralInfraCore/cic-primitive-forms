@@ -616,3 +616,18 @@ func TestTheOrderInWhichProblemsAreReportedIsFixed(t *testing.T) {
 		t.Errorf("duplicate: %s", got)
 	}
 }
+
+// Found by the fuzz job: a key past the implicit-key limit is emitted as "? key", and a plain key
+// that starts with -, ? or : (not followed by a space) must read back.
+func TestALongKeyThatStartsWithAnIndicatorReadsBack(t *testing.T) {
+	for _, first := range []string{"-", "-x", ":", ":x", "?x", "k", "\u00a0"} {
+		n := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{
+			Key:   first + strings.Repeat("k", 600),
+			Value: &forms.Node{Kind: forms.KindInt, Int: 1},
+		}}}
+		back, err := forms.Parse(forms.Emit(n))
+		if err != nil || !back.Same(n) {
+			t.Errorf("%q: %v", first, err)
+		}
+	}
+}

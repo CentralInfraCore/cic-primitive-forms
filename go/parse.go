@@ -468,7 +468,9 @@ func blockHeader(c []rune, i int) bool {
 
 // blockExplicitKey: the `? key` form the emitter writes for a key past the implicit-key limit,
 // the only explicit key the subset reads: the `?` starts its line, one space follows, then the
-// key's own text, which does not begin with another indicator.
+// key's own text. The text may begin with `-`, `?` or `:` (`-x` is a plain scalar) but not with one
+// of them followed by a space or the end of the line (`- x` is a block sequence, a key the subset
+// does not read).
 func blockExplicitKey(runes []rune, i int) bool {
 	for j := i - 1; j >= 0 && runes[j] != '\n' && runes[j] != '\r'; j-- {
 		if runes[j] != ' ' {
@@ -478,5 +480,11 @@ func blockExplicitKey(runes []rune, i int) bool {
 	if i+2 >= len(runes) || runes[i+1] != ' ' {
 		return false
 	}
-	return !strings.ContainsRune(" \n\r-?:", runes[i+2])
+	if strings.ContainsRune(" \n\r", runes[i+2]) {
+		return false
+	}
+	if !strings.ContainsRune("-?:", runes[i+2]) {
+		return true
+	}
+	return i+3 < len(runes) && !strings.ContainsRune(" \n\r", runes[i+3])
 }

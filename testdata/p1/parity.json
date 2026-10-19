@@ -7698,6 +7698,168 @@
    }
   },
   {
+   "input": "? -x\n: 1\n",
+   "expect": {
+    "ok": {
+     "n": {
+      "t": "map",
+      "v": [
+       [
+        "-x",
+        [
+         1,
+         3,
+         2
+        ],
+        {
+         "n": {
+          "t": "int",
+          "v": 1
+         },
+         "p": [
+          2,
+          3,
+          7
+         ]
+        }
+       ]
+      ]
+     },
+     "p": [
+      1,
+      1,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "input": "? :x\n: 1\n",
+   "expect": {
+    "ok": {
+     "n": {
+      "t": "map",
+      "v": [
+       [
+        ":x",
+        [
+         1,
+         3,
+         2
+        ],
+        {
+         "n": {
+          "t": "int",
+          "v": 1
+         },
+         "p": [
+          2,
+          3,
+          7
+         ]
+        }
+       ]
+      ]
+     },
+     "p": [
+      1,
+      1,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "input": "? ?x\n: 1\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "? -\n: 1\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "? - \n: 1\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "? -kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\n: 1\n",
+   "expect": {
+    "ok": {
+     "n": {
+      "t": "map",
+      "v": [
+       [
+        "-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        [
+         1,
+         3,
+         2
+        ],
+        {
+         "n": {
+          "t": "int",
+          "v": 1
+         },
+         "p": [
+          2,
+          3,
+          614
+         ]
+        }
+       ]
+      ]
+     },
+     "p": [
+      1,
+      1,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "input": "? :kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\n: 1\n",
+   "expect": {
+    "ok": {
+     "n": {
+      "t": "map",
+      "v": [
+       [
+        ":kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+        [
+         1,
+         3,
+         2
+        ],
+        {
+         "n": {
+          "t": "int",
+          "v": 1
+         },
+         "p": [
+          2,
+          3,
+          606
+         ]
+        }
+       ]
+      ]
+     },
+     "p": [
+      1,
+      1,
+      0
+     ]
+    }
+   }
+  },
+  {
    "input": "a: [x,?c]\n",
    "expect": {
     "err": "UNSUPPORTED_SYNTAX"
