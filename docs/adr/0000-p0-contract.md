@@ -17,7 +17,7 @@ or Go conformance.
 | [0001](0001-recognition-rule.md) | recognition rule | accepted | 1, 7 |
 | [0002](0002-minimal-schema-contract.md) | schema contract | accepted (grammar identity implemented and verified; `item_choice` profile temporary) | 4 |
 | [0003](0003-presence-and-value-semantics.md) | presence and value semantics | accepted | 3 |
-| [0004](0004-access-inheritance-vocabulary.md) | inheritance vocabulary | accepted, reading contract only | 8 (not ticked) |
+| [0004](0004-access-inheritance-vocabulary.md) | inheritance vocabulary | accepted, reading contract only; D-018 adoption recorded as an amendment | 8 (not ticked) |
 | [0005](0005-conformance-corpus-contract.md) | corpus contract and gate | accepted | corpus skeleton |
 | [0006](0006-logical-path-grammar.md) | logical paths | accepted | 2 |
 | [0007](0007-error-contract-and-source-positions.md) | errors and positions | accepted | 6 |

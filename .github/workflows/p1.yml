@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: ["rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
       - run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - run: cargo +stable fmt --check
         working-directory: rust
@@ -34,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27.2"
@@ -47,6 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -111,6 +114,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -184,6 +188,7 @@ jobs:
           cd go
           go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
           go test -run '^$' -fuzz '^FuzzValidate$' -fuzztime 60s ./...
+          go test -run '^$' -fuzz '^FuzzAccess$' -fuzztime 60s ./...
       - name: Rust nightly and cargo-fuzz
         run: |
           rustup toolchain install nightly-2026-10-17 --profile minimal
@@ -193,17 +198,33 @@ jobs:
         run: |
           cargo +nightly-2026-10-17 fuzz run parse -- -max_total_time=60
           cargo +nightly-2026-10-17 fuzz run validate -- -max_total_time=60
+          cargo +nightly-2026-10-17 fuzz run access -- -max_total_time=60
       # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
       - name: Seeded proof, the canary turns both fuzz targets red
         run: |
           set +e
-          for target in Parse Validate; do
+          for target in Parse Validate Access; do
             (cd go && CIC_FUZZ_CANARY=1 go test -run "^Fuzz${target}\$" ./...)
             test $? -ne 0 || { echo "Go canary did not fail for $target"; exit 1; }
           done
-          for target in parse validate; do
+          for target in parse validate access; do
             (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
             test $? -ne 0 || { echo "Rust canary did not fail for $target"; exit 1; }
             (cd rust && cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
             test $? -eq 0 || { echo "the canary input must pass when the switch is off ($target)"; exit 1; }
           done
+
+  # Tests must be shown to fail on a wrong implementation, not only to pass on a right one: each
+  # deliberate defect (a coerced 0, a silent default version, an unverified pin, a loose CertPattern, ...)
+  # is applied to a copy and the suites must turn red.
+  seeded-defects:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - run: rustup toolchain install stable --profile minimal
+      - run: python3 tools/seeded_defects.py all

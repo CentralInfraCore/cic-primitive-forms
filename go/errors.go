@@ -41,6 +41,11 @@ const (
 	ErrUnsupported
 	ErrSyntax
 	ErrLimit
+	// ErrBinding is a grammar version or a pinned schema that could not be bound. Its code is the
+	// upstream contract's own (GRAMMAR_VERSION_MISSING, UNKNOWN_GRAMMAR_VERSION,
+	// GRAMMAR_VERSION_CONFLICT) or GRAMMAR_DIGEST_MISMATCH (ADR 0002); none is renamed. Nothing falls
+	// back to a default version.
+	ErrBinding
 )
 
 // Error is a failure of Parse or Recognize.
@@ -48,6 +53,8 @@ type Error struct {
 	Kind       ErrorKind
 	Violations []Violation
 	Detail     string
+	// BindingCode is the code of an ErrBinding error.
+	BindingCode string
 }
 
 // Code is the stable code of the error. The codes of the last three kinds are outside the
@@ -58,6 +65,8 @@ func (e *Error) Code() string {
 		return e.Violations[0].Code
 	case ErrUnsupported:
 		return "UNSUPPORTED_SYNTAX"
+	case ErrBinding:
+		return e.BindingCode
 	case ErrSyntax:
 		return "YAML_SYNTAX"
 	default:

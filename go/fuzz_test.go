@@ -12,6 +12,7 @@ package forms_test
 
 import (
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -127,6 +128,63 @@ func FuzzValidate(f *testing.F) {
 		}
 		if len(phases) > 1 {
 			t.Fatalf("%q: more than one phase", text)
+		}
+	})
+}
+
+var knownReadingCodes = []string{
+	"INVALID_INHERIT", "INHERIT_ENUM_IN_GRAMMAR_1", "LEGACY_INHERIT_IN_GRAMMAR_2",
+	"INVALID_ACCESS_VALUE", "INVALID_CERT_PATTERN",
+}
+
+// FuzzAccess checks, on every input, that reading an access/modify value and an InheritanceMode under
+// both grammars does not panic, leaves the document alone, answers with a known code, writes back the
+// spelling it read, accepts only valid CertPatterns, and that IsCertPattern agrees with the upstream
+// regular expression on the raw text. CIC_FUZZ_CANARY works as in FuzzParse.
+func FuzzAccess(f *testing.F) {
+	for _, v := range loadAccess(f).CertPattern {
+		f.Add(v.Pattern)
+	}
+	for _, seed := range []string{"", "inherit", "[]", "[inherit]", "true", "false", "0", "no-inherit", "[OU=ops,O=acme]", "a=b", "- a=b\n- c=d\n", "reset"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		if got, want := forms.IsCertPattern(text), upstreamPattern.MatchString(text); got != want {
+			t.Fatalf("%q: library %v, upstream expression %v", text, got, want)
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(n)
+		known := func(v *forms.Violation) {
+			if v != nil && !slices.Contains(knownReadingCodes, v.Code) {
+				t.Fatalf("%q: unknown code %s", text, v.Code)
+			}
+		}
+		rule, v := forms.ReadRule(n)
+		known(v)
+		for _, p := range rule.Patterns {
+			if !forms.IsCertPattern(p) {
+				t.Fatalf("%q: accepted the pattern %q", text, p)
+			}
+		}
+		for _, version := range forms.SupportedGrammars {
+			g := grammarOf(t, version)
+			mode, v := forms.ReadMode(n, g)
+			known(v)
+			if v == nil && !forms.WriteMode(mode, g).Same(n) {
+				t.Fatalf("%q: grammar %d lost the spelling", text, version)
+			}
+		}
+		if forms.Emit(n) != before {
+			t.Fatalf("%q: the input changed", text)
 		}
 	})
 }

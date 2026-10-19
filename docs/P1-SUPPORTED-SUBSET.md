@@ -1,6 +1,6 @@
 # P1: the implemented slices, their supported subset and their quality gates
 
-Status: **two slices** - parse/recognize/emit (PR #22) and presence validation - in Rust (`rust/`) and Go (`go/`), one shared corpus. It is
+Status: **three slices** - parse/recognize/emit (PR #22), presence validation (PR #23) and the reading of the `access-policy/1` values (D-018) - in Rust (`rust/`) and Go (`go/`), one shared corpus. It is
 implementation, not a decision: it follows the accepted ADRs and re-opens none of them.
 
 ## What exists
@@ -10,6 +10,7 @@ implementation, not a decision: it follows the accepted ADRs and re-opens none o
 | parse | `parse`, `parse_with` | `Parse`, `ParseWith` | One YAML document to a `Node` tree with ADR 0007 source positions; `DUPLICATE_KEY` (parse phase) |
 | recognize / validate | `recognize` | `Recognize` | ADR 0001 recognition at a synthetic position, then the position validation of ADR 0003/0007 (`MAP_AT_SCALAR_POSITION`, `UNKNOWN_FIELD`, `EXPANDED_WITH_EXTRA_KEY`) |
 | emit | `emit` | `Emit` | Deterministic block-style YAML; the text always parses back to the same value |
+| access-policy/1 reading | `read_mode`, `read_rule`, `bind_grammar`, `pinned_grammar_version`, `is_cert_pattern` | `ReadMode`, `ReadRule`, `BindGrammar`, `PinnedGrammarVersion`, `IsCertPattern` | `InheritanceMode` in grammar 1 or 2, an `access`/`modify` value, the grammar version binding derived from the verified pinned schema (see below) |
 | presence validation | `validate` | `Validate` | Absent / null / value against a Shape: `mandatory`, `optional`, `nullable`, scalar type, `min_items`, composite fields; every error with `logical_path`; default *candidates* (see below) |
 
 The expanded key set `A` is an argument, never a constant of the library. The input is never
@@ -60,6 +61,45 @@ that is present with the value null.** They are different states with different 
 * Out of scope on purpose: `state_surface`. A missing observation there is a coverage fact (ADR 0003 rule 8),
   not an authoring-validation error and not the observation state `absent`; the library does not decide it.
 
+## Access reading (corpus kind `validate`, `slot`; ADR 0004, cic-primitives D-018)
+
+The normative source is the pinned `proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md` and `schemas/atomic/access.yaml`
+(`corpus/pins.yaml`, `cic-primitives-73ae469-71ee71ca`). The module reads and checks values; it resolves
+nothing (P3), decides no permission and applies no default.
+
+* **Grammar version binding is fail-closed.** The version is not a document key and has no default. It is the
+  `spec.access_grammar.version` of the pinned schema, derived **after** the SHA-256 of the schema bytes matched the
+  pin (`GRAMMAR_DIGEST_MISMATCH` otherwise), and the processing context must supply the same integer.
+  Missing is `GRAMMAR_VERSION_MISSING` (checked first), a value that is not a supported integer (`"1"`, `true`, `3`)
+  is `UNKNOWN_GRAMMAR_VERSION`, a difference is `GRAMMAR_VERSION_CONFLICT`. One `Grammar` value binds a whole
+  document. The corpus runners read `access.yaml` from a checkout of `cic-primitives` at the pinned commit
+  (`CIC_PRIMITIVES_ROOT`) and **fail**, not skip, when it is absent or differs.
+* **`InheritanceMode`.** Grammar 1: boolean `true`, boolean `false` and integer `0` are three distinct, losslessly
+  represented values (`inherit`, `no-inherit`, `reset`); `1`, `"true"`, `"0"`, `null`, a list or a mapping is
+  `INVALID_INHERIT`; an enum name is `INHERIT_ENUM_IN_GRAMMAR_1`. Grammar 2: the enum names; a legacy spelling is
+  `LEGACY_INHERIT_IN_GRAMMAR_2`. No conversion between versions, and writing a mode back gives the spelling that was
+  read (a bijection per version, tested).
+* **`access` / `modify`.** The symbol `inherit` is not a CertPattern list; `[]` is an explicit "nobody" and never the
+  symbol; `[inherit]` is `INVALID_CERT_PATTERN`; `null`, a bare pattern string, a boolean or a mapping is
+  `INVALID_ACCESS_VALUE`. A CertPattern is the upstream expression `attr=value` pairs joined by `,`
+  (`attr` = `[A-Za-z][A-Za-z0-9.-]*`, a value that does not start with `=`, `,` or whitespace and holds no `=` or `,`);
+  its whitespace class is Python's `\s` (Unicode White_Space plus U+001C to U+001F), and both languages are checked
+  against that expression as an oracle by property test and fuzz target.
+* Violations are anchored at the value (registry anchor `value`), with phase `validate`, and carry no `logical_path`
+  (a single position).
+
+### Where each code comes from
+
+| Code | In `corpus/codes.yaml` | Traced to |
+|---|---|---|
+| `INVALID_INHERIT`, `INVALID_ACCESS_VALUE`, `INVALID_CERT_PATTERN` | yes (provisional) | ADR 0004 and the pinned specification, "Value rules" and "Spelling and versions" |
+| `INHERIT_ENUM_IN_GRAMMAR_1`, `LEGACY_INHERIT_IN_GRAMMAR_2` | **no** | pinned specification, "Spelling and versions" |
+| `GRAMMAR_VERSION_MISSING`, `UNKNOWN_GRAMMAR_VERSION`, `GRAMMAR_VERSION_CONFLICT` | **no** | pinned specification, "Grammar version binding" |
+| `GRAMMAR_DIGEST_MISMATCH` | yes (stable, ADR 0002) | the pinned schema's bytes differ from the pin |
+
+The five upstream codes are emitted unchanged, not renamed or invented. No vector uses them, and the corpus gate
+rejects a registry code no case uses, so they cannot enter the registry yet: this is a reported gap (finding 6).
+
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
 | Input | Answer |
@@ -72,6 +112,7 @@ that is present with the value null.** They are different states with different 
 | a scalar where a mapping or a list is declared, a non-record list element, a list inside a record | `UNSUPPORTED_SYNTAX` (the slice has no rule) |
 | a value of the wrong type in presence validation (a string where an integer is declared, a list where a mapping is declared, ...) | `UNSUPPORTED_SYNTAX`: the registry has **no code** for it (finding 4) |
 | an expanded Access node inside a validated document | `UNSUPPORTED_SYNTAX`: its `value` is validated with expand/collapse (P2) |
+| effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (P2), grammar-version migration (`migrate_mode`) | not implemented |
 | Shape types `number`, `bytes`, `set`, `choice`, `item_choice`, list element shapes, schema validity rules (`default` with `mandatory`, `default: null` with `nullable`) | not modelled |
 
 These three codes are **not** in `corpus/codes.yaml`; they mark the boundary of the slice and are
@@ -83,28 +124,34 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 
 ## Corpus coverage: run and `NOT RUN`
 
+Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
+case of the corpus (339), assert that each is either run or listed here, and assert **81 run + 258 NOT RUN**.
+
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
-| recognition, presence | `recognize` | 31 | **run**, both languages, complete machine response |
-| presence | `validate` (shape) | 29 | **run**, both languages, complete machine response, input unchanged |
-| conformance, inherit | `validate` (slot) | 37 | NOT RUN (Access vocabulary, `conformance` origin) |
-| recognition, presence, conformance | `collapse` | 15 | NOT RUN (P2) |
-| presence, inherit | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
-| conformance | `basis` | 16 | NOT RUN |
-| paths | `path_parse`, `path_format`, `path_resolve`, `path_of`, `path_stability` | 125 | NOT RUN |
-| diff | `diff`, `diff_stability` | 66 | NOT RUN (P4) |
-| grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus`) |
+| recognition | `recognize` | 30 | **run**, both languages, complete machine response |
+| presence | `recognize` | 1 | **run** |
+| presence | `validate` (shape) | 29 | **run**, complete machine response, input unchanged |
+| inherit | `validate` (slot `inherit_key`, `inherit_policy`, `access_modify`) | 21 | **run**, complete machine response, typed value preserved, grammar bound from the verified pin |
+| conformance | `validate` (slot `conformance`) | 16 | NOT RUN (ADR 0010, conformance basis) |
+| conformance | `basis` | 16 | NOT RUN (ADR 0010) |
+| conformance, presence, recognition | `collapse` | 15 | NOT RUN (P2) |
+| inherit, presence | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
+| paths | `path_parse` 57, `path_resolve` 34, `path_of` 18, `path_format` 9, `path_stability` 7 | 125 | NOT RUN |
+| diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
+| grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
-Each runner prints the run count and the `NOT RUN` tally, and asserts the number it ran (31 and 29), so a
-vector that stops being run is a failure and a green run cannot be read as covering the rest.
+A runner asserts the number it ran (31, 29, 21), so a vector that stops being run is a failure, and a green run cannot
+be read as covering the rest.
 
 ## What agreement between the two languages is claimed for
 
-* the 31 `recognize` and the 29 shape-based `validate` cases of the corpus: class, `elements`,
-  `opaque_value`, `default_candidate`, `stays_absent` and the complete machine response (code, phase,
+* the 31 `recognize`, the 29 shape-based and the 21 inheritance `validate` cases of the corpus: class, `elements`,
+  `opaque_value`, `default_candidate`, `stays_absent`, `preserved`, `kind`, `is_inherit` and the complete machine response (code, phase,
   source location, logical path), compared in both languages;
-* `testdata/p1/subset.json`: what `parse` reads and refuses and what `emit` writes (hand-written
-  expectations, one file read by both languages);
+* `testdata/p1/subset.json` and `testdata/p1/access.json`: what `parse` reads and refuses, what `emit` writes, and the
+  readings of `InheritanceMode`, `access`/`modify`, CertPatterns and the grammar version binding (hand-written
+  expectations, one file each, read by both languages);
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
@@ -123,41 +170,44 @@ prints the same table.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
-| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (771/777) | 100.00% (388/388) |
-| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.35% (331/340) | 100.00% (333/333) |
-| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (174 caught, 0 missed, 16 unviable) | 98.96% (380 killed, 4 survived) |
-| Property tests | `proptest` / `rapid` | 8 properties, 512 cases each | the same 8, 1000 cases |
-| Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse` and `validate`, 60 s each in CI | `FuzzParse` and `FuzzValidate`, 60 s each in CI |
-| Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 `validate` | the same |
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (908/915) | 100.00% (470/470) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.70% (426/436) | 100.00% (471/471) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (227 caught, 0 missed, 23 unviable) | 98.18% (485 killed, 9 survived) |
+| Property tests | `proptest` / `rapid` | 14 properties, 512 cases each | the same properties (13 tests: "no value is a valid mode in both grammars" is part of the type-preservation test), 1000 cases |
+| Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse`, `validate` and `access`, 60 s each in CI | `FuzzParse`, `FuzzValidate` and `FuzzAccess`, 60 s each in CI |
+| Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 presence and 21 of 21 inheritance `validate` | the same |
 
 `tools/quality_gate.py` decides line coverage and mutation score (`check`), and `selftest` runs 21
 seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
 `BELOW_THRESHOLD`, exactly 90% is red).
 
-**The four Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
+**The nine Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
 that returns the same line (`line >= len`), a CRLF look-ahead whose only difference is a line start
-nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), and an operand that is
-always false for the segments it guards.
+nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), an operand that is always false for the segments it
+guards, the value that is returned next to an error (`return -1` instead of `return 0` where the caller never reads it),
+the numeric value of the `ModeInvalid` sentinel (every test compares against the name, not the number) and the early
+`return nil` of a lookup in a node that has no entries.
 
 **What each property checks** (Rust and Go identically): emit then parse gives back the value for any
 value of the subset including any string and key (long ones too); emit is a fixed point under parse;
 parse never panics on arbitrary text and its positions lie inside the text on character boundaries;
-recognition follows the key set and leaves its input unchanged. For validation: a document built to conform to a random shape has no violation; leaving out one mandatory field gives only `MISSING_MANDATORY` errors, at most one at that path; the default candidates are exactly the absent optional fields that declare a default; for any document against any shape the answer is unsupported or a response of one phase, ordered, with no repeated (path, code), and the input is unchanged. **Fuzzing** checks on every input
+recognition follows the key set and leaves its input unchanged. For validation: a document built to conform to a random shape has no violation; leaving out one mandatory field gives only `MISSING_MANDATORY` errors, at most one at that path; the default candidates are exactly the absent optional fields that declare a default; for any document against any shape the answer is unsupported or a response of one phase, ordered, with no repeated (path, code), and the input is unchanged. For the access reading: whatever reads is written back to the same spelling, to the type, and no value is a valid mode in both grammars; every mode has one spelling per version and reads back, and the other version's reading refuses it; the version binding agrees with an independently written oracle (missing before unknown before conflict); `is_cert_pattern` agrees with the upstream regular expression for any string (a regex oracle in each language); and reading never changes its input. **Fuzzing** checks on every input
 that parse does not panic, that a document that parses survives emit then parse, and that its
 positions lie inside the text (`parse`); and that validation of whatever parses against a fixed shape that
 uses every rule leaves the document alone and gives an ordered, unique, single-phase response (`validate`);
-the seeds are the shared vectors and the presence inputs.
+and that reading an `access`/`modify` value and an `InheritanceMode` under both grammars answers with a known code, writes back the spelling it read, accepts only valid CertPatterns and leaves the document alone (`access`; the Go target also checks `IsCertPattern` against the upstream expression on the raw text); the seeds are the shared vectors and the presence and access inputs.
 
 ### Proof that each gate can fail (what was run, and what it did)
 
 | Gate | Seeded fault | Result |
 |---|---|---|
-| Line coverage | only the subset test runs | Rust 49.22% (378/768), Go 26.29% (102/388), both `BELOW_THRESHOLD`; reproduced in CI |
+| Line coverage | only the subset test runs | Rust 41.72% (378/906), Go 21.70% (102/470), both `BELOW_THRESHOLD`; reproduced in CI |
 | Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
-| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 64.41% (219/340), Go 0.00% (0/333), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 50.22% (219/436), Go 0.00% (0/471), both `BELOW_THRESHOLD`; reproduced in CI |
 | Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
 | Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
-| Fuzz job | a committed input starting with `CANARY` fails each of the four targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
+| Fuzz job | a committed input starting with `CANARY` fails each of the six targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
+| Seeded defects (`tools/seeded_defects.py`) | 14 deliberate defects in the access reading, 7 per language: `0` coerced to `false`, a missing version silently defaulting to 1, the pin used without verifying its digest, a string without `=` accepted as a CertPattern, the empty list read as the symbol, grammar 2 accepting the legacy boolean, a violation dropping its position | every defect is caught by the suites (the unmodified copy passes first); reproduced in CI (job `seeded-defects`) |
 | Performance of duplicate keys | the previous linear scan put back by hand (Go) | 16.9 s against a 5 s bound; not reproduced in CI |
 
 ## What these gates found (all fixed, with a regression test or a vector each)
@@ -183,3 +233,13 @@ the seeds are the shared vectors and the presence inputs.
 4. **A value of the wrong type has no error code.** The registry has `MAP_AT_SCALAR_POSITION` for a mapping at a scalar position, but nothing for a string where an integer is declared, a scalar where a list or a mapping is declared, and so on. ADR 0003 says the Shape type contracts decide validity; the codes for those violations are not defined, and no vector asks for one. The slice refuses them explicitly (`UNSUPPORTED_SYNTAX`) instead of inventing a code. This is a gap for the ADR owner, not decided here.
 5. The banners of `make corpus` and `make coverage` ("implementation conformance NOT RUN", "no Rust or
    Go code is measured yet") describe those structural tools and are stale next to the new runners.
+6. **D-018 compatibility (details in the ADR 0004 and ADR 0002 amendments).** Recognition and the six-key set are
+   unchanged; ADR 0004's reading rules hold under grammar 1; the old `upstream_conflict` expectation of
+   `inherit.policy-zero-ok-despite-boolean-declaration` no longer applies (removed, id kept). **Gap:** five upstream
+   codes (`INHERIT_ENUM_IN_GRAMMAR_1`, `LEGACY_INHERIT_IN_GRAMMAR_2`, `GRAMMAR_VERSION_MISSING`,
+   `UNKNOWN_GRAMMAR_VERSION`, `GRAMMAR_VERSION_CONFLICT`) have no registry entry because no vector uses them, and the
+   three `INVALID_*` codes are still `provisional`; both are decisions for the ADR owner.
+7. Upstream lists `0.0` as `INVALID_INHERIT`. A float spelling is refused earlier by the YAML subset, so from text the
+   value never reaches the reading.
+8. The corpus runners now need a checkout of `cic-primitives` at the pinned commit (`CIC_PRIMITIVES_ROOT`) to derive the
+   grammar version from the verified schema; CI provides it through `.github/actions/upstream-pinned`.

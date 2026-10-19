@@ -1,0 +1,995 @@
+{
+ "read_mode": [
+  {
+   "name": "g1-true",
+   "grammar": 1,
+   "value": {
+    "t": "bool",
+    "v": true
+   },
+   "expect": "inherit"
+  },
+  {
+   "name": "g1-false",
+   "grammar": 1,
+   "value": {
+    "t": "bool",
+    "v": false
+   },
+   "expect": "no-inherit"
+  },
+  {
+   "name": "g1-zero",
+   "grammar": 1,
+   "value": {
+    "t": "int",
+    "v": 0
+   },
+   "expect": "reset"
+  },
+  {
+   "name": "g1-one",
+   "grammar": 1,
+   "value": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-minus-one",
+   "grammar": 1,
+   "value": {
+    "t": "int",
+    "v": -1
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-string-true",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "true"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-string-zero",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "0"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-null",
+   "grammar": 1,
+   "value": {
+    "t": "null"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-empty-list",
+   "grammar": 1,
+   "value": {
+    "t": "seq",
+    "v": []
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-map",
+   "grammar": 1,
+   "value": {
+    "t": "map",
+    "v": []
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-upper-case-enum",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "INHERIT"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-empty-string",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": ""
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g1-enum-name-inherit",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "inherit"
+   },
+   "expect": "INHERIT_ENUM_IN_GRAMMAR_1"
+  },
+  {
+   "name": "g1-enum-name-no-inherit",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "no-inherit"
+   },
+   "expect": "INHERIT_ENUM_IN_GRAMMAR_1"
+  },
+  {
+   "name": "g1-enum-name-reset",
+   "grammar": 1,
+   "value": {
+    "t": "str",
+    "v": "reset"
+   },
+   "expect": "INHERIT_ENUM_IN_GRAMMAR_1"
+  },
+  {
+   "name": "g2-inherit",
+   "grammar": 2,
+   "value": {
+    "t": "str",
+    "v": "inherit"
+   },
+   "expect": "inherit"
+  },
+  {
+   "name": "g2-no-inherit",
+   "grammar": 2,
+   "value": {
+    "t": "str",
+    "v": "no-inherit"
+   },
+   "expect": "no-inherit"
+  },
+  {
+   "name": "g2-reset",
+   "grammar": 2,
+   "value": {
+    "t": "str",
+    "v": "reset"
+   },
+   "expect": "reset"
+  },
+  {
+   "name": "g2-true",
+   "grammar": 2,
+   "value": {
+    "t": "bool",
+    "v": true
+   },
+   "expect": "LEGACY_INHERIT_IN_GRAMMAR_2"
+  },
+  {
+   "name": "g2-false",
+   "grammar": 2,
+   "value": {
+    "t": "bool",
+    "v": false
+   },
+   "expect": "LEGACY_INHERIT_IN_GRAMMAR_2"
+  },
+  {
+   "name": "g2-zero",
+   "grammar": 2,
+   "value": {
+    "t": "int",
+    "v": 0
+   },
+   "expect": "LEGACY_INHERIT_IN_GRAMMAR_2"
+  },
+  {
+   "name": "g2-one",
+   "grammar": 2,
+   "value": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g2-string-true",
+   "grammar": 2,
+   "value": {
+    "t": "str",
+    "v": "true"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g2-null",
+   "grammar": 2,
+   "value": {
+    "t": "null"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g2-title-case",
+   "grammar": 2,
+   "value": {
+    "t": "str",
+    "v": "Inherit"
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g2-list",
+   "grammar": 2,
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "inherit"
+     }
+    ]
+   },
+   "expect": "INVALID_INHERIT"
+  },
+  {
+   "name": "g2-minus-one",
+   "grammar": 2,
+   "value": {
+    "t": "int",
+    "v": -1
+   },
+   "expect": "INVALID_INHERIT"
+  }
+ ],
+ "read_rule": [
+  {
+   "name": "symbol",
+   "value": {
+    "t": "str",
+    "v": "inherit"
+   },
+   "expect": "symbol"
+  },
+  {
+   "name": "empty-list-is-nobody",
+   "value": {
+    "t": "seq",
+    "v": []
+   },
+   "expect": "list:"
+  },
+  {
+   "name": "one-pattern",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "OU=ops,O=acme"
+     }
+    ]
+   },
+   "expect": "list:OU=ops,O=acme"
+  },
+  {
+   "name": "two-patterns",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "a=b"
+     },
+     {
+      "t": "str",
+      "v": "c=d"
+     }
+    ]
+   },
+   "expect": "list:a=b|c=d"
+  },
+  {
+   "name": "wildcard",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "CN=*,O=partner-a"
+     }
+    ]
+   },
+   "expect": "list:CN=*,O=partner-a"
+  },
+  {
+   "name": "list-holding-the-symbol",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "inherit"
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "space-after-the-comma",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "OU=a, O=b"
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "number-in-the-list",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "int",
+      "v": 1
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "null-in-the-list",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "null"
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "list-in-the-list",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "seq",
+      "v": [
+       {
+        "t": "str",
+        "v": "a=b"
+       }
+      ]
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "one-bad-among-good",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "a=b"
+     },
+     {
+      "t": "str",
+      "v": "bad"
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "good-after-bad",
+   "value": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "str",
+      "v": "bad"
+     },
+     {
+      "t": "str",
+      "v": "a=b"
+     }
+    ]
+   },
+   "expect": "INVALID_CERT_PATTERN"
+  },
+  {
+   "name": "bare-pattern",
+   "value": {
+    "t": "str",
+    "v": "OU=ops,O=acme"
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "null",
+   "value": {
+    "t": "null"
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "true",
+   "value": {
+    "t": "bool",
+    "v": true
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "zero",
+   "value": {
+    "t": "int",
+    "v": 0
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "map",
+   "value": {
+    "t": "map",
+    "v": []
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "upper-case-symbol",
+   "value": {
+    "t": "str",
+    "v": "Inherit"
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  },
+  {
+   "name": "empty-string",
+   "value": {
+    "t": "str",
+    "v": ""
+   },
+   "expect": "INVALID_ACCESS_VALUE"
+  }
+ ],
+ "cert_pattern": [
+  {
+   "name": "one-pair",
+   "pattern": "O=acme",
+   "valid": true
+  },
+  {
+   "name": "two-pairs",
+   "pattern": "OU=ops,O=acme-corp",
+   "valid": true
+  },
+  {
+   "name": "wildcard",
+   "pattern": "CN=*,O=partner-a",
+   "valid": true
+  },
+  {
+   "name": "dots-and-dashes-in-attr",
+   "pattern": "a.b-c=1",
+   "valid": true
+  },
+  {
+   "name": "digits-in-attr",
+   "pattern": "A1=x",
+   "valid": true
+  },
+  {
+   "name": "space-inside-value",
+   "pattern": "OU=a b",
+   "valid": true
+  },
+  {
+   "name": "non-ascii-value",
+   "pattern": "CN=\u00e9",
+   "valid": true
+  },
+  {
+   "name": "nbsp-inside-value",
+   "pattern": "O=a\u00a0b",
+   "valid": true
+  },
+  {
+   "name": "equals-free-star",
+   "pattern": "O=*",
+   "valid": true
+  },
+  {
+   "name": "tab-inside-value",
+   "pattern": "O=a\tb",
+   "valid": true
+  },
+  {
+   "name": "empty",
+   "pattern": "",
+   "valid": false
+  },
+  {
+   "name": "symbol-only",
+   "pattern": "inherit",
+   "valid": false
+  },
+  {
+   "name": "no-equals",
+   "pattern": "O",
+   "valid": false
+  },
+  {
+   "name": "no-attr",
+   "pattern": "=x",
+   "valid": false
+  },
+  {
+   "name": "no-value",
+   "pattern": "O=",
+   "valid": false
+  },
+  {
+   "name": "trailing-comma",
+   "pattern": "O=a,",
+   "valid": false
+  },
+  {
+   "name": "leading-comma",
+   "pattern": ",O=a",
+   "valid": false
+  },
+  {
+   "name": "double-comma",
+   "pattern": "O=a,,P=b",
+   "valid": false
+  },
+  {
+   "name": "space-after-comma",
+   "pattern": "OU=ops, O=acme",
+   "valid": false
+  },
+  {
+   "name": "space-first",
+   "pattern": "O= a",
+   "valid": false
+  },
+  {
+   "name": "double-equals",
+   "pattern": "O==a",
+   "valid": false
+  },
+  {
+   "name": "equals-in-value",
+   "pattern": "O=a=b",
+   "valid": false
+  },
+  {
+   "name": "digit-first-attr",
+   "pattern": "1a=x",
+   "valid": false
+  },
+  {
+   "name": "dash-first-attr",
+   "pattern": "-a=x",
+   "valid": false
+  },
+  {
+   "name": "underscore-attr",
+   "pattern": "a_b=x",
+   "valid": false
+  },
+  {
+   "name": "non-ascii-attr",
+   "pattern": "\u00e9=x",
+   "valid": false
+  },
+  {
+   "name": "space-in-attr",
+   "pattern": "O U=x",
+   "valid": false
+  },
+  {
+   "name": "nbsp-first",
+   "pattern": "O=\u00a0a",
+   "valid": false
+  },
+  {
+   "name": "ideographic-space-first",
+   "pattern": "O=\u3000a",
+   "valid": false
+  },
+  {
+   "name": "u001c-first",
+   "pattern": "O=\u001ca",
+   "valid": false
+  },
+  {
+   "name": "u001f-first",
+   "pattern": "O=\u001fa",
+   "valid": false
+  },
+  {
+   "name": "tab-first",
+   "pattern": "O=\ta",
+   "valid": false
+  },
+  {
+   "name": "newline-first",
+   "pattern": "O=\na",
+   "valid": false
+  },
+  {
+   "name": "next-line-first",
+   "pattern": "O=\u0085a",
+   "valid": false
+  },
+  {
+   "name": "u0020-before-attr",
+   "pattern": " O=a",
+   "valid": false
+  },
+  {
+   "name": "attr-upper-z",
+   "pattern": "Z=x",
+   "valid": true
+  },
+  {
+   "name": "attr-lower-z",
+   "pattern": "z=x",
+   "valid": true
+  },
+  {
+   "name": "attr-upper-a",
+   "pattern": "A=x",
+   "valid": true
+  },
+  {
+   "name": "attr-lower-a",
+   "pattern": "a=x",
+   "valid": true
+  },
+  {
+   "name": "attr-mixed-boundaries",
+   "pattern": "aZz09.-=x",
+   "valid": true
+  },
+  {
+   "name": "control-first-in-value",
+   "pattern": "O=\u0001a",
+   "valid": true
+  },
+  {
+   "name": "escape-first-in-value",
+   "pattern": "O=\u001ba",
+   "valid": true
+  },
+  {
+   "name": "del-first-in-value",
+   "pattern": "O=\u007fa",
+   "valid": true
+  },
+  {
+   "name": "quote-first-in-value",
+   "pattern": "O=\"a\"",
+   "valid": true
+  },
+  {
+   "name": "attr-at-sign",
+   "pattern": "@=x",
+   "valid": false
+  },
+  {
+   "name": "attr-open-bracket",
+   "pattern": "[=x",
+   "valid": false
+  },
+  {
+   "name": "attr-backtick",
+   "pattern": "`=x",
+   "valid": false
+  },
+  {
+   "name": "attr-open-brace",
+   "pattern": "{=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-at-sign",
+   "pattern": "a@=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-open-bracket",
+   "pattern": "a[=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-backtick",
+   "pattern": "a`=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-open-brace",
+   "pattern": "a{=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-slash",
+   "pattern": "a/=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-colon",
+   "pattern": "a:=x",
+   "valid": false
+  },
+  {
+   "name": "attr-tail-plus",
+   "pattern": "a+=x",
+   "valid": false
+  },
+  {
+   "name": "u001d-first-in-value",
+   "pattern": "O=\u001da",
+   "valid": false
+  },
+  {
+   "name": "u001e-first-in-value",
+   "pattern": "O=\u001ea",
+   "valid": false
+  }
+ ],
+ "bind": [
+  {
+   "name": "one-one",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "1"
+  },
+  {
+   "name": "two-two",
+   "context": {
+    "t": "int",
+    "v": 2
+   },
+   "pinned": {
+    "t": "int",
+    "v": 2
+   },
+   "expect": "2"
+  },
+  {
+   "name": "one-two",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "int",
+    "v": 2
+   },
+   "expect": "GRAMMAR_VERSION_CONFLICT"
+  },
+  {
+   "name": "two-one",
+   "context": {
+    "t": "int",
+    "v": 2
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "GRAMMAR_VERSION_CONFLICT"
+  },
+  {
+   "name": "context-missing",
+   "context": "missing",
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "pin-missing",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": "missing",
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "both-missing",
+   "context": "missing",
+   "pinned": "missing",
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "context-null",
+   "context": {
+    "t": "null"
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "pin-null",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "null"
+   },
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "three-three",
+   "context": {
+    "t": "int",
+    "v": 3
+   },
+   "pinned": {
+    "t": "int",
+    "v": 3
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "zero-zero",
+   "context": {
+    "t": "int",
+    "v": 0
+   },
+   "pinned": {
+    "t": "int",
+    "v": 0
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "minus-one",
+   "context": {
+    "t": "int",
+    "v": -1
+   },
+   "pinned": {
+    "t": "int",
+    "v": -1
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "string-one-context",
+   "context": {
+    "t": "str",
+    "v": "1"
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "string-one-pin",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "str",
+    "v": "1"
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "true-context",
+   "context": {
+    "t": "bool",
+    "v": true
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "true-pin",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "bool",
+    "v": true
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "list-pin",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "seq",
+    "v": [
+     {
+      "t": "int",
+      "v": 1
+     }
+    ]
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "unknown-before-conflict",
+   "context": {
+    "t": "int",
+    "v": 3
+   },
+   "pinned": {
+    "t": "int",
+    "v": 1
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "unknown-pin-before-conflict",
+   "context": {
+    "t": "int",
+    "v": 1
+   },
+   "pinned": {
+    "t": "int",
+    "v": 3
+   },
+   "expect": "UNKNOWN_GRAMMAR_VERSION"
+  },
+  {
+   "name": "missing-before-unknown",
+   "context": "missing",
+   "pinned": {
+    "t": "str",
+    "v": "x"
+   },
+   "expect": "GRAMMAR_VERSION_MISSING"
+  },
+  {
+   "name": "missing-pin-before-unknown",
+   "context": {
+    "t": "str",
+    "v": "x"
+   },
+   "pinned": "missing",
+   "expect": "GRAMMAR_VERSION_MISSING"
+  }
+ ]
+}

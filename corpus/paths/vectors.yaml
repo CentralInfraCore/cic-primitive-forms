@@ -6,7 +6,7 @@
 corpus_format: 2
 suite: paths
 status: provisional
-defaults: {adr: ADR-0006, grammar: cic-primitives-5a26bd8-76f1d664}
+defaults: {adr: ADR-0006, grammar: cic-primitives-73ae469-71ee71ca}
 trees:
   main: {'a[0]': {scalar: string}, enabled: {scalar: boolean}, interface.name: {scalar: string}, ip: {composite: {addresses: {set: string}, blob: opaque, gateway: {scalar: string}}}, logical_interfaces: {list: {fields: {ip: {composite: {addresses: {set: string}}}, name: {scalar: string}}, key: [name]}}, mtu: {scalar: integer}, nics: {list: {fields: {name: {scalar: string}, subnet: {scalar: string}, zone: {scalar: string}}, key: [name, zone]}}, nëtz: {scalar: string}, value: {scalar: string}, vlans: {list: {choice: [{fields: {ref: {scalar: string}}, key: [ref], name: referenced}, {fields: {vlan_id: {scalar: integer}, vlan_mode: {scalar: string}}, key: [vlan_id], name: inline}]}}, weird\name: {scalar: string}}
   boolkey: {flags: {list: {fields: {note: {scalar: string}, 'on': {scalar: boolean}}, key: ['on']}}}

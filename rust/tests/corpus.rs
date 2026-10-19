@@ -182,6 +182,17 @@ fn expected_wire(e: &YamlOwned) -> Wire {
     )
 }
 
+/// Whether a `validate` case is run by a runner below: a presence case (`schema.synthetic.shape`) or an
+/// inheritance case (`slot` inherit_key, inherit_policy or access_modify).
+fn has_runner(case: &YamlOwned) -> bool {
+    let synthetic = get(case, "schema").and_then(|s| get(s, "synthetic"));
+    let slot = synthetic
+        .and_then(|s| get(s, "slot"))
+        .and_then(YamlOwned::as_str);
+    synthetic.and_then(|s| get(s, "shape")).is_some()
+        || ["inherit_key", "inherit_policy", "access_modify"].contains(&slot.unwrap_or(""))
+}
+
 struct Run {
     class: Option<Class>,
     elements: Option<Vec<BTreeMap<String, Class>>>,
@@ -230,12 +241,8 @@ fn recognize_cases_match_the_corpus() {
             let id = text(get(case, "id").expect("id"), "id");
             let kind = text(get(case, "kind").expect("kind"), "kind");
             if kind != "recognize" {
-                // A shape-based validate case is run by `presence_validate_cases_match_the_corpus`.
-                let shape_based = get(case, "schema")
-                    .and_then(|s| get(s, "synthetic"))
-                    .and_then(|s| get(s, "shape"))
-                    .is_some();
-                if !(kind == "validate" && shape_based) {
+                // The validate cases that have a runner of their own are counted there.
+                if !(kind == "validate" && has_runner(case)) {
                     *not_run.entry(kind.to_string()).or_default() += 1;
                 }
                 continue;
@@ -451,7 +458,7 @@ fn presence_validate_cases_match_the_corpus() {
             }
             let Some(shape_fixture) = shape_fixture else {
                 *not_run
-                    .entry("validate (slot or pin)".to_string())
+                    .entry("validate (not a presence case, see the accounting test)".to_string())
                     .or_default() += 1;
                 continue;
             };
@@ -532,5 +539,229 @@ fn presence_validate_cases_match_the_corpus() {
         "{} failed:\n  {}",
         failures.len(),
         failures.join("\n  ")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// kind `validate` against `schema.synthetic.slot` (the inherit suite, ADR 0004, cic-primitives D-018).
+//
+// The Access grammar version is derived from the VERIFIED pinned schema: the bytes of
+// `schemas/atomic/access.yaml` come from a checkout of cic-primitives at the pinned commit
+// (`CIC_PRIMITIVES_ROOT`), their SHA-256 must equal the one in `corpus/pins.yaml`, and only then is
+// `spec.access_grammar.version` read. The processing context declares the grammar the corpus is written
+// in. A missing checkout is a failure, not a skip: nothing silently falls back to a default version.
+// ---------------------------------------------------------------------------
+
+use cic_primitive_forms::{
+    bind_grammar, pinned_grammar_version, read_mode, read_rule, write_mode, Grammar, Rule,
+};
+
+/// The grammar the inherit vectors are written in (`true | false | 0`).
+const CORPUS_GRAMMAR: i64 = 1;
+
+const ACCESS_SCHEMA: &str = "schemas/atomic/access.yaml";
+
+fn pinned_access_sha256() -> String {
+    let pins = load(&repo_root().join("corpus/pins.yaml"));
+    let grammar = get(&pins, "grammar")
+        .and_then(YamlOwned::as_mapping)
+        .expect("grammar pins");
+    assert_eq!(grammar.len(), 1, "exactly one grammar pin");
+    let (_, pin) = grammar.iter().next().unwrap();
+    get(pin, "files")
+        .and_then(YamlOwned::as_vec)
+        .expect("files")
+        .iter()
+        .find(|f| get(f, "path").and_then(YamlOwned::as_str) == Some(ACCESS_SCHEMA))
+        .map(|f| text(get(f, "sha256").expect("sha256"), "sha256").to_string())
+        .expect("the pin lists access.yaml")
+}
+
+fn bound_grammar() -> Grammar {
+    let root = std::env::var_os("CIC_PRIMITIVES_ROOT").expect(
+        "CIC_PRIMITIVES_ROOT must point at a checkout of CentralInfraCore/cic-primitives at the pinned commit \
+         (python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo DIR checks it)",
+    );
+    let bytes =
+        fs::read(PathBuf::from(root).join(ACCESS_SCHEMA)).expect("access.yaml in the checkout");
+    let pinned = pinned_grammar_version(&bytes, &pinned_access_sha256())
+        .expect("the pinned schema verifies");
+    bind_grammar(Some(&Value::Int(CORPUS_GRAMMAR)), pinned.as_ref())
+        .expect("the context agrees with the pin")
+}
+
+fn typed(node: &Node) -> (&'static str, String) {
+    match &node.value {
+        Value::Null => ("null", "null".into()),
+        Value::Bool(b) => ("boolean", b.to_string()),
+        Value::Int(i) => ("integer", i.to_string()),
+        Value::Str(s) => ("string", s.clone()),
+        Value::Seq(_) => ("list", "[]".into()),
+        Value::Map(_) => ("map", "{}".into()),
+    }
+}
+
+fn expected_typed(y: &YamlOwned) -> (String, String) {
+    let t = text(get(y, "type").expect("type"), "type").to_string();
+    let v = get(y, "value").expect("value");
+    let rendered = match v {
+        YamlOwned::Value(ScalarOwned::Boolean(b)) => b.to_string(),
+        YamlOwned::Value(ScalarOwned::Integer(i)) => i.to_string(),
+        YamlOwned::Value(ScalarOwned::String(s)) => s.clone(),
+        YamlOwned::Value(ScalarOwned::Null) => "null".into(),
+        YamlOwned::Sequence(_) => "[]".into(),
+        other => panic!("unsupported typed value {other:?}"),
+    };
+    (t, rendered)
+}
+
+#[test]
+fn inherit_validate_cases_match_the_corpus() {
+    let grammar = bound_grammar();
+    assert_eq!(grammar.version(), CORPUS_GRAMMAR);
+    let mut ran = 0;
+    let mut failures = Vec::new();
+    for (_, suite) in suites() {
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let synthetic = get(get(case, "schema").expect("schema"), "synthetic");
+            let slot = synthetic
+                .and_then(|s| get(s, "slot"))
+                .map(|s| text(s, "slot"));
+            if text(get(case, "kind").expect("kind"), "kind") != "validate" || slot.is_none() {
+                continue;
+            }
+            let slot = slot.unwrap();
+            if !["inherit_key", "inherit_policy", "access_modify"].contains(&slot) {
+                continue; // a `conformance` slot is ADR 0010, not this slice
+            }
+            ran += 1;
+            let node = node_of(get(case, "input").expect("input"));
+            let before = node.clone();
+            let expect = get(case, "expect").expect("expect");
+            let mut errors: Vec<Wire> = Vec::new();
+            let mut preserved = None;
+            let mut kind = None;
+            let mut is_inherit = None;
+            if slot == "access_modify" {
+                match read_rule(&node) {
+                    Ok(Rule::Symbol) => {
+                        kind = Some("symbol");
+                        is_inherit = Some(true);
+                    }
+                    Ok(Rule::List(_)) => {
+                        kind = Some("list");
+                        is_inherit = Some(false);
+                    }
+                    Err(v) => errors.push(wire(&v)),
+                }
+            } else {
+                match read_mode(&node, grammar) {
+                    Ok(mode) => preserved = Some(typed(&write_mode(mode, grammar))),
+                    Err(v) => errors.push(wire(&v)),
+                }
+            }
+            if !node.same(&before) || node.pos != before.pos {
+                failures.push(format!("{id}: reading changed its input"));
+            }
+            let want: Vec<Wire> = get(expect, "errors")
+                .map(|es| {
+                    es.as_vec()
+                        .expect("errors")
+                        .iter()
+                        .map(expected_wire)
+                        .collect()
+                })
+                .unwrap_or_default();
+            if want != errors {
+                failures.push(format!("{id}: errors: got {errors:?}, want {want:?}"));
+            }
+            if let Some(v) = get(expect, "valid").and_then(YamlOwned::as_bool) {
+                if v != errors.is_empty() {
+                    failures.push(format!("{id}: valid: got {}, want {v}", errors.is_empty()));
+                }
+            }
+            if let Some(p) = get(expect, "preserved") {
+                let (t, v) = expected_typed(p);
+                if preserved.as_ref().map(|(a, b)| (a.to_string(), b.clone()))
+                    != Some((t.clone(), v.clone()))
+                {
+                    failures.push(format!("{id}: preserved: got {preserved:?}, want {t}/{v}"));
+                }
+            }
+            if let Some(k) = get(expect, "kind") {
+                if kind != Some(text(k, "kind")) {
+                    failures.push(format!("{id}: kind: got {kind:?}"));
+                }
+            }
+            if let Some(i) = get(expect, "is_inherit").and_then(YamlOwned::as_bool) {
+                if is_inherit != Some(i) {
+                    failures.push(format!("{id}: is_inherit: got {is_inherit:?}, want {i}"));
+                }
+            }
+            assert!(
+                get(expect, "upstream_conflict").is_none(),
+                "{id}: D-018 removed the upstream conflict; the expectation must not return"
+            );
+        }
+    }
+    println!("inherit validate cases run: {ran}");
+    assert_eq!(
+        ran, 21,
+        "the inherit suite has 21 slot-based validate cases of the access-policy kind"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} failed:\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+/// The accounting is exact: every case of the corpus is either run by one of the runners of this file or
+/// counted as NOT RUN, and the numbers are the ones in `docs/P1-SUPPORTED-SUBSET.md`.
+#[test]
+fn the_run_and_not_run_accounting_is_exact() {
+    let mut total = 0;
+    let mut run: BTreeMap<String, usize> = BTreeMap::new();
+    let mut not_run: BTreeMap<String, usize> = BTreeMap::new();
+    for (suite, doc) in suites() {
+        for case in get(&doc, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            total += 1;
+            let kind = text(get(case, "kind").expect("kind"), "kind");
+            let key = format!("{suite}/{kind}");
+            if kind == "recognize" || (kind == "validate" && has_runner(case)) {
+                *run.entry(key).or_default() += 1;
+            } else {
+                *not_run.entry(key).or_default() += 1;
+            }
+        }
+    }
+    for (k, n) in &run {
+        println!("RUN     {k}: {n}");
+    }
+    for (k, n) in &not_run {
+        println!("NOT RUN {k}: {n}");
+    }
+    let ran: usize = run.values().sum();
+    let skipped: usize = not_run.values().sum();
+    assert_eq!(ran + skipped, total, "every case is accounted for");
+    assert_eq!(
+        (ran, skipped),
+        (81, 258),
+        "31 recognize + 29 presence validate + 21 inherit validate run"
+    );
+    assert_eq!(run.get("inherit/validate"), Some(&21));
+    assert_eq!(run.get("presence/validate"), Some(&29));
+    assert_eq!(
+        run.get("recognition/recognize").copied().unwrap_or(0)
+            + run.get("presence/recognize").copied().unwrap_or(0),
+        31
     );
 }

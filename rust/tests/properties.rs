@@ -340,3 +340,109 @@ proptest! {
         prop_assert!(n.same(&before));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Reading access-policy/1 (cic-primitives D-018). The Go peer checks the same properties.
+//
+// * type preservation: whatever reads is written back to the same spelling, to the type, and a
+//   value is never valid in both grammars (false and 0 stay two values);
+// * version binding agrees with an independently written oracle for any pair of candidates;
+// * CertPattern agrees with the upstream regular expression for any string;
+// * reading never changes its input.
+// ---------------------------------------------------------------------------
+
+use cic_primitive_forms::{
+    bind_grammar, is_cert_pattern, read_mode, read_rule, write_mode, Grammar, Mode,
+    SUPPORTED_GRAMMARS,
+};
+use std::sync::LazyLock;
+
+fn grammar(v: i64) -> Grammar {
+    bind_grammar(Some(&Value::Int(v)), Some(&Value::Int(v))).unwrap()
+}
+
+/// The upstream `PATTERN_RE`, with Python's `\s` spelled out (Unicode White_Space and U+001C..U+001F).
+static UPSTREAM_PATTERN: LazyLock<regex::Regex> = LazyLock::new(|| {
+    let pair = r"[A-Za-z][A-Za-z0-9.-]*=[^=,\s\x1c-\x1f][^=,]*";
+    regex::Regex::new(&format!("^{pair}(,{pair})*$")).unwrap()
+});
+
+fn candidate() -> impl Strategy<Value = Option<Value>> {
+    prop_oneof![
+        Just(None),
+        Just(Some(Value::Null)),
+        (-2i64..5).prop_map(|n| Some(Value::Int(n))),
+        any::<bool>().prop_map(|b| Some(Value::Bool(b))),
+        "[0-9a-z]{0,2}".prop_map(|s| Some(Value::Str(s))),
+        Just(Some(Value::Seq(Vec::new()))),
+    ]
+}
+
+/// Missing, then unknown, then conflict - written without the library's helpers.
+fn oracle(c: &Option<Value>, p: &Option<Value>) -> Result<i64, &'static str> {
+    let missing = |v: &Option<Value>| v.is_none() || matches!(v, Some(Value::Null));
+    if missing(c) || missing(p) {
+        return Err("GRAMMAR_VERSION_MISSING");
+    }
+    let known = |v: &Option<Value>| match v {
+        Some(Value::Int(n)) if *n == 1 || *n == 2 => Some(*n),
+        _ => None,
+    };
+    match (known(c), known(p)) {
+        (Some(a), Some(b)) if a == b => Ok(a),
+        (Some(_), Some(_)) => Err("GRAMMAR_VERSION_CONFLICT"),
+        _ => Err("UNKNOWN_GRAMMAR_VERSION"),
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(512))]
+
+    #[test]
+    fn what_reads_is_written_back_to_the_same_spelling(n in node(), version in 1i64..=2) {
+        let g = grammar(version);
+        if let Ok(mode) = read_mode(&n, g) {
+            prop_assert!(write_mode(mode, g).same(&n), "{:?}", n);
+        }
+    }
+
+    #[test]
+    fn no_value_is_a_valid_mode_in_both_grammars(n in node()) {
+        prop_assert!(read_mode(&n, grammar(1)).is_err() || read_mode(&n, grammar(2)).is_err());
+    }
+
+    #[test]
+    fn every_mode_has_one_spelling_per_version_and_reads_back(i in 0usize..3, version in 1i64..=2) {
+        let mode = [Mode::Inherit, Mode::NoInherit, Mode::Reset][i];
+        let g = grammar(version);
+        prop_assert_eq!(read_mode(&write_mode(mode, g), g).unwrap(), mode);
+        let other = grammar(3 - version);
+        prop_assert!(read_mode(&write_mode(mode, g), other).is_err());
+    }
+
+    #[test]
+    fn binding_agrees_with_the_oracle(c in candidate(), p in candidate()) {
+        let got = bind_grammar(c.as_ref(), p.as_ref()).map(Grammar::version).map_err(|e| e.code());
+        prop_assert_eq!(got, oracle(&c, &p));
+        prop_assert!(SUPPORTED_GRAMMARS.contains(&got.unwrap_or(1)));
+    }
+
+    #[test]
+    fn cert_pattern_agrees_with_the_upstream_expression(s in prop_oneof![
+        "\\PC{0,12}",
+        "[A-Za-z0-9.=, \u{a0}\u{1c}\t*-]{0,14}",
+        "[A-Za-z][A-Za-z0-9.-]{0,3}=[A-Za-z0-9*]{1,3}(,[A-Za-z][A-Za-z0-9.-]{0,3}=[A-Za-z0-9*]{1,3}){0,2}",
+    ]) {
+        prop_assert_eq!(is_cert_pattern(&s), UPSTREAM_PATTERN.is_match(&s), "{:?}", s);
+    }
+
+    #[test]
+    fn reading_never_changes_its_input(n in node()) {
+        let before = n.clone();
+        let _ = read_rule(&n);
+        let _ = read_mode(&n, grammar(1));
+        let _ = read_mode(&n, grammar(2));
+        prop_assert!(n.same(&before));
+        prop_assert_eq!(n.pos, before.pos);
+    }
+}

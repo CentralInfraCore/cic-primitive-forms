@@ -148,6 +148,17 @@ func expectedWire(t *testing.T, e any) wire {
 	return wire{m["code"].(string), m["phase"].(string), loc, path}
 }
 
+// hasRunner says whether a validate case is run by a runner below: a presence case
+// (schema.synthetic.shape) or an inheritance case (slot inherit_key, inherit_policy or access_modify).
+func hasRunner(c obj) bool {
+	synthetic, _ := c["schema"].(obj)["synthetic"].(obj)
+	if _, ok := synthetic["shape"]; ok {
+		return true
+	}
+	slot, _ := synthetic["slot"].(string)
+	return slot == "inherit_key" || slot == "inherit_policy" || slot == "access_modify"
+}
+
 type run struct {
 	class       string
 	elements    []map[string]forms.Class
@@ -195,9 +206,8 @@ func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
 			c := raw.(obj)
 			id, kind := c["id"].(string), c["kind"].(string)
 			if kind != "recognize" {
-				// A shape-based validate case is run by TestPresenceValidateCasesMatchTheCorpus.
-				synthetic, _ := c["schema"].(obj)["synthetic"].(obj)
-				if _, shapeBased := synthetic["shape"]; !(kind == "validate" && shapeBased) {
+				// The validate cases that have a runner of their own are counted there.
+				if !(kind == "validate" && hasRunner(c)) {
 					notRun[kind]++
 				}
 				continue
@@ -449,7 +459,7 @@ func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
 		}
 	}
 	t.Logf("presence validate cases run: %d", ran)
-	t.Logf("NOT RUN: validate (slot or pin): %d cases", notRun)
+	t.Logf("NOT RUN here: validate, not a presence case (see the accounting test): %d cases", notRun)
 	if ran != 29 {
 		t.Fatalf("the presence suite has 29 shape-based validate cases, ran %d", ran)
 	}
@@ -480,4 +490,198 @@ func cloneNode(n *forms.Node) *forms.Node {
 		c.Entries = append(c.Entries, ce)
 	}
 	return &c
+}
+
+// ---------------------------------------------------------------------------
+// kind validate against schema.synthetic.slot (the inherit suite, ADR 0004, cic-primitives D-018).
+//
+// The Access grammar version is derived from the VERIFIED pinned schema: the bytes of
+// schemas/atomic/access.yaml come from a checkout of cic-primitives at the pinned commit
+// (CIC_PRIMITIVES_ROOT), their SHA-256 must equal the one in corpus/pins.yaml, and only then is
+// spec.access_grammar.version read. The processing context declares the grammar the corpus is written
+// in. A missing checkout is a failure, not a skip: nothing silently falls back to a default version.
+// ---------------------------------------------------------------------------
+
+// corpusGrammar is the grammar the inherit vectors are written in (true | false | 0).
+const corpusGrammar = 1
+
+const accessSchema = "schemas/atomic/access.yaml"
+
+func pinnedAccessSHA256(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "corpus", "pins.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pins obj
+	if err := yaml.Unmarshal(b, &pins); err != nil {
+		t.Fatal(err)
+	}
+	grammar := pins["grammar"].(obj)
+	if len(grammar) != 1 {
+		t.Fatalf("exactly one grammar pin, found %d", len(grammar))
+	}
+	for _, pin := range grammar {
+		for _, f := range pin.(obj)["files"].([]any) {
+			if f.(obj)["path"] == accessSchema {
+				return f.(obj)["sha256"].(string)
+			}
+		}
+	}
+	t.Fatal("the pin does not list access.yaml")
+	return ""
+}
+
+func boundGrammar(t *testing.T) forms.Grammar {
+	t.Helper()
+	root := os.Getenv("CIC_PRIMITIVES_ROOT")
+	if root == "" {
+		t.Fatal("CIC_PRIMITIVES_ROOT must point at a checkout of CentralInfraCore/cic-primitives at the pinned commit " +
+			"(python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo DIR checks it)")
+	}
+	b, err := os.ReadFile(filepath.Join(root, accessSchema))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := forms.PinnedGrammarVersion(b, pinnedAccessSHA256(t))
+	if err != nil {
+		t.Fatalf("the pinned schema does not verify: %v", err)
+	}
+	g, err := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: corpusGrammar}, pinned)
+	if err != nil {
+		t.Fatalf("the context does not agree with the pin: %v", err)
+	}
+	return g
+}
+
+func typedOf(n *forms.Node) (string, string) {
+	switch n.Kind {
+	case forms.KindNull:
+		return "null", "null"
+	case forms.KindBool:
+		return "boolean", fmt.Sprint(n.Bool)
+	case forms.KindInt:
+		return "integer", fmt.Sprint(n.Int)
+	case forms.KindStr:
+		return "string", n.Str
+	case forms.KindSeq:
+		return "list", "[]"
+	}
+	return "map", "{}"
+}
+
+func TestInheritValidateCasesMatchTheCorpus(t *testing.T) {
+	grammar := boundGrammar(t)
+	if grammar.Version() != corpusGrammar {
+		t.Fatalf("bound %d", grammar.Version())
+	}
+	ran := 0
+	for _, suite := range suites(t) {
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			if c["kind"] != "validate" {
+				continue
+			}
+			id := c["id"].(string)
+			synthetic, _ := c["schema"].(obj)["synthetic"].(obj)
+			slot, _ := synthetic["slot"].(string)
+			if slot != "inherit_key" && slot != "inherit_policy" && slot != "access_modify" {
+				continue // a conformance slot is ADR 0010, not this slice
+			}
+			ran++
+			node := nodeOf(t, c["input"])
+			before := cloneNode(node)
+			expect := c["expect"].(obj)
+			var violation *forms.Violation
+			var preservedType, preservedValue, kind string
+			isInherit := false
+			if slot == "access_modify" {
+				rule, v := forms.ReadRule(node)
+				violation = v
+				if v == nil {
+					kind, isInherit = "list", rule.Symbol
+					if rule.Symbol {
+						kind = "symbol"
+					}
+				}
+			} else {
+				mode, v := forms.ReadMode(node, grammar)
+				violation = v
+				if v == nil {
+					preservedType, preservedValue = typedOf(forms.WriteMode(mode, grammar))
+				}
+			}
+			if !reflect.DeepEqual(node, before) {
+				t.Errorf("%s: reading changed its input", id)
+			}
+			have := []wire{}
+			if violation != nil {
+				have = append(have, wireOf(*violation))
+			}
+			want := []wire{}
+			if es, ok := expect["errors"]; ok {
+				for _, e := range es.([]any) {
+					want = append(want, expectedWire(t, e))
+				}
+			}
+			if !reflect.DeepEqual(want, have) {
+				t.Errorf("%s: errors: got %v, want %v", id, have, want)
+			}
+			if v, ok := expect["valid"].(bool); ok && v != (violation == nil) {
+				t.Errorf("%s: valid: got %v, want %v", id, violation == nil, v)
+			}
+			if p, ok := expect["preserved"].(obj); ok {
+				if preservedType != p["type"] || preservedValue != fmt.Sprint(p["value"]) {
+					t.Errorf("%s: preserved: got %s/%s, want %v/%v", id, preservedType, preservedValue, p["type"], p["value"])
+				}
+			}
+			if k, ok := expect["kind"].(string); ok && k != kind {
+				t.Errorf("%s: kind: got %q, want %q", id, kind, k)
+			}
+			if i, ok := expect["is_inherit"].(bool); ok && (kind == "" || i != isInherit) {
+				t.Errorf("%s: is_inherit: got %v, want %v", id, isInherit, i)
+			}
+			if _, ok := expect["upstream_conflict"]; ok {
+				t.Errorf("%s: D-018 removed the upstream conflict; the expectation must not return", id)
+			}
+		}
+	}
+	t.Logf("inherit validate cases run: %d", ran)
+	if ran != 21 {
+		t.Fatalf("the inherit suite has 21 slot-based validate cases of the access-policy kind, ran %d", ran)
+	}
+}
+
+// The accounting is exact: every case of the corpus is either run by one of the runners of this file or
+// counted as NOT RUN, and the numbers are the ones in docs/P1-SUPPORTED-SUBSET.md.
+func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
+	total, ran, skipped := 0, 0, 0
+	run, notRun := map[string]int{}, map[string]int{}
+	for _, suite := range suites(t) {
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			total++
+			kind := c["kind"].(string)
+			key := suite["suite"].(string) + "/" + kind
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) {
+				run[key]++
+				ran++
+			} else {
+				notRun[key]++
+				skipped++
+			}
+		}
+	}
+	for k, n := range run {
+		t.Logf("RUN     %s: %d", k, n)
+	}
+	for k, n := range notRun {
+		t.Logf("NOT RUN %s: %d", k, n)
+	}
+	if ran+skipped != total || ran != 81 || skipped != 258 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 81 + 258", ran, skipped, total)
+	}
+	if run["inherit/validate"] != 21 || run["presence/validate"] != 29 || run["recognition/recognize"]+run["presence/recognize"] != 31 {
+		t.Fatalf("%v", run)
+	}
 }
