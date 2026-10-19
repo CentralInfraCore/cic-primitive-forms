@@ -139,8 +139,8 @@ fn positions_follow_adr_0007() {
         })
     );
 
-    // A lone CR is a line break; a tab is one column.
-    let n = parse("a: 1\rb: [\tz]\r").unwrap();
+    // A lone CR is a line break.
+    let n = parse("a: 1\rb: [ z]\r").unwrap();
     let Value::Map(entries) = &n.value else {
         panic!()
     };
@@ -467,19 +467,261 @@ fn a_late_duplicate_is_still_found_and_many_keys_do_not_cost_quadratic_time() {
     );
 }
 
-/// The two parsers do not rank their errors alike: this documents the difference instead of
-/// claiming agreement. The Rust parser reads events in order and stops at the first problem,
-/// so the earlier duplicate key wins over a later syntax error. The Go peer's test of the
-/// same name asserts the opposite answer (`yaml.v3` reads the whole text first).
+/// Both parsers rank their errors alike: a syntax error anywhere in the text wins over an
+/// earlier duplicate key. The Go peer reads the whole text before it walks the tree; this one
+/// keeps the first non-syntax error and goes on scanning (the Go peer's test of the same name
+/// asserts the same answer, and `tools/parity` compares the two on generated inputs).
 #[test]
-fn documented_divergence_duplicate_key_before_a_later_syntax_error() {
-    match parse("a: 1\na: 2\nb: [\n") {
-        Err(Error::Contract(v)) => assert_eq!(v[0].code, "DUPLICATE_KEY"),
-        other => panic!("{other:?}"),
-    }
+fn a_syntax_error_after_a_duplicate_key_wins_in_both_languages() {
+    assert!(matches!(parse("a: 1\na: 2\nb: [\n"), Err(Error::Syntax(_))));
     // The same duplicate with no syntax error after it is the same answer in both languages.
     match parse("a: 1\na: 2\nb: []\n") {
         Err(Error::Contract(v)) => assert_eq!(v[0].code, "DUPLICATE_KEY"),
         other => panic!("{other:?}"),
+    }
+}
+
+fn class_of(r: Result<Node, Error>) -> &'static str {
+    match r {
+        Ok(_) => "ok",
+        Err(Error::Syntax(_)) => "syntax",
+        Err(Error::Unsupported(_)) => "unsupported",
+        Err(Error::Contract(_)) => "contract",
+        Err(Error::Limit(_)) => "limit",
+        Err(_) => "other",
+    }
+}
+
+fn first_string(text: &str) -> String {
+    let n = parse(text).unwrap_or_else(|e| panic!("{text:?}: {e:?}"));
+    let Value::Map(entries) = &n.value else {
+        panic!("{text:?}: not a mapping")
+    };
+    match &entries[0].value.value {
+        Value::Str(s) => s.clone(),
+        other => panic!("{text:?}: {other:?}"),
+    }
+}
+
+/// `---`, `...` and `%` inside a block or a quoted scalar are text, not a document marker or a
+/// directive. The expected values are the YAML 1.2 ones, not "what the other language gives".
+#[test]
+fn marker_like_text_inside_scalars_is_content() {
+    for (text, want) in [
+        ("a: |\n  ---\n  ...\n", "---\n...\n"),
+        ("a: >\n  x\n  ---\n  y\n", "x --- y\n"),
+        ("a: |+\n  ...\n\n", "...\n\n"),
+        ("a: |\n  %YAML 1.2\n", "%YAML 1.2\n"),
+        ("a: \"x\n  ---\n  ...\"\n", "x --- ..."),
+        ("a: 'x\n  ---\n  ...'\n", "x --- ..."),
+        ("a: \"x\n  --- y\"\n", "x --- y"),
+        ("a: 'x\n  ... y'\n", "x ... y"),
+        ("a: \"---\"\n", "---"),
+        ("a: '...'\n", "..."),
+    ] {
+        assert_eq!(first_string(text), want, "{text:?}");
+    }
+    // The leading marker of a document is allowed, after comments and blank lines too.
+    for text in ["---\na: 1\n", "# c\n\n---\na: 1\n", "--- \na: 1\n"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+}
+
+/// A marker or a directive anywhere else is refused: `...`, a second `---`, an indented one, one
+/// at the start of a line inside a quoted scalar, one that ends a block scalar.
+#[test]
+fn markers_and_directives_outside_content_are_refused() {
+    for text in [
+        "a: x\n  ---\n",
+        "a: |\n  x\n---\n",
+        "a: |\n  x\n...\n",
+        "a: \"x\n---\n  y\"\n",
+        "a: 'x\n...\n  y'\n",
+        "a: \"x\n--- y\"\n",
+        "a: 1\n---\nb: 2\n",
+        "---\n---\n",
+        "a: 1\n...\n",
+        "  ---\n",
+        "%YAML 1.2\n---\na: 1\n",
+        "a: 1\n%TAG ! x\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+}
+
+// The order in which the problems of a text are reported, whatever else the text holds:
+// 1. a size over the limit; 2. U+0085, U+2028, U+2029; 3. the text scan, which comes before the YAML
+// reader: control characters, tabs, a BOM inside the text, then in text order directives, document
+// markers, tags, anchors, aliases, explicit keys, a comment against `]`/`}`: one of these anywhere
+// hides a YAML syntax error anywhere; 4. a YAML syntax error anywhere, which beats everything below;
+// 5. a second document; 6. the first in document order of an unsupported construct, a duplicate key
+// and a node or depth limit.
+#[test]
+fn the_order_in_which_problems_are_reported_is_fixed() {
+    let tiny = Limits {
+        max_bytes: 4,
+        ..Limits::default()
+    };
+    assert_eq!(class_of(parse_with("a: [\n", tiny)), "limit");
+    assert_eq!(class_of(parse_with("a: [\n\u{85}", tiny)), "limit");
+    // 2.
+    assert_eq!(class_of(parse("a: [\u{85}\n")), "unsupported");
+    // 3, with the syntax error after and before.
+    for text in [
+        "a: 1\ta\nb: [\n",
+        "b: [\na: \t1\n",
+        "a: \u{1}\nb: [\n",
+        "b: [\na: \u{1}\n",
+        "a: !x\nb: [\n",
+        "b: [\na: !x\n",
+        "a: *x\nb: [\n",
+        "a: [? c]\nb: [\n",
+        "%YAML 1.2\nb: [\n",
+        "b: [\n%YAML 1.2\n",
+        "a: 1\n---\nb: [\n",
+        "b: [\n---\n",
+        "b: [\n...\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+    // 4: a syntax error beats the tree-level problems, wherever they are.
+    for text in [
+        "a: 1.5\nb: [\n",
+        "b: [\na: 1.5\n",
+        "a: 0o7\nb: ]\n",
+        "a: 1\na: 2\nb: [\n",
+        "b: [\na: 1\na: 2\n",
+        "<<: 1\nb: [\n",
+        "[a]: 1\nb: [\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "syntax", "{text:?}");
+    }
+    let one = Limits {
+        max_nodes: 1,
+        ..Limits::default()
+    };
+    assert_eq!(class_of(parse_with("a: 1\nb: [\n", one)), "syntax");
+    assert_eq!(class_of(parse_with("a: 1\nb: 2\n", one)), "limit");
+    // 6: the first in document order.
+    assert_eq!(class_of(parse("a: 1.5\na: 2\n")), "unsupported");
+    assert_eq!(class_of(parse("a: 1\na: 2\nb: 1.5\n")), "contract");
+    assert_eq!(class_of(parse("a: 1\na: 2\n")), "contract");
+}
+
+/// Found by the fuzz job: a key past the implicit-key limit is emitted as `? key`, and a plain key
+/// that starts with `-`, `?` or `:` (not followed by a space) must read back.
+#[test]
+fn a_long_key_that_starts_with_an_indicator_reads_back() {
+    for first in ["-", "-x", ":", ":x", "?x", "k", "\u{a0}"] {
+        let key = format!("{first}{}", "k".repeat(600));
+        let n = Node::new(Value::Map(vec![cic_primitive_forms::Entry {
+            key,
+            key_pos: None,
+            value: Node::new(Value::Int(1)),
+        }]));
+        let text = emit(&n);
+        let back = parse(&text).unwrap_or_else(|e| panic!("{first:?}: {e:?}"));
+        assert!(back.same(&n), "{first:?}");
+    }
+}
+
+/// Boundaries of the marker, explicit-key and block-end checks, with the YAML 1.2 answer for each.
+#[test]
+fn the_edges_of_the_text_scan_give_the_yaml_answer() {
+    let reason = |t: &str| match parse(t) {
+        Err(Error::Unsupported(m)) => m,
+        other => panic!("{t:?}: {other:?}"),
+    };
+    // A marker is `---` or `...` followed by a blank or the end of the text, nothing else.
+    assert_eq!(reason("a: 1\n---"), "document marker");
+    assert_eq!(reason("a: 1\n..."), "document marker");
+    assert_eq!(reason(" ---\n"), "document marker");
+    for text in ["---x", "x\n...y"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+    // The emitter's explicit key, at the end of the text and with a first character that is an indicator.
+    for text in ["? x", "? -x", "? :x"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+    for text in ["? -", "? :", "? - x", "? : x", "? ?x"] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+    // After a block scalar ends, the lines that follow are scanned again.
+    assert_eq!(
+        reason("k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n"),
+        "explicit mapping key"
+    );
+    // ... also when they are indented deeper than the block scalar was.
+    assert_eq!(
+        reason("k:\n  a: |\n    x\n  b:\n    - [? q]\n"),
+        "explicit mapping key"
+    );
+    // Text in a comment is text.
+    for text in [
+        "a: 1 # [? c]\n",
+        "# [? c]\na: 1\n",
+        "a: |\n  x\n  # [? c]\nb: 1\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+}
+
+/// Found by the fuzz job: `a? *` is one plain scalar (a `?` after text is no indicator), and the emitter writes
+/// it as a key unquoted, so the text scan must not take its `*` for an alias.
+#[test]
+fn an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not() {
+    for ok in [
+        "a? *: 1\n",
+        "a- &: 1\n",
+        ":- *: 1\n",
+        "-? &: 1\n",
+        "a: b- *c\n",
+    ] {
+        assert_eq!(class_of(parse(ok)), "ok", "{ok:?}");
+    }
+    for refused in ["- - *a\n", "- &a b\n", "a: - *b\n"] {
+        assert_eq!(class_of(parse(refused)), "unsupported", "{refused:?}");
+    }
+}
+
+/// Every string of up to three characters from the alphabet of YAML indicators, as a value, a sequence item, a
+/// key and in a nested sequence, reads back from what `emit` wrote.
+#[test]
+fn every_short_string_of_indicators_round_trips() {
+    let alphabet: Vec<char> = "a*&!?:-#[]{},\"'\\ |>%@`".chars().collect();
+    let mut strings = vec![String::new()];
+    let mut frontier = vec![String::new()];
+    for _ in 0..3 {
+        let mut next = Vec::new();
+        for s in &frontier {
+            for c in &alphabet {
+                next.push(format!("{s}{c}"));
+            }
+        }
+        strings.extend(next.iter().cloned());
+        frontier = next;
+    }
+    let entry = |key: String, value: Node| {
+        Node::new(Value::Map(vec![cic_primitive_forms::Entry {
+            key,
+            key_pos: None,
+            value,
+        }]))
+    };
+    for s in &strings {
+        let v = Node::new(Value::Str(s.clone()));
+        for n in [
+            entry("k".into(), v.clone()),
+            Node::new(Value::Seq(vec![v.clone()])),
+            entry(s.clone(), Node::new(Value::Int(1))),
+            entry(
+                "k".into(),
+                Node::new(Value::Seq(vec![v.clone(), v.clone()])),
+            ),
+        ] {
+            let text = emit(&n);
+            let back = parse(&text).unwrap_or_else(|e| panic!("{text:?}: {e:?}"));
+            assert!(back.same(&n), "{text:?}");
+        }
     }
 }

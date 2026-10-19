@@ -107,6 +107,10 @@ rejects a registry code no case uses, so they cannot enter the registry yet: thi
 | anchors, aliases, tags, merge keys (`<<`), non-scalar keys, more than one document | `UNSUPPORTED_SYNTAX` |
 | plain scalars that look like floats (`1.5`, `.5`, `5.`, `1e3`, `.inf`, `.nan`), hex or octal (`0x1F`, `0o17`), integers with a leading zero, integers beyond 64 bits | `UNSUPPORTED_SYNTAX` |
 | the characters U+0085, U+2028, U+2029 anywhere in the text | `UNSUPPORTED_SYNTAX` (see finding 2) |
+| control characters (U+0000 to U+0008, U+000B, U+000C, U+000E to U+001F, U+007F), a tab anywhere, a byte order mark after the first character, a directive line (`%...`), a document end marker (`...`), a `---` that is not the first content line (indented ones too; inside a block scalar and, when indented, inside a quoted scalar, `---`, `...` and `%` are text and read as such) | `UNSUPPORTED_SYNTAX` (parser parity, below) |
+| a word that starts with `!`, `&` or `*`, or with `?` (outside the emitter's own `? key` form), a `#` right after `]` or `}`, outside quotes, comments and block scalar content | `UNSUPPORTED_SYNTAX` (parser parity, below) |
+| a block scalar in a text that does not end with a line break, or one that holds nothing but line breaks | `UNSUPPORTED_SYNTAX` (parser parity, below) |
+| an empty implicit mapping key (`: a`, `{: a}`) | `YAML_SYNTAX`: yaml.v3 refuses it, so the Rust parser does too |
 | text the YAML library rejects | `YAML_SYNTAX` |
 | more than 1 MiB, depth 64 or 100 000 nodes | `LIMIT_EXCEEDED` |
 | a scalar where a mapping or a list is declared, a non-record list element, a list inside a record | `UNSUPPORTED_SYNTAX` (the slice has no rule) |
@@ -155,24 +159,117 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-**Not claimed:** agreement on the error *code* for an arbitrary faulty input. It is known to
-differ: `yaml.v3` reads the whole text before the tree is walked, so a later YAML syntax error hides
-an earlier duplicate key, while the Rust parser stops at the first problem in event order and reports
-the duplicate. `documented_divergence_duplicate_key_before_a_later_syntax_error` (Rust) and
-`TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError` (Go) assert each language's actual
-answer. The two libraries also have their own nesting limit and their own wording of a syntax error.
+* the 502 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+  the complete outcome of `parse` (the tree with the position of every node and key, or the contract
+  violation, or the refusal) is pinned and read by both languages.
+
+**Not claimed:** general parity of the two parsers. The differential found real differences (below), the
+closed ones have a pinned regression case each, and 13 hand-picked open ones (flow-context spellings
+that saphyr reads and yaml.v3 refuses, or the reverse) are pinned with both outcomes and a test that
+fails when one of them stops being a difference. The error *code* of a refusal may differ
+(`YAML_SYNTAX` against `UNSUPPORTED_SYNTAX` is the same refusal for a different reason); that a text is
+refused, and what a contract violation says, is compared. The two libraries also have their own
+nesting limit and their own wording of a syntax error.
+
+## Parser parity (Rust against Go)
+
+`tools/parity` compares `parse` in the two languages on the same inputs: `gen_inputs.py` writes
+30 005 deterministic inputs (the texts the repository holds, the pinned `access.yaml`, 450 hand-written
+cases that YAML readers disagree on, and seeded random edits of them), `rust/tests/parity_dump.rs` and
+`go/parity_dump_test.go` write the outcome of each as one JSON line (the tree with positions, the
+contract violations, or the refusal code), `compare.py` groups what differs. A refusal against a refusal
+(any non-contract codes) counts as agreement; everything else, an accept against a refuse, two
+different trees or positions, a contract error against anything else, is a divergence.
+
+| | divergent inputs of 30 005 |
+|---|---|
+| before (main, `2c58713`) | 3 134 in 12 groups |
+| after | 287 in 6 groups, all in the open classes below (228 hold a flow collection or a quote followed by `#`, 59 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 13 hand-pinned inputs. The figure belongs to the generated set: every regression case added to `gen_inputs.py` is also a seed of the random edits, so the set, and with it this count, changes with it (274, 299, 326, 300 and 287 at successive heads of this PR) and is not comparable with the 3 134 of the old code; what the gate holds fixed is each divergence's input and outcomes, not the count) |
+
+What the differential found and what was done about it (each has pinned cases in `parity.json`):
+
+* **Error priority.** See "The order in which problems are reported" below.
+* **Positions.** The Rust parser located an indentless block sequence (`a:` then `- 1`) at its first item
+  and a `- - a` chain at the inner dash, a block scalar at its first content line, and gave an implicit
+  null in a flow collection (`{a}`) or an empty document a position. Now a block sequence is located at its
+  `-`, a block scalar at its `|` or `>`, and a value the source does not spell has no position, as in Go.
+* **Values.** A block scalar at the end of a text without a final line break, and one made of line
+  breaks only, have different values in the two libraries: refused. Tags, anchors and aliases: yaml.v3
+  drops a bare `!` (so `a: ! 1` is the integer 1) and reads `*` and `&` words its own way: a word that
+  starts with one is refused in both languages by a text scan (`scan_words`) that skips quoted scalars,
+  comments and block scalar content.
+* **Inputs the readers do not agree are YAML.** Tabs, control characters, directives, document markers
+  other than a leading `---`, a byte order mark inside the text, explicit `?` keys other than the
+  emitter's own form, a comment touching `]` or `}`, an empty implicit key: refused in both languages
+  by one pre-parse scan (`prescan`), before either YAML library is asked, in the same order.
+
+### The order in which problems are reported
+
+One rule, the same in both languages, tested with explicit expected codes in both
+(`the_order_in_which_problems_are_reported_is_fixed` / `TestTheOrderInWhichProblemsAreReportedIsFixed`),
+not by comparing the two with each other. The first step that finds a problem decides the answer:
+
+1. **Size** over the limit: `LIMIT_EXCEEDED`.
+2. **U+0085, U+2028, U+2029** anywhere: `UNSUPPORTED_SYNTAX`.
+3. **The text scan** (`prescan`, `scan_words`), whole text, before either YAML library is asked:
+   control characters, tabs, a byte order mark inside the text, then, in text order, directives,
+   document markers, tags, anchors, aliases, explicit keys, a comment touching `]` or `}`:
+   `UNSUPPORTED_SYNTAX`. One of these *anywhere* in the text hides a YAML syntax error *anywhere* in
+   it: the scan does not know about syntax, and a text with a tab is refused for the tab even if it
+   is also malformed.
+4. **A YAML syntax error anywhere** in the text: `YAML_SYNTAX`. It beats everything below, wherever
+   the problems are (a duplicate key, a `1.5`, a merge key, a non-scalar key before it or after it).
+5. **A second document**: `UNSUPPORTED_SYNTAX`, ahead of what the first document holds. (No text reaches
+   this step, since the scan refuses every `---` after the first content line; the check stays as a guard
+   and is tested through the internal `read`.)
+6. **The first problem in document order** of: an unsupported construct (`UNSUPPORTED_SYNTAX`), a
+   duplicate key (`DUPLICATE_KEY`, the contract error), a node or depth limit (`LIMIT_EXCEEDED`).
+
+So "a syntax error anywhere wins" holds for the problems of step 6 only; the problems of steps 1 to 3
+are decided before the YAML syntax is looked at.
+
+The scan reads a line as text, not as a marker or a directive, inside a block scalar and, if it is
+indented, inside a quoted scalar; a `---` or `...` that starts a line inside a quoted scalar is
+refused (the YAML spec ends the document there and the two readers disagree on what follows).
+`marker_like_text_inside_scalars_is_content` (Rust) and `TestMarkerLikeTextInsideScalarsIsContent`
+(Go) hold the YAML 1.2 values as expectations.
+
+Open (pinned with both outcomes in `known_divergences`, see `testdata/p1/parity.json`): plain scalars in a
+flow collection that hold an indicator character (`{a?}`, `[|]`, `{:1}`, `{aa:}`, `{a:}`, `[a:]`, `{-}`), a quoted scalar
+followed directly by `#`, `{a: 1,a: 2:}`, a flow mapping continued on a line that is not indented
+(`a: {b: <CR>1,1,` and similar), and a quoted scalar that continues on an unindented line. They are the
+libraries disagreeing on what YAML 1.2 allows in flow context; the narrowing that closes them (a flow
+scan in `scan_words`) is not done, and nothing in the repository's schemas, vectors or emitter output
+uses these spellings.
+
+The gate numbers of the parity work are the rows of "Quality gates" below (whole crate and module, not only the
+parser). The one Rust mutation survivor is `read`, `docs > 1`, equivalent because the check after the loop gives the
+same answer; time-outs count as detected. 33 seeded defects, 15 of them for this work, all caught. The property
+tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
+scan took for an anchor and an alias), both fixed and pinned. The fuzz job found a third (a key past 512 characters that starts with `-` or `:` is
+emitted as `? -kkk…`, which the explicit-key rule refused): fixed, with a regression test in each language. A second fuzz run found a fourth (`a? *` is one plain scalar, the emitter writes it as a key, and the scan took its `*` for an alias because it counted a `?` after text as an indicator): `-` and `?` are indicators only where a scalar can start. Found by a brute-force check of every string of up to three characters of YAML indicators in four positions; that check is now a test in each language (`every_short_string_of_indicators_round_trips`), and a run over 3.4 million longer strings, with long keys, is clean.
+
+Run it: `python3 tools/parity/gen_inputs.py in.hex --upstream "$CIC_PRIMITIVES_ROOT"`, then
+`PARITY_IN=in.hex PARITY_OUT=rust.jsonl cargo test --test parity_dump` and
+`PARITY_IN=in.hex PARITY_OUT=go.jsonl go test -run TestDumpParseOutcomes .`, then
+`python3 tools/parity/compare.py in.hex rust.jsonl go.jsonl --allow testdata/p1/parity-known.txt`.
+The `parity` job of `p1.yml` does exactly this. The allow list names each known divergence by its input *and*
+by a digest of both outcomes, so it is red on a new divergence and equally on a known one whose answer on either
+side has changed; `tools/parity/selftest.py` breaks the real outputs in those ways (and one that must stay
+green, a fix) and requires the right verdict, in the same job. `make_corpus.py` rebuilds `parity.json` from `HAND` and `EXTRA` of `gen_inputs.py`.
 
 ## Quality gates (docs/PHASES.md, "Quality gates")
 
 All on the product code of this slice (`rust/src`, `go/*.go` without tests), strictly above 90%,
-failing closed, in workflow `p1`. Numbers are from the final code on the development machine; CI
-prints the same table.
+failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 at commit `fe80d559`, on all of
+`rust/src` and `go/*.go`, not only on the parser. Later commits of the PR change documentation, tests, the corpus, the CI workflow (the `quality` job in shards, `docs/QUALITY-SHARDING.md`) and the PR text only;
+`git diff fe80d559..HEAD -- rust/src ':(glob)go/*.go' ':(exclude)go/*_test.go'` (the product code, without the tests) is empty, which is what makes the numbers the ones of the head.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
-| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (908/915) | 100.00% (478/478) |
-| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.70% (426/436) | 100.00% (481/481) |
-| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (227 caught, 0 missed, 23 unviable) | 98.40% (493 killed, 8 survived) |
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 98.69% (1279/1296) | 100.00% (601/601) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.25% (638/656) | 100.00% (735/735) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 99.77% (438 of 439 viable mutants caught or timed out, 1 missed) | 97.82% (806 killed, 18 survived) |
 | Property tests | `proptest` / `rapid` | 14 properties, 512 cases each | the same properties (13 tests: "no value is a valid mode in both grammars" is part of the type-preservation test), 1000 cases |
 | Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse`, `validate` and `access`, 60 s each in CI | `FuzzParse`, `FuzzValidate` and `FuzzAccess`, 60 s each in CI |
 | Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 presence and 21 of 21 inheritance `validate` | the same |
@@ -181,12 +278,28 @@ prints the same table.
 seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
 `BELOW_THRESHOLD`, exactly 90% is red).
 
-**The eight Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
-that returns the same line (`line >= len`), a CRLF look-ahead whose only difference is a line start
-nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), an operand that is always false for the segments it
-guards, the value that is returned next to an error (`return -1` instead of `return 0` where the caller never reads it),
-the numeric value of the `ModeInvalid` sentinel (every test compares against the name, not the number) and the early
-`return nil` of a lookup in a node that has no entries.
+**The 18 Go survivors at `fe80d559`** (806 of 824 mutants killed; the CI count, reproduced exactly by the six local
+shards of `tools/mutation_shard_exec.sh`): 7 in `access.go`, `emit.go` and `recognize.go`, 11 in `parse.go`. All are
+equivalent mutants, the behaviour cannot differ:
+
+* `access.go`, `emit.go`, `recognize.go`: the value returned next to an error that the caller never reads
+  (`UNKNOWN_GRAMMAR_VERSION`, two mutants); the numeric value of the `ModeInvalid` sentinel; the early `return nil`
+  of a lookup in a node that has no entries; the control-character exclusion of `plainSafe` in `emit.go` (two mutants),
+  redundant since `Parse` refuses control characters and tabs and folds line breaks, which the round trip it is
+  defined by sees; an operand that is always false for the segments it guards (`s.isIdx`).
+* `parse.go`: an end-of-input clamp that returns the same line (`line >= len`); a CRLF look-ahead whose only
+  difference is a line start nothing can refer to; the assignment of the zero value (`out.Kind = KindNull`); the "no
+  block" sentinel `-1` against `-2` (two mutants); a slice end equal to its start; the `break` against `continue` of a
+  loop over two candidates that exclude each other; the look-ahead for `''` at the end of an unterminated string; a
+  longer slice for a prefix test whose next condition looks at the character after the marker; the leading flag
+  updated inside a quoted scalar, where it is already false (two mutants).
+
+Earlier heads had more survivors, which tests killed since: 33 at `9bf7d1aa` (the end of a block scalar, a marker or an
+explicit key at the end of the text, a `&` followed by a lone CR, a `%` at the start of a line inside a quoted
+scalar, the key anchor behind the scan: `the_edges_of_the_text_scan_give_the_yaml_answer`,
+`the_checks_behind_the_prescan_still_refuse`, the corpus) and 19 at `36809bab` (one not equivalent: a line indented
+deeper than a block scalar was, after it, still taken for its content). The comment skip of `scan_words` was redundant
+(a word after text is never a scalar start) and is gone with its mutants.
 
 **What each property checks** (Rust and Go identically): emit then parse gives back the value for any
 value of the subset including any string and key (long ones too); emit is a fixed point under parse;
@@ -201,13 +314,15 @@ and that reading an `access`/`modify` value and an `InheritanceMode` under both 
 
 | Gate | Seeded fault | Result |
 |---|---|---|
-| Line coverage | only the subset test runs | Rust 41.72% (378/906), Go 21.34% (102/478), both `BELOW_THRESHOLD`; reproduced in CI |
+| Line coverage | only the subset test runs | Rust 50.59% (596/1178), Go 32.45% (195/601), both `BELOW_THRESHOLD`; reproduced in CI |
 | Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
-| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 50.22% (219/436), Go 0.00% (0/481), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 67.22% (441/656), Go 0.00% (0/735), both `BELOW_THRESHOLD`; reproduced in CI |
 | Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
 | Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
 | Fuzz job | a committed input starting with `CANARY` fails each of the six targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
 | Seeded defects (`tools/seeded_defects.py`) | 18 deliberate defects in the access reading (7 in Rust, 11 in Go; the Go set adds an unbound `Grammar` read or written as grammar 2, an invalid `Mode` written as `reset`, and a caller-changeable supported-version set): `0` coerced to `false`, a missing version silently defaulting to 1, the pin used without verifying its digest, a string without `=` accepted as a CertPattern, the empty list read as the symbol, grammar 2 accepting the legacy boolean, a violation dropping its position | every defect is caught by the suites (the unmodified copy passes first); reproduced in CI (job `seeded-defects`) |
+| Seeded defects for the parser parity (same script) | 15 more, 9 in Rust and 6 in Go: the last non-syntax error reported instead of the first, a block sequence or scalar located at its first item or content line, a word starting with `!` not refused, a tab accepted, a block scalar without content accepted, an empty implicit key read as `~`, the content of a block scalar scanned for markers, an indented marker inside a quoted scalar taken for a document marker, a syntax error in a second document reported as a second document | all 33 defects of the script are caught; reproduced in CI (job `seeded-defects`) |
+| Parity gate (`tools/parity/selftest.py`) | 25 breaks of the real outputs: a known divergence answering differently on one side or both, an allow line removed, an agreeing input that now differs, an unknown error code or `NOT_AN_ERROR_TYPE` on one side or both (also identical on both, also for an allowed input), and ten malformed outcome structures; and one that must stay green (a fix) | each turns the gate red with its word (`CHANGED`, `NEW`, `INVALID`), the fix stays green; reproduced in CI (job `parity`) |
 | Performance of duplicate keys | the previous linear scan put back by hand (Go) | 16.9 s against a 5 s bound; not reproduced in CI |
 
 ## What these gates found (all fixed, with a regression test or a vector each)

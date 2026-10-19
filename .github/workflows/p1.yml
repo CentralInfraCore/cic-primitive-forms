@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -107,12 +107,103 @@ jobs:
 
   # PHASES.md quality gates, on the product code of rust/ and go/: line coverage and mutation score
   # strictly above 90% in both languages. Property tests run with the unit tests above; the
-  # parser fuzz targets are in the `fuzz` job. Each measurement is followed by a seeded proof that
-  # the same gate turns red when the tests are weakened.
-  quality:
+  # parser fuzz targets are in the `fuzz` job. The measurements run in parallel, the mutation ones in
+  # shards (the same mutants, split; the gate checks that every mutant was tested by exactly one shard
+  # and that no shard is missing), and the job named `quality` decides. It is followed by a seeded proof
+  # that the same gate turns red when the tests are weakened.
+  quality-lines:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Tools (pinned)
+        run: |
+          rustup toolchain install stable --profile minimal --component llvm-tools-preview
+          cargo install --locked cargo-llvm-cov --version 0.9.1
+      - name: Line coverage
+        run: |
+          mkdir -p "$RUNNER_TEMP/q"
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable llvm-cov --locked --json --summary-only --output-path "$RUNNER_TEMP/q/rust-lines.json")
+          (cd go && go test -count=1 -covermode=set -coverprofile="$RUNNER_TEMP/q/go-lines.out" ./...)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lines
+          path: |
+            ${{ runner.temp }}/q/rust-lines.json
+            ${{ runner.temp }}/q/go-lines.out
+          if-no-files-found: error
+
+  quality-mutation-rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]  # the 4 in `--shard k/4` below; the gate fails if they disagree
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - name: Tools (pinned)
+        run: |
+          rustup toolchain install stable --profile minimal
+          cargo install --locked cargo-mutants --version 27.1.0
+      - name: Mutation, Rust (cargo-mutants), one shard
+        run: |
+          mkdir -p "$RUNNER_TEMP/q"
+          # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --shard ${{ matrix.shard }}/4 --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rust-mutants-${{ matrix.shard }}
+          path: ${{ runner.temp }}/q/mut-rust/mutants.out/outcomes.json
+          if-no-files-found: error
+
+  quality-mutation-go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]  # the 6 in CIC_MUTATION_SHARD below; the gate fails if they disagree
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - name: Tools (pinned)
+        run: |
+          go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Mutation, Go (go-mutesting), one shard
+        run: |
+          mkdir -p "$RUNNER_TEMP/q"
+          export CIC_MUTATION_SHARD="${{ matrix.shard }}/6" CIC_MUTATION_LEDGER="$RUNNER_TEMP/q/ledger"
+          : > "$CIC_MUTATION_LEDGER"
+          (cd go && go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_shard_exec.sh" ./... > "$RUNNER_TEMP/q/mut-go.txt") || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-ledger-${{ matrix.shard }}
+          path: ${{ runner.temp }}/q/ledger
+          if-no-files-found: error
+
+  quality:
+    needs: [quality-lines, quality-mutation-rust, quality-mutation-go]
+    # Also when a shard job failed: the gate then finds its report missing and is red. A skipped job would
+    # count as passed.
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: The measurements ran
+        run: |
+          test "${{ needs.quality-lines.result }}" = success
+          test "${{ needs.quality-mutation-rust.result }}" = success
+          test "${{ needs.quality-mutation-go.result }}" = success
       - uses: actions/checkout@v4
       - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-python@v5
@@ -128,23 +219,19 @@ jobs:
           cargo install --locked cargo-mutants --version 27.1.0
           go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Line coverage
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/q/in
+      - name: The mutants there are
         run: |
           mkdir -p "$RUNNER_TEMP/q"
-          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable llvm-cov --locked --json --summary-only --output-path "$RUNNER_TEMP/q/rust-lines.json")
-          (cd go && go test -count=1 -covermode=set -coverprofile="$RUNNER_TEMP/q/go-lines.out" ./...)
-      - name: Mutation, Rust (cargo-mutants)
-        run: |
-          # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
-          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
-      - name: Mutation, Go (go-mutesting)
-        run: |
-          (cd go && go-mutesting ./... > "$RUNNER_TEMP/q/mut-go.txt") || true
+          (cd rust && cargo +stable mutants --list --json > "$RUNNER_TEMP/q/rust-listed.json")
       - name: Gate
         run: |
           Q="$RUNNER_TEMP/q"
-          python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines.json" --go-lines "$Q/go-lines.out" \
-            --rust-mutants "$Q/mut-rust/mutants.out/outcomes.json" --go-mutants "$Q/mut-go.txt"
+          python3 tools/quality_gate.py check --rust-lines "$Q/in/lines/rust-lines.json" --go-lines "$Q/in/lines/go-lines.out" \
+            --rust-mutants "$Q"/in/rust-mutants-*/outcomes.json --rust-listed "$Q/rust-listed.json" \
+            --go-ledgers "$Q"/in/go-ledger-*/ledger
       # A gate that cannot fail proves nothing. With the tests weakened, the same gate is red.
       - name: Seeded proof, weakened tests turn the line coverage red
         run: |
@@ -153,7 +240,8 @@ jobs:
           (cd go && go test -count=1 -covermode=set -coverprofile="$Q/go-lines-weak.out" -run '^TestParseReadsTheSupportedSubset$' ./...)
           set +e
           OUT=$(python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines-weak.json" --go-lines "$Q/go-lines-weak.out" \
-            --rust-mutants "$Q/mut-rust/mutants.out/outcomes.json" --go-mutants "$Q/mut-go.txt")
+            --rust-mutants "$Q"/in/rust-mutants-*/outcomes.json --rust-listed "$Q/rust-listed.json" \
+            --go-ledgers "$Q"/in/go-ledger-*/ledger)
           RC=$?
           echo "$OUT"
           test "$RC" -eq 1
@@ -166,7 +254,7 @@ jobs:
           (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --file src/recognize.rs --output "$Q/mut-rust-weak" --jobs 1 --timeout 120 -- --test subset) || true
           (cd go && CIC_MUTATION_RUN='^TestParseReadsTheSupportedSubset$' go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_reduced_exec.sh" recognize.go > "$Q/mut-go-weak.txt") || true
           set +e
-          OUT=$(python3 tools/quality_gate.py check --rust-lines "$Q/rust-lines.json" --go-lines "$Q/go-lines.out" \
+          OUT=$(python3 tools/quality_gate.py check --rust-lines "$Q/in/lines/rust-lines.json" --go-lines "$Q/in/lines/go-lines.out" \
             --rust-mutants "$Q/mut-rust-weak/mutants.out/outcomes.json" --go-mutants "$Q/mut-go-weak.txt")
           RC=$?
           echo "$OUT"
@@ -228,3 +316,33 @@ jobs:
           go-version: "1.27.2"
       - run: rustup toolchain install stable --profile minimal
       - run: python3 tools/seeded_defects.py all
+
+  # Rust against Go on the same 30 005 generated inputs (tools/parity): the complete outcome of `parse`
+  # (tree and positions, contract violations, refusal) is compared. A divergence that is not in the
+  # allow list of known open ones turns the job red; the shared regression corpus (parity.json) runs in
+  # the `rust` and `go` jobs above.
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - run: rustup toolchain install stable --profile minimal
+      - name: Generate, dump with both parsers, compare
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity"
+          mkdir -p "$P"
+          python3 tools/parity/gen_inputs.py "$P/in.hex" --count 30000 --upstream "$CIC_PRIMITIVES_ROOT"
+          (cd rust && PARITY_IN="$P/in.hex" PARITY_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_dump)
+          (cd go && PARITY_IN="$P/in.hex" PARITY_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpParseOutcomes$' .)
+          python3 tools/parity/compare.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" --show 5 --allow testdata/p1/parity-known.txt
+          # A gate that cannot fail proves nothing: break the outputs in the ways that must turn it red.
+          python3 tools/parity/selftest.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" testdata/p1/parity-known.txt

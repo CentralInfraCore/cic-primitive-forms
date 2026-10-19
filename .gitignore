@@ -3,3 +3,5 @@ __pycache__/
 /rust/target/
 # written by rapid when a property fails, e.g. under a mutant; never a seed of this repository
 /go/testdata/rapid/
+# written by go-mutesting into the module directory
+/go/report.json

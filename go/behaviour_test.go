@@ -81,8 +81,8 @@ func TestPositionsFollowADR0007(t *testing.T) {
 		t.Errorf("item %+v", *n.Entries[1].Value.Items[0].Pos)
 	}
 
-	// A lone CR is a line break; a tab is one column.
-	n = mustParse(t, "a: 1\rb: [\tz]\r")
+	// A lone CR is a line break.
+	n = mustParse(t, "a: 1\rb: [ z]\r")
 	if *n.Entries[1].KeyPos != (forms.Pos{Line: 2, Column: 1, Offset: 5}) {
 		t.Errorf("key %+v", *n.Entries[1].KeyPos)
 	}
@@ -337,11 +337,11 @@ func TestALateDuplicateIsStillFoundAndManyKeysDoNotCostQuadraticTime(t *testing.
 	}
 }
 
-// The two parsers do not rank their errors alike: this documents the difference instead of
-// claiming agreement. yaml.v3 reads the whole text before the tree is walked, so a later
-// syntax error wins over an earlier duplicate key; the Rust peer's test of the same name
-// asserts the opposite answer (events in order, the first problem stops).
-func TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError(t *testing.T) {
+// Both parsers rank their errors alike: a syntax error anywhere in the text wins over an
+// earlier duplicate key. yaml.v3 reads the whole text before the tree is walked; the Rust peer
+// keeps the first non-syntax error and goes on scanning (its test of the same name asserts the
+// same answer, and tools/parity compares the two on generated inputs).
+func TestASyntaxErrorAfterADuplicateKeyWinsInBothLanguages(t *testing.T) {
 	_, err := forms.Parse("a: 1\na: 2\nb: [\n")
 	var fe *forms.Error
 	if !errors.As(err, &fe) || fe.Kind != forms.ErrSyntax {
@@ -464,5 +464,257 @@ func TestTheLowestWritableNameCharacterAndTheLastUnwritableOne(t *testing.T) {
 	}
 	if got := pathOf(`"a b": 1`); got != "$.a b" {
 		t.Errorf("U+0020 is writable: %q", got)
+	}
+}
+
+func classOf(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	switch kindOf(err) {
+	case forms.ErrSyntax:
+		return "syntax"
+	case forms.ErrUnsupported:
+		return "unsupported"
+	case forms.ErrContract:
+		return "contract"
+	case forms.ErrLimit:
+		return "limit"
+	}
+	return "other"
+}
+
+func classOfText(text string) string {
+	_, err := forms.Parse(text)
+	return classOf(err)
+}
+
+func firstString(t *testing.T, text string) string {
+	t.Helper()
+	n := mustParse(t, text)
+	if n.Kind != forms.KindMap || n.Entries[0].Value.Kind != forms.KindStr {
+		t.Fatalf("%q: %+v", text, n)
+	}
+	return n.Entries[0].Value.Str
+}
+
+// ---, ... and % inside a block or a quoted scalar are text, not a document marker or a
+// directive. The expected values are the YAML 1.2 ones, not "what the other language gives".
+func TestMarkerLikeTextInsideScalarsIsContent(t *testing.T) {
+	for text, want := range map[string]string{
+		"a: |\n  ---\n  ...\n":     "---\n...\n",
+		"a: >\n  x\n  ---\n  y\n":  "x --- y\n",
+		"a: |+\n  ...\n\n":         "...\n\n",
+		"a: |\n  %YAML 1.2\n":      "%YAML 1.2\n",
+		"a: \"x\n  ---\n  ...\"\n": "x --- ...",
+		"a: 'x\n  ---\n  ...'\n":   "x --- ...",
+		"a: \"x\n  --- y\"\n":      "x --- y",
+		"a: 'x\n  ... y'\n":        "x ... y",
+		"a: \"---\"\n":             "---",
+		"a: '...'\n":               "...",
+	} {
+		if got := firstString(t, text); got != want {
+			t.Errorf("%q: %q, want %q", text, got, want)
+		}
+	}
+	// The leading marker of a document is allowed, after comments and blank lines too.
+	for _, text := range []string{"---\na: 1\n", "# c\n\n---\na: 1\n", "--- \na: 1\n"} {
+		if got := classOfText(text); got != "ok" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}
+
+// A marker or a directive anywhere else is refused: ..., a second ---, an indented one, one at the
+// start of a line inside a quoted scalar, one that ends a block scalar.
+func TestMarkersAndDirectivesOutsideContentAreRefused(t *testing.T) {
+	for _, text := range []string{
+		"a: x\n  ---\n",
+		"a: |\n  x\n---\n",
+		"a: |\n  x\n...\n",
+		"a: \"x\n---\n  y\"\n",
+		"a: 'x\n...\n  y'\n",
+		"a: \"x\n--- y\"\n",
+		"a: 1\n---\nb: 2\n",
+		"---\n---\n",
+		"a: 1\n...\n",
+		"  ---\n",
+		"%YAML 1.2\n---\na: 1\n",
+		"a: 1\n%TAG ! x\n",
+	} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}
+
+// The order in which the problems of a text are reported, whatever else the text holds:
+// 1. a size over the limit; 2. U+0085, U+2028, U+2029; 3. the text scan, which comes before the YAML
+// reader: control characters, tabs, a BOM inside the text, then in text order directives, document
+// markers, tags, anchors, aliases, explicit keys, a comment against ] or }: one of these anywhere
+// hides a YAML syntax error anywhere; 4. a YAML syntax error anywhere, which beats everything below;
+// 5. a second document; 6. the first in document order of an unsupported construct, a duplicate key
+// and a node or depth limit. The Rust peer has the same test.
+func TestTheOrderInWhichProblemsAreReportedIsFixed(t *testing.T) {
+	_, err := forms.ParseWith("a: [\n", forms.Limits{MaxBytes: 4, MaxDepth: 64, MaxNodes: 100})
+	if classOf(err) != "limit" {
+		t.Errorf("size: %v", err)
+	}
+	_, err = forms.ParseWith("a: [\n\u0085", forms.Limits{MaxBytes: 4, MaxDepth: 64, MaxNodes: 100})
+	if classOf(err) != "limit" {
+		t.Errorf("size before separator: %v", err)
+	}
+	if got := classOfText("a: [\u0085\n"); got != "unsupported" {
+		t.Errorf("separator: %s", got)
+	}
+	for _, text := range []string{
+		"a: 1\ta\nb: [\n",
+		"b: [\na: \t1\n",
+		"a: \x01\nb: [\n",
+		"b: [\na: \x01\n",
+		"a: !x\nb: [\n",
+		"b: [\na: !x\n",
+		"a: *x\nb: [\n",
+		"a: [? c]\nb: [\n",
+		"%YAML 1.2\nb: [\n",
+		"b: [\n%YAML 1.2\n",
+		"a: 1\n---\nb: [\n",
+		"b: [\n---\n",
+		"b: [\n...\n",
+	} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	for _, text := range []string{
+		"a: 1.5\nb: [\n",
+		"b: [\na: 1.5\n",
+		"a: 0o7\nb: ]\n",
+		"a: 1\na: 2\nb: [\n",
+		"b: [\na: 1\na: 2\n",
+		"<<: 1\nb: [\n",
+		"[a]: 1\nb: [\n",
+	} {
+		if got := classOfText(text); got != "syntax" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	one := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 1}
+	if _, err := forms.ParseWith("a: 1\nb: [\n", one); classOf(err) != "syntax" {
+		t.Errorf("nodes and syntax: %v", err)
+	}
+	if _, err := forms.ParseWith("a: 1\nb: 2\n", one); classOf(err) != "limit" {
+		t.Errorf("nodes: %v", err)
+	}
+	if got := classOfText("a: 1.5\na: 2\n"); got != "unsupported" {
+		t.Errorf("first problem: %s", got)
+	}
+	if got := classOfText("a: 1\na: 2\nb: 1.5\n"); got != "contract" {
+		t.Errorf("first problem: %s", got)
+	}
+	if got := classOfText("a: 1\na: 2\n"); got != "contract" {
+		t.Errorf("duplicate: %s", got)
+	}
+}
+
+// Found by the fuzz job: a key past the implicit-key limit is emitted as "? key", and a plain key
+// that starts with -, ? or : (not followed by a space) must read back.
+func TestALongKeyThatStartsWithAnIndicatorReadsBack(t *testing.T) {
+	for _, first := range []string{"-", "-x", ":", ":x", "?x", "k", "\u00a0"} {
+		n := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{
+			Key:   first + strings.Repeat("k", 600),
+			Value: &forms.Node{Kind: forms.KindInt, Int: 1},
+		}}}
+		back, err := forms.Parse(forms.Emit(n))
+		if err != nil || !back.Same(n) {
+			t.Errorf("%q: %v", first, err)
+		}
+	}
+}
+
+// Boundaries of the marker, explicit-key and block-end checks, with the YAML 1.2 answer for each.
+// The Rust peer has the same test.
+func TestTheEdgesOfTheTextScanGiveTheYamlAnswer(t *testing.T) {
+	reason := func(text string) string {
+		_, err := forms.Parse(text)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+			t.Fatalf("%q: %v", text, err)
+		}
+		return fe.Detail
+	}
+	// A marker is --- or ... followed by a blank or the end of the text, nothing else.
+	for text, want := range map[string]string{
+		"a: 1\n---": "document marker",
+		"a: 1\n...": "document marker",
+		" ---\n":    "document marker",
+		"k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n": "explicit mapping key",
+		"k:\n  a: |\n    x\n  b:\n    - [? q]\n":  "explicit mapping key",
+	} {
+		if got := reason(text); got != want {
+			t.Errorf("%q: %q, want %q", text, got, want)
+		}
+	}
+	// The emitter's explicit key, at the end of the text and with a first character that is an indicator.
+	for _, text := range []string{"---x", "x\n...y", "? x", "? -x", "? :x", "a: 1 # [? c]\n", "# [? c]\na: 1\n", "a: |\n  x\n  # [? c]\nb: 1\n"} {
+		if got := classOfText(text); got != "ok" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	for _, text := range []string{"? -", "? :", "? - x", "? : x", "? ?x"} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}
+
+// Found by the fuzz job: "a? *" is one plain scalar (a ? after text is no indicator), and the emitter writes it as
+// a key unquoted, so the text scan must not take its * for an alias. The Rust peer has the same test.
+func TestAnIndicatorInsideAPlainScalarIsTextAndAtAScalarStartIsNot(t *testing.T) {
+	for _, ok := range []string{"a? *: 1\n", "a- &: 1\n", ":- *: 1\n", "-? &: 1\n", "a: b- *c\n"} {
+		if got := classOfText(ok); got != "ok" {
+			t.Errorf("%q: %s", ok, got)
+		}
+	}
+	for _, refused := range []string{"- - *a\n", "- &a b\n", "a: - *b\n"} {
+		if got := classOfText(refused); got != "unsupported" {
+			t.Errorf("%q: %s", refused, got)
+		}
+	}
+}
+
+// Every string of up to three characters from the alphabet of YAML indicators, as a value, a sequence item, a
+// key and in a nested sequence, reads back from what Emit wrote.
+func TestEveryShortStringOfIndicatorsRoundTrips(t *testing.T) {
+	alphabet := []rune("a*&!?:-#[]{},\"'\\ |>%@`")
+	strs := []string{""}
+	frontier := []string{""}
+	for range 3 {
+		var next []string
+		for _, s := range frontier {
+			for _, c := range alphabet {
+				next = append(next, s+string(c))
+			}
+		}
+		strs = append(strs, next...)
+		frontier = next
+	}
+	one := func(key string, v *forms.Node) *forms.Node {
+		return &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: key, Value: v}}}
+	}
+	for _, s := range strs {
+		v := &forms.Node{Kind: forms.KindStr, Str: s}
+		for _, n := range []*forms.Node{
+			one("k", v),
+			{Kind: forms.KindSeq, Items: []*forms.Node{v}},
+			one(s, &forms.Node{Kind: forms.KindInt, Int: 1}),
+			one("k", &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{v, v}}),
+		} {
+			text := forms.Emit(n)
+			back, err := forms.Parse(text)
+			if err != nil || !back.Same(n) {
+				t.Fatalf("%q: %v", text, err)
+			}
+		}
 	}
 }
