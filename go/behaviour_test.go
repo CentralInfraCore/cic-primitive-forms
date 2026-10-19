@@ -649,6 +649,7 @@ func TestTheEdgesOfTheTextScanGiveTheYamlAnswer(t *testing.T) {
 		"a: 1\n...": "document marker",
 		" ---\n":    "document marker",
 		"k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n": "explicit mapping key",
+		"k:\n  a: |\n    x\n  b:\n    - [? q]\n":  "explicit mapping key",
 	} {
 		if got := reason(text); got != want {
 			t.Errorf("%q: %q, want %q", text, got, want)

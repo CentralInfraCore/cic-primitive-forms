@@ -651,6 +651,11 @@ fn the_edges_of_the_text_scan_give_the_yaml_answer() {
         reason("k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n"),
         "explicit mapping key"
     );
+    // ... also when they are indented deeper than the block scalar was.
+    assert_eq!(
+        reason("k:\n  a: |\n    x\n  b:\n    - [? q]\n"),
+        "explicit mapping key"
+    );
     // Text in a comment is text.
     for text in [
         "a: 1 # [? c]\n",

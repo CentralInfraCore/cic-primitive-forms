@@ -7866,6 +7866,12 @@
    }
   },
   {
+   "input": "k:\n  a: |\n    x\n  b:\n    - [? q]\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
    "input": "a: 1\n---",
    "expect": {
     "err": "UNSUPPORTED_SYNTAX"
