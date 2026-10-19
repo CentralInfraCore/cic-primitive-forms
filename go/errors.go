@@ -19,11 +19,16 @@ type Location struct {
 	Pos       Pos
 }
 
-// Violation is one entry of the machine response. The message is not part of it.
+// Violation is one entry of the machine response (code, phase, source location, logical
+// path). The message is not part of it (ADR 0007).
 type Violation struct {
 	Code     string
 	Phase    Phase
 	Location Location
+	// LogicalPath is the canonical ADR 0006 path of the offending location; "" where ADR 0007
+	// leaves it out: the parse phase, a single position with no structure around it, and a
+	// location the synthetic schema cannot name (a list element has no declared identity).
+	LogicalPath string
 }
 
 // ErrorKind says which boundary an Error is.

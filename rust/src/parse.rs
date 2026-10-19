@@ -14,6 +14,8 @@
 //! (`DUPLICATE_KEY`, anchored at the second occurrence); only the first, in source
 //! order, is reported.
 
+use std::collections::HashSet;
+
 use saphyr_parser::{Event, Parser, ScalarStyle};
 
 use crate::error::{Error, Location, Phase, Violation};
@@ -95,16 +97,17 @@ pub fn parse_with(text: &str, limits: Limits) -> Result<Node, Error> {
                     return Err(Error::Unsupported("tag".into()));
                 }
                 let plain = style == ScalarStyle::Plain;
-                if let Some(Frame::Map { entries, key, .. }) = stack.last_mut() {
+                if let Some(Frame::Map { seen, key, .. }) = stack.last_mut() {
                     if key.is_none() {
                         if plain && value == "<<" {
                             return Err(Error::Unsupported("merge key".into()));
                         }
-                        if entries.iter().any(|e| e.key == value.as_ref()) {
+                        if !seen.insert(value.to_string()) {
                             return Err(Error::Contract(vec![Violation {
                                 code: "DUPLICATE_KEY",
                                 phase: Phase::Parse,
                                 location: Location::At(at),
+                                logical_path: None,
                             }]));
                         }
                         *key = Some((value.into_owned(), at));
@@ -193,6 +196,7 @@ fn open(
     stack.push(if is_map {
         Frame::Map {
             entries: Vec::new(),
+            seen: HashSet::new(),
             key: None,
             pos: at,
         }
@@ -223,6 +227,9 @@ enum Frame {
     },
     Map {
         entries: Vec<Entry>,
+        /// The keys of this mapping so far: a duplicate is found in expected O(1), not by
+        /// comparing with every earlier key.
+        seen: HashSet<String>,
         key: Option<(String, Pos)>,
         pos: Pos,
     },

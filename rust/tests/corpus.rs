@@ -131,7 +131,8 @@ fn class_name(c: Class) -> &'static str {
     }
 }
 
-type Wire = (String, String, String);
+/// code, phase, location, logical path (empty when the response leaves it out)
+type Wire = (String, String, String, String);
 
 /// A violation as the corpus spells it: code, phase, location.
 fn wire(v: &Violation) -> Wire {
@@ -144,7 +145,12 @@ fn wire(v: &Violation) -> Wire {
         Location::Unavailable => "unavailable".to_string(),
         Location::At(p) => format!("{}:{}:{}", p.line, p.column, p.offset),
     };
-    (v.code.to_string(), phase.to_string(), loc)
+    (
+        v.code.to_string(),
+        phase.to_string(),
+        loc,
+        v.logical_path.clone().unwrap_or_default(),
+    )
 }
 
 fn expected_wire(e: &YamlOwned) -> Wire {
@@ -156,7 +162,7 @@ fn expected_wire(e: &YamlOwned) -> Wire {
         .collect();
     for k in &keys {
         assert!(
-            ["code", "phase", "source_location"].contains(k),
+            ["code", "phase", "source_location", "logical_path"].contains(k),
             "an error field this slice does not produce: {k}"
         );
     }
@@ -172,6 +178,7 @@ fn expected_wire(e: &YamlOwned) -> Wire {
         text(get(e, "code").expect("code"), "code").to_string(),
         text(get(e, "phase").expect("phase"), "phase").to_string(),
         loc,
+        get(e, "logical_path").map_or_else(String::new, |p| text(p, "logical_path").to_string()),
     )
 }
 

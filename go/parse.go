@@ -147,6 +147,9 @@ func (w *walker) node(n *yaml.Node, depth int) (*Node, error) {
 
 func (w *walker) mapping(n *yaml.Node, depth int) (*Node, error) {
 	out := &Node{Kind: KindMap, Pos: w.at(n), Entries: []Entry{}}
+	// The keys so far: a duplicate is found in expected O(1), not by comparing with every
+	// earlier key.
+	seen := make(map[string]struct{}, len(n.Content)/2)
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		k, v := n.Content[i], n.Content[i+1]
 		if err := common(k); err != nil {
@@ -158,15 +161,14 @@ func (w *walker) mapping(n *yaml.Node, depth int) (*Node, error) {
 		if isPlain(k) && k.Value == "<<" {
 			return nil, unsupported("merge key")
 		}
-		for _, e := range out.Entries {
-			if e.Key == k.Value {
-				return nil, &Error{Kind: ErrContract, Violations: []Violation{{
-					Code:     "DUPLICATE_KEY",
-					Phase:    PhaseParse,
-					Location: Location{Available: true, Pos: *w.at(k)},
-				}}}
-			}
+		if _, dup := seen[k.Value]; dup {
+			return nil, &Error{Kind: ErrContract, Violations: []Violation{{
+				Code:     "DUPLICATE_KEY",
+				Phase:    PhaseParse,
+				Location: Location{Available: true, Pos: *w.at(k)},
+			}}}
 		}
+		seen[k.Value] = struct{}{}
 		val, err := w.node(v, depth+1)
 		if err != nil {
 			return nil, err

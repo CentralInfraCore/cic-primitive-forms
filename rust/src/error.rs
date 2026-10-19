@@ -29,12 +29,17 @@ pub enum Location {
     Unavailable,
 }
 
-/// One entry of the machine response. `message` is not part of it (ADR 0007).
+/// One entry of the machine response (code, phase, source location, logical path).
+/// `message` is not part of it (ADR 0007).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Violation {
     pub code: &'static str,
     pub phase: Phase,
     pub location: Location,
+    /// The canonical ADR 0006 path of the offending location. Absent where ADR 0007 leaves it
+    /// out: the parse phase, a single position with no structure around it, and a location
+    /// the synthetic schema cannot name (a list element has no declared identity).
+    pub logical_path: Option<String>,
 }
 
 /// A failure. Only [`Error::Contract`] is the ADR 0007 machine response; the others are

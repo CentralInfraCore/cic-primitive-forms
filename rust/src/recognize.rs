@@ -7,8 +7,8 @@
 //!
 //! A response is phase-exclusive: if recognition finds any error only those are returned,
 //! otherwise the validation errors of the Short nodes. Within a phase the errors are
-//! ordered by logical path, then code (ADR 0007). The path is used for that order only; it
-//! is not part of the response here, which the vectors of this slice do not carry.
+//! ordered by logical path, then code (ADR 0007), and each carries its canonical `logical_path`
+//! where one is determinable.
 //!
 //! Subset: the positions of the synthetic schema model (`scalar`, `opaque`, a structured
 //! record of named fields, a list of such records). A shape this slice has no rule for (a
@@ -90,6 +90,7 @@ fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
             code: "EXPANDED_WITH_EXTRA_KEY",
             phase: Phase::Recognize,
             location: location(node.pos),
+            logical_path: None,
         })
     }
 }
@@ -111,6 +112,7 @@ fn validate_short(
                         code: "MAP_AT_SCALAR_POSITION",
                         phase: Phase::Validate,
                         location: location(node.pos),
+                        logical_path: None,
                     },
                 ));
             }
@@ -133,6 +135,7 @@ fn validate_short(
                         code: "UNKNOWN_FIELD",
                         phase: Phase::Validate,
                         location: location(e.key_pos),
+                        logical_path: None,
                     },
                 ));
             }
@@ -144,19 +147,53 @@ fn validate_short(
     Ok(())
 }
 
-/// Orders by logical path, then code (ADR 0007), and keeps one violation per code.
+/// The canonical ADR 0006 text of a path made of field names; `None` where ADR 0007 leaves the
+/// path out. That is the root alone (a single position with no structure around it), a list
+/// element (the synthetic schema declares no identity, so the item cannot be named) and a
+/// field name that cannot be written (empty, or holding a control character).
+fn logical_path(path: &Path) -> Option<String> {
+    if path.is_empty() {
+        return None;
+    }
+    let mut out = String::from("$");
+    for seg in path {
+        let name = match seg {
+            Seg::Field(name) => name,
+            Seg::Index(_) => return None,
+        };
+        if name.is_empty() || name.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
+            return None;
+        }
+        out.push('.');
+        for c in name.chars() {
+            if "\\.[]{}=,".contains(c) {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+    }
+    Some(out)
+}
+
+/// Orders by logical path, then code (ADR 0007) and fills in each `logical_path`.
 ///
-/// The response of this slice carries no `logical_path` (the vectors name a position
-/// only), and `(logical_path, code)` is unique within a response; with the path absent that
-/// leaves one violation per code, the one with the smallest path. Reporting every unknown
-/// field needs the path in the response, which no vector of this slice asserts.
+/// `(logical_path, code)` is unique in a response. Every violation that has a path is
+/// distinct by construction (a field occurs once); the ones without a path (list elements,
+/// unwritable names) cannot be told apart in the response, so only the first of each code, in
+/// path order, is kept.
 fn sorted(mut found: Vec<(Path, Violation)>) -> Vec<Violation> {
     found.sort_by(|(pa, va), (pb, vb)| pa.cmp(pb).then_with(|| va.code.cmp(vb.code)));
     let mut out: Vec<Violation> = Vec::new();
-    for (_, v) in found {
-        if !out.iter().any(|o| o.code == v.code) {
-            out.push(v);
+    for (path, mut v) in found {
+        v.logical_path = logical_path(&path);
+        if v.logical_path.is_none()
+            && out
+                .iter()
+                .any(|o| o.logical_path.is_none() && o.code == v.code)
+        {
+            continue;
         }
+        out.push(v);
     }
     out
 }
@@ -224,6 +261,7 @@ fn recognize_list(
                             code: "UNKNOWN_FIELD",
                             phase: Phase::Validate,
                             location: location(e.key_pos),
+                            logical_path: None,
                         },
                     ));
                     continue;

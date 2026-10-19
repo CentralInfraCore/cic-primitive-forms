@@ -115,7 +115,7 @@ func positionOf(t *testing.T, v any) forms.Position {
 	return p
 }
 
-type wire struct{ code, phase, loc string }
+type wire struct{ code, phase, loc, path string }
 
 func wireOf(v forms.Violation) wire {
 	loc := "unavailable"
@@ -123,14 +123,14 @@ func wireOf(v forms.Violation) wire {
 		p := v.Location.Pos
 		loc = fmt.Sprintf("%d:%d:%d", p.Line, p.Column, p.Offset)
 	}
-	return wire{v.Code, string(v.Phase), loc}
+	return wire{v.Code, string(v.Phase), loc, v.LogicalPath}
 }
 
 func expectedWire(t *testing.T, e any) wire {
 	t.Helper()
 	m := e.(obj)
 	for k := range m {
-		if k != "code" && k != "phase" && k != "source_location" {
+		if k != "code" && k != "phase" && k != "source_location" && k != "logical_path" {
 			t.Fatalf("an error field this slice does not produce: %s", k)
 		}
 	}
@@ -143,7 +143,8 @@ func expectedWire(t *testing.T, e any) wire {
 	} else {
 		loc = fmt.Sprintf("%d:%d:%d", sl["line"], sl["column"], sl["offset"])
 	}
-	return wire{m["code"].(string), m["phase"].(string), loc}
+	path, _ := m["logical_path"].(string)
+	return wire{m["code"].(string), m["phase"].(string), loc, path}
 }
 
 type run struct {

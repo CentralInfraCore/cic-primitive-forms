@@ -5,10 +5,12 @@ package forms_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
 )
@@ -232,5 +234,132 @@ func TestErrorCodesOutsideTheRegistryAreNamed(t *testing.T) {
 		if e.Code() != code || !strings.HasSuffix(e.Error(), ": d") {
 			t.Errorf("%v", e)
 		}
+	}
+}
+
+type wireV struct {
+	code, path string
+	loc        forms.Location
+}
+
+func violationsOf(t *testing.T, text string, p forms.Position) []wireV {
+	t.Helper()
+	a := []string{"value", "access", "modify", "inherit", "default_injection", "conformance"}
+	out, err := forms.Recognize(mustParse(t, text), p, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []wireV{}
+	for _, v := range out.Violations {
+		got = append(got, wireV{v.Code, v.LogicalPath, v.Location})
+	}
+	return got
+}
+
+func TestEveryUnknownFieldIsReportedWithItsCanonicalPathInAFixedOrder(t *testing.T) {
+	structured := forms.Position{Kind: forms.PosStructured, Fields: []string{"host", "port"}}
+	// Source order is value, access; the response order is by path: $.access, $.value.
+	got := violationsOf(t, "value: 1\naccess: inherit\n", structured)
+	want := []wireV{
+		{"UNKNOWN_FIELD", "$.access", forms.Location{Available: true, Pos: forms.Pos{Line: 2, Column: 1, Offset: 9}}},
+		{"UNKNOWN_FIELD", "$.value", forms.Location{Available: true, Pos: forms.Pos{Line: 1, Column: 1, Offset: 0}}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v", got)
+	}
+	// From a parsed value (no text) the same two errors have no coordinates.
+	node := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{
+		{Key: "value", Value: &forms.Node{Kind: forms.KindInt, Int: 1}},
+		{Key: "access", Value: &forms.Node{Kind: forms.KindStr, Str: "inherit"}},
+	}}
+	out, err := forms.Recognize(node, structured, []string{"value", "access", "modify", "inherit", "default_injection", "conformance"})
+	if err != nil || len(out.Violations) != 2 ||
+		out.Violations[0].LogicalPath != "$.access" || out.Violations[1].LogicalPath != "$.value" ||
+		out.Violations[0].Location.Available || out.Violations[1].Location.Available {
+		t.Errorf("%v %+v", err, out)
+	}
+}
+
+func TestLogicalPathsAreCanonicalADR0006TextOrAbsent(t *testing.T) {
+	structured := forms.Position{Kind: forms.PosStructured, Fields: []string{"host"}}
+	pathOf := func(text string) string { return violationsOf(t, text, structured)[0].path }
+	cases := map[string]string{
+		"a.b: 1":          `$.a\.b`,
+		"x[1]: 1":         `$.x\[1\]`,
+		`'a=b,c{d}\e': 1`: `$.a\=b\,c\{d\}\\e`,
+		"'a b': 1":        "$.a b",
+		`"\u0085": 1`:     "$.\u0085",
+		`"a\u0001b": 1`:   "",
+		`"a\u007Fb": 1`:   "",
+		"'': 1":           "",
+	}
+	for text, want := range cases {
+		if got := pathOf(text); got != want {
+			t.Errorf("%s: got %q, want %q", text, got, want)
+		}
+	}
+	// No structure around a single position: no path.
+	if got := violationsOf(t, "{a: 1}", forms.Position{Kind: forms.PosScalar})[0].path; got != "" {
+		t.Errorf("scalar: %q", got)
+	}
+	// A list element has no declared identity in the synthetic schema: no path, and the errors
+	// that cannot be told apart collapse to one per code.
+	list := forms.Position{Kind: forms.PosListOf, Record: []forms.RecordField{{Name: "host", Position: forms.Position{Kind: forms.PosScalar}}}}
+	got := violationsOf(t, "- host: {a: 1}\n- host: {b: 2}\n- colour: x\n- shade: y\n", list)
+	if len(got) != 2 || got[0].code != "MAP_AT_SCALAR_POSITION" || got[1].code != "UNKNOWN_FIELD" || got[0].path != "" || got[1].path != "" {
+		t.Errorf("%+v", got)
+	}
+}
+
+func manyKeys(n int) string {
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, "k%d: 1\n", i)
+	}
+	return b.String()
+}
+
+func TestALateDuplicateIsStillFoundAndManyKeysDoNotCostQuadraticTime(t *testing.T) {
+	limits := forms.Limits{MaxBytes: 16 << 20, MaxDepth: 64, MaxNodes: 1_000_000}
+	n := 100_000
+	start := time.Now()
+
+	ok, err := forms.ParseWith(manyKeys(n), limits)
+	if err != nil || len(ok.Entries) != n || ok.Entries[0].Key != "k0" || ok.Entries[n-1].Key != fmt.Sprintf("k%d", n-1) {
+		t.Fatalf("distinct keys: %v", err)
+	}
+
+	// The duplicate of the first key, at the very end, is reported at its own position.
+	_, err = forms.ParseWith(manyKeys(n)+"k0: 2\n", limits)
+	var fe *forms.Error
+	if !errors.As(err, &fe) || fe.Kind != forms.ErrContract || len(fe.Violations) != 1 {
+		t.Fatalf("%v", err)
+	}
+	v := fe.Violations[0]
+	if v.Code != "DUPLICATE_KEY" || !v.Location.Available ||
+		v.Location.Pos.Line != n+1 || v.Location.Pos.Column != 1 || v.Location.Pos.Offset != len(manyKeys(n)) {
+		t.Errorf("%+v", v)
+	}
+	// A comparison of every key with every earlier key takes minutes at this size; the bound is
+	// generous so a slow machine does not fail it, a quadratic implementation does.
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("took %v", d)
+	}
+}
+
+// The two parsers do not rank their errors alike: this documents the difference instead of
+// claiming agreement. yaml.v3 reads the whole text before the tree is walked, so a later
+// syntax error wins over an earlier duplicate key; the Rust peer's test of the same name
+// asserts the opposite answer (events in order, the first problem stops).
+func TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError(t *testing.T) {
+	_, err := forms.Parse("a: 1\na: 2\nb: [\n")
+	var fe *forms.Error
+	if !errors.As(err, &fe) || fe.Kind != forms.ErrSyntax {
+		t.Fatalf("%v", err)
+	}
+	// The same duplicate with no syntax error after it is the same answer in both languages.
+	_, err = forms.Parse("a: 1\na: 2\nb: []\n")
+	if !errors.As(err, &fe) || fe.Kind != forms.ErrContract || fe.Violations[0].Code != "DUPLICATE_KEY" {
+		t.Fatalf("%v", err)
 	}
 }

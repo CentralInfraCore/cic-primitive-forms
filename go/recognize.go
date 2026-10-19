@@ -1,6 +1,9 @@
 package forms
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
 // PositionKind is the shape of a primitive position of the synthetic schema model.
 type PositionKind int
@@ -98,12 +101,40 @@ func pathCompare(a, b []seg) int {
 	return 0
 }
 
-// sorted orders by logical path, then code (ADR 0007), and keeps one violation per code.
+// logicalPath is the canonical ADR 0006 text of a path made of field names; "" where ADR 0007
+// leaves the path out. That is the root alone (a single position with no structure around it),
+// a list element (the synthetic schema declares no identity, so the item cannot be named) and
+// a field name that cannot be written (empty, or holding a control character).
+func logicalPath(path []seg) string {
+	if len(path) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteByte('$')
+	for _, s := range path {
+		if s.isIdx || s.field == "" {
+			return ""
+		}
+		b.WriteByte('.')
+		for _, c := range s.field {
+			if c <= 0x1f || c == 0x7f {
+				return ""
+			}
+			if strings.ContainsRune("\\.[]{}=,", c) {
+				b.WriteByte('\\')
+			}
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
+}
+
+// sorted orders by logical path, then code (ADR 0007) and fills in each LogicalPath.
 //
-// The response of this slice carries no logical_path (the vectors name a position only),
-// and (logical_path, code) is unique within a response; with the path absent that leaves
-// one violation per code, the one with the smallest path. Reporting every unknown field
-// needs the path in the response, which no vector of this slice asserts.
+// (logical_path, code) is unique in a response. Every violation that has a path is distinct by
+// construction (a field occurs once); the ones without a path (list elements, unwritable
+// names) cannot be told apart in the response, so only the first of each code, in path order,
+// is kept.
 func sorted(fs []found) []Violation {
 	sort.SliceStable(fs, func(i, j int) bool {
 		if c := pathCompare(fs[i].path, fs[j].path); c != 0 {
@@ -113,15 +144,19 @@ func sorted(fs []found) []Violation {
 	})
 	out := []Violation{}
 	for _, f := range fs {
+		v := f.v
+		v.LogicalPath = logicalPath(f.path)
 		dup := false
-		for _, o := range out {
-			if o.Code == f.v.Code {
-				dup = true
-				break
+		if v.LogicalPath == "" {
+			for _, o := range out {
+				if o.LogicalPath == "" && o.Code == v.Code {
+					dup = true
+					break
+				}
 			}
 		}
 		if !dup {
-			out = append(out, f.v)
+			out = append(out, v)
 		}
 	}
 	return out
