@@ -443,8 +443,12 @@ func startsScalar(c []rune, i, flow int) bool {
 		return true
 	case '[', '{', ',':
 		return flow > 0
-	case ':', '-', '?':
+	case ':':
 		return j < i
+	case '-', '?':
+		// `:` after a key is the value indicator; `-` and `?` are indicators only where a scalar could
+		// start (`a- *` is one plain scalar, `- - *a` a sequence in a sequence).
+		return j < i && startsScalar(c, j-1, flow)
 	}
 	return false
 }

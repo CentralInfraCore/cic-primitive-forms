@@ -1,0 +1,67 @@
+|- 
+""
+- "yes"
+- "No"
+- "yes"
+- "No"
+- "y"
+
+- "true"
+- "null"
+- "12v"
+. : 0x# "y"
+- "OFF"
+- "true"
+- "null"
+- "123"
+. : 0x# onfomment
+
+
+- "~"
+" -
+"yes"
+- "No"
+- "y"
+
+-12v"
+. : 0x# "y"
+- "OFF"
+- "true"
+-E"null"
+- "123"yes"
+- "No"
+- "y"
+
+- "true"
+- "n5ll"
+- "12v"
+. : 0x# "y"
+- "OFF"
+- "true"
+- "nu"
+. : 0x# onfomment
+
+
+- "~"
+" -
+"yes"
+- "No"
+- "y"
+
+-12v"
+. : 0x# "y"
+- "OFF"
+- "true"
+-E"null"
+- "123"
+. : 0x# onfomment
+
+
+- "~"
+- "a- ""
+. : 0x# onfomment
+
+
+- "~"
+- "a- "a: b" lead"
+-#####$######### "t- 

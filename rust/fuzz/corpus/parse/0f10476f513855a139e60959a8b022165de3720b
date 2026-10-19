@@ -1,0 +1,41 @@
+|- 
+""
+-yk25"
+- "OFF"
+- "true"
+- "null"
+- "123"
+- : 0x# onfomment
+
+
+- "~"
+- "a: b"
+- "#Z"
+- " lead"
+- "t- 
+""
+- "yes"
+- "No"
+- "y"
+- "OFF"
+- "true"
+- "null"
+- "124"
+- : 0x# onfomment
+
+
+- "~"
+- "a: b"
+- "#Z"
+- " lead"
+- "trail "
+- "line\nbreak"
+- "tab\there"
+, "\u4871"
+- "rail "
+- "line\nbreak"
+- "tab\there"
+, "\u2028"
+- "end:"
+- "---"
+- "..."

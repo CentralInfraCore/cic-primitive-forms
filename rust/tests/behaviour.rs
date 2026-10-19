@@ -665,3 +665,63 @@ fn the_edges_of_the_text_scan_give_the_yaml_answer() {
         assert_eq!(class_of(parse(text)), "ok", "{text:?}");
     }
 }
+
+/// Found by the fuzz job: `a? *` is one plain scalar (a `?` after text is no indicator), and the emitter writes
+/// it as a key unquoted, so the text scan must not take its `*` for an alias.
+#[test]
+fn an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not() {
+    for ok in [
+        "a? *: 1\n",
+        "a- &: 1\n",
+        ":- *: 1\n",
+        "-? &: 1\n",
+        "a: b- *c\n",
+    ] {
+        assert_eq!(class_of(parse(ok)), "ok", "{ok:?}");
+    }
+    for refused in ["- - *a\n", "- &a b\n", "a: - *b\n"] {
+        assert_eq!(class_of(parse(refused)), "unsupported", "{refused:?}");
+    }
+}
+
+/// Every string of up to three characters from the alphabet of YAML indicators, as a value, a sequence item, a
+/// key and in a nested sequence, reads back from what `emit` wrote.
+#[test]
+fn every_short_string_of_indicators_round_trips() {
+    let alphabet: Vec<char> = "a*&!?:-#[]{},\"'\\ |>%@`".chars().collect();
+    let mut strings = vec![String::new()];
+    let mut frontier = vec![String::new()];
+    for _ in 0..3 {
+        let mut next = Vec::new();
+        for s in &frontier {
+            for c in &alphabet {
+                next.push(format!("{s}{c}"));
+            }
+        }
+        strings.extend(next.iter().cloned());
+        frontier = next;
+    }
+    let entry = |key: String, value: Node| {
+        Node::new(Value::Map(vec![cic_primitive_forms::Entry {
+            key,
+            key_pos: None,
+            value,
+        }]))
+    };
+    for s in &strings {
+        let v = Node::new(Value::Str(s.clone()));
+        for n in [
+            entry("k".into(), v.clone()),
+            Node::new(Value::Seq(vec![v.clone()])),
+            entry(s.clone(), Node::new(Value::Int(1))),
+            entry(
+                "k".into(),
+                Node::new(Value::Seq(vec![v.clone(), v.clone()])),
+            ),
+        ] {
+            let text = emit(&n);
+            let back = parse(&text).unwrap_or_else(|e| panic!("{text:?}: {e:?}"));
+            assert!(back.same(&n), "{text:?}");
+        }
+    }
+}

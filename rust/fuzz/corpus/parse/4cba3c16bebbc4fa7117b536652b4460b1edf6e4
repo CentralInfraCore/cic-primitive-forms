@@ -1,0 +1,68 @@
+a: 'yes''
+2
+''
+b8 +1llTr*c2L 2
+''es''
+b: "1"*c2L 2
+''
+b8 "
+f: +1llTr!ue
+h(: F"1"2
+e: 
+b: "1"*c2L 2
+''es''
+b: "2"*c2L 2
+''
+b8 "1"
+c2:)2
+e: -7
+f: +1llTr*c2L 2
+''es''
+b: "1"*2L 2
+''es''
+b: "1"*c2L 2
+''
+b8 "1"
+c2: 2
+e: -7
+f: +1llTrue
+h(: F"1"
+c2: 2
+e: 
+b: "1"*c2L 2
+''es''
+b: "1"*c2L 2
+''
+b8 "1"
+"1"*c2L 2
+''es''
+b: "1"*c2L 2
+''
+b8 "1"
+c2:)2
+e: -7
+f: +1llTr 2
+''es''
+b: "1"*c2L 2
+''
+b8 "
+f: +1llTrue
+h(: F"1"
+c2: 2
+e: 
+b: "1"*c2L 2
+''es''
+b: "2"*c2L 2
+''
+b8 "1"
+c2:)2
+e: -7
+'S
+h: FAL'SEue
+h(: FAL'SE
+
+b8 "b8 "1"
+c2: 2
+e: -7
+f: +1llTrue
+h: FASE

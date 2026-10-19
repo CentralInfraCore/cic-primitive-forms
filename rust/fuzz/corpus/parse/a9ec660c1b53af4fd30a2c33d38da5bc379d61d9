@@ -1,0 +1,40 @@
+a: 'yes'
+
+c2: 2
+e: -7
+
+b: "1"
+c2: 2
+e:a: 'yes'
+
+c2: 2
+e: -7
+f: +3
+g:e:a: 'yes'
+
+c2: 2
+e: -7
+f: +3
+g: Tru> yes
+d: 0
+e2: -7
+f: +3
+g: nes'
+b: "1"
+c2: 2
+e: -7
+f: +3
+g8 Tru>: 0
+e: -7
+f: +3
+g8 Tru>: 0
+
+h: Tru> yes
+d: 0
+e2: -7
+f:
+e: -7
+f: +[3
+g8 Tru>: 0
+
+h: FALSE

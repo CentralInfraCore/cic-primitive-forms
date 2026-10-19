@@ -1,0 +1,15 @@
+t  line1: |
+ - o li: |
+  f: |
+  line2
+f: >
+ |
+  li: |: >
+ ne>|
+  li: |
+  line
+  a*  line1: |
+  li:  >
+ ne2
+f: >
+  a*  b

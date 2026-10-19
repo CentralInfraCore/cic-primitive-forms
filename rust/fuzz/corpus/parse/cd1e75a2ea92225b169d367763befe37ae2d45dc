@@ -1,0 +1,67 @@
+|- 
+""
+- "yes"
+- "No"
+) "y"
+- "OFF"
+- "true"
+- "null"
+- "123"
+- : 0x# o$<nfomment
+
+
+- "~"
+- "a":b
+ - "#Z"
+- " lead"
+- "t- 
+""
+- "yes"
+- "No"
+- "y"
+- "OFF"
+- "true"
+- "null"
+- "123"
+- : 0x# onfomment
+
+
+- "~"
+- "a: b"
+- "#Z"
+- " lead"
+-ere"
+, "\u2028"
+- "rail "
+- "line\nbreak"
+- "
+- "OFF"
+- "true"
+- "null"
+- "123"
+- : 0x# onfomment
+
+
+- "~"
+- "a: b"
+- "#Z"
+- " lead"
+- "t- 
+""
+- "yes"
+- "No"
+- "y"
+- "OFF"
+- "true"
+- "null"
+- "123"
+- : 0x# onfomment
+
+
+- "~"
+- "a: b"
+ne\nbreatab\there"
+, ":"
+- "---"
+--
+ .."

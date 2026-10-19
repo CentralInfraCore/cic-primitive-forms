@@ -1,0 +1,11 @@
+a:$t: |
+ : |
+  line1
+  line2
+f: > line1
+  l|
+  line1
+  line2
+f: >  line2
+f: >ine2
+f: ><

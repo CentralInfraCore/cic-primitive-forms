@@ -667,3 +667,54 @@ func TestTheEdgesOfTheTextScanGiveTheYamlAnswer(t *testing.T) {
 		}
 	}
 }
+
+// Found by the fuzz job: "a? *" is one plain scalar (a ? after text is no indicator), and the emitter writes it as
+// a key unquoted, so the text scan must not take its * for an alias. The Rust peer has the same test.
+func TestAnIndicatorInsideAPlainScalarIsTextAndAtAScalarStartIsNot(t *testing.T) {
+	for _, ok := range []string{"a? *: 1\n", "a- &: 1\n", ":- *: 1\n", "-? &: 1\n", "a: b- *c\n"} {
+		if got := classOfText(ok); got != "ok" {
+			t.Errorf("%q: %s", ok, got)
+		}
+	}
+	for _, refused := range []string{"- - *a\n", "- &a b\n", "a: - *b\n"} {
+		if got := classOfText(refused); got != "unsupported" {
+			t.Errorf("%q: %s", refused, got)
+		}
+	}
+}
+
+// Every string of up to three characters from the alphabet of YAML indicators, as a value, a sequence item, a
+// key and in a nested sequence, reads back from what Emit wrote.
+func TestEveryShortStringOfIndicatorsRoundTrips(t *testing.T) {
+	alphabet := []rune("a*&!?:-#[]{},\"'\\ |>%@`")
+	strs := []string{""}
+	frontier := []string{""}
+	for range 3 {
+		var next []string
+		for _, s := range frontier {
+			for _, c := range alphabet {
+				next = append(next, s+string(c))
+			}
+		}
+		strs = append(strs, next...)
+		frontier = next
+	}
+	one := func(key string, v *forms.Node) *forms.Node {
+		return &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: key, Value: v}}}
+	}
+	for _, s := range strs {
+		v := &forms.Node{Kind: forms.KindStr, Str: s}
+		for _, n := range []*forms.Node{
+			one("k", v),
+			{Kind: forms.KindSeq, Items: []*forms.Node{v}},
+			one(s, &forms.Node{Kind: forms.KindInt, Int: 1}),
+			one("k", &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{v, v}}),
+		} {
+			text := forms.Emit(n)
+			back, err := forms.Parse(text)
+			if err != nil || !back.Same(n) {
+				t.Fatalf("%q: %v", text, err)
+			}
+		}
+	}
+}

@@ -1,0 +1,9 @@
+a: 'yes'
+b: "0"
+c: yes
+d:a: -"":: -01
+-7
+f: +3
+g: True
+-
+ h: FALSE

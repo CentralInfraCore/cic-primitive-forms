@@ -469,7 +469,10 @@ fn starts_scalar(c: &[char], i: usize, flow: usize) -> bool {
     match j.checked_sub(1).map(|k| c[k]) {
         None | Some('\n' | '\r') => true,
         Some('[' | '{' | ',') => flow > 0,
-        Some(':' | '-' | '?') => j < i,
+        // `:` after a key is the value indicator; `-` and `?` are indicators only where a scalar could start
+        // (`a- *` is one plain scalar, `- - *a` a sequence in a sequence).
+        Some(':') => j < i,
+        Some('-' | '?') => j < i && starts_scalar(c, j - 1, flow),
         Some(_) => false,
     }
 }

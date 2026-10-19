@@ -1,0 +1,76 @@
+:::
++&t:x
+:a: & 1ea: & 1e a
+  
+f: b |
+  aa: 00x
+:a 
+f: +41ea: & 1e a
+6 |00x
+:a: & 
+f: +%1ea: & 1e 
+  aa: & 1e3
+a: 00x
+:a: & 
+f: +4&a e: 11e a
+6 |
+ f: +&t:x
+:a: & 1ea: & 1e a
+  
+f: b |
+  aa: 00x
+:a: & 1e3
+a: 0 aa: 00x
+:a: & 1e3
+a: 0x
+:a: & 
+f: +41ea: & 1e a
+6 |00x
+:a: & 
+f: +%1ea: & 1e 
+  a
+  a: |a: 00x
+:a: & 1e3
+a: 00 a
+6 |00x
+:a: & 
+f: +%1ea: & 1e 
+  aa: & 1e3
+a: 00x
+:a: & 
+f: +4&a e: 11e a
+6 |
+ f: +&t:x
+:a: & 1ea: & 1e a
+  
+f: b |
+  aa: 00x
+:a: & 1e3
+a: 0 aa: 00x
+:a: & 1e3
+a: 0x
+:a: & 
+f: +41ea: & 1e a
+6 |00x
+:a: & 
+f: +%1ea: & 1e 
+  a
+  a: |a: 00x
+:a: & 1e3
+a: 00x
+:a:
+ & 
+f:g
+
+  
+f: +41ea:x
+:a:
+ & 
+f:g
+
+  
+f: +41ea: & 1e 
+g
+
+  
+f:

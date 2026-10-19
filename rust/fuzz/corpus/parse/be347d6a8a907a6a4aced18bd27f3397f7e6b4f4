@@ -1,0 +1,11 @@
+t  line1: |
+  li: |
+  line2
+f: >
+  a*  line1: |
+  li: |
+  line2
+f: >
+ ne2
+f: >
+  a*  b

@@ -159,7 +159,7 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-* the 495 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+* the 502 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
   the complete outcome of `parse` (the tree with the position of every node and key, or the contract
   violation, or the refusal) is pinned and read by both languages.
 
@@ -184,7 +184,7 @@ different trees or positions, a contract error against anything else, is a diver
 | | divergent inputs of 30 005 |
 |---|---|
 | before (main, `2c58713`) | 3 134 in 12 groups |
-| after | 300 in 5 groups, all in the open classes below (246 hold a flow collection or a quote followed by `#`, 54 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 13 hand-pinned inputs. The figure belongs to the generated set: every regression case added to `gen_inputs.py` is also a seed of the random edits, so the set, and with it this count, changes with it (274, 299, 326 and 300 at successive heads of this PR) and is not comparable with the 3 134 of the old code; what the gate holds fixed is each divergence's input and outcomes, not the count) |
+| after | 287 in 6 groups, all in the open classes below (228 hold a flow collection or a quote followed by `#`, 59 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 13 hand-pinned inputs. The figure belongs to the generated set: every regression case added to `gen_inputs.py` is also a seed of the random edits, so the set, and with it this count, changes with it (274, 299, 326, 300 and 287 at successive heads of this PR) and is not comparable with the 3 134 of the old code; what the gate holds fixed is each divergence's input and outcomes, not the count) |
 
 What the differential found and what was done about it (each has pinned cases in `parity.json`):
 
@@ -247,7 +247,7 @@ parser). The one Rust mutation survivor is `read`, `docs > 1`, equivalent becaus
 same answer; time-outs count as detected. 33 seeded defects, 15 of them for this work, all caught. The property
 tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
 scan took for an anchor and an alias), both fixed and pinned. The fuzz job found a third (a key past 512 characters that starts with `-` or `:` is
-emitted as `? -kkk…`, which the explicit-key rule refused): fixed, with a regression test in each language.
+emitted as `? -kkk…`, which the explicit-key rule refused): fixed, with a regression test in each language. A second fuzz run found a fourth (`a? *` is one plain scalar, the emitter writes it as a key, and the scan took its `*` for an alias because it counted a `?` after text as an indicator): `-` and `?` are indicators only where a scalar can start. Found by a brute-force check of every string of up to three characters of YAML indicators in four positions; that check is now a test in each language (`every_short_string_of_indicators_round_trips`), and a run over 3.4 million longer strings, with long keys, is clean.
 
 Run it: `python3 tools/parity/gen_inputs.py in.hex --upstream "$CIC_PRIMITIVES_ROOT"`, then
 `PARITY_IN=in.hex PARITY_OUT=rust.jsonl cargo test --test parity_dump` and
