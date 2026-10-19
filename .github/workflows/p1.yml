@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -19,6 +19,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 tools/quality_gate.py selftest
+  # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
+  # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
+  evidence-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - run: python3 tools/test-evidence/evidence.py selftest
+      - run: python3 tools/test-evidence/seeded.py
+      - run: CIC_REQUIRE_GH_ATTESTATION=1 python3 tools/test-evidence/evidence.py check-gh
   rust:
     runs-on: ubuntu-latest
     steps:
