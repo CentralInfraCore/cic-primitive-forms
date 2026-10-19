@@ -88,6 +88,8 @@ EXTRA = [
     # inside a plain scalar these are characters, not tags, anchors, aliases or keys
     "a *b: 1\n", "x: a !b\n", "x: a &b c\n", "x: a ?b\n", "k: a, *b\n", "a ?b: 1\n", "aAB# *: 1\n", "x: [a *b]\n", "x: a [&b\n", "x: a, !b\n", "- a *b\n",
     "a: \"x\\\"\n  ? - y\"\n", "a: \"x\\\"\"\n? - y\n", "a: 'x''\n  ? - y'\n", "a: 'x'''\n? - y\n", "a: 1 # c\r? - y\r", "a: 1 # c\n? - y\n", "a: |\r  x\r? - y\r", "a: |\n  x\n? - y\n", "a: '\n  ? - y'\n", "a: >\n  ? - y\n", "a|\n  ? - y\n", "a: | # c\n  ? - y\n", "a: 1\r? y\r: z\r", "]#\n", "}#\n", " ? - y\n", "  a: [? c]\n", "? ", "?x",
+    # markers and directives: text inside block and quoted scalars, refused as lines elsewhere
+    "a: |\n  ---\n  ...\n", "a: >\n  x\n  ---\n  y\n", "a: |+\n  ...\n\n", "a: |\n  %YAML 1.2\n", "a: \"x\n  ---\n  ...\"\n", "a: 'x\n  ---\n  ...'\n", "a: \"x\n  --- y\"\n", "a: 'x\n  ... y'\n", "a: \"x\n---\n  y\"\n", "a: 'x\n...\n  y'\n", "a: \"x\n--- y\"\n", "a: |\n  x\n---\n", "a: |\n  x\n...\n", "a: x\n  ---\n", "# c\n\n---\na: 1\n", "b: [\n---\n", "b: [\n...\n", "b: [\n%YAML 1.2\n",
     # the scan's own boundaries (each pins a condition of scan_words)
     "a: [x,?c]\n", "a: [x]\nb: z,?c\n", "a: {x: 1}\nb: z,?c\n", "a: x]\nb: [y,?c]\n", "a:'x\nb: [? c]\n", "\"a ?b\"\n", "a: \"x\"'\nb: [? c]\n",
     "a: 1 # c\rb: [? c]\r", "a: |\r  x\rb: [? c]\r", "a: |\r  x\r", "a: \u000c\n", "a: 1\r---\rb: 2\r", "a: 1\r%x\r", "a: 1\n---\n", "a: 'x'\rb: [? c]\r",

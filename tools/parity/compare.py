@@ -3,9 +3,11 @@
 
     compare.py INPUTS RUST_OUT GO_OUT [--show N] [--json FILE] [--allow FILE] [--emit-allow FILE]
 
---allow names a file of hex-encoded inputs whose divergence is known and open (one per line, `#` comments
-allowed): they are listed but do not make the exit status 1. An allowed input that no longer diverges is
-reported and is not an error (a fix is not a failure; drop the line). --emit-allow writes the divergent
+--allow names a file of known open divergences, one per line: the hex-encoded input and the digest of the pair
+of outcomes (`<hex> <sha256>`, `#` comments allowed). A divergence is allowed only when both the input and the
+digest match: the same input diverging in another way (another outcome on either side) is CHANGED, an input
+that is not in the file is NEW, and either makes the exit status 1. An allowed input that no longer diverges
+is reported and is not an error (a fix is not a failure; drop the line). --emit-allow writes the divergent
 inputs of this run in that format.
 
 Classes of agreement:
@@ -18,10 +20,17 @@ positions differ, or one gives a contract error and the other does not.
 """
 import argparse
 import collections
+import hashlib
 import json
 import sys
 
 NONCONTRACT = {"YAML_SYNTAX", "UNSUPPORTED_SYNTAX", "LIMIT_EXCEEDED", "INVALID_UTF8"}
+
+
+def digest(r, g):
+    """The identity of a divergence: what each side answered, not only which input."""
+    blob = json.dumps([r, g], sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(blob).hexdigest()
 
 
 def klass(o):
@@ -64,12 +73,12 @@ def main():
     ap.add_argument("--allow")
     ap.add_argument("--emit-allow")
     a = ap.parse_args()
-    allowed = set()
+    allowed = {}
     if a.allow:
         for l in open(a.allow):
-            l = l.split("#")[0].strip()
+            l = l.split("#")[0].split()
             if l:
-                allowed.add(bytes.fromhex(l))
+                allowed[bytes.fromhex(l[0])] = l[1]
     ins = [bytes.fromhex(l.strip()) for l in open(a.inputs)]
     rs = [json.loads(l) for l in open(a.rust)]
     gs = [json.loads(l) for l in open(a.go)]
@@ -95,12 +104,20 @@ def main():
     total_div = sum(len(v) for v in div.values())
     if a.emit_allow:
         with open(a.emit_allow, "w") as fh:
-            fh.write("# Known open Rust/Go parser divergences on the fixed-seed run (tools/parity/compare.py --emit-allow).\n")
+            fh.write("# Known open Rust/Go parser divergences on the fixed-seed run: input, digest of both outcomes\n")
+            fh.write("# (tools/parity/compare.py --emit-allow). A changed outcome is not allowed.\n")
             for idx in div.values():
                 for i in idx:
-                    fh.write(ins[i].hex() + "\n")
-    new = sum(1 for idx in div.values() for i in idx if ins[i] not in allowed)
-    gone = sum(1 for b in allowed if b not in {ins[i] for idx in div.values() for i in idx})
+                    fh.write("%s %s\n" % (ins[i].hex(), digest(rs[i], gs[i])))
+    new, changed, seen = [], [], set()
+    for idx in div.values():
+        for i in idx:
+            seen.add(ins[i])
+            if ins[i] not in allowed:
+                new.append(i)
+            elif allowed[ins[i]] != digest(rs[i], gs[i]):
+                changed.append(i)
+    gone = sum(1 for b in allowed if b not in seen)
     print("inputs: %d" % len(ins))
     for k, v in sorted(counts.items()):
         print("  %-34s %d" % (k, v))
@@ -119,8 +136,14 @@ def main():
     if a.json:
         json.dump(report, open(a.json, "w"), indent=1)
     if a.allow:
-        print("\nallowed (known, open): %d; new: %d; allowed but no longer divergent: %d" % (total_div - new, new, gone))
-        return 1 if new else 0
+        for i in changed:
+            print("CHANGED: %r is a known divergence but its outcomes differ from the allowed ones\n   rust: %s\n   go  : %s"
+                  % (ins[i].decode("utf-8", "backslashreplace")[:70], json.dumps(rs[i])[:160], json.dumps(gs[i])[:160]))
+        for i in new[:a.show]:
+            print("NEW: %r" % ins[i].decode("utf-8", "backslashreplace")[:70])
+        print("\nallowed (known, open): %d; changed: %d; new: %d; allowed but no longer divergent: %d"
+              % (total_div - len(new) - len(changed), len(changed), len(new), gone))
+        return 1 if new or changed else 0
     return 1 if total_div else 0
 
 

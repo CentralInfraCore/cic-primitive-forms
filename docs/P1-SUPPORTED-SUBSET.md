@@ -107,7 +107,7 @@ rejects a registry code no case uses, so they cannot enter the registry yet: thi
 | anchors, aliases, tags, merge keys (`<<`), non-scalar keys, more than one document | `UNSUPPORTED_SYNTAX` |
 | plain scalars that look like floats (`1.5`, `.5`, `5.`, `1e3`, `.inf`, `.nan`), hex or octal (`0x1F`, `0o17`), integers with a leading zero, integers beyond 64 bits | `UNSUPPORTED_SYNTAX` |
 | the characters U+0085, U+2028, U+2029 anywhere in the text | `UNSUPPORTED_SYNTAX` (see finding 2) |
-| control characters (U+0000 to U+0008, U+000B, U+000C, U+000E to U+001F, U+007F), a tab anywhere, a byte order mark after the first character, a directive line (`%...`), a document end marker (`...`), a `---` that is not the first content line | `UNSUPPORTED_SYNTAX` (parser parity, below) |
+| control characters (U+0000 to U+0008, U+000B, U+000C, U+000E to U+001F, U+007F), a tab anywhere, a byte order mark after the first character, a directive line (`%...`), a document end marker (`...`), a `---` that is not the first content line (indented ones too; inside a block scalar and, when indented, inside a quoted scalar, `---`, `...` and `%` are text and read as such) | `UNSUPPORTED_SYNTAX` (parser parity, below) |
 | a word that starts with `!`, `&` or `*`, or with `?` (outside the emitter's own `? key` form), a `#` right after `]` or `}`, outside quotes, comments and block scalar content | `UNSUPPORTED_SYNTAX` (parser parity, below) |
 | a block scalar in a text that does not end with a line break, or one that holds nothing but line breaks | `UNSUPPORTED_SYNTAX` (parser parity, below) |
 | an empty implicit mapping key (`: a`, `{: a}`) | `YAML_SYNTAX`: yaml.v3 refuses it, so the Rust parser does too |
@@ -159,7 +159,7 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-* the 455 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+* the 473 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
   the complete outcome of `parse` (the tree with the position of every node and key, or the contract
   violation, or the refusal) is pinned and read by both languages.
 
@@ -184,15 +184,11 @@ different trees or positions, a contract error against anything else, is a diver
 | | divergent inputs of 30 005 |
 |---|---|
 | before (main, `2c58713`) | 3 134 in 12 groups |
-| after | 299 in 5 groups, all in the open classes below (267 hold a flow collection or a quote followed by `#`, 32 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
+| after | 262 in 4 groups, all in the open classes below (228 hold a flow collection or a quote followed by `#`, 34 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
 
 What the differential found and what was done about it (each has pinned cases in `parity.json`):
 
-* **Error priority.** `yaml.v3` reads the whole text before the tree is walked, the Rust parser reported the
-  first problem in event order. Now a syntax error anywhere wins over an earlier duplicate key,
-  unsupported construct or limit; the Rust parser keeps the first non-syntax error and scans on (the
-  tree is built with a null in place of what failed). A second document beats what the first holds, as
-  in Go.
+* **Error priority.** See "The order in which problems are reported" below.
 * **Positions.** The Rust parser located an indentless block sequence (`a:` then `- 1`) at its first item
   and a `- - a` chain at the inner dash, a block scalar at its first content line, and gave an implicit
   null in a flow collection (`{a}`) or an empty document a position. Now a block sequence is located at its
@@ -207,6 +203,37 @@ What the differential found and what was done about it (each has pinned cases in
   emitter's own form, a comment touching `]` or `}`, an empty implicit key: refused in both languages
   by one pre-parse scan (`prescan`), before either YAML library is asked, in the same order.
 
+### The order in which problems are reported
+
+One rule, the same in both languages, tested with explicit expected codes in both
+(`the_order_in_which_problems_are_reported_is_fixed` / `TestTheOrderInWhichProblemsAreReportedIsFixed`),
+not by comparing the two with each other. The first step that finds a problem decides the answer:
+
+1. **Size** over the limit: `LIMIT_EXCEEDED`.
+2. **U+0085, U+2028, U+2029** anywhere: `UNSUPPORTED_SYNTAX`.
+3. **The text scan** (`prescan`, `scan_words`), whole text, before either YAML library is asked:
+   control characters, tabs, a byte order mark inside the text, then, in text order, directives,
+   document markers, tags, anchors, aliases, explicit keys, a comment touching `]` or `}`:
+   `UNSUPPORTED_SYNTAX`. One of these *anywhere* in the text hides a YAML syntax error *anywhere* in
+   it: the scan does not know about syntax, and a text with a tab is refused for the tab even if it
+   is also malformed.
+4. **A YAML syntax error anywhere** in the text: `YAML_SYNTAX`. It beats everything below, wherever
+   the problems are (a duplicate key, a `1.5`, a merge key, a non-scalar key before it or after it).
+5. **A second document**: `UNSUPPORTED_SYNTAX`, ahead of what the first document holds. (No text reaches
+   this step, since the scan refuses every `---` after the first content line; the check stays as a guard
+   and is tested through the internal `read`.)
+6. **The first problem in document order** of: an unsupported construct (`UNSUPPORTED_SYNTAX`), a
+   duplicate key (`DUPLICATE_KEY`, the contract error), a node or depth limit (`LIMIT_EXCEEDED`).
+
+So "a syntax error anywhere wins" holds for the problems of step 6 only; the problems of steps 1 to 3
+are decided before the YAML syntax is looked at.
+
+The scan reads a line as text, not as a marker or a directive, inside a block scalar and, if it is
+indented, inside a quoted scalar; a `---` or `...` that starts a line inside a quoted scalar is
+refused (the YAML spec ends the document there and the two readers disagree on what follows).
+`marker_like_text_inside_scalars_is_content` (Rust) and `TestMarkerLikeTextInsideScalarsIsContent`
+(Go) hold the YAML 1.2 values as expectations.
+
 Open (pinned with both outcomes in `known_divergences`, see `testdata/p1/parity.json`): plain scalars in a
 flow collection that hold an indicator character (`{a?}`, `[|]`, `{:1}`, `{aa:}`, `{a:}`, `[a:]`, `{-}`), a quoted scalar
 followed directly by `#`, `{a: 1,a: 2:}`, a flow mapping continued on a line that is not indented
@@ -219,7 +246,7 @@ Gate numbers of the parity work, measured on `parse.rs` and `parse.go` only (the
 are the CI `quality` job's): mutation Rust 99.6% (268 of 269 viable mutants detected, 14 of them by
 time-out; the one survivor, `read` `docs > 1`, is equivalent because the check after the loop gives the
 same answer), mutation Go 96.55% (420 of 435); line coverage Rust 98.3%, Go 99.3% (whole crate and module,
-before the last test additions). 29 seeded defects, 11 of them for this work, all caught. The property
+before the last test additions). 33 seeded defects, 15 of them for this work, all caught. The property
 tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
 scan took for an anchor and an alias), both fixed and pinned.
 
@@ -227,8 +254,10 @@ Run it: `python3 tools/parity/gen_inputs.py in.hex --upstream "$CIC_PRIMITIVES_R
 `PARITY_IN=in.hex PARITY_OUT=rust.jsonl cargo test --test parity_dump` and
 `PARITY_IN=in.hex PARITY_OUT=go.jsonl go test -run TestDumpParseOutcomes .`, then
 `python3 tools/parity/compare.py in.hex rust.jsonl go.jsonl --allow testdata/p1/parity-known.txt`.
-The `parity` job of `p1.yml` does exactly this, and is red on a divergence that is not in the allow
-list. `make_corpus.py` rebuilds `parity.json` from `HAND` and `EXTRA` of `gen_inputs.py`.
+The `parity` job of `p1.yml` does exactly this. The allow list names each known divergence by its input *and*
+by a digest of both outcomes, so it is red on a new divergence and equally on a known one whose answer on either
+side has changed; `tools/parity/selftest.py` breaks the real outputs in those ways (and one that must stay
+green, a fix) and requires the right verdict, in the same job. `make_corpus.py` rebuilds `parity.json` from `HAND` and `EXTRA` of `gen_inputs.py`.
 
 ## Quality gates (docs/PHASES.md, "Quality gates")
 

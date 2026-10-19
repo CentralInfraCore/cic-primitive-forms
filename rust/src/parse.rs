@@ -314,7 +314,8 @@ impl State<'_, '_> {
 }
 
 /// Refusals decided on the text alone, before either YAML library is asked: the two readers
-/// disagree on these characters and lines, so the subset leaves them out instead of picking one.
+/// disagree on these characters, lines and words, so the subset leaves them out instead of picking
+/// one. They come first, so one anywhere in the text hides a YAML syntax error anywhere in it.
 fn prescan(body: &str) -> Result<(), Error> {
     if let Some(c) = body.chars().find(
         |&c| matches!(c, '\u{0}'..='\u{8}' | '\u{B}' | '\u{C}' | '\u{E}'..='\u{1F}' | '\u{7F}'),
@@ -330,39 +331,23 @@ fn prescan(body: &str) -> Result<(), Error> {
     if body.contains('\u{FEFF}') {
         return Err(Error::Unsupported("byte order mark inside the text".into()));
     }
-    scan_words(&body.chars().collect::<Vec<char>>())?;
-    let mut leading = true;
-    for line in body.split(['\n', '\r']) {
-        if line.starts_with('%') {
-            return Err(Error::Unsupported("directive".into()));
-        }
-        let t = line.trim_start_matches(' ');
-        let marker = ["---", "..."].iter().find(|m| {
-            t.strip_prefix(**m)
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-        });
-        if let Some(m) = marker {
-            if *m == "..." || t.len() != line.len() || !leading {
-                return Err(Error::Unsupported("document marker".into()));
-            }
-        }
-        if !(t.is_empty() || t.starts_with('#')) {
-            leading = false;
-        }
-    }
-    Ok(())
+    scan_words(&body.chars().collect::<Vec<char>>())
 }
 
 /// A word that starts with `!`, `&` or `*`, or a `?` that is not the emitter's explicit key, is a
 /// tag, an anchor, an alias or an explicit key. The readers do not agree on the odd spellings of
 /// these (yaml.v3 drops a bare `!` and reads the value as if it were not there), so they are
-/// refused. A comment that touches a closing `]` or `}` is refused too. Quoted scalars, comments
-/// and block scalar content are skipped: the words there are text.
+/// refused. A comment that touches a closing `]` or `}` is refused too. Directive lines and document
+/// markers (`---` other than the first content line, `...`, indented either way) are refused as
+/// lines. Quoted scalars, comments and block scalar content are skipped: the words and lines there
+/// are text, `---` and `...` among them.
 fn scan_words(c: &[char]) -> Result<(), Error> {
     let mut quote: Option<char> = None;
     let mut block: Option<usize> = None;
     let mut line_start = true;
     let mut indent = 0;
+    // No content line has been seen yet: the one place a `---` is the start of the document.
+    let mut leading = true;
     // Depth of the flow collections: `[`, `{` and `,` only separate words inside one (`a[&` is one plain
     // scalar in block context).
     let mut flow = 0;
@@ -383,6 +368,7 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
                 }
                 block = None;
             }
+            check_line(c, i, indent, quote.is_some(), &mut leading)?;
         }
         let ch = c[i];
         if ch == '\n' || ch == '\r' {
@@ -440,6 +426,40 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
             }
         }
         i += 1;
+    }
+    Ok(())
+}
+
+/// A line that is not inside a block scalar: a directive, or a document marker. Inside a quoted
+/// scalar only a marker at the start of the line counts (the spec ends the document there, the
+/// readers disagree on what they make of it); an indented `---` or `...` is text.
+fn check_line(
+    c: &[char],
+    i: usize,
+    indent: usize,
+    quoted: bool,
+    leading: &mut bool,
+) -> Result<(), Error> {
+    if !quoted && c[i] == '%' {
+        return Err(Error::Unsupported("directive".into()));
+    }
+    let at = i + indent;
+    let marker = ["---", "..."].into_iter().find(|m| {
+        c[at..].starts_with(&m.chars().collect::<Vec<char>>())
+            && matches!(c.get(at + 3), None | Some(' ' | '\n' | '\r'))
+    });
+    if let Some(m) = marker {
+        let refused = if quoted {
+            indent == 0
+        } else {
+            m == "..." || indent > 0 || !*leading
+        };
+        if refused {
+            return Err(Error::Unsupported("document marker".into()));
+        }
+    }
+    if !quoted && !matches!(c.get(at), None | Some('\n' | '\r' | '#')) {
+        *leading = false;
     }
     Ok(())
 }

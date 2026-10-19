@@ -83,6 +83,14 @@ DEFECTS = [
      [("\t\t\tcase ch == '!':", "\t\t\tcase false:")]),
     ("go", "a block scalar without content is accepted", "parse.go",
      [("\t\t\tif strings.Trim(n.Value, \"\\n\") == \"\" {", "\t\t\tif false {")]),
+    ("rust", "the content of a block scalar is scanned for markers", "src/parse.rs",
+     [("                if blank || indent > parent {", "                if false {")]),
+    ("rust", "an indented marker inside a quoted scalar is a document marker", "src/parse.rs",
+     [("            indent == 0\n        } else {", "            true\n        } else {")]),
+    ("go", "the content of a block scalar is scanned for markers", "parse.go",
+     [("\t\t\t\tif blank || indent > block {", "\t\t\t\tif false {")]),
+    ("go", "an indented marker inside a quoted scalar is a document marker", "parse.go",
+     [("\t\t\trefused = indent == 0", "\t\t\trefused = true")]),
     ("go", "a syntax error in a second document is reported as a second document", "parse.go",
      [("\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, &Error{Kind: ErrSyntax, Detail: err.Error()}", "\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, unsupported(\"more than one document\")")]),
 ]
@@ -104,7 +112,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump"]
+                "--test", "parity_dump", "--test", "behaviour"]
     return ["go", "test", "-count=1", "./..."]
 
 

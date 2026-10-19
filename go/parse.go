@@ -280,7 +280,8 @@ func resolvePlain(s string, out *Node) error {
 }
 
 // prescan refuses on the text alone what the two YAML readers disagree on, before either is
-// asked. It is the same list as the Rust peer, in the same order.
+// asked. It is the same list as the Rust peer, in the same order. One refusal anywhere in the
+// text hides a YAML syntax error anywhere in it.
 func prescan(body string) error {
 	for _, c := range body {
 		if c <= 0x08 || c == 0x0B || c == 0x0C || (c >= 0x0E && c <= 0x1F) || c == 0x7F {
@@ -293,42 +294,23 @@ func prescan(body string) error {
 	if strings.Contains(body, "\uFEFF") {
 		return unsupported("byte order mark inside the text")
 	}
-	if err := scanWords([]rune(body)); err != nil {
-		return err
-	}
-	leading := true
-	for _, line := range strings.FieldsFunc(body, func(r rune) bool { return r == '\n' || r == '\r' }) {
-		if strings.HasPrefix(line, "%") {
-			return unsupported("directive")
-		}
-		t := strings.TrimLeft(line, " ")
-		marker := ""
-		for _, m := range []string{"---", "..."} {
-			if rest, ok := strings.CutPrefix(t, m); ok && (rest == "" || rest[0] == ' ') {
-				marker = m
-				break
-			}
-		}
-		if marker != "" && (marker == "..." || len(t) != len(line) || !leading) {
-			return unsupported("document marker")
-		}
-		if !(t == "" || t[0] == '#') {
-			leading = false
-		}
-	}
-	return nil
+	return scanWords([]rune(body))
 }
 
 // scanWords refuses a word that starts with `!`, `&` or `*`, or a `?` that is not the emitter's
 // explicit key: a tag, an anchor, an alias or an explicit key. The readers do not agree on the odd
 // spellings of these (yaml.v3 drops a bare `!` and reads the value as if it were not there). A
-// comment that touches a closing `]` or `}` is refused too. Quoted scalars, comments and block
-// scalar content are skipped: the words there are text. It is the Rust peer's scan_words.
+// comment that touches a closing `]` or `}` is refused too. Directive lines and document markers
+// (`---` other than the first content line, `...`, indented either way) are refused as lines.
+// Quoted scalars, comments and block scalar content are skipped: the words and lines there are
+// text, `---` and `...` among them. It is the Rust peer's scan_words.
 func scanWords(c []rune) error {
 	var quote rune
 	block := -1
 	lineStart := true
 	var indent int
+	// No content line has been seen yet: the one place a `---` is the start of the document.
+	leading := true
 	// Depth of the flow collections: `[`, `{` and `,` only separate words inside one (`a[&` is one
 	// plain scalar in block context).
 	flow := 0
@@ -350,6 +332,9 @@ func scanWords(c []rune) error {
 					continue
 				}
 				block = -1
+			}
+			if err := checkLine(c, i, indent, quote != 0, &leading); err != nil {
+				return err
 			}
 		}
 		ch := c[i]
@@ -413,6 +398,37 @@ func scanWords(c []rune) error {
 			}
 		}
 		i++
+	}
+	return nil
+}
+
+// checkLine: a line that is not inside a block scalar: a directive, or a document marker. Inside a
+// quoted scalar only a marker at the start of the line counts (the spec ends the document there,
+// the readers disagree on what they make of it); an indented `---` or `...` is text.
+func checkLine(c []rune, i, indent int, quoted bool, leading *bool) error {
+	if !quoted && c[i] == '%' {
+		return unsupported("directive")
+	}
+	at := i + indent
+	marker := ""
+	for _, m := range []string{"---", "..."} {
+		if strings.HasPrefix(string(c[at:min(at+3, len(c))]), m) &&
+			(at+3 >= len(c) || c[at+3] == ' ' || c[at+3] == '\n' || c[at+3] == '\r') {
+			marker = m
+			break
+		}
+	}
+	if marker != "" {
+		refused := marker == "..." || indent > 0 || !*leading
+		if quoted {
+			refused = indent == 0
+		}
+		if refused {
+			return unsupported("document marker")
+		}
+	}
+	if !quoted && at < len(c) && c[at] != '\n' && c[at] != '\r' && c[at] != '#' {
+		*leading = false
 	}
 	return nil
 }

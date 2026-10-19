@@ -466,3 +466,153 @@ func TestTheLowestWritableNameCharacterAndTheLastUnwritableOne(t *testing.T) {
 		t.Errorf("U+0020 is writable: %q", got)
 	}
 }
+
+func classOf(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	switch kindOf(err) {
+	case forms.ErrSyntax:
+		return "syntax"
+	case forms.ErrUnsupported:
+		return "unsupported"
+	case forms.ErrContract:
+		return "contract"
+	case forms.ErrLimit:
+		return "limit"
+	}
+	return "other"
+}
+
+func classOfText(text string) string {
+	_, err := forms.Parse(text)
+	return classOf(err)
+}
+
+func firstString(t *testing.T, text string) string {
+	t.Helper()
+	n := mustParse(t, text)
+	if n.Kind != forms.KindMap || n.Entries[0].Value.Kind != forms.KindStr {
+		t.Fatalf("%q: %+v", text, n)
+	}
+	return n.Entries[0].Value.Str
+}
+
+// ---, ... and % inside a block or a quoted scalar are text, not a document marker or a
+// directive. The expected values are the YAML 1.2 ones, not "what the other language gives".
+func TestMarkerLikeTextInsideScalarsIsContent(t *testing.T) {
+	for text, want := range map[string]string{
+		"a: |\n  ---\n  ...\n":     "---\n...\n",
+		"a: >\n  x\n  ---\n  y\n":  "x --- y\n",
+		"a: |+\n  ...\n\n":         "...\n\n",
+		"a: |\n  %YAML 1.2\n":      "%YAML 1.2\n",
+		"a: \"x\n  ---\n  ...\"\n": "x --- ...",
+		"a: 'x\n  ---\n  ...'\n":   "x --- ...",
+		"a: \"x\n  --- y\"\n":      "x --- y",
+		"a: 'x\n  ... y'\n":        "x ... y",
+		"a: \"---\"\n":             "---",
+		"a: '...'\n":               "...",
+	} {
+		if got := firstString(t, text); got != want {
+			t.Errorf("%q: %q, want %q", text, got, want)
+		}
+	}
+	// The leading marker of a document is allowed, after comments and blank lines too.
+	for _, text := range []string{"---\na: 1\n", "# c\n\n---\na: 1\n", "--- \na: 1\n"} {
+		if got := classOfText(text); got != "ok" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}
+
+// A marker or a directive anywhere else is refused: ..., a second ---, an indented one, one at the
+// start of a line inside a quoted scalar, one that ends a block scalar.
+func TestMarkersAndDirectivesOutsideContentAreRefused(t *testing.T) {
+	for _, text := range []string{
+		"a: x\n  ---\n",
+		"a: |\n  x\n---\n",
+		"a: |\n  x\n...\n",
+		"a: \"x\n---\n  y\"\n",
+		"a: 'x\n...\n  y'\n",
+		"a: \"x\n--- y\"\n",
+		"a: 1\n---\nb: 2\n",
+		"---\n---\n",
+		"a: 1\n...\n",
+		"  ---\n",
+		"%YAML 1.2\n---\na: 1\n",
+		"a: 1\n%TAG ! x\n",
+	} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}
+
+// The order in which the problems of a text are reported, whatever else the text holds:
+// 1. a size over the limit; 2. U+0085, U+2028, U+2029; 3. the text scan, which comes before the YAML
+// reader: control characters, tabs, a BOM inside the text, then in text order directives, document
+// markers, tags, anchors, aliases, explicit keys, a comment against ] or }: one of these anywhere
+// hides a YAML syntax error anywhere; 4. a YAML syntax error anywhere, which beats everything below;
+// 5. a second document; 6. the first in document order of an unsupported construct, a duplicate key
+// and a node or depth limit. The Rust peer has the same test.
+func TestTheOrderInWhichProblemsAreReportedIsFixed(t *testing.T) {
+	_, err := forms.ParseWith("a: [\n", forms.Limits{MaxBytes: 4, MaxDepth: 64, MaxNodes: 100})
+	if classOf(err) != "limit" {
+		t.Errorf("size: %v", err)
+	}
+	_, err = forms.ParseWith("a: [\n\u0085", forms.Limits{MaxBytes: 4, MaxDepth: 64, MaxNodes: 100})
+	if classOf(err) != "limit" {
+		t.Errorf("size before separator: %v", err)
+	}
+	if got := classOfText("a: [\u0085\n"); got != "unsupported" {
+		t.Errorf("separator: %s", got)
+	}
+	for _, text := range []string{
+		"a: 1\ta\nb: [\n",
+		"b: [\na: \t1\n",
+		"a: \x01\nb: [\n",
+		"b: [\na: \x01\n",
+		"a: !x\nb: [\n",
+		"b: [\na: !x\n",
+		"a: *x\nb: [\n",
+		"a: [? c]\nb: [\n",
+		"%YAML 1.2\nb: [\n",
+		"b: [\n%YAML 1.2\n",
+		"a: 1\n---\nb: [\n",
+		"b: [\n---\n",
+		"b: [\n...\n",
+	} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	for _, text := range []string{
+		"a: 1.5\nb: [\n",
+		"b: [\na: 1.5\n",
+		"a: 0o7\nb: ]\n",
+		"a: 1\na: 2\nb: [\n",
+		"b: [\na: 1\na: 2\n",
+		"<<: 1\nb: [\n",
+		"[a]: 1\nb: [\n",
+	} {
+		if got := classOfText(text); got != "syntax" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	one := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 1}
+	if _, err := forms.ParseWith("a: 1\nb: [\n", one); classOf(err) != "syntax" {
+		t.Errorf("nodes and syntax: %v", err)
+	}
+	if _, err := forms.ParseWith("a: 1\nb: 2\n", one); classOf(err) != "limit" {
+		t.Errorf("nodes: %v", err)
+	}
+	if got := classOfText("a: 1.5\na: 2\n"); got != "unsupported" {
+		t.Errorf("first problem: %s", got)
+	}
+	if got := classOfText("a: 1\na: 2\nb: 1.5\n"); got != "contract" {
+		t.Errorf("first problem: %s", got)
+	}
+	if got := classOfText("a: 1\na: 2\n"); got != "contract" {
+		t.Errorf("duplicate: %s", got)
+	}
+}

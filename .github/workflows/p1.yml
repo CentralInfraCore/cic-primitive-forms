@@ -256,3 +256,5 @@ jobs:
           (cd rust && PARITY_IN="$P/in.hex" PARITY_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_dump)
           (cd go && PARITY_IN="$P/in.hex" PARITY_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpParseOutcomes$' .)
           python3 tools/parity/compare.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" --show 5 --allow testdata/p1/parity-known.txt
+          # A gate that cannot fail proves nothing: break the outputs in the ways that must turn it red.
+          python3 tools/parity/selftest.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" testdata/p1/parity-known.txt

@@ -480,3 +480,130 @@ fn a_syntax_error_after_a_duplicate_key_wins_in_both_languages() {
         other => panic!("{other:?}"),
     }
 }
+
+fn class_of(r: Result<Node, Error>) -> &'static str {
+    match r {
+        Ok(_) => "ok",
+        Err(Error::Syntax(_)) => "syntax",
+        Err(Error::Unsupported(_)) => "unsupported",
+        Err(Error::Contract(_)) => "contract",
+        Err(Error::Limit(_)) => "limit",
+        Err(_) => "other",
+    }
+}
+
+fn first_string(text: &str) -> String {
+    let n = parse(text).unwrap_or_else(|e| panic!("{text:?}: {e:?}"));
+    let Value::Map(entries) = &n.value else {
+        panic!("{text:?}: not a mapping")
+    };
+    match &entries[0].value.value {
+        Value::Str(s) => s.clone(),
+        other => panic!("{text:?}: {other:?}"),
+    }
+}
+
+/// `---`, `...` and `%` inside a block or a quoted scalar are text, not a document marker or a
+/// directive. The expected values are the YAML 1.2 ones, not "what the other language gives".
+#[test]
+fn marker_like_text_inside_scalars_is_content() {
+    for (text, want) in [
+        ("a: |\n  ---\n  ...\n", "---\n...\n"),
+        ("a: >\n  x\n  ---\n  y\n", "x --- y\n"),
+        ("a: |+\n  ...\n\n", "...\n\n"),
+        ("a: |\n  %YAML 1.2\n", "%YAML 1.2\n"),
+        ("a: \"x\n  ---\n  ...\"\n", "x --- ..."),
+        ("a: 'x\n  ---\n  ...'\n", "x --- ..."),
+        ("a: \"x\n  --- y\"\n", "x --- y"),
+        ("a: 'x\n  ... y'\n", "x ... y"),
+        ("a: \"---\"\n", "---"),
+        ("a: '...'\n", "..."),
+    ] {
+        assert_eq!(first_string(text), want, "{text:?}");
+    }
+    // The leading marker of a document is allowed, after comments and blank lines too.
+    for text in ["---\na: 1\n", "# c\n\n---\na: 1\n", "--- \na: 1\n"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+}
+
+/// A marker or a directive anywhere else is refused: `...`, a second `---`, an indented one, one
+/// at the start of a line inside a quoted scalar, one that ends a block scalar.
+#[test]
+fn markers_and_directives_outside_content_are_refused() {
+    for text in [
+        "a: x\n  ---\n",
+        "a: |\n  x\n---\n",
+        "a: |\n  x\n...\n",
+        "a: \"x\n---\n  y\"\n",
+        "a: 'x\n...\n  y'\n",
+        "a: \"x\n--- y\"\n",
+        "a: 1\n---\nb: 2\n",
+        "---\n---\n",
+        "a: 1\n...\n",
+        "  ---\n",
+        "%YAML 1.2\n---\na: 1\n",
+        "a: 1\n%TAG ! x\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+}
+
+// The order in which the problems of a text are reported, whatever else the text holds:
+// 1. a size over the limit; 2. U+0085, U+2028, U+2029; 3. the text scan, which comes before the YAML
+// reader: control characters, tabs, a BOM inside the text, then in text order directives, document
+// markers, tags, anchors, aliases, explicit keys, a comment against `]`/`}`: one of these anywhere
+// hides a YAML syntax error anywhere; 4. a YAML syntax error anywhere, which beats everything below;
+// 5. a second document; 6. the first in document order of an unsupported construct, a duplicate key
+// and a node or depth limit.
+#[test]
+fn the_order_in_which_problems_are_reported_is_fixed() {
+    let tiny = Limits {
+        max_bytes: 4,
+        ..Limits::default()
+    };
+    assert_eq!(class_of(parse_with("a: [\n", tiny)), "limit");
+    assert_eq!(class_of(parse_with("a: [\n\u{85}", tiny)), "limit");
+    // 2.
+    assert_eq!(class_of(parse("a: [\u{85}\n")), "unsupported");
+    // 3, with the syntax error after and before.
+    for text in [
+        "a: 1\ta\nb: [\n",
+        "b: [\na: \t1\n",
+        "a: \u{1}\nb: [\n",
+        "b: [\na: \u{1}\n",
+        "a: !x\nb: [\n",
+        "b: [\na: !x\n",
+        "a: *x\nb: [\n",
+        "a: [? c]\nb: [\n",
+        "%YAML 1.2\nb: [\n",
+        "b: [\n%YAML 1.2\n",
+        "a: 1\n---\nb: [\n",
+        "b: [\n---\n",
+        "b: [\n...\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+    // 4: a syntax error beats the tree-level problems, wherever they are.
+    for text in [
+        "a: 1.5\nb: [\n",
+        "b: [\na: 1.5\n",
+        "a: 0o7\nb: ]\n",
+        "a: 1\na: 2\nb: [\n",
+        "b: [\na: 1\na: 2\n",
+        "<<: 1\nb: [\n",
+        "[a]: 1\nb: [\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "syntax", "{text:?}");
+    }
+    let one = Limits {
+        max_nodes: 1,
+        ..Limits::default()
+    };
+    assert_eq!(class_of(parse_with("a: 1\nb: [\n", one)), "syntax");
+    assert_eq!(class_of(parse_with("a: 1\nb: 2\n", one)), "limit");
+    // 6: the first in document order.
+    assert_eq!(class_of(parse("a: 1.5\na: 2\n")), "unsupported");
+    assert_eq!(class_of(parse("a: 1\na: 2\nb: 1.5\n")), "contract");
+    assert_eq!(class_of(parse("a: 1\na: 2\n")), "contract");
+}
