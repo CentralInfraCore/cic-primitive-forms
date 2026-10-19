@@ -1,26 +1,0 @@
-a:$t: |
- : |
-  line1
-  li0o2li0o2 le1
-  line2
-f: >f: > line1
-  f: ><
-f: > line1
-  l|
-  line1
-  line2
-f: > le1
-  line2
-f: >f: > line2
-  f: > le1
-  line2
-f: >f: > line1
-  f: ><
-f: > line1
-  l|
-  line1
-  line2
-f: > le1
-  line2
-f: >f: > line2
-  f: ><
