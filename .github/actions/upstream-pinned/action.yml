@@ -9,7 +9,8 @@ runs:
   steps:
     - id: pin
       shell: bash
-      run: echo "commit=$(sed -n 's/^    commit: //p' corpus/pins.yaml | head -1)" >> "$GITHUB_OUTPUT"
+      run: |
+        echo "commit=$(sed -n 's/^    commit: //p' corpus/pins.yaml | head -1)" >> "$GITHUB_OUTPUT"
     - uses: actions/checkout@v4
       with:
         repository: CentralInfraCore/cic-primitives
