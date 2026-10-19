@@ -59,6 +59,7 @@ func TestTheChecksBehindThePrescanStillRefuse(t *testing.T) {
 		"!!seq [a]\n":       "tag",
 		"a: 1\n---\nb: 2\n": "more than one document",
 		"? [a]\n: b\n":      "non-scalar mapping key",
+		"&k a: 1\n":         "anchor",
 	} {
 		_, err := read(text, 0, DefaultLimits())
 		fe, ok := err.(*Error)

@@ -393,12 +393,6 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
         }
         let prev = if i == 0 { '\n' } else { c[i - 1] };
         let word = starts_scalar(c, i, flow);
-        if ch == '#' && "\n\r ".contains(prev) {
-            while i < c.len() && c[i] != '\n' && c[i] != '\r' {
-                i += 1;
-            }
-            continue;
-        }
         if ch == '#' && (prev == ']' || prev == '}') {
             return Err(Error::Unsupported(
                 "comment without a space before it".into(),
@@ -764,6 +758,7 @@ mod tests {
             ("!!seq [a]\n", "tag"),
             ("a: 1\n---\nb: 2\n", "more than one document"),
             ("? [a]\n: b\n", "non-scalar mapping key"),
+            ("&k a: 1\n", "anchor"),
         ] {
             match read(text, 0, Limits::default()) {
                 Err(Error::Unsupported(m)) => assert!(m.contains(what), "{text:?}: {m}"),

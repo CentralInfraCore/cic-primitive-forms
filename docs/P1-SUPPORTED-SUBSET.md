@@ -159,12 +159,12 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-* the 480 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+* the 494 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
   the complete outcome of `parse` (the tree with the position of every node and key, or the contract
   violation, or the refusal) is pinned and read by both languages.
 
 **Not claimed:** general parity of the two parsers. The differential found real differences (below), the
-closed ones have a pinned regression case each, and 12 hand-picked open ones (flow-context spellings
+closed ones have a pinned regression case each, and 13 hand-picked open ones (flow-context spellings
 that saphyr reads and yaml.v3 refuses, or the reverse) are pinned with both outcomes and a test that
 fails when one of them stops being a difference. The error *code* of a refusal may differ
 (`YAML_SYNTAX` against `UNSUPPORTED_SYNTAX` is the same refusal for a different reason); that a text is
@@ -184,7 +184,7 @@ different trees or positions, a contract error against anything else, is a diver
 | | divergent inputs of 30 005 |
 |---|---|
 | before (main, `2c58713`) | 3 134 in 12 groups |
-| after | 274 in 5 groups, all in the open classes below (240 hold a flow collection or a quote followed by `#`, 34 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
+| after | 326 in 4 groups, all in the open classes below (271 hold a flow collection or a quote followed by `#`, 55 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 13 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
 
 What the differential found and what was done about it (each has pinned cases in `parity.json`):
 
@@ -242,12 +242,10 @@ libraries disagreeing on what YAML 1.2 allows in flow context; the narrowing tha
 scan in `scan_words`) is not done, and nothing in the repository's schemas, vectors or emitter output
 uses these spellings.
 
-Gate numbers of the parity work, measured on `parse.rs` and `parse.go` only (the whole-crate numbers
-are the CI `quality` job's): mutation Rust, one survivor among the viable mutants (`read`, `docs > 1`,
-equivalent because the check after the loop gives the same answer; time-outs count as detected),
-mutation Go 95.48% (444 of 465 mutants detected, the rest equivalent index and bound mutants or
-initialisations); line coverage Rust 98.3%, Go 99.3% (whole crate and module, before the last test
-additions). 33 seeded defects, 15 of them for this work, all caught. The property
+The gate numbers of the parity work are the rows of "Quality gates" below. Line coverage and mutation were
+also measured on `parse.rs` and `parse.go` alone: Rust one survivor among the viable mutants (`read`, `docs > 1`,
+equivalent because the check after the loop gives the same answer; time-outs count as detected), Go 95.48% (444 of
+465). 33 seeded defects, 15 of them for this work, all caught. The property
 tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
 scan took for an anchor and an alias), both fixed and pinned. The fuzz job found a third (a key past 512 characters that starts with `-` or `:` is
 emitted as `? -kkk…`, which the explicit-key rule refused): fixed, with a regression test in each language.
@@ -264,14 +262,14 @@ green, a fix) and requires the right verdict, in the same job. `make_corpus.py` 
 ## Quality gates (docs/PHASES.md, "Quality gates")
 
 All on the product code of this slice (`rust/src`, `go/*.go` without tests), strictly above 90%,
-failing closed, in workflow `p1`. Numbers are from the final code on the development machine; CI
-prints the same table.
+failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 (jobs `quality` and `branch-coverage`
+at `9bf7d1aa`; the product code has not changed since), on all of `rust/src` and `go/*.go`, not only on the parser.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
-| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 99.23% (908/915) | 100.00% (478/478) |
-| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.70% (426/436) | 100.00% (481/481) |
-| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 100.00% (227 caught, 0 missed, 23 unviable) | 98.40% (493 killed, 8 survived) |
+| Line coverage | `cargo-llvm-cov` 0.9.1 / `go test -cover` (statements: Go has no line metric) | 98.69% (1283/1300) | 99.83% (603/604) |
+| Branch coverage (`cic-branch/1`, ADR 0009) | `rustbranch` / `gobranch` | 97.29% (647/665) | 99.73% (742/744) |
+| Mutation score | `cargo-mutants` 27.1.0 / `go-mutesting` v0.0.0-20261002081621-9ce5f731e321 | 99.77% (443 caught, 1 missed) | 96.01% (795 killed, 33 survived) |
 | Property tests | `proptest` / `rapid` | 14 properties, 512 cases each | the same properties (13 tests: "no value is a valid mode in both grammars" is part of the type-preservation test), 1000 cases |
 | Fuzzing | `cargo-fuzz` 0.13.2 / native `go test -fuzz` | targets `parse`, `validate` and `access`, 60 s each in CI | `FuzzParse`, `FuzzValidate` and `FuzzAccess`, 60 s each in CI |
 | Corpus parity | the shared corpus runners | 31 of 31 `recognize`, 29 of 29 presence and 21 of 21 inheritance `validate` | the same |
@@ -280,12 +278,26 @@ prints the same table.
 seeded faults, one per reason (`REPORT_MISSING`, `REPORT_FORMAT`, `MEASUREMENT_EMPTY`,
 `BELOW_THRESHOLD`, exactly 90% is red).
 
-**The eight Go survivors are equivalent mutants**, none is a missed behaviour: an end-of-input clamp
-that returns the same line (`line >= len`), a CRLF look-ahead whose only difference is a line start
-nothing can refer to, an assignment of the zero value (`out.Kind = KindNull`), an operand that is always false for the segments it
-guards, the value that is returned next to an error (`return -1` instead of `return 0` where the caller never reads it),
-the numeric value of the `ModeInvalid` sentinel (every test compares against the name, not the number) and the early
-`return nil` of a lookup in a node that has no entries.
+**The 33 Go survivors at `9bf7d1aa`** (795 of 828 mutants killed; the CI count, reproduced exactly by
+`go-mutesting ./...` on the development machine): 7 in `access.go`, `emit.go` and `recognize.go`, 26 in `parse.go`.
+
+*Equivalent* (the behaviour cannot differ): an end-of-input clamp that returns the same line (`line >= len`); a CRLF
+look-ahead whose only difference is a line start nothing can refer to; an assignment of the zero value
+(`out.Kind = KindNull`); the value returned next to an error that the caller never reads (`UNKNOWN_GRAMMAR_VERSION`,
+two mutants); the numeric value of the `ModeInvalid` sentinel; the early `return nil` of a lookup in a node that has no
+entries; an operand that is always false for the segments it guards (`s.isIdx`); the control-character exclusion of
+`plainSafe` in `emit.go` (two mutants), now redundant because `Parse` refuses control characters and tabs and folds line
+breaks, which the round trip it is defined by sees; in `parse.go` the "no block" sentinel `-1` against `-2`, a slice end
+equal to its start, the `break` against `continue` of a loop over two candidates that exclude each other, the look-ahead
+for `''` at the end of an unterminated string, and the leading flag set inside a quoted scalar (already false there).
+
+*Not equivalent*, found by this classification and covered since: the end of a block scalar (the lines after it were
+scanned as content), the boundaries of the marker check (a marker at the very end of the text, `---x`, ` ---`), of the
+explicit-key check (`? x`, `? -`, `? -x` at the end of the text), a `&` followed by a lone CR, a `%` at the start of a line
+inside a quoted scalar, and the key anchor behind the scan. Tests: `the_edges_of_the_text_scan_give_the_yaml_answer` in
+each language, the corpus cases for them, `the_checks_behind_the_prescan_still_refuse`. The comment skip of
+`scan_words` was redundant (a word after text is never a scalar start) and is gone with its mutants. The CI numbers in
+the table are refreshed from the run of the commit that carries these tests.
 
 **What each property checks** (Rust and Go identically): emit then parse gives back the value for any
 value of the subset including any string and key (long ones too); emit is a fixed point under parse;
@@ -300,13 +312,15 @@ and that reading an `access`/`modify` value and an `InheritanceMode` under both 
 
 | Gate | Seeded fault | Result |
 |---|---|---|
-| Line coverage | only the subset test runs | Rust 41.72% (378/906), Go 21.34% (102/478), both `BELOW_THRESHOLD`; reproduced in CI |
+| Line coverage | only the subset test runs | Rust 50.80% (601/1183), Go 32.78% (198/604), both `BELOW_THRESHOLD`; reproduced in CI |
 | Mutation score | `recognize` is mutated, only tests that do not use it run | Rust 0.00% (0/23), Go 23.53% (16/68), both `BELOW_THRESHOLD`; reproduced in CI |
-| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 50.22% (219/436), Go 0.00% (0/481), both `BELOW_THRESHOLD`; reproduced in CI |
+| Branch coverage | Rust runs only the behaviour tests, Go runs one test | Rust 63.00% (419/665), Go 0.00% (0/744), both `BELOW_THRESHOLD`; reproduced in CI |
 | Quality gate script | 21 faults | every reason turns it red (`quality_gate.py selftest`, CI) |
 | Property tests | a seeded bug in `emit` (backslash not escaped), by hand, in both languages | all three round-trip properties fail with a minimal counterexample; not reproduced in CI |
 | Fuzz job | a committed input starting with `CANARY` fails each of the six targets when `CIC_FUZZ_CANARY` is set | red with the switch, green without; reproduced in CI |
 | Seeded defects (`tools/seeded_defects.py`) | 18 deliberate defects in the access reading (7 in Rust, 11 in Go; the Go set adds an unbound `Grammar` read or written as grammar 2, an invalid `Mode` written as `reset`, and a caller-changeable supported-version set): `0` coerced to `false`, a missing version silently defaulting to 1, the pin used without verifying its digest, a string without `=` accepted as a CertPattern, the empty list read as the symbol, grammar 2 accepting the legacy boolean, a violation dropping its position | every defect is caught by the suites (the unmodified copy passes first); reproduced in CI (job `seeded-defects`) |
+| Seeded defects for the parser parity (same script) | 15 more, 9 in Rust and 6 in Go: the last non-syntax error reported instead of the first, a block sequence or scalar located at its first item or content line, a word starting with `!` not refused, a tab accepted, a block scalar without content accepted, an empty implicit key read as `~`, the content of a block scalar scanned for markers, an indented marker inside a quoted scalar taken for a document marker, a syntax error in a second document reported as a second document | all 33 defects of the script are caught; reproduced in CI (job `seeded-defects`) |
+| Parity gate (`tools/parity/selftest.py`) | 25 breaks of the real outputs: a known divergence answering differently on one side or both, an allow line removed, an agreeing input that now differs, an unknown error code or `NOT_AN_ERROR_TYPE` on one side or both (also identical on both, also for an allowed input), and ten malformed outcome structures; and one that must stay green (a fix) | each turns the gate red with its word (`CHANGED`, `NEW`, `INVALID`), the fix stays green; reproduced in CI (job `parity`) |
 | Performance of duplicate keys | the previous linear scan put back by hand (Go) | 16.9 s against a 5 s bound; not reproduced in CI |
 
 ## What these gates found (all fixed, with a regression test or a vector each)

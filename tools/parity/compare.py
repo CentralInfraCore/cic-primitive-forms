@@ -10,6 +10,13 @@ that is not in the file is NEW, and either makes the exit status 1. An allowed i
 is reported and is not an error (a fix is not a failure; drop the line). --emit-allow writes the divergent
 inputs of this run in that format.
 
+Before anything is compared, every outcome of both sides is checked against the dump format: the structure
+(`ok` with a tree, or `err` with a known code and, for CONTRACT, its violations) and the error code. An
+outcome that is not in the format, or whose code is not one the parsers can answer with (NOT_AN_ERROR_TYPE, which
+is the Go dump's own signal that something other than a parser error came back, is one), is INVALID and the exit
+status is 1, on either side, also when both sides give the same invalid outcome, also for an allowed input: it is a
+fault of the harness or of a parser, not an answer to compare.
+
 Classes of agreement:
   same        identical outcomes (accepted: the same tree with the same positions; contract error: the same
               violations; refused: the same code)
@@ -25,6 +32,76 @@ import json
 import sys
 
 NONCONTRACT = {"YAML_SYNTAX", "UNSUPPORTED_SYNTAX", "LIMIT_EXCEEDED", "INVALID_UTF8"}
+KNOWN_ERRORS = NONCONTRACT | {"CONTRACT"}
+# The one violation parse can report (anchored at the second occurrence of a key), in the parse phase.
+PARSE_VIOLATIONS = {("DUPLICATE_KEY", "parse")}
+SCALARS = {"null", "bool", "int", "str", "seq", "map"}
+
+
+def _int(x):
+    return isinstance(x, int) and not isinstance(x, bool)
+
+
+def _pos(p):
+    return p is None or (isinstance(p, list) and len(p) == 3 and all(_int(x) for x in p) and p[0] >= 1 and p[1] >= 1 and p[2] >= 0)
+
+
+def _node(n):
+    """A reason when `n` is not a tree node of the dump format, else None."""
+    if not isinstance(n, dict) or set(n) != {"n", "p"}:
+        return "a node is not {n, p}"
+    if not _pos(n["p"]):
+        return "a node position is not null or [line, column, offset]"
+    v = n["n"]
+    if not isinstance(v, dict) or v.get("t") not in SCALARS:
+        return "a node has an unknown type"
+    t = v["t"]
+    if t == "null":
+        return None if set(v) == {"t"} else "a null node has a value"
+    if set(v) != {"t", "v"}:
+        return "a %s node has no value or has more than one" % t
+    x = v["v"]
+    if t == "bool":
+        return None if isinstance(x, bool) else "a bool node holds a non-bool"
+    if t == "int":
+        return None if _int(x) else "an int node holds a non-int"
+    if t == "str":
+        return None if isinstance(x, str) else "a str node holds a non-string"
+    if not isinstance(x, list):
+        return "a %s node holds a non-list" % t
+    for item in x:
+        if t == "seq":
+            r = _node(item)
+        elif not (isinstance(item, list) and len(item) == 3 and isinstance(item[0], str) and _pos(item[1])):
+            r = "a map entry is not [key, key position, node]"
+        else:
+            r = _node(item[2])
+        if r:
+            return r
+    return None
+
+
+def invalid(o):
+    """Why `o` is not an outcome of the dump format, or None."""
+    if not isinstance(o, dict):
+        return "not an object"
+    if set(o) == {"ok"}:
+        return _node(o["ok"])
+    if "err" not in o or "ok" in o:
+        return "neither exactly ok nor err"
+    code = o["err"]
+    if code not in KNOWN_ERRORS:
+        return "unknown error code %r" % (code,)
+    if code != "CONTRACT":
+        return None if set(o) == {"err"} else "extra keys next to the error code"
+    viol = o.get("viol")
+    if set(o) != {"err", "viol"} or not isinstance(viol, list) or not viol:
+        return "CONTRACT without violations"
+    for v in viol:
+        if not (isinstance(v, dict) and set(v) == {"code", "phase", "loc"} and (v["code"], v["phase"]) in PARSE_VIOLATIONS
+                and _pos(v["loc"])):
+            return "a violation is not a parse-phase one of the registry"
+    return None
 
 
 def digest(r, g):
@@ -85,6 +162,12 @@ def main():
     if not (len(ins) == len(rs) == len(gs)):
         print("FAIL: %d inputs, %d Rust outcomes, %d Go outcomes" % (len(ins), len(rs), len(gs)))
         return 2
+    bad = [(side, i, why) for side, outs in (("rust", rs), ("go", gs)) for i, o in enumerate(outs) if (why := invalid(o))]
+    if bad:
+        print("INVALID OUTCOMES: %d (the dump of a parser, or the harness, is faulty; nothing is compared)" % len(bad))
+        for side, i, why in bad[: a.show or 5]:
+            print("   %s: %r -> %s: %s" % (side, ins[i].decode("utf-8", "backslashreplace")[:60], json.dumps((rs if side == "rust" else gs)[i])[:100], why))
+        return 1
     counts = collections.Counter()
     div = collections.defaultdict(list)
     for i, (b, r, g) in enumerate(zip(ins, rs, gs)):

@@ -631,3 +631,38 @@ func TestALongKeyThatStartsWithAnIndicatorReadsBack(t *testing.T) {
 		}
 	}
 }
+
+// Boundaries of the marker, explicit-key and block-end checks, with the YAML 1.2 answer for each.
+// The Rust peer has the same test.
+func TestTheEdgesOfTheTextScanGiveTheYamlAnswer(t *testing.T) {
+	reason := func(text string) string {
+		_, err := forms.Parse(text)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+			t.Fatalf("%q: %v", text, err)
+		}
+		return fe.Detail
+	}
+	// A marker is --- or ... followed by a blank or the end of the text, nothing else.
+	for text, want := range map[string]string{
+		"a: 1\n---": "document marker",
+		"a: 1\n...": "document marker",
+		" ---\n":    "document marker",
+		"k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n": "explicit mapping key",
+	} {
+		if got := reason(text); got != want {
+			t.Errorf("%q: %q, want %q", text, got, want)
+		}
+	}
+	// The emitter's explicit key, at the end of the text and with a first character that is an indicator.
+	for _, text := range []string{"---x", "x\n...y", "? x", "? -x", "? :x", "a: 1 # [? c]\n", "# [? c]\na: 1\n", "a: |\n  x\n  # [? c]\nb: 1\n"} {
+		if got := classOfText(text); got != "ok" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+	for _, text := range []string{"? -", "? :", "? - x", "? : x", "? ?x"} {
+		if got := classOfText(text); got != "unsupported" {
+			t.Errorf("%q: %s", text, got)
+		}
+	}
+}

@@ -624,3 +624,39 @@ fn a_long_key_that_starts_with_an_indicator_reads_back() {
         assert!(back.same(&n), "{first:?}");
     }
 }
+
+/// Boundaries of the marker, explicit-key and block-end checks, with the YAML 1.2 answer for each.
+#[test]
+fn the_edges_of_the_text_scan_give_the_yaml_answer() {
+    let reason = |t: &str| match parse(t) {
+        Err(Error::Unsupported(m)) => m,
+        other => panic!("{t:?}: {other:?}"),
+    };
+    // A marker is `---` or `...` followed by a blank or the end of the text, nothing else.
+    assert_eq!(reason("a: 1\n---"), "document marker");
+    assert_eq!(reason("a: 1\n..."), "document marker");
+    assert_eq!(reason(" ---\n"), "document marker");
+    for text in ["---x", "x\n...y"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+    // The emitter's explicit key, at the end of the text and with a first character that is an indicator.
+    for text in ["? x", "? -x", "? :x"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+    for text in ["? -", "? :", "? - x", "? : x", "? ?x"] {
+        assert_eq!(class_of(parse(text)), "unsupported", "{text:?}");
+    }
+    // After a block scalar ends, the lines that follow are scanned again.
+    assert_eq!(
+        reason("k:\n  a: |\n    x\n  b: 1\n  c: [? q]\n"),
+        "explicit mapping key"
+    );
+    // Text in a comment is text.
+    for text in [
+        "a: 1 # [? c]\n",
+        "# [? c]\na: 1\n",
+        "a: |\n  x\n  # [? c]\nb: 1\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+}

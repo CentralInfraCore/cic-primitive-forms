@@ -8,6 +8,8 @@ temporary copy. Each break must make compare.py exit 1 with the right word in it
 
   CHANGED   a known divergence whose Go outcome (or Rust outcome) is another one than the allowed one
   NEW       a divergence that is not in the allow list (an allow line removed; an agreeing input made to differ)
+  INVALID   an outcome that is not in the dump format or carries an error code the parsers cannot answer with,
+            on one side or on both (also the same on both, also for an allowed input)
 And two that must stay green: an allowed input that stopped diverging (a fix), and the unbroken run.
 """
 import json
@@ -28,7 +30,7 @@ def alt(o):
     """Another answer of the same kind: a different tree for an accepted text, a contract error for a refusal."""
     if "ok" in o:
         return {"ok": {"n": {"t": "str", "v": "tampered"}, "p": [1, 1, 0]}}
-    return {"err": "CONTRACT", "viol": []}
+    return {"err": "CONTRACT", "viol": [{"code": "DUPLICATE_KEY", "phase": "parse", "loc": [1, 1, 0]}]}
 
 
 def run(inputs, rust, go, allow):
@@ -82,6 +84,28 @@ def main():
     j = agree[0]
     case("an input that agreed now diverges", 1, "NEW", go_o={j: alt(gs[j])})
     case("an allowed input stops diverging (a fix)", 0, "no longer divergent: 1", go_o={i: rs[i]})
+    # A refusal with a code the parsers cannot answer with, or an outcome that is not in the dump format, is a fault of
+    # the harness or of a parser: red on either side, also when both sides say the same, also for an allowed input.
+    unknown = {"err": "SOMETHING_NEW"}
+    harness = {"err": "NOT_AN_ERROR_TYPE"}
+    for name, bad_outcome in (("an unknown error code", unknown), ("NOT_AN_ERROR_TYPE", harness)):
+        case("%s on both sides, the same, for an agreeing input" % name, 1, "INVALID", go_o={j: bad_outcome}, rust_o={j: bad_outcome})
+        case("%s on the Go side only" % name, 1, "INVALID", go_o={j: bad_outcome})
+        case("%s on the Rust side only" % name, 1, "INVALID", rust_o={j: bad_outcome})
+        case("%s on both sides for an allowed divergence" % name, 1, "INVALID", go_o={i: bad_outcome}, rust_o={i: bad_outcome})
+    for name, bad_outcome in (
+        ("an ok without a position", {"ok": {"n": {"t": "null"}}}),
+        ("an ok node of an unknown type", {"ok": {"n": {"t": "weird"}, "p": None}}),
+        ("an int node that holds a bool", {"ok": {"n": {"t": "int", "v": True}, "p": None}}),
+        ("a position of the wrong length", {"ok": {"n": {"t": "null"}, "p": [1, 2]}}),
+        ("both ok and err", {"ok": {"n": {"t": "null"}, "p": None}, "err": "YAML_SYNTAX"}),
+        ("a CONTRACT without violations", {"err": "CONTRACT"}),
+        ("a CONTRACT with an empty violation list", {"err": "CONTRACT", "viol": []}),
+        ("a violation of another code", {"err": "CONTRACT", "viol": [{"code": "MISSING_MANDATORY", "phase": "parse", "loc": None}]}),
+        ("an extra key next to the code", {"err": "YAML_SYNTAX", "detail": "x"}),
+        ("a line that is not an object", ["err", "YAML_SYNTAX"]),
+    ):
+        case("%s on both sides, the same" % name, 1, "INVALID", go_o={j: bad_outcome}, rust_o={j: bad_outcome})
     print("SELFTEST: %s" % ("every break turns the gate red" if bad == 0 else "FAILED (%d)" % bad))
     return 0 if bad == 0 else 1
 

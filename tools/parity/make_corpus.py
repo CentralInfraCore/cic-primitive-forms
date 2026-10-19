@@ -15,6 +15,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import compare  # noqa: E402
 import gen_inputs  # noqa: E402
 
 
@@ -52,6 +53,10 @@ def main():
     rs = [json.loads(l) for l in open(rust)]
     gs = [json.loads(l) for l in open(go)]
     assert len(ins) == len(rs) == len(gs)
+    for side, outs in (("rust", rs), ("go", gs)):
+        for t, o in zip(ins, outs):
+            why = compare.invalid(o)
+            assert not why, "%s dump of %r is not in the dump format: %s" % (side, t[:60], why)
     cases, known = [], []
     for t, r, g in zip(ins, rs, gs):
         # serde_json refuses to read JSON nested deeper than 128; the deep trees are covered by the limit

@@ -363,12 +363,6 @@ func scanWords(c []rune) error {
 			prev = c[i-1]
 		}
 		word := startsScalar(c, i, flow)
-		if ch == '#' && strings.ContainsRune("\n\r ", prev) {
-			for i < len(c) && c[i] != '\n' && c[i] != '\r' {
-				i++
-			}
-			continue
-		}
 		if ch == '#' && (prev == ']' || prev == '}') {
 			return unsupported("comment without a space before it")
 		}
