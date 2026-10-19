@@ -81,8 +81,8 @@ func TestPositionsFollowADR0007(t *testing.T) {
 		t.Errorf("item %+v", *n.Entries[1].Value.Items[0].Pos)
 	}
 
-	// A lone CR is a line break; a tab is one column.
-	n = mustParse(t, "a: 1\rb: [\tz]\r")
+	// A lone CR is a line break.
+	n = mustParse(t, "a: 1\rb: [ z]\r")
 	if *n.Entries[1].KeyPos != (forms.Pos{Line: 2, Column: 1, Offset: 5}) {
 		t.Errorf("key %+v", *n.Entries[1].KeyPos)
 	}
@@ -337,11 +337,11 @@ func TestALateDuplicateIsStillFoundAndManyKeysDoNotCostQuadraticTime(t *testing.
 	}
 }
 
-// The two parsers do not rank their errors alike: this documents the difference instead of
-// claiming agreement. yaml.v3 reads the whole text before the tree is walked, so a later
-// syntax error wins over an earlier duplicate key; the Rust peer's test of the same name
-// asserts the opposite answer (events in order, the first problem stops).
-func TestDocumentedDivergenceDuplicateKeyBeforeALaterSyntaxError(t *testing.T) {
+// Both parsers rank their errors alike: a syntax error anywhere in the text wins over an
+// earlier duplicate key. yaml.v3 reads the whole text before the tree is walked; the Rust peer
+// keeps the first non-syntax error and goes on scanning (its test of the same name asserts the
+// same answer, and tools/parity compares the two on generated inputs).
+func TestASyntaxErrorAfterADuplicateKeyWinsInBothLanguages(t *testing.T) {
 	_, err := forms.Parse("a: 1\na: 2\nb: [\n")
 	var fe *forms.Error
 	if !errors.As(err, &fe) || fe.Kind != forms.ErrSyntax {

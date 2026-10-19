@@ -9,9 +9,10 @@ copy to pass. Nothing in the repository is modified.
 
     seeded_defects.py rust|go|all
 
-The defects are about the grammar-1 spelling of `inherit`, the version binding, the pin verification and
+The first defects are about the grammar-1 spelling of `inherit`, the version binding, the pin verification and
 the CertPattern reading (cic-primitives D-018, ADR 0004): the places where a wrong implementation looks
-right on the happy path.
+right on the happy path. The last ones are about the parser parity of the two languages (error priority,
+positions, the pre-parse refusals): the shared regression corpus must turn red on each.
 """
 import os
 import shutil
@@ -61,6 +62,29 @@ DEFECTS = [
      [("\tif m < ModeInherit || m > ModeReset {\n\t\treturn nil, unsupported(", "\tif false {\n\t\treturn nil, unsupported(")]),
     ("go", "a caller can change the supported versions", "access.go",
      [("func SupportedGrammars() []int64 { return slices.Clone(supportedGrammars) }", "func SupportedGrammars() []int64 { return supportedGrammars }")]),
+    # Parser parity (docs/P1-SUPPORTED-SUBSET.md, "Parser parity"): the shared regression corpus must turn red.
+    ("rust", "the last non-syntax error is reported, not the first", "src/parse.rs",
+     [("        self.deferred.get_or_insert(e);", "        *self.deferred = Some(e);")]),
+    ("rust", "a block sequence is located at its first item", "src/parse.rs",
+     [("                let at = self.table.dash(at);", "                let at = at;")]),
+    ("rust", "a block scalar is located at its first content line", "src/parse.rs",
+     [("let pos = if block { self.table.indicator(at) } else { at };", "let pos = at;")]),
+    ("rust", "a word starting with ! is not refused", "src/parse.rs",
+     [("'!' => return Err(Error::Unsupported(\"tag\".into())),", "'!' => {}")]),
+    ("rust", "a tab is accepted", "src/parse.rs",
+     [("    if body.contains('\\t') {", "    if false {")]),
+    ("rust", "a block scalar without content is accepted", "src/parse.rs",
+     [("if value.chars().all(|c| c == '\\n') {", "if false {")]),
+    ("rust", "an empty implicit key is read as ~", "src/parse.rs",
+     [("                        if !has_text {", "                        if false {")]),
+    ("go", "a tab is accepted", "parse.go",
+     [("\tif strings.Contains(body, \"\\t\") {", "\tif false {")]),
+    ("go", "a word starting with ! is not refused", "parse.go",
+     [("\t\t\tcase ch == '!':", "\t\t\tcase false:")]),
+    ("go", "a block scalar without content is accepted", "parse.go",
+     [("\t\t\tif strings.Trim(n.Value, \"\\n\") == \"\" {", "\t\t\tif false {")]),
+    ("go", "a syntax error in a second document is reported as a second document", "parse.go",
+     [("\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, &Error{Kind: ErrSyntax, Detail: err.Error()}", "\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, unsupported(\"more than one document\")")]),
 ]
 
 
@@ -79,7 +103,8 @@ def prepare(lang, tmp):
 
 def command(lang):
     if lang == "rust":
-        return ["cargo", "+stable", "test", "--locked", "--test", "access", "--test", "corpus", "--test", "properties"]
+        return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
+                "--test", "parity_dump"]
     return ["go", "test", "-count=1", "./..."]
 
 

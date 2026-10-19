@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -228,3 +228,31 @@ jobs:
           go-version: "1.27.2"
       - run: rustup toolchain install stable --profile minimal
       - run: python3 tools/seeded_defects.py all
+
+  # Rust against Go on the same 30 005 generated inputs (tools/parity): the complete outcome of `parse`
+  # (tree and positions, contract violations, refusal) is compared. A divergence that is not in the
+  # allow list of known open ones turns the job red; the shared regression corpus (parity.json) runs in
+  # the `rust` and `go` jobs above.
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.2"
+      - run: rustup toolchain install stable --profile minimal
+      - name: Generate, dump with both parsers, compare
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity"
+          mkdir -p "$P"
+          python3 tools/parity/gen_inputs.py "$P/in.hex" --count 30000 --upstream "$CIC_PRIMITIVES_ROOT"
+          (cd rust && PARITY_IN="$P/in.hex" PARITY_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_dump)
+          (cd go && PARITY_IN="$P/in.hex" PARITY_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpParseOutcomes$' .)
+          python3 tools/parity/compare.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" --show 5 --allow testdata/p1/parity-known.txt

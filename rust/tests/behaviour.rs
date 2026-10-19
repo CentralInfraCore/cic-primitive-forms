@@ -139,8 +139,8 @@ fn positions_follow_adr_0007() {
         })
     );
 
-    // A lone CR is a line break; a tab is one column.
-    let n = parse("a: 1\rb: [\tz]\r").unwrap();
+    // A lone CR is a line break.
+    let n = parse("a: 1\rb: [ z]\r").unwrap();
     let Value::Map(entries) = &n.value else {
         panic!()
     };
@@ -467,16 +467,13 @@ fn a_late_duplicate_is_still_found_and_many_keys_do_not_cost_quadratic_time() {
     );
 }
 
-/// The two parsers do not rank their errors alike: this documents the difference instead of
-/// claiming agreement. The Rust parser reads events in order and stops at the first problem,
-/// so the earlier duplicate key wins over a later syntax error. The Go peer's test of the
-/// same name asserts the opposite answer (`yaml.v3` reads the whole text first).
+/// Both parsers rank their errors alike: a syntax error anywhere in the text wins over an
+/// earlier duplicate key. The Go peer reads the whole text before it walks the tree; this one
+/// keeps the first non-syntax error and goes on scanning (the Go peer's test of the same name
+/// asserts the same answer, and `tools/parity` compares the two on generated inputs).
 #[test]
-fn documented_divergence_duplicate_key_before_a_later_syntax_error() {
-    match parse("a: 1\na: 2\nb: [\n") {
-        Err(Error::Contract(v)) => assert_eq!(v[0].code, "DUPLICATE_KEY"),
-        other => panic!("{other:?}"),
-    }
+fn a_syntax_error_after_a_duplicate_key_wins_in_both_languages() {
+    assert!(matches!(parse("a: 1\na: 2\nb: [\n"), Err(Error::Syntax(_))));
     // The same duplicate with no syntax error after it is the same answer in both languages.
     match parse("a: 1\na: 2\nb: []\n") {
         Err(Error::Contract(v)) => assert_eq!(v[0].code, "DUPLICATE_KEY"),
