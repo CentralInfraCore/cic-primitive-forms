@@ -263,7 +263,7 @@ green, a fix) and requires the right verdict, in the same job. `make_corpus.py` 
 All on the product code of this slice (`rust/src`, `go/*.go` without tests), strictly above 90%,
 failing closed, in workflow `p1`. Numbers are the CI measurements of PR #25 at commit `36809bab`, on all of
 `rust/src` and `go/*.go`, not only on the parser. Later commits of the PR change documentation, tests, the corpus, the CI workflow (the `quality` job in shards, `docs/QUALITY-SHARDING.md`) and the PR text only;
-`git diff 36809bab..HEAD -- rust/src go/*.go` is empty, which is what makes the numbers the ones of the head.
+`git diff 36809bab..HEAD -- rust/src ':(glob)go/*.go' ':(exclude)go/*_test.go'` (the product code, without the tests) is empty, which is what makes the numbers the ones of the head.
 
 | Gate | Tool (pinned) | Rust | Go |
 |---|---|---|---|
