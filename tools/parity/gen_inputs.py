@@ -120,7 +120,7 @@ EXTRA = [
 def seeds(upstream):
     out = [t for t in HAND] + EXTRA
     # texts already in the repository
-    for f in glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml")):
+    for f in sorted(glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml"))):
         raw = open(f, encoding="utf-8").read()
         out.append(raw)
         for c in yaml.safe_load(raw)["cases"]:

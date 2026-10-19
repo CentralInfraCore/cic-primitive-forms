@@ -184,7 +184,7 @@ different trees or positions, a contract error against anything else, is a diver
 | | divergent inputs of 30 005 |
 |---|---|
 | before (main, `2c58713`) | 3 134 in 12 groups |
-| after | 262 in 4 groups, all in the open classes below (228 hold a flow collection or a quote followed by `#`, 34 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
+| after | 256 in 4 groups, all in the open classes below (224 hold a flow collection or a quote followed by `#`, 32 are quoted scalars that continue on an unindented line or are followed by more text) (mutated variants of the 12 hand-pinned inputs; the fixed-seed run now also mutates the regression cases, so the input set differs from the 3 134 run: the same set on the old code is not comparable) |
 
 What the differential found and what was done about it (each has pinned cases in `parity.json`):
 
@@ -243,10 +243,11 @@ scan in `scan_words`) is not done, and nothing in the repository's schemas, vect
 uses these spellings.
 
 Gate numbers of the parity work, measured on `parse.rs` and `parse.go` only (the whole-crate numbers
-are the CI `quality` job's): mutation Rust 99.6% (268 of 269 viable mutants detected, 14 of them by
-time-out; the one survivor, `read` `docs > 1`, is equivalent because the check after the loop gives the
-same answer), mutation Go 96.55% (420 of 435); line coverage Rust 98.3%, Go 99.3% (whole crate and module,
-before the last test additions). 33 seeded defects, 15 of them for this work, all caught. The property
+are the CI `quality` job's): mutation Rust, one survivor among the viable mutants (`read`, `docs > 1`,
+equivalent because the check after the loop gives the same answer; time-outs count as detected),
+mutation Go 95.48% (444 of 465 mutants detected, the rest equivalent index and bound mutants or
+initialisations); line coverage Rust 98.3%, Go 99.3% (whole crate and module, before the last test
+additions). 33 seeded defects, 15 of them for this work, all caught. The property
 tests found two real faults while this was written (`a[&: 1` and `a *b: 1`, plain scalars that the word
 scan took for an anchor and an alias), both fixed and pinned.
 
