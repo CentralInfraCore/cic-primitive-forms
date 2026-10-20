@@ -126,6 +126,42 @@ DEFECTS = [
      [('                if could_hold_selected(rel) and not excluded(rel):', '                if False:')]),
     ("a symlink to a directory in an excluded place is refused", "key.py",
      [('                if could_hold_selected(rel) and not excluded(rel):', '                if could_hold_selected(rel):')]),
+    ("a tag is accepted as a pin", "pins.py",
+     [('FULL = re.compile(r"[0-9a-f]{40}\\Z")', 'FULL = re.compile(r".+")')]),
+    ("a short id is accepted as a pin", "pins.py",
+     [('FULL = re.compile(r"[0-9a-f]{40}\\Z")', 'FULL = re.compile(r"[0-9a-f]{7,40}\\Z")')]),
+    ("an upper case id is accepted as a pin", "pins.py",
+     [('FULL = re.compile(r"[0-9a-f]{40}\\Z")', 'FULL = re.compile(r"[0-9a-fA-F]{40}\\Z")')]),
+    ("an action without a revision is accepted", "pins.py",
+     [('if not at or not name_ or "/" not in name_:', 'if False:')]),
+    ("an image is accepted", "pins.py",
+     [('if ref.startswith("docker://"):', 'if False:')]),
+    ("one action at two revisions is accepted", "pins.py",
+     [('if seen.setdefault(name_, rev) != rev:', 'if False:')]),
+    ("the composite actions are not read", "pins.py",
+     [('        dirnames.sort()', '        dirnames[:] = [d for d in sorted(dirnames) if d != "actions"]')]),
+    ("a gate that disagrees with its numbers is believed", "build.py",
+     [('if name in expected_checks and (conclusion[name] == "success") != ok:', 'if False:')]),
+    ("a branch report of another commit is accepted", "build.py",
+     [('and rep["source"]["commit"] == commit', '')]),
+    ("a job that did not finish is a pass", "build.py",
+     [('if j.get("conclusion") not in record.CONCLUSIONS:', 'if False:')]),
+    ("a missing job is skipped", "build.py",
+     [('        if not found:\n            raise BuildError("MISSING_JOB", name)', '        if not found:\n            continue')]),
+    ("two jobs of one name are taken for one", "build.py",
+     [('        if len(found) > 1:\n            raise BuildError("AMBIGUOUS_JOB", name)', '        if len(found) > 1:\n            pass')]),
+    ("incomplete shards still make a record", "build.py",
+     [('kind = "INCOMPLETE_MEASUREMENT" if r.reason == "INCOMPLETE_SHARDS" else "UNMEASURED"\n        raise BuildError(kind, "%s: %s" % (r.reason, r.detail))', 'return (0, 1)')]),
+    ("the verdict is the job\'s, not the numbers\'", "build.py",
+     [('    q["gate_verdict"] = "PASS" if green else "FAIL"', '    q["gate_verdict"] = "PASS"')]),
+    ("a conflict in the environment is overwritten", "envcap.py",
+     [('if path[-1] in node and node[path[-1]] != value:', 'if False:')]),
+    ("an unpinned action is tolerated in the environment", "envcap.py",
+     [('if problems or not actions:', 'if not actions:')]),
+    ("a label is a version", "envcap.py",
+     [('    if not record.VERSION.match(value):', '    if False:')]),
+    ("a runner that does not say its image is accepted", "envcap.py",
+     [('environ["ImageVersion"]', 'environ.get("ImageVersion", "unknown")')]),
     ("workflows are not part of the key", "key-inputs.json",
      [('  ".github/workflows/**",\n', '')]),
 ]
@@ -141,7 +177,11 @@ def run_tests(directory):
 def main():
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
-        work = os.path.join(tmp, "te")
+        tools = os.path.join(tmp, "tools")
+        work = os.path.join(tools, "test-evidence")
+        os.makedirs(tools)
+        for gate in ("quality_gate.py", "coverage_gate.py"):  # the builder reads the raw reports with the gate's own functions
+            shutil.copy(os.path.join(os.path.dirname(HERE), gate), tools)
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns("__pycache__"))
         rc, out = run_tests(work)
         print("%-62s: %s" % ("baseline (unmodified)", "pass" if rc == 0 else "FAIL"))
