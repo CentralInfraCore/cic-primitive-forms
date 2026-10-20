@@ -17,6 +17,17 @@ PIN=0; [ "${2:-}" = "--pin-actions" ] && PIN=1
 
 run() { echo "+ $*"; if [ "$APPLY" = 1 ]; then "$@"; fi; }
 
+# 0. the precondition that makes the environment worth anything: any workflow on main can use the App's credentials, so a change to
+# main (and to .github/workflows) has to be reviewed. This refuses to go on while main takes pushes without a pull request.
+RULES=$(gh api "repos/$REPO/rules/branches/main" --jq '[.[].type] | join(",")' 2>/dev/null || true)
+case ",$RULES," in
+  *,pull_request,*) echo "main requires a pull request: ok" ;;
+  *) echo "main does NOT require a pull request (rules: '${RULES:-none}')."
+     echo "Any workflow pushed to main could then use the App's credentials. Protect main first (and review .github/workflows)."
+     [ "${ALLOW_UNPROTECTED_MAIN:-0}" = 1 ] || exit 1
+     echo "ALLOW_UNPROTECTED_MAIN=1: going on with an unprotected main, on your decision." ;;
+esac
+
 APP_ID=$(gh api "/apps/$APP_SLUG" --jq .id)
 echo "the App $APP_SLUG has the id $APP_ID"
 INSTALLED=$(gh api "repos/$REPO/installation" --jq '.app_slug' 2>/dev/null || true)

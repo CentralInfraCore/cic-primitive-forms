@@ -2,12 +2,12 @@ name: evidence-probes
 # The negative probes of the evidence branch and of the attestation (docs/EVIDENCE-SETUP.md, "The probes"). Run by the owner after
 # the setup, by hand, on main: each step tries something that must be refused and fails the job if it is accepted. They touch only
 # the throwaway branch ci-evidence-probe, which the ruleset covers like ci-evidence; ci-evidence itself is never written here.
+# Deliberately NOT gated by EVIDENCE_ENABLED: the probes are the condition for turning the evidence on.
 on:
   workflow_dispatch:
 permissions: {}
 jobs:
   branch:
-    if: ${{ vars.EVIDENCE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: evidence
@@ -61,7 +61,6 @@ jobs:
           git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)" push -q "https://github.com/$GITHUB_REPOSITORY.git" :ci-evidence-probe || true
 
   attestation:
-    if: ${{ vars.EVIDENCE_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

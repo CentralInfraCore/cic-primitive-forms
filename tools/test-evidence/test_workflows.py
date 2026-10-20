@@ -115,6 +115,10 @@ class EvidenceWorkflowTests(unittest.TestCase):
         self.assertEqual(sorted(probes["on"]), ["workflow_dispatch"])
         self.assertEqual(probes["permissions"], {})
         self.assertNotIn("refs/heads/ci-evidence ", text.replace("ci-evidence-probe", ""))   # never names the real branch to push to
+        # the probes are the condition for EVIDENCE_ENABLED, so they must not wait for it
+        self.assertNotIn("EVIDENCE_ENABLED", text.replace("NOT gated by EVIDENCE_ENABLED", ""))
+        for job in probes["jobs"].values():
+            self.assertNotIn("if", job)
         self.assertEqual(probes["jobs"]["branch"]["environment"], "evidence")
         self.assertNotIn("environment", probes["jobs"]["attestation"])
 
@@ -129,6 +133,19 @@ class EvidenceWorkflowTests(unittest.TestCase):
 
 
 class SetupScriptTests(unittest.TestCase):
+    def test_apply_refuses_an_unprotected_main_unless_told_otherwise(self):
+        with open(os.path.join(HERE, "setup", "apply.sh")) as fh:
+            text = fh.read()
+        self.assertIn("rules/branches/main", text)
+        self.assertIn("ALLOW_UNPROTECTED_MAIN", text)
+
+    def test_the_isolation_probe_exists_and_cleans_up(self):
+        with open(os.path.join(HERE, "setup", "probe-isolation.sh")) as fh:
+            text = fh.read()
+        self.assertIn("trap", text)
+        self.assertIn("environment: evidence", text)
+
+
     def test_it_changes_nothing_unless_told_and_never_turns_the_evidence_on(self):
         with open(os.path.join(HERE, "setup", "apply.sh")) as fh:
             text = fh.read()

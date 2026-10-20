@@ -1,6 +1,6 @@
 # Publishing test evidence: step B2
 
-Status: **implemented, switched off.** Nothing runs until the owner has done `docs/EVIDENCE-SETUP.md` and set the repository
+Status: **implemented, switched off.** `evidence.yml` does nothing until the owner has done `docs/EVIDENCE-SETUP.md` and set the repository
 variable `EVIDENCE_ENABLED=true`. B2 is the second of two pull requests for step B of `docs/FULL-DELTA-PLAN.md`; B1
 (`docs/EVIDENCE-PRODUCTION.md`) builds a record from a run, B2 collects the run, attests the record, publishes it and watches
 that it keeps being published. The record, the verifier and the chain rule are step A (`docs/TEST-EVIDENCE.md`).
@@ -43,7 +43,7 @@ has to be this repository's `.github/workflows/...`.
 
 ## What is proven and what is not
 
-Proven by tests (`test_collect`, `test_publish`, `test_pipeline`, `test_workflows`; 91 seeded defects in `seeded.py`):
+Proven by tests (`test_collect`, `test_publish`, `test_pipeline`, `test_workflows`; 93 seeded defects in `seeded.py`):
 the rules above, and the structure of the workflows - who can start them, their permissions, that the App's key is referenced
 once, that only the publish step holds the token, that the verifier's expected signer is `.github/workflows/evidence.yml` on
 `refs/heads/main`, and that no `run:` interpolates an expression.
