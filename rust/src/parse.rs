@@ -143,7 +143,15 @@ impl State<'_, '_> {
         match event {
             Event::Alias(_) => {
                 self.defer(Error::Unsupported("alias".into()));
-                self.place(Node::new(Value::Null));
+                if let Some(Frame::Map {
+                    key: key @ None, ..
+                }) = self.stack.last_mut()
+                {
+                    // The alias is a mapping key: unsupported. A placeholder keeps the tree well formed.
+                    *key = Some((String::new(), at));
+                } else {
+                    self.place(Node::new(Value::Null));
+                }
             }
             Event::Scalar(value, style, anchor, tag) => {
                 if anchor != 0 {
@@ -748,6 +756,23 @@ mod tests {
                 offset: 3 + 5
             }
         );
+    }
+
+    // An alias in the place of a mapping key once panicked (found by the `access` fuzz target on main).
+    #[test]
+    fn an_alias_as_a_mapping_key_is_refused_not_a_panic() {
+        for text in [
+            "{*a : 1}\n",
+            "{*a : 1, b: 2}\n",
+            "[[Alse2]:&2-/{a,{[Alse2]:*2-/{6{a,Pa,;~$=PP",
+            "{x: &a 1, *a : 2}\n",
+        ] {
+            match read(text, 0, Limits::default()) {
+                Err(Error::Unsupported(_)) | Err(Error::Syntax(_)) => {}
+                other => panic!("{text:?}: {other:?}"),
+            }
+            assert!(crate::parse(text).is_err(), "{text:?}");
+        }
     }
 
     // `prescan` refuses these before the YAML library is asked; the checks behind it stay, in case
