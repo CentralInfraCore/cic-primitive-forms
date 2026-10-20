@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the regression corpus both parsers run (testdata/p1/parity.json).
 
-    make_corpus.py inputs OUT_HEX                      write HAND + EXTRA of gen_inputs.py, hex-encoded, one per line
+    make_corpus.py inputs OUT_HEX                      write HAND + EXTRA + REGRESSIONS of gen_inputs.py, hex-encoded, one per line
     make_corpus.py merge IN_HEX RUST GO OUT_JSON       pin the outcomes the Rust and the Go dump gave for them
 
 An input both parsers agree on is a case with one expected outcome; an input they disagree on goes to
@@ -21,7 +21,7 @@ import gen_inputs  # noqa: E402
 
 def inputs():
     seen, out = set(), []
-    for t in gen_inputs.HAND + gen_inputs.EXTRA:
+    for t in gen_inputs.HAND + gen_inputs.EXTRA + gen_inputs.REGRESSIONS:
         if t not in seen:
             seen.add(t)
             out.append(t)

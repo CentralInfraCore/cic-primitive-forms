@@ -28,7 +28,7 @@ func FuzzParse(f *testing.F) {
 	for _, v := range append(append([]refusal{}, s.Unsupported...), s.Syntax...) {
 		f.Add(v.YAML)
 	}
-	for _, seed := range []string{strings.Repeat("k", 1100) + ": 1\n", "", "a: 1\na: 2\n", "[[[[", "{a: [1, {b: c}]}", "\xef\xbb\xbfa: 1", "a: |\n  x\n"} {
+	for _, seed := range []string{strings.Repeat("k", 1100) + ": 1\n", "", "a: 1\na: 2\n", "[[[[", "{a: [1, {b: c}]}", "\xef\xbb\xbfa: 1", "a: |\n  x\n", "{*a : 1}\n", "{x: &a 1, *a : 2}\n", "? *a\n: 1\n", "{<<: 1, *a : 2}\n", "a: &x 1\n*x : 2\n", "[[Alse2]:&2-/{a,{[Alse2]:*2-/{6{a,Pa,;~$=PP"} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, text string) {
@@ -145,7 +145,7 @@ func FuzzAccess(f *testing.F) {
 	for _, v := range loadAccess(f).CertPattern {
 		f.Add(v.Pattern)
 	}
-	for _, seed := range []string{"", "inherit", "[]", "[inherit]", "true", "false", "0", "no-inherit", "[OU=ops,O=acme]", "a=b", "- a=b\n- c=d\n", "reset"} {
+	for _, seed := range []string{"", "inherit", "[]", "[inherit]", "true", "false", "0", "no-inherit", "[OU=ops,O=acme]", "a=b", "- a=b\n- c=d\n", "reset", "{*a : 1}\n", "{x: &a 1, *a : 2}\n", "[[Alse2]:&2-/{a,{[Alse2]:*2-/{6{a,Pa,;~$=PP"} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, text string) {
