@@ -10,7 +10,13 @@
                                           the part of the execution environment a job is responsible for
     evidence.py selftest                  the unit tests and probes, and the Go implementation on the vectors
 
-Producing and publishing records is not here: that is step B.
+    evidence.py collect --sha S --trigger push|dispatch --out DIR      find the FULL runs of S, wait, gather jobs and artifacts
+    evidence.py build --collected DIR --root DIR --event E [--slot D] --out DIR     make the record of the run (a file named by its hash)
+    evidence.py publish --record FILE --origin URL                     add it to the ci-evidence branch (token in $EVIDENCE_TOKEN)
+    evidence.py verify-published --evidence DIR --root DIR --record NAME   read the branch back as a verifier would
+    evidence.py watch --evidence DIR --root DIR                       exit 3 if the latest due slot has no record
+
+These are the steps of .github/workflows/evidence.yml (docs/EVIDENCE-PUBLISHING.md).
 """
 import argparse
 import hashlib
@@ -22,8 +28,12 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import build  # noqa: E402
 import canon  # noqa: E402
+import collect  # noqa: E402
 import envcap  # noqa: E402
+import pipeline  # noqa: E402
+import publish  # noqa: E402
 import key as keymod  # noqa: E402
 import pins  # noqa: E402
 import verify  # noqa: E402
@@ -45,6 +55,27 @@ def main(argv=None):
     ev.add_argument("--fields", required=True)
     ev.add_argument("--out", required=True)
     ev.add_argument("--toolchain")
+    c = sub.add_parser("collect")
+    c.add_argument("--sha", required=True)
+    c.add_argument("--trigger", required=True)
+    c.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
+    c.add_argument("--out", required=True)
+    b = sub.add_parser("build")
+    b.add_argument("--collected", required=True)
+    b.add_argument("--root", required=True)
+    b.add_argument("--event", required=True)
+    b.add_argument("--slot", default="")
+    b.add_argument("--out", required=True)
+    pb = sub.add_parser("publish")
+    pb.add_argument("--record", required=True)
+    pb.add_argument("--origin", required=True)
+    vp = sub.add_parser("verify-published")
+    vp.add_argument("--evidence", required=True)
+    vp.add_argument("--root", required=True)
+    vp.add_argument("--record", required=True)
+    w = sub.add_parser("watch")
+    w.add_argument("--evidence", required=True)
+    w.add_argument("--root", required=True)
     sub.add_parser("selftest")
     a = ap.parse_args(argv)
     try:
@@ -57,6 +88,16 @@ def main(argv=None):
             with open(a.env, "rb") as fh:
                 env = canon.parse_strict(fh.read())
             print(keymod.validity_key(a.root, env)[0])
+        elif a.cmd == "collect":
+            return cmd_collect(a)
+        elif a.cmd == "build":
+            return cmd_build(a)
+        elif a.cmd == "publish":
+            return cmd_publish(a)
+        elif a.cmd == "verify-published":
+            return cmd_verify_published(a)
+        elif a.cmd == "watch":
+            return cmd_watch(a)
         elif a.cmd == "env":
             return envcap.main(["--fields", a.fields, "--out", a.out] + (["--toolchain", a.toolchain] if a.toolchain else []))
         elif a.cmd == "pins":
@@ -78,6 +119,9 @@ def main(argv=None):
     except canon.CanonError as e:
         print(e.kind, file=sys.stderr)
         return 1
+    except (collect.CollectError, build.BuildError, publish.PublishError, pipeline.PipelineError) as e:
+        print("%s: %s" % (type(e).__name__, e), file=sys.stderr)
+        return 3
     except envcap.EnvError as e:
         print("%s %s" % (e.kind, e), file=sys.stderr)
         return 1
@@ -85,6 +129,68 @@ def main(argv=None):
         print("%s %s" % (e.kind, e), file=sys.stderr)
         return 1
     return 0
+
+
+def _now():
+    import datetime
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def cmd_collect(a):
+    os.makedirs(a.out, exist_ok=True)
+    jobs, artifacts, ids = collect.collect(collect.GhCli(), a.repo, a.sha, a.trigger, os.path.join(a.out, "artifacts"))
+    with open(os.path.join(a.out, "jobs.json"), "w") as fh:
+        json.dump(jobs, fh, sort_keys=True)
+    print("collected %d jobs of runs %s and the artifacts %s" % (len(jobs), ids, ", ".join(artifacts)))
+    return 0
+
+
+def cmd_build(a):
+    now = _now()
+    git = verify.GitRepo(a.root)
+    target, run, slot, _ = pipeline.make_inputs(os.environ, a.event, a.slot, now, git)
+    with open(os.path.join(a.collected, "jobs.json")) as fh:
+        jobs = json.load(fh)
+    with open(os.path.join(HERE, "required-checks.json")) as fh:
+        expected = json.load(fh)
+    rec, raw, name, kind = build.build(os.path.join(a.collected, "artifacts"), jobs, a.root, target, run, slot, now, expected)
+    os.makedirs(a.out, exist_ok=True)
+    with open(os.path.join(a.out, name), "wb") as fh:
+        fh.write(raw)
+    with open(os.path.join(a.out, "kind"), "w") as fh:
+        fh.write(kind)
+    print("%s %s outcome=%s anchor=%s slot=%s" % (kind, name, rec["outcome"], rec["anchor"], rec["slot"]))
+    return 0
+
+
+def cmd_publish(a):
+    now = _now()
+    with open(a.record, "rb") as fh:
+        raw = fh.read()
+    name = os.path.basename(a.record)
+    kind = open(os.path.join(os.path.dirname(a.record), "kind")).read().strip()
+    sha = publish.publish(a.origin, name, raw, kind, now.strftime("%Y-%m-%d"), token=os.environ.get("EVIDENCE_TOKEN"))
+    print("published %s as %s in %s" % (name, kind, sha))
+    return 0
+
+
+def _read_ctx(a):
+    required = json.load(open(os.path.join(HERE, "required-checks.json")))
+    git = verify.GitRepo(a.root)
+    return verify.Context(now=_now(), target_commit=os.environ.get("GITHUB_SHA", ""), root=a.root, environment={}, is_ancestor=git.is_ancestor,
+                          attestation=verify.GhAttestation(), expected_checks=required, tree_of=git.tree_of, parents_of=git.parents_of)
+
+
+def cmd_verify_published(a):
+    got = pipeline.verify_published(a.evidence, _now(), _read_ctx(a), must_contain=a.record)
+    print("verified %d record(s) of the last days, among them %s" % (len(got), a.record))
+    return 0
+
+
+def cmd_watch(a):
+    slot, present = pipeline.watch(a.evidence, _now(), _read_ctx(a))
+    print("slot %s: %s" % (slot, "has a record" if present else "has no record"))
+    return 0 if present else 3
 
 
 def selftest():
