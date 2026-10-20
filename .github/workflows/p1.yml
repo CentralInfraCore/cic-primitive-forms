@@ -19,6 +19,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 tools/quality_gate.py selftest
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_shard_plan.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -148,10 +149,14 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27.2"
-      - name: Tools (pinned)
-        run: |
-          rustup toolchain install stable --profile minimal --component llvm-tools-preview
-          cargo install --locked cargo-llvm-cov --version 0.9.1
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component llvm-tools-preview
+      - name: Tool, cargo-llvm-cov (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-llvm-cov
+          spec: cargo-llvm-cov@0.9.1
       - name: Line coverage
         run: |
           mkdir -p "$RUNNER_TEMP/q"
@@ -184,19 +189,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]  # the 4 in `--shard k/4` below; the gate fails if they disagree
+        shard: [0, 1, 2, 3, 4, 5]  # the 6 in RUST_SHARDS below; if they disagree some mutants are in no shard and the gate is red
+    env:
+      RUST_SHARDS: 6
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/upstream-pinned
-      - name: Tools (pinned)
-        run: |
-          rustup toolchain install stable --profile minimal
-          cargo install --locked cargo-mutants --version 27.1.0
-      - name: Mutation, Rust (cargo-mutants), one shard
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Tool, cargo-mutants (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-mutants
+          spec: cargo-mutants@27.1.0
+      # Who runs which mutants is dealt by measured cost (tools/shard_plan.py, docs/QUALITY-SHARDING.md). It changes nothing about
+      # what is run: the timeout, the tests and the mutants are the same, and the gate still wants every listed mutant in exactly
+      # one shard's report. The shard stops before it runs if the regex does not select exactly the planned mutants.
+      - name: The mutants of this shard
         run: |
           mkdir -p "$RUNNER_TEMP/q"
+          (cd rust && cargo +stable mutants --list --json) > "$RUNNER_TEMP/q/all.json"
+          python3 tools/shard_plan.py select --list "$RUNNER_TEMP/q/all.json" --costs tools/mutation-costs.json \
+            --shards "$RUST_SHARDS" --shard ${{ matrix.shard }} --regex-out "$RUNNER_TEMP/q/re.txt" --names-out "$RUNNER_TEMP/q/names.json"
+          (cd rust && cargo +stable mutants --list --json -F "$(cat "$RUNNER_TEMP/q/re.txt")") > "$RUNNER_TEMP/q/selected.json"
+          python3 tools/shard_plan.py verify --names "$RUNNER_TEMP/q/names.json" --selected "$RUNNER_TEMP/q/selected.json"
+      - name: Mutation, Rust (cargo-mutants), one shard
+        run: |
           # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
-          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --shard ${{ matrix.shard }}/4 --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants -F "$(cat "$RUNNER_TEMP/q/re.txt")" --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rust-mutants-${{ matrix.shard }}
@@ -229,10 +250,12 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27.2"
-      - name: Tools (pinned)
-        run: |
-          go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Tool, go-mutesting (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: go
+          name: go-mutesting
+          spec: github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
       - name: Mutation, Go (go-mutesting), one shard
         run: |
           mkdir -p "$RUNNER_TEMP/q"
@@ -279,13 +302,26 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version: "1.27.2"
-      - name: Tools (pinned)
-        run: |
-          rustup toolchain install stable --profile minimal --component llvm-tools-preview
-          cargo install --locked cargo-llvm-cov --version 0.9.1
-          cargo install --locked cargo-mutants --version 27.1.0
-          go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component llvm-tools-preview
+      - name: Tool, cargo-llvm-cov (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-llvm-cov
+          spec: cargo-llvm-cov@0.9.1
+      - name: Tool, cargo-mutants (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-mutants
+          spec: cargo-mutants@27.1.0
+      - name: Tool, go-mutesting (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: go
+          name: go-mutesting
+          spec: github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ${{ runner.temp }}/q/in
@@ -351,10 +387,14 @@ jobs:
           go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
           go test -run '^$' -fuzz '^FuzzValidate$' -fuzztime 60s ./...
           go test -run '^$' -fuzz '^FuzzAccess$' -fuzztime 60s ./...
-      - name: Rust nightly and cargo-fuzz
-        run: |
-          rustup toolchain install nightly-2026-10-17 --profile minimal
-          cargo install --locked cargo-fuzz --version 0.13.2
+      - name: Rust nightly
+        run: rustup toolchain install nightly-2026-10-17 --profile minimal
+      - name: Tool, cargo-fuzz (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-fuzz
+          spec: cargo-fuzz@0.13.2
       - name: Environment for the evidence record
         continue-on-error: true
         run: |

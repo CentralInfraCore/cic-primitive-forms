@@ -1,0 +1,65 @@
+name: cached-tool
+description: >
+  Install one pinned command line tool (cargo install --locked, or go install), from a cache when there is one. The cache holds
+  only the built binary. Its key is the kind, the exact crate or module version, the compiler that builds it (rustc or go
+  version), the runner image and the CPU: change any of them and the tool is built again from the pinned source. A cached binary
+  is checked to run before it is used, and the version the evidence record carries is read from the binary at run time, not
+  from the cache key.
+inputs:
+  kind:
+    description: "cargo or go"
+    required: true
+  name:
+    description: "the file name of the binary (cargo-mutants, go-mutesting)"
+    required: true
+  spec:
+    description: "cargo: crate@version; go: module/path/cmd@version (a full pseudo-version)"
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: key
+      shell: bash
+      env:
+        KIND: ${{ inputs.kind }}
+        NAME: ${{ inputs.name }}
+        SPEC: ${{ inputs.spec }}
+      run: |
+        set -euo pipefail
+        case "$KIND" in
+          cargo) bindir="$HOME/.cargo/bin"; compiler="$(rustc +stable --version)" ;;
+          go) bindir="$(go env GOPATH)/bin"; compiler="$(go version)"; echo "$bindir" >> "$GITHUB_PATH" ;;
+          *) echo "unknown kind '$KIND'" >&2; exit 1 ;;
+        esac
+        case "$NAME" in *[!A-Za-z0-9._-]*|"") echo "bad tool name" >&2; exit 1 ;; esac
+        sum="$(printf '%s|%s|%s|%s|%s' "$KIND" "$SPEC" "$compiler" "${ImageOS:-}-${ImageVersion:-}" "$(uname -m)" | sha256sum | cut -c1-32)"
+        echo "path=$bindir/$NAME" >> "$GITHUB_OUTPUT"
+        echo "key=cic-tool-v1-$NAME-$sum" >> "$GITHUB_OUTPUT"
+    - id: cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.key.outputs.path }}
+        key: ${{ steps.key.outputs.key }}
+    - name: Install on a cache miss, or when the cached binary does not run
+      shell: bash
+      env:
+        KIND: ${{ inputs.kind }}
+        NAME: ${{ inputs.name }}
+        SPEC: ${{ inputs.spec }}
+        HIT: ${{ steps.cache.outputs.cache-hit }}
+        BIN: ${{ steps.key.outputs.path }}
+      run: |
+        set -euo pipefail
+        works() { [ -x "$BIN" ] && { [ "$KIND" = go ] || "$BIN" --help >/dev/null 2>&1 || "$BIN" mutants --help >/dev/null 2>&1; }; }
+        if [ "$HIT" = true ] && works; then
+          echo "$NAME: from the cache"
+          exit 0
+        fi
+        echo "$NAME: building $SPEC"
+        rm -f "$BIN"
+        if [ "$KIND" = cargo ]; then
+          cargo +stable install --locked "${SPEC%@*}" --version "${SPEC#*@}"
+        else
+          go install "$SPEC"
+        fi
+        test -x "$BIN"

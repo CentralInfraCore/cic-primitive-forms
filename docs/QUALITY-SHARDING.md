@@ -8,7 +8,7 @@ how the mutants are spread over machines is new.
 | Job | What it does |
 |---|---|
 | `quality-lines` | line coverage of both languages |
-| `quality-mutation-rust` × 4 | `cargo mutants --shard k/4`, one `outcomes.json` each |
+| `quality-mutation-rust` × 6 | `cargo mutants -F <the shard's mutants>`, dealt by measured cost (below), one `outcomes.json` each |
 | `quality-mutation-go` × 6 | `go-mutesting` with `tools/mutation_shard_exec.sh`, one ledger each |
 | `quality` | downloads the reports, lists the Rust mutants, runs the gate, then the two seeded proofs that weakened tests turn it red |
 
@@ -37,8 +37,45 @@ fine. The gate therefore checks completeness before it computes anything, and an
 tested by none, a mutant not in the list, shards that disagree, a garbage or empty ledger, a merged score below
 90%), next to the 21 it had.
 
-The number of shards is written twice, in the matrix and in the command (`4` and `6`); if they disagree a shard
-is missing and the gate is red.
+The number of shards is written twice, in the matrix and in `RUST_SHARDS` (Rust), or in the matrix and in the command
+(Go); if they disagree a shard is missing and the gate is red. A test (`tools/test_shard_plan.py`) also checks that the Rust
+matrix and `RUST_SHARDS` agree.
+
+## The Rust shards are dealt by measured cost
+
+`cargo mutants --shard k/N` deals the mutants round robin. A mutant that runs into the test timeout costs the whole
+timeout (120 s plus the build), and on the sharded runs of 2026-10-19/20 nine such mutants made one of four shards take
+20 minutes while the others took 5 to 10: that shard was the longest job of the workflow and decided its length.
+
+`tools/shard_plan.py` deals them from a table of measured costs instead (`tools/mutation-costs.json`, seconds per mutant, taken
+from the `outcomes.json` of a real run): the most expensive first, each onto the shard with the least load so far, ties by name,
+so every shard job computes the same answer. With the measured costs and 6 shards the predicted load is 6.5 minutes on every
+shard (the sum is 39 minutes).
+
+* **Nothing about the measurement changes.** The mutants, the tests, `--timeout 120` and the thresholds are the same. The
+  timeout is not shortened for speed: a timed-out mutant counts as caught, so a shorter timeout would change what the score
+  means.
+* **The gate is the check.** It wants every listed mutant in exactly one shard's report, however they were dealt. In addition,
+  each shard runs `cargo mutants --list -F <regex>` before it runs anything and `shard_plan.py verify` stops it unless the
+  regex selects exactly the planned mutants.
+* **A stale table costs balance, not correctness.** A mutant the table does not know gets the mean cost; a cost for a mutant that
+  is gone is ignored. Keys do not contain line numbers, so moving code does not invalidate them. The log of every shard says how
+  many mutants had no measured cost.
+* **Refreshing the table** is a reviewed data change: download the `rust-mutants-*` artifacts of a green run on `main`, then
+  `python3 tools/shard_plan.py costs --outcomes <dir>/rust-mutants-*/outcomes.json --out tools/mutation-costs.json`.
+* The tests are `tools/test_shard_plan.py` (run by `quality-gate-selftest`), with 12 seeded defects of the planner (longest
+  first turned around, round robin, a mutant dropped, an unanchored or unescaped regex, a weak `verify`, ...), each of which has
+  to turn a test red.
+
+## The tool cache
+
+`cargo-mutants`, `cargo-llvm-cov`, `cargo-fuzz` and `go-mutesting` were built from source in every job (one to two and a half
+minutes each, in the deciding job all three). `.github/actions/cached-tool` caches the built binary and nothing else. Its key
+holds the kind, the exact pinned crate or module version, the compiler that builds it (`rustc +stable --version` or `go
+version`), the runner image (`ImageOS`, `ImageVersion`) and the CPU: a new Rust release, a new image or a new tool version is a
+cache miss and the tool is built again from its pinned source. A cached binary has to run, otherwise it is rebuilt. The evidence
+record reads the tool versions from the binaries at run time, not from the cache key. Caches written on a pull request are not
+readable on `main`.
 
 ## Same numbers as before
 
