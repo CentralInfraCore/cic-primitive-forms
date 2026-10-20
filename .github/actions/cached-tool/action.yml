@@ -50,7 +50,8 @@ runs:
         BIN: ${{ steps.key.outputs.path }}
       run: |
         set -euo pipefail
-        works() { [ -x "$BIN" ] && { [ "$KIND" = go ] || "$BIN" --help >/dev/null 2>&1 || "$BIN" mutants --help >/dev/null 2>&1; }; }
+        # A cargo subcommand binary is run the way cargo runs it: `cargo mutants --help`, not `cargo-mutants --help`.
+        works() { [ -x "$BIN" ] && { [ "$KIND" = go ] || cargo +stable "${NAME#cargo-}" --help >/dev/null 2>&1; }; }
         if [ "$HIT" = true ] && works; then
           echo "$NAME: from the cache"
           exit 0
