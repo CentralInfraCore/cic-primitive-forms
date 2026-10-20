@@ -1,0 +1,20 @@
+{
+  "name": "ci-evidence: only the evidence App writes",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/ci-evidence", "refs/heads/ci-evidence-probe"],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {"actor_id": "__APP_ID__", "actor_type": "Integration", "bypass_mode": "always"}
+  ],
+  "rules": [
+    {"type": "creation"},
+    {"type": "update"},
+    {"type": "deletion"},
+    {"type": "non_fast_forward"}
+  ]
+}

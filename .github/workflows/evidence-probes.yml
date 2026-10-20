@@ -1,0 +1,91 @@
+name: evidence-probes
+# The negative probes of the evidence branch and of the attestation (docs/EVIDENCE-SETUP.md, "The probes"). Run by the owner after
+# the setup, by hand, on main: each step tries something that must be refused and fails the job if it is accepted. They touch only
+# the throwaway branch ci-evidence-probe, which the ruleset covers like ci-evidence; ci-evidence itself is never written here.
+# Deliberately NOT gated by EVIDENCE_ENABLED: the probes are the condition for turning the evidence on.
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: evidence
+    permissions:
+      contents: write   # the token of this workflow is the one that has to be refused
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: The token of a workflow cannot create the branch
+        env:
+          GITHUB_TOKEN_PROBE: ${{ github.token }}
+        run: |
+          set +e
+          git config user.name probe; git config user.email probe@users.noreply.github.com
+          git checkout -q --orphan ci-evidence-probe && git commit -q --allow-empty -m "probe" 
+          if git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN_PROBE" | base64 -w0)" push -q "https://github.com/$GITHUB_REPOSITORY.git" ci-evidence-probe 2>probe.err; then
+            echo "::error::PROBE FAILED: the token of a workflow created the protected branch"; exit 1
+          fi
+          cat probe.err; echo "refused, as it must be"
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.EVIDENCE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.EVIDENCE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: The App can create it (so the refusals below are the ruleset's, not a broken setup)
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)" push -q "https://github.com/$GITHUB_REPOSITORY.git" ci-evidence-probe
+      - name: The token of a workflow can neither update, force, nor delete it
+        env:
+          GITHUB_TOKEN_PROBE: ${{ github.token }}
+        run: |
+          set +e
+          h="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN_PROBE" | base64 -w0)"
+          url="https://github.com/$GITHUB_REPOSITORY.git"
+          git commit -q --allow-empty -m "probe: update"
+          if git -c "http.extraheader=$h" push -q "$url" ci-evidence-probe 2>/dev/null; then echo "::error::PROBE FAILED: an update was accepted"; fail=1; fi
+          git commit -q --amend --allow-empty -m "probe: rewritten"
+          if git -c "http.extraheader=$h" push -q --force "$url" ci-evidence-probe 2>/dev/null; then echo "::error::PROBE FAILED: a force push was accepted"; fail=1; fi
+          if git -c "http.extraheader=$h" push -q "$url" :ci-evidence-probe 2>/dev/null; then echo "::error::PROBE FAILED: a deletion was accepted"; fail=1; fi
+          [ -z "$fail" ] || exit 1
+          echo "update, force push and deletion refused, as they must be"
+      - name: Clean up with the App
+        if: ${{ always() && steps.app.outputs.token != '' }}
+        env:
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          git -c "http.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$APP_TOKEN" | base64 -w0)" push -q "https://github.com/$GITHUB_REPOSITORY.git" :ci-evidence-probe || true
+
+  attestation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: A decoy, attested by this workflow
+        run: printf '%s' "decoy $GITHUB_RUN_ID" > decoy.txt
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: decoy.txt
+      - name: The verifier asks for the evidence workflow and must refuse it
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          if gh attestation verify decoy.txt --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/evidence.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA" >/dev/null 2>&1; then
+            echo "::error::PROBE FAILED: an attestation by evidence-probes.yml verified as one by evidence.yml"; exit 1
+          fi
+          echo "refused, as it must be"
+      - name: The same attestation is genuine for the workflow that made it (so the refusal above is about the identity)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh attestation verify decoy.txt --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/evidence-probes.yml" --source-ref refs/heads/main --source-digest "$GITHUB_SHA"

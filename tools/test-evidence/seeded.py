@@ -164,6 +164,47 @@ DEFECTS = [
      [('environ["ImageVersion"]', 'environ.get("ImageVersion", "unknown")')]),
     ("workflows are not part of the key", "key-inputs.json",
      [('  ".github/workflows/**",\n', '')]),
+    ("a push is a force push", "publish.py",
+     [('git("push", "origin", "HEAD:refs/heads/%s" % branch, check=False)', 'git("push", "--force", "origin", "HEAD:refs/heads/%s" % branch, check=False)')]),
+    ("the token travels in the arguments", "publish.py",
+     [('git("push", "origin", "HEAD:refs/heads/%s" % branch, check=False)', 'git("push", "https://x-access-token:%s@github.com/x/y" % token, "HEAD:refs/heads/%s" % branch, check=False)')]),
+    ("a rejected push is given up on", "publish.py",
+     [('            _clear(work)\n        raise PublishError("RACE"', '            raise PublishError("RACE", "")\n        raise PublishError("RACE"')]),
+    ("any refusal of the push is retried", "publish.py",
+     [('            if not _rejected(err):', '            if False:')]),
+    ("a record with other content is overwritten", "publish.py",
+     [('            if fh.read() != raw:', '            if False:')]),
+    ("a failed record is published as a pass", "publish.py",
+     [('(rec.get("outcome") == "pass") != (kind == "full")', 'False')]),
+    ("a run of another commit is collected", "collect.py",
+     [('            if run["head_sha"] != sha:\n                raise CollectError("RUN_FOR_ANOTHER_COMMIT", "%s ran for %s, the commit is %s" % (workflow, run["head_sha"], sha))', '            pass'),
+      ('        if run["head_sha"] != sha:\n            raise CollectError("RUN_FOR_ANOTHER_COMMIT", "%s: %s" % (wf, run["head_sha"]))', '        pass')]),
+    ("an expired artifact is used", "collect.py",
+     [('            raise CollectError("ARTIFACT_EXPIRED", a["name"])', '            continue')]),
+    ("two artifacts of one name are taken for one", "collect.py",
+     [('        raise CollectError("DUPLICATE_ARTIFACT", ", ".join(names))', '        pass')]),
+    ("a slot of the future is accepted", "pipeline.py",
+     [('    if day > today:', '    if False:')]),
+    ("a slot of any age is accepted", "pipeline.py",
+     [('    if (today - day).days > max_age_days:', '    if False:')]),
+    ("evidence is made on any ref", "pipeline.py",
+     [('    if ref != "refs/heads/main":', '    if False:')]),
+    ("a push may stand for a slot", "pipeline.py",
+     [('    if event == "push" and slot_input:', '    if False:')]),
+    ("the workflow of another repository is the signer", "pipeline.py",
+     [('        raise PipelineError("WORKFLOW_REF", workflow_ref)', '        pass')]),
+    ("the probes wait for the evidence to be switched on", ".github/workflows/evidence-probes.yml",
+     [('  branch:\n', "  branch:\n    if: ${{ vars.EVIDENCE_ENABLED == 'true' }}\n")]),
+    ("apply does not look at main", "setup/apply.sh",
+     [('rules/branches/main', 'rules/branches/other')]),
+    ("the evidence workflow can be started by a pull request", ".github/workflows/evidence.yml",
+     [('on:\n', 'on:\n  pull_request:\n')]),
+    ("the evidence workflow runs without the environment", ".github/workflows/evidence.yml",
+     [('    environment: evidence\n', '')]),
+    ("the evidence workflow may write the contents", ".github/workflows/evidence.yml",
+     [('      contents: read       # the checkout\n      actions: write       # to ask', '      contents: write      # the checkout\n      actions: write       # to ask')]),
+    ("the token is held by the whole job", ".github/workflows/evidence.yml",
+     [('    environment: evidence\n', '    environment: evidence\n    env:\n      T: ${{ steps.app.outputs.token }}\n')]),
 ]
 
 
@@ -183,13 +224,14 @@ def main():
         for gate in ("quality_gate.py", "coverage_gate.py"):  # the builder reads the raw reports with the gate's own functions
             shutil.copy(os.path.join(os.path.dirname(HERE), gate), tools)
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(os.path.join(os.path.dirname(os.path.dirname(HERE)), ".github"), os.path.join(tmp, ".github"))
         rc, out = run_tests(work)
         print("%-62s: %s" % ("baseline (unmodified)", "pass" if rc == 0 else "FAIL"))
         if rc != 0:
             print(out[-2000:])
             return 1
         for name, rel, ops in DEFECTS:
-            path = os.path.join(work, rel)
+            path = os.path.join(tmp, rel) if rel.startswith(".github/") else os.path.join(work, rel)
             original = open(path, encoding="utf-8").read()
             text = original
             stale = False
