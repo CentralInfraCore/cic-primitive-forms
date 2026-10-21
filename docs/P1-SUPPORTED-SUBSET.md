@@ -134,6 +134,15 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
   `SCHEMA_FEATURE_NOT_IN_GRAMMAR`. The error lists **every** refused node of the schema in schema order (the first
   problem of each node), so a schema is judged in one pass.
+* **Numbers in the schema (`min_items`, `max_items`).** A non-negative integer is valid; a negative number or a non-integer is
+  `SCHEMA_INVALID`. There is **no upper bound**: nothing in ADR 0002 or ADR 0003 limits the number, and a very large minimum is not a
+  malformed schema, only a requirement no realistic list meets (`MIN_ITEMS_NOT_MET`). Before the P2 work an upper bound of 2^31 was
+  enforced; it was removed on purpose (a semantic decision, recorded in #40), not as a side effect of a measurement. The
+  implementation limit is `i64::MAX` (Rust: `i64` to `usize`, Go: `int64` to `int`, both lossless on the supported 64-bit
+  targets); the ADRs allow larger integers in principle, and 32-bit targets are not supported.
+* **Values that come with an error.** A function that fails returns no meaningful value together with its error (`zero[T]()` in Go,
+  the `Err` arm in Rust); no caller reads one. This is a statement about the contract, not an optimisation: it keeps a mutation of
+  such a value from looking like a behaviour.
 * **Passed through, not evaluated.** `contract`, `description`, `role`, `capability` and the other descriptive
   members. A node that declares a `contract` is listed in `unevaluated_contracts`; validation does not check it.
   Dependency digests (ADR 0002 asks each pinned dependency to carry its own) are **not** checked yet: a reference is
