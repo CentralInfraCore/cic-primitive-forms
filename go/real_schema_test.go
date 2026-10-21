@@ -42,14 +42,23 @@ type realExpect struct {
 		Error string `json:"error"`
 	} `json:"state_refused"`
 	Accepted struct {
-		Pin            string    `json:"pin"`
-		Surface        string    `json:"surface"`
-		Kind           string    `json:"kind"`
-		Namespace      string    `json:"namespace"`
-		UsesItemChoice bool      `json:"uses_item_choice"`
-		Unevaluated    []string  `json:"unevaluated_contracts"`
-		ValidatedBy    string    `json:"declared_validated_by"`
-		Documents      []realDoc `json:"documents"`
+		Pin            string   `json:"pin"`
+		Surface        string   `json:"surface"`
+		Kind           string   `json:"kind"`
+		Namespace      string   `json:"namespace"`
+		UsesItemChoice bool     `json:"uses_item_choice"`
+		Unevaluated    []string `json:"unevaluated_contracts"`
+		ValidatedBy    string   `json:"declared_validated_by"`
+		Base           string   `json:"base"`
+		PolicySummary  struct {
+			Declared      bool     `json:"declared"`
+			DefaultAccess string   `json:"default_access"`
+			DefaultModify string   `json:"default_modify"`
+			SurfaceRules  []string `json:"surface_rules"`
+			InheritPolicy string   `json:"inherit_policy"`
+			InheritSet    bool     `json:"inherit_policy_declared"`
+		} `json:"policy_summary"`
+		Documents []realDoc `json:"documents"`
 	} `json:"accepted"`
 }
 
@@ -145,6 +154,18 @@ func TestRealRegistrySchemas(t *testing.T) {
 		if c.Kind != a.Kind || c.Namespace != a.Namespace || c.UsesItemChoice != a.UsesItemChoice ||
 			!slices.Equal(c.UnevaluatedContracts, a.Unevaluated) || c.DeclaredValidatedBy != a.ValidatedBy {
 			t.Fatalf("compiled %+v", c)
+		}
+		// The policy and the base are read as declared, never evaluated (patterns are not asserted: the
+		// file is licensed content, and only the structure is pinned down).
+		pol, ps := c.Policy, a.PolicySummary
+		var rules []string
+		for _, r := range pol.SurfaceRules {
+			rules = append(rules, r.Surface)
+		}
+		if c.Base != a.Base || pol.Declared != ps.Declared || pol.DefaultAccess == nil || pol.DefaultAccess.Symbol != ps.DefaultAccess ||
+			pol.DefaultModify == nil || pol.DefaultModify.Symbol != ps.DefaultModify || !slices.Equal(rules, ps.SurfaceRules) ||
+			pol.InheritPolicy != forms.ModeInherit || pol.InheritPolicyDeclared != ps.InheritSet || ps.InheritPolicy != "inherit" {
+			t.Fatalf("base %q, policy %+v", c.Base, pol)
 		}
 		for _, d := range a.Documents {
 			node, err := forms.Parse(d.YAML)

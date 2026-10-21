@@ -129,6 +129,19 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   `nullable`; `default` (its presence only; invalid on a mandatory field, invalid as `null`); `min_items`; the list
   key rules (exactly one `role: key` field, or several named exactly by `item_key`; per `item_choice` case a `key`
   naming exactly the case's key fields, unique case names, no two cases with one key set, C17).
+* **The object-level policy and the base (P3, first unit).** `spec.policy_surface` is read as *declared*, into
+  `CompiledSchema.Policy` / `.policy`, and `spec.identity.base` into `.Base` / `.base` (a pinned reference, `""` when the schema
+  has none). Read: `default_access` (a list of CertPatterns or the symbol `open`), `default_modify` (a list or the symbol `owner`),
+  `surface_rules` (`surface` and `access`/`modify`, each a list or `inherit`; an `inherit` or missing member declares no rule) and
+  `inherit_policy` (`InheritanceMode` in the spelling of the pinned grammar: `true | false | 0`). A member the schema does not
+  write stays **undeclared**; the system defaults `open` and `owner` are never written in, they are the system layer of a later
+  resolution. An absent `policy_surface` and `{}` are legal and transparent. Refused as `SCHEMA_INVALID` with the path of the
+  member: a policy that is not a mapping, a member outside PolicySurface or SurfaceRule, the other symbol (`owner` as
+  `default_access`, `open` as `default_modify`, `inherit` as a default), an invalid CertPattern or access value, an
+  `inherit_policy` in the wrong spelling, a surface rule without a surface, and two entries that declare the same
+  (surface, operation) (`SURFACE_RULE_CONFLICT` in the detail). Nothing is evaluated: no requestor, certificate, owner or
+  snapshot is looked at, and the Forms library takes no access decision. The shared cases are `testdata/p1/policy.json` (both
+  languages), the real `network-space` schema is pinned structurally in `testdata/p1/real-schemas.json`.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),

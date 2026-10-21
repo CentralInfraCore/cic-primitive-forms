@@ -11,7 +11,8 @@
 //! against it.
 
 use cic_primitive_forms::{
-    compile_schema, parse, sha256_hex, validate, CompiledSchema, Error, SchemaInput,
+    compile_schema, parse, sha256_hex, validate, CompiledSchema, Error, Mode, PolicyRule,
+    SchemaInput,
 };
 use serde_json::Value as J;
 
@@ -137,6 +138,42 @@ fn network_space_config_surface_compiles_and_validates_a_vcn_intent() {
     assert_eq!(
         c.declared_validated_by,
         want["declared_validated_by"].as_str().unwrap()
+    );
+    // The policy and the base are read as declared, never evaluated (patterns are not asserted: the file
+    // is licensed content, and only the structure is pinned down).
+    let ps = &want["policy_summary"];
+    assert_eq!(c.base, want["base"].as_str().unwrap());
+    assert_eq!(c.policy.declared, ps["declared"]);
+    assert_eq!(
+        c.policy.default_access,
+        Some(PolicyRule::Symbol("open")),
+        "default_access"
+    );
+    assert_eq!(ps["default_access"], "open");
+    assert_eq!(
+        c.policy.default_modify,
+        Some(PolicyRule::Symbol("owner")),
+        "default_modify"
+    );
+    assert_eq!(ps["default_modify"], "owner");
+    let rules: Vec<&str> = c
+        .policy
+        .surface_rules
+        .iter()
+        .map(|r| r.surface.as_str())
+        .collect();
+    let want_rules: Vec<&str> = ps["surface_rules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s.as_str().unwrap())
+        .collect();
+    assert_eq!(rules, want_rules);
+    assert_eq!(c.policy.inherit_policy, Mode::Inherit);
+    assert_eq!(ps["inherit_policy"], "inherit");
+    assert_eq!(
+        c.policy.inherit_policy_declared,
+        ps["inherit_policy_declared"]
     );
     let access: Vec<String> = [
         "value",
