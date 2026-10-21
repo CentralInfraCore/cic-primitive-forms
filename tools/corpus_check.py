@@ -241,7 +241,7 @@ EXPECT_KEYS = {
     "equality": ({"equal"}, {"equal"}),
 }
 PRESENCE = ("mandatory", "optional")
-SHAPE_KEYS = {"type", "presence", "nullable", "default", "min_items", "fields"}
+SHAPE_KEYS = {"type", "presence", "nullable", "default", "min_items", "fields", "elements"}
 SLOTS = ("inherit_key", "inherit_policy", "access_modify", "access_node")
 
 
@@ -923,6 +923,8 @@ def check_shape(shape, where, vs):
         vs.append(Violation("SCHEMA_FIXTURE", where, "shape.nullable must be a boolean"))
     if "min_items" in shape and yaml_type(shape["min_items"]) != "integer":
         vs.append(Violation("SCHEMA_FIXTURE", where, "shape.min_items must be an integer"))
+    if "elements" in shape:
+        check_elements(shape, where, vs)
     if "fields" in shape:
         f = shape["fields"]
         if not isinstance(f, dict) or not f:
@@ -933,6 +935,29 @@ def check_shape(shape, where, vs):
                 check_shape(dict({"type": "composite"}, **v), where, vs)
             elif v not in PRESENCE:
                 vs.append(Violation("SCHEMA_FIXTURE", where, "shape.fields maps names to mandatory|optional or a nested shape"))
+
+
+def check_elements(shape, where, vs):
+    """The element structure of a list (ADR 0002): one case with key and fields, or item_choice cases."""
+    el = shape["elements"]
+    bad = "shape.elements is {key: [names], fields: {...}} or {cases: [{name, key, fields}, ...]}, on a type: list"
+    if shape.get("type") != "list" or not isinstance(el, dict):
+        vs.append(Violation("SCHEMA_FIXTURE", where, bad))
+        return
+    cases = [el] if set(el) == {"key", "fields"} else el.get("cases") if set(el) == {"cases"} else None
+    if not isinstance(cases, list) or not cases or (set(el) == {"cases"} and len(cases) < 2):
+        vs.append(Violation("SCHEMA_FIXTURE", where, bad))
+        return
+    for c in cases:
+        ok = isinstance(c, dict) and set(c) <= {"name", "key", "fields"} and {"key", "fields"} <= set(c)
+        ok = ok and isinstance(c["key"], list) and c["key"] and all(isinstance(k, str) for k in c["key"])
+        ok = ok and isinstance(c["fields"], dict) and c["fields"] and set(c["key"]) <= set(c["fields"])
+        ok = ok and all(isinstance(v, dict) and "type" in v for v in c["fields"].values())
+        if not ok:
+            vs.append(Violation("SCHEMA_FIXTURE", where, bad))
+            return
+        for v in c["fields"].values():
+            check_shape(v, where, vs)
 
 
 def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes, trees=None):

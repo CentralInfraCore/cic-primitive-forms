@@ -8,6 +8,8 @@ pub enum Phase {
     Parse,
     Recognize,
     Validate,
+    /// The identity of a list element could not be built (`path_of`).
+    PathOf,
 }
 
 impl Phase {
@@ -17,6 +19,7 @@ impl Phase {
             Phase::Parse => "parse",
             Phase::Recognize => "recognize",
             Phase::Validate => "validate",
+            Phase::PathOf => "path_of",
         }
     }
 }

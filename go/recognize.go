@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -61,6 +62,10 @@ type seg struct {
 	field string
 	index int
 	isIdx bool
+	// item is a ListItem segment (ADR 0006): the key components of one list element, in the declared key
+	// order. It follows the field segment that names the list.
+	item   []KeyComp
+	isItem bool
 }
 
 type found struct {
@@ -71,10 +76,32 @@ type found struct {
 // key orders a segment: every field sorts before every list index, fields by the UTF-8 bytes of
 // the name, indexes numerically.
 func (s seg) key() string {
+	if s.isItem {
+		// ADR 0007: ListItem segments compare by their components in the declared key order, strings by
+		// UTF-8 bytes and integers numerically. Each name and string value is written order-preservingly
+		// (NUL escaped, then a terminator that sorts below every continuation), so that concatenating the
+		// components does not change how two segments compare.
+		var b strings.Builder
+		b.WriteString("\x02")
+		for _, c := range s.item {
+			b.WriteString(orderBytes(c.Name))
+			if c.IsInt {
+				b.WriteString(fmt.Sprintf("1%020d", uint64(c.Int)^(1<<63)))
+			} else {
+				b.WriteString("0" + orderBytes(c.Str))
+			}
+		}
+		return b.String()
+	}
 	if s.isIdx {
 		return fmt.Sprintf("\x01%020d", s.index)
 	}
 	return "\x00" + s.field
+}
+
+// orderBytes writes a string so that comparing two written strings bytewise gives the order of the strings.
+func orderBytes(s string) string {
+	return strings.ReplaceAll(s, "\x00", "\x00\xff") + "\x00\x01"
 }
 
 func (f found) keys() []string {
@@ -103,21 +130,89 @@ func logicalPath(path []seg) string {
 	var b strings.Builder
 	b.WriteByte('$')
 	for _, s := range path {
+		if s.isItem {
+			if !writeSelector(&b, s.item) {
+				return ""
+			}
+			continue
+		}
 		if s.isIdx || s.field == "" {
 			return ""
 		}
 		b.WriteByte('.')
-		for _, c := range s.field {
-			if c <= 0x1f || c == 0x7f {
-				return ""
-			}
-			if strings.ContainsRune("\\.[]{}=,", c) {
-				b.WriteByte('\\')
-			}
-			b.WriteRune(c)
+		if !writeName(&b, s.field) {
+			return ""
 		}
 	}
 	return b.String()
+}
+
+// writeName writes a field or component name with the ADR 0006 escape set; false for a name that
+// cannot be written (a control character).
+func writeName(b *strings.Builder, name string) bool {
+	for _, c := range name {
+		if c <= 0x1f || c == 0x7f {
+			return false
+		}
+		if strings.ContainsRune("\\.[]{}=,", c) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(c)
+	}
+	return true
+}
+
+// writeSelector writes `[{name="value",n=1}]`: strings as canonical double-quoted JSON, integers bare.
+func writeSelector(b *strings.Builder, item []KeyComp) bool {
+	if len(item) == 0 {
+		return false
+	}
+	b.WriteString("[{")
+	for i, c := range item {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		if c.Name == "" || !writeName(b, c.Name) {
+			return false
+		}
+		b.WriteByte('=')
+		if c.IsInt {
+			b.WriteString(strconv.FormatInt(c.Int, 10))
+		} else {
+			writeJSONString(b, c.Str)
+		}
+	}
+	b.WriteString("}]")
+	return true
+}
+
+// writeJSONString is the one canonical writing of ADR 0006: \" and \\, the short escapes \b \f \n \r \t,
+// \u00xx (lower-case hex) for the other control characters, everything else literal UTF-8.
+func writeJSONString(b *strings.Builder, s string) {
+	b.WriteByte('"')
+	for _, c := range s {
+		switch {
+		case c == '"':
+			b.WriteString(`\"`)
+		case c == '\\':
+			b.WriteString(`\\`)
+		case c == '\b':
+			b.WriteString(`\b`)
+		case c == '\f':
+			b.WriteString(`\f`)
+		case c == '\n':
+			b.WriteString(`\n`)
+		case c == '\r':
+			b.WriteString(`\r`)
+		case c == '\t':
+			b.WriteString(`\t`)
+		case c < 0x20:
+			b.WriteString(fmt.Sprintf(`\u%04x`, c))
+		default:
+			b.WriteRune(c)
+		}
+	}
+	b.WriteByte('"')
 }
 
 // sorted orders by logical path, then code (ADR 0007) and fills in each LogicalPath.

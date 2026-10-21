@@ -59,6 +59,10 @@ pub struct Outcome {
 pub(crate) enum Seg {
     Field(String),
     Index(usize),
+    /// A ListItem segment (ADR 0006): the key components of one list element, in the declared key order.
+    /// It follows the field segment that names the list. The derived order is ADR 0007's: by component
+    /// name, strings by UTF-8 bytes before integers, integers numerically.
+    Item(Vec<crate::listitem::KeyComp>),
 }
 
 pub(crate) type Path = Vec<Seg>;
@@ -157,22 +161,80 @@ pub(crate) fn logical_path(path: &Path) -> Option<String> {
     }
     let mut out = String::from("$");
     for seg in path {
-        let name = match seg {
-            Seg::Field(name) => name,
-            Seg::Index(_) => return None,
-        };
-        if name.is_empty() || name.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
-            return None;
-        }
-        out.push('.');
-        for c in name.chars() {
-            if "\\.[]{}=,".contains(c) {
-                out.push('\\');
+        match seg {
+            Seg::Field(name) => {
+                out.push('.');
+                if !write_name(&mut out, name) {
+                    return None;
+                }
             }
-            out.push(c);
+            Seg::Item(item) => {
+                if !write_selector(&mut out, item) {
+                    return None;
+                }
+            }
+            Seg::Index(_) => return None,
         }
     }
     Some(out)
+}
+
+/// A field or component name with the ADR 0006 escape set; false for a name that cannot be written.
+fn write_name(out: &mut String, name: &str) -> bool {
+    if name.is_empty() || name.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
+        return false;
+    }
+    for c in name.chars() {
+        if "\\.[]{}=,".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    true
+}
+
+/// `[{name="value",n=1}]`: strings as canonical double-quoted JSON, integers bare.
+fn write_selector(out: &mut String, item: &[crate::listitem::KeyComp]) -> bool {
+    use crate::listitem::KeyValue;
+    if item.is_empty() {
+        return false;
+    }
+    out.push_str("[{");
+    for (i, c) in item.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        if !write_name(out, &c.name) {
+            return false;
+        }
+        out.push('=');
+        match &c.value {
+            KeyValue::Int(n) => out.push_str(&n.to_string()),
+            KeyValue::Str(s) => write_json_string(out, s),
+        }
+    }
+    out.push_str("}]");
+    true
+}
+
+/// The one canonical writing of ADR 0006: `\"` and `\\`, the short escapes `\b \f \n \r \t`, `\u00xx`
+/// (lower-case hex) for the other control characters, everything else literal UTF-8.
+fn write_json_string(out: &mut String, s: &str) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c < ' ' => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
 }
 
 /// Orders by logical path, then code (ADR 0007) and fills in each `logical_path`.

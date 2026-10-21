@@ -23,6 +23,7 @@
 //! The input is never modified.
 
 use crate::error::{Error, Location, Phase, Violation};
+use crate::listitem::{identify, Elements, DUPLICATE_IDENTITY};
 use crate::node::{Node, Value};
 use crate::recognize::{classify, location, logical_path, sorted, Class, Path, Seg};
 
@@ -58,10 +59,12 @@ pub enum ShapeType {
         item: ScalarType,
         min_items: Option<usize>,
     },
-    /// A list whose element structure the schema declares (`item_fields`, `item_choice`). The elements
-    /// are not validated by this slice: a non-empty value is [`Error::Unsupported`], never a silent pass.
+    /// A list whose element structure the schema declares (`item_fields`, `item_choice`). Each element
+    /// is identified by its declared key (ADR 0002, ADR 0006), its case is selected by field presence
+    /// and its fields are validated.
     DeclaredList {
         min_items: Option<usize>,
+        elements: Elements,
     },
 }
 
@@ -143,16 +146,12 @@ impl Walk<'_> {
             ShapeType::Scalar(t) => self.scalar(node, *t, path),
             ShapeType::List { min_items } => self.list(node, *min_items, path),
             ShapeType::Set { item, min_items } => self.set(node, *item, *min_items, path),
-            ShapeType::DeclaredList { min_items } => {
+            ShapeType::DeclaredList {
+                min_items,
+                elements,
+            } => {
                 self.list(node, *min_items, path)?;
-                match &node.value {
-                    Value::Seq(items) if !items.is_empty() => Err(Error::Unsupported(
-                        "validation of the elements of a list with a declared element structure \
-                         (item_fields, item_choice) is outside this slice"
-                            .into(),
-                    )),
-                    _ => Ok(()),
-                }
+                self.elements(node, elements, path)
             }
             ShapeType::Composite(fields) => self.composite(node, fields, path),
         }
@@ -213,6 +212,51 @@ impl Walk<'_> {
         };
         if min_items.is_some_and(|min| items.len() < min) {
             self.validation(path, "MIN_ITEMS_NOT_MET", location(node.pos));
+        }
+        Ok(())
+    }
+
+    fn elements(&mut self, node: &Node, elements: &Elements, path: &mut Path) -> Result<(), Error> {
+        let items = match &node.value {
+            Value::Seq(items) => items,
+            _ => return Ok(()),
+        };
+        let mut found = Vec::new();
+        for it in items {
+            if !matches!(it.value, Value::Map(_)) {
+                return Err(Error::Unsupported(format!(
+                    "a {:?} value where a list element record is declared (no code in the registry)",
+                    kind_name(&it.value)
+                )));
+            }
+            match identify(it, elements, self.a) {
+                Ok((case, id)) => found.push((it, case, Seg::Item(id))),
+                Err((code, at)) => self.validation(path, code, location(at.pos)),
+            }
+        }
+        // Two elements with one identity cannot be told apart by a path: one error at the identity, and
+        // nothing is reported below a node that already has an error.
+        let twice = |seg: &Seg| found.iter().filter(|(_, _, s)| s == seg).count() > 1;
+        // The error is anchored at the second element that has the identity.
+        let mut seen: Vec<&Seg> = Vec::new();
+        let mut reported: Vec<&Seg> = Vec::new();
+        for (it, _, seg) in &found {
+            if seen.contains(&seg) && !reported.contains(&seg) {
+                reported.push(seg);
+                path.push(seg.clone());
+                self.validation(path, DUPLICATE_IDENTITY, location(it.pos));
+                path.pop();
+            }
+            seen.push(seg);
+        }
+        for (it, case, seg) in &found {
+            if twice(seg) {
+                continue;
+            }
+            path.push(seg.clone());
+            let result = self.composite(it, &case.fields, path);
+            path.pop();
+            result?;
         }
         Ok(())
     }

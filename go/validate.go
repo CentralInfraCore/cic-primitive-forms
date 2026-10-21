@@ -43,8 +43,10 @@ const (
 	// when HasMinItems is set.
 	ShapeSet
 	// ShapeDeclaredList is a list whose element structure the schema declares (item_fields or
-	// item_choice). The elements are not validated by this slice: a non-empty value is an
-	// Unsupported error, never a silent pass. MinItems is checked when HasMinItems is set.
+	// item_choice): Elements holds the cases and their keys. Each element is identified by its declared
+	// key (ADR 0002, ADR 0006), its case is selected by field presence and its fields are validated; a
+	// shape without Elements is an Unsupported error, never a silent pass. MinItems is checked when
+	// HasMinItems is set.
 	ShapeDeclaredList
 )
 
@@ -52,6 +54,22 @@ const (
 type NamedShape struct {
 	Name  string
 	Shape Shape
+}
+
+// Case is one element structure of a list: the only one of a plain list (item_fields), one of the
+// alternatives of an item_choice. Key is the declared key, in order: the single role: key field, item_key
+// or the case's key.
+type Case struct {
+	Name   string
+	Fields []NamedShape
+	Key    []string
+}
+
+// Elements describes the elements of a ShapeDeclaredList. Choice says the case is selected by the
+// presence of the declared fields (item_choice); a plain list has exactly one case and no selection.
+type Elements struct {
+	Choice bool
+	Cases  []Case
 }
 
 // Shape is a field descriptor: the members of a nodes entry that presence validation reads.
@@ -65,6 +83,8 @@ type Shape struct {
 	Nullable    bool
 	// HasDefault says only whether a default is declared: it is never applied.
 	HasDefault bool
+	// Elements is the element structure of a ShapeDeclaredList.
+	Elements *Elements
 }
 
 // Validation is the result of validating one document (or its absence) against a shape.
@@ -191,8 +211,48 @@ func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
 	if err := w.list(node, shape, path); err != nil {
 		return err
 	}
-	if len(node.Items) > 0 {
-		return unsupported("validation of the elements of a list with a declared element structure (item_fields, item_choice) is outside this slice")
+	if shape.Elements == nil {
+		return unsupported("a list with a declared element structure but no element description")
+	}
+	type element struct {
+		node  *Node
+		c     *Case
+		item  seg
+		clean bool
+	}
+	var els []element
+	count := map[string]int{}
+	for _, it := range node.Items {
+		if it.Kind != KindMap {
+			return unsupported("a %s value where a list element record is declared (no code in the registry)", kindName(it))
+		}
+		c, id, code, at := identify(it, shape.Elements, w.a)
+		if code != "" {
+			w.add(path, code, loc(at.Pos))
+			continue
+		}
+		s := seg{item: id, isItem: true}
+		count[s.key()]++
+		els = append(els, element{node: it, c: c, item: s})
+	}
+	// Two elements with one identity cannot be told apart by a path: one error at the identity, and
+	// nothing is reported below a node that already has an error.
+	// The error is anchored at the second element that has the identity.
+	seen := map[string]int{}
+	for _, e := range els {
+		k := e.item.key()
+		seen[k]++
+		if seen[k] == 2 {
+			w.add(append(slices.Clone(path), e.item), "PATH_DUPLICATE_IDENTITY", loc(e.node.Pos))
+		}
+	}
+	for _, e := range els {
+		if count[e.item.key()] > 1 {
+			continue
+		}
+		if err := w.composite(e.node, e.c.Fields, append(slices.Clone(path), e.item)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

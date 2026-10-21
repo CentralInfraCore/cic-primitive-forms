@@ -176,9 +176,32 @@
     "unsupported": true
    },
    {
-    "id": "list-elements-refused",
-    "yaml": "cidr_block: 10.0.0.0/16\nsecondary_cidr_blocks:\n  - cidr: 10.1.0.0/16\n",
-    "unsupported": true
+    "id": "secondary-cidr-blocks-by-identity",
+    "yaml": "cidr_block: 10.0.0.0/16\nsecondary_cidr_blocks:\n  - cidr: 10.1.0.0/16\n  - cidr: 10.2.0.0/16\n",
+    "violations": [],
+    "candidates": []
+   },
+   {
+    "id": "secondary-cidr-duplicate-identity",
+    "yaml": "cidr_block: 10.0.0.0/16\nsecondary_cidr_blocks:\n  - cidr: 10.1.0.0/16\n  - cidr: 10.1.0.0/16\n",
+    "violations": [
+     [
+      "PATH_DUPLICATE_IDENTITY",
+      "$.secondary_cidr_blocks[{cidr=\"10.1.0.0/16\"}]"
+     ]
+    ],
+    "candidates": []
+   },
+   {
+    "id": "secondary-cidr-key-missing",
+    "yaml": "cidr_block: 10.0.0.0/16\nsecondary_cidr_blocks:\n  - {}\n",
+    "violations": [
+     [
+      "PATH_KEY_MISSING",
+      "$.secondary_cidr_blocks"
+     ]
+    ],
+    "candidates": []
    }
   ]
  }

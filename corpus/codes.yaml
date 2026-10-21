@@ -120,34 +120,34 @@ codes:
     trigger: Components missing, extra, unknown, not in the declared order, or naming keys of two item_choice cases.
   PATH_KEY_TYPE:
     status: stable
-    phases: {path_of: none, path_resolve: none}
+    phases: {path_of: none, path_resolve: none, validate: value}
     meaning: A key value has the wrong kind for the declared key type.
-    trigger: A quoted value for an integer key or the reverse (path_resolve); a document key value of the wrong type (path_of).
+    trigger: A quoted value for an integer key or the reverse (path_resolve); a document key value of the wrong type (path_of). In validate, the key value of an element, anchored at that value.
   PATH_KEY_UNSUPPORTED:
     status: provisional
-    phases: {path_format: none, path_of: none, path_resolve: none}
+    phases: {path_format: none, path_of: none, path_resolve: none, validate: value}
     meaning: The key field has a type with no defined path encoding.
-    trigger: 'Boolean, number or bytes key. Provisional: the encodings are undecided (ADR 0006).'
+    trigger: 'Boolean, number or bytes key. Provisional: the encodings are undecided (ADR 0006). In validate, the key field of an element has such a type, anchored at the key value.'
   PATH_DUPLICATE_IDENTITY:
     status: stable
-    phases: {path_of: none}
+    phases: {path_of: none, validate: mapping}
     meaning: Two elements of one list have the same identity.
-    trigger: Never mapped to an index (ADR 0006).
+    trigger: Never mapped to an index (ADR 0006). In validate, reported once per identity, anchored at the second element that has it.
   PATH_KEY_MISSING:
     status: stable
-    phases: {path_of: none}
+    phases: {path_of: none, validate: mapping}
     meaning: A key component of a list element is absent.
-    trigger: Plain list element lacks a key field (ADR 0006).
+    trigger: Plain list element lacks a key field (ADR 0006). In validate (ADR 0007 amendment), the same fact while validating a list element, anchored at the element's record.
   PATH_CASE_NONE:
     status: stable
-    phases: {path_of: none}
+    phases: {path_of: none, validate: mapping}
     meaning: No item_choice case matches the element.
-    trigger: ADR 0002 matching finds zero cases.
+    trigger: ADR 0002 matching finds zero cases. In validate, anchored at the element's record.
   PATH_CASE_AMBIGUOUS:
     status: stable
-    phases: {path_of: none}
+    phases: {path_of: none, validate: mapping}
     meaning: More than one item_choice case matches the element.
-    trigger: ADR 0002 matching finds several cases.
+    trigger: ADR 0002 matching finds several cases. In validate, anchored at the element's record.
   DIFF_CONTEXT_MISMATCH:
     status: stable
     phases: {diff: none}

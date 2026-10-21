@@ -11,6 +11,7 @@ implementation, not a decision: it follows the accepted ADRs and re-opens none o
 | recognize / validate | `recognize` | `Recognize` | ADR 0001 recognition at a synthetic position, then the position validation of ADR 0003/0007 (`MAP_AT_SCALAR_POSITION`, `UNKNOWN_FIELD`, `EXPANDED_WITH_EXTRA_KEY`) |
 | emit | `emit` | `Emit` | Deterministic block-style YAML; the text always parses back to the same value |
 | access-policy/1 reading | `read_mode`, `read_rule`, `bind_grammar`, `pinned_grammar_version`, `is_cert_pattern` | `ReadMode`, `ReadRule`, `BindGrammar`, `PinnedGrammarVersion`, `IsCertPattern` | `InheritanceMode` in grammar 1 or 2, an `access`/`modify` value, the grammar version binding derived from the verified pinned schema (see below) |
+| list element identity | `path_of` | `PathOf` | The canonical ADR 0006 path of an addressed node; a list element named by its declared key (see "List elements") |
 | schema compile | `compile_schema` | `CompileSchema` | A pinned CIC schema (bytes + SHA-256 + grammar pin + surface) to the Shape tree `validate` reads; every refusal named by schema path (see "Schema-bound validation") |
 | presence validation | `validate` | `Validate` | Absent / null / value against a Shape: `mandatory`, `optional`, `nullable`, scalar type, `min_items`, composite fields; every error with `logical_path`; default *candidates* (see below) |
 
@@ -138,9 +139,8 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   Dependency digests (ADR 0002 asks each pinned dependency to carry its own) are **not** checked yet: a reference is
   pinned by version only.
 * **Validation of what was compiled.** A `set` is a list of scalars of its type (`MIN_ITEMS_NOT_MET`; a wrong element
-  type is outside the registry like any wrong type). A list with a declared element structure is checked for being a
-  list and for `min_items`; **a non-empty one is `UNSUPPORTED_SYNTAX`**, never a silent pass: validating elements
-  needs the identity and case-selection rules and the ADR 0006 selectors, which are the next slice.
+  type is outside the registry like any wrong type). A list with a declared element structure is validated element by
+  element (next section).
 * **Codes** (outside `corpus/codes.yaml`, like the upstream binding codes; the shared cases of
   `testdata/p1/schema.json` use them): `SCHEMA_DIGEST_MISMATCH`, `GRAMMAR_PIN_UNKNOWN`, `SURFACE_UNSUPPORTED`,
   `SCHEMA_INVALID`, `SCHEMA_SHAPE_UNSUPPORTED`, `SCHEMA_REF_UNPINNED`, `SCHEMA_FEATURE_NOT_IN_GRAMMAR`.
@@ -162,18 +162,50 @@ Both at the pinned registry commit `6db77d4`:
   intent is validated against the registry's own definition: `cidr_block` is mandatory; `ipv6_enabled: ~` is
   `NULL_NOT_ALLOWED`, not an absent field; an undeclared `display_name` or `compartment_id` is `UNKNOWN_FIELD` (the
   registry schema has no such config fields, a gap already noted in the VCN pipeline work);
-  `secondary_cidr_blocks: []` is valid and a non-empty one is refused as outside this slice (list elements).
+  `secondary_cidr_blocks` is a list keyed by `cidr`: valid by identity, a repeated `cidr` is `PATH_DUPLICATE_IDENTITY`, an element without `cidr` is `PATH_KEY_MISSING`.
 * `general/network/network-interface/network-interface.yaml`: `config_surface` is **refused with 22
   `SCHEMA_INVALID` problems**: 22 fields (`stp.*`, `poe.*`, `storm_control.*`, `qinq.*`, ...) declare a `default`
   without saying `optional`. By `shape.yaml` such a field is mandatory, and a mandatory field has no default. The
   library does not guess that `optional` was meant; the schema (a working copy, not a signed release) has to say
   it. The 22 paths are in `testdata/p1/real-schemas.json` and were cross-checked with an independent scan of the
-  file. `vlans` and `vxlans` are `item_choice` lists and compile under the `devel` profile; their elements are
-  not yet validated.
+  file. `vlans` and `vxlans` are `item_choice` lists and compile under the `devel` profile.
 * A scan of the other unversioned `general/**` working copies at that commit (`config_surface`): `network-space`,
   `subnet`, `dhcp-options`, `dhcp-service`, `kubernetes-node` and `storage-resource` compile. The adapters declare no
   `config_surface` (they are not authored intent; refused as `SCHEMA_INVALID`), `kubernetes-cluster` has two
   defaults without `optional`, and `compute-resource` uses the scalar type `number` (`SCHEMA_SHAPE_UNSUPPORTED`).
+
+## List elements: identity, case selection, paths (ADR 0002, ADR 0006; `path_of`, element validation)
+
+The identity of a list element comes **only** from the pinned schema: the single `role: key` field, `item_key` for a
+composite key, the `key` of the `item_choice` case. Never from a field name, never from the position in the list.
+A `PathOf` / `path_of` address `[field, index, field, ...]` gives the canonical path, and a list element is named by its
+identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
+
+* **Key components** are in the declared order (the schema's, not the document's), a string (`name="eth0"`, canonical
+  double-quoted JSON: `\"`, `\\`, `\b \f \n \r \t`, lower-case `\u00xx` for the other controls, everything else
+  literal) or an integer (`vlan_id=100`). An Access wrapper around a key value is looked through, so the short and
+  the expanded form give one identity.
+* **`item_choice` case selection** is by field presence on the raw record: a case matches when every key of the record is a
+  declared field of the case and every mandatory field of the case, key fields included, is present. Zero matches is
+  `PATH_CASE_NONE`, several is `PATH_CASE_AMBIGUOUS`, both at the path of the list. A plain list has one case and no selection, so a
+  missing key is `PATH_KEY_MISSING`, not a case error.
+* **Key errors** at the path of the list: `PATH_KEY_MISSING`, `PATH_KEY_TYPE` (a string where an integer is declared and
+  the reverse; `null` too), `PATH_KEY_UNSUPPORTED` (a boolean, or a non-scalar, key: no encoding, ADR 0006).
+* **Duplicates.** Two elements with one identity are `PATH_DUPLICATE_IDENTITY` at the path of the identity, once per
+  identity, and nothing is reported below an element that already has an error (ADR 0007). The error is never mapped to an index.
+* **Validation.** `Validate` identifies every element, reports the identity errors above, and validates the fields of
+  each identified element against its case (presence, `null`, types, `UNKNOWN_FIELD` for a plain list; an unknown
+  key of an `item_choice` record is `PATH_CASE_NONE`, the case rule). Errors inside an element are named by its identity and
+  ordered as ADR 0007 says: by component name, strings by UTF-8 bytes before integers, integers numerically (`{vlan_id=9}`
+  before `{vlan_id=10}`), independent of the list order.
+* **Corpus.** The 18 `path_of` and 7 `path_stability` cases of `corpus/paths` run in both languages; the validation of
+  elements is in `corpus/lists` and the shared `testdata/p1/schema.json` (list, `item_choice`, composite key in schema order, ambiguity,
+  boolean key, canonical key text) and, against the registry's `network-space`, in `testdata/p1/real-schemas.json`.
+* **Phase and anchors.** The six identity codes are reported in phase `path_of` by `path_of` and in phase `validate` by
+  `Validate` (ADR 0007, "Amendment: the list-element identity codes in `validate`"): the missing key and the case errors are
+  anchored at the element's record, a key value of the wrong or an unsupported type at that value, a duplicate at the second
+  element with the identity. `corpus/lists/vectors.yaml` carries a negative vector per code and phase, with source locations,
+  and runs in both languages.
 
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
@@ -192,7 +224,8 @@ Both at the pinned registry commit `6db77d4`:
 | a value of the wrong type in presence validation (a string where an integer is declared, a list where a mapping is declared, ...) | `UNSUPPORTED_SYNTAX`: the registry has **no code** for it (finding 4) |
 | an expanded Access node inside a validated document | `UNSUPPORTED_SYNTAX`: its `value` is validated with expand/collapse (P2) |
 | effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (P2), grammar-version migration (`migrate_mode`) | not implemented |
-| Validating the **elements** of a list (`item_fields`, `item_choice`) | `UNSUPPORTED_SYNTAX` for a non-empty list of a schema-compiled shape (next slice: element identity, case selection, ADR 0006 selectors) |
+| A list element that is not a record, or an element field of the wrong type | `UNSUPPORTED_SYNTAX` (no code in the registry) |
+| An expanded Access node as a key value or any element field | `UNSUPPORTED_SYNTAX` (P2): the key's identity looks through it (`path_of`), but validating its `value` is expand/collapse |
 | Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts` |
 
 These three codes are **not** in `corpus/codes.yaml`; they mark the boundary of the slice and are
@@ -205,7 +238,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **81 run + 258 NOT RUN**.
+case of the corpus (339), assert that each is either run or listed here, and assert **114 run + 233 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -217,7 +250,10 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | conformance | `basis` | 16 | NOT RUN (ADR 0010) |
 | conformance, presence, recognition | `collapse` | 15 | NOT RUN (P2) |
 | inherit, presence | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
-| paths | `path_parse` 57, `path_resolve` 34, `path_of` 18, `path_format` 9, `path_stability` 7 | 125 | NOT RUN |
+| lists | `validate` (list notation, ADR 0007 amendment) | 8 | **run**, both languages, complete machine response with source locations |
+| paths | `path_of` | 18 | **run**, both languages: identity of a list element in a path, errors with their path |
+| paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
+| paths | `path_parse` 57, `path_resolve` 34, `path_format` 9 | 100 | NOT RUN |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
@@ -248,6 +284,8 @@ refused, and what a contract violation says, is compared. The two libraries also
 nesting limit and their own wording of a syntax error.
 
 ## Parser parity (Rust against Go)
+
+**Stability of the generated inputs (#39).** The fixed-seed run and its allow list depend on the seed list, because the random edits `choice` from it. The seeds are therefore the *pinned* suites named in `tools/parity/gen_inputs.py` (`PINNED_SUITES`); a corpus suite added later (`corpus/lists`) is not a seed of that run but is appended after it, with its own texts and 3 000 mutations from a generator of its own, so adding a suite cannot reshuffle the pinned inputs again. Checked: with `corpus/lists` present the first 30 000 inputs are byte for byte those of the head before it, and the 286 allowed divergences, `changed: 0`, `new: 0` hold on them. The appended inputs found 2 divergences, both the open flow-context class (a `?` inside a plain scalar of a flow mapping), now in the allow list with their minimal forms.
 
 `tools/parity` compares `parse` in the two languages on the same inputs: `gen_inputs.py` writes
 30 005 deterministic inputs (the texts the repository holds, the pinned `access.yaml`, 450 hand-written

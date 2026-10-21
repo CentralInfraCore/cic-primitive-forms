@@ -133,16 +133,38 @@ REGRESSIONS = [
 ]
 
 
-def seeds(upstream):
-    out = [t for t in HAND] + EXTRA
-    # texts already in the repository
-    for f in sorted(glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml"))):
+# The corpus suites the fixed-seed run (and so the allow list testdata/p1/parity-known.txt) is keyed to. The seed list decides
+# what `rng.choice` picks, so a suite added to this list, or a suite that appears in the corpus, would reshuffle every
+# generated input and turn the allow list into noise. A suite NOT named here is added after the random part instead
+# (added_inputs): it takes part in the differential run, the pinned run stays byte for byte what it was.
+PINNED_SUITES = ["conformance", "diff", "grammar", "inherit", "paths", "presence", "recognition"]
+ADDED_MUTATIONS = 3000
+
+
+def suite_files(pinned):
+    files = sorted(glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml")))
+    present = {os.path.basename(os.path.dirname(f)) for f in files}
+    if not set(PINNED_SUITES) <= present:  # a missing pinned suite would silently shift every generated input
+        raise SystemExit("gen_inputs: pinned suite(s) missing from corpus/: %s" % sorted(set(PINNED_SUITES) - present))
+    return [f for f in files if (os.path.basename(os.path.dirname(f)) in PINNED_SUITES) == pinned]
+
+
+def suite_texts(files):
+    out = []
+    for f in files:
         raw = open(f, encoding="utf-8").read()
         out.append(raw)
         for c in yaml.safe_load(raw)["cases"]:
             for k in ("input_yaml", "a_yaml", "b_yaml"):
                 if isinstance(c.get(k), str):
                     out.append(c[k])
+    return out
+
+
+def seeds(upstream):
+    out = [t for t in HAND] + EXTRA
+    # texts already in the repository
+    out += suite_texts(suite_files(True))
     for f in ("subset.json",):
         d = json.load(open(os.path.join(ROOT, "testdata", "p1", f), encoding="utf-8"))
         for group in ("parse_ok", "unsupported", "syntax"):
@@ -224,6 +246,17 @@ def main():
             i = rng.randrange(max(1, len(lines) - 30))
             t = "\n".join(lines[i:i + 30])
         items.append(mutate(rng, t).encode("utf-8", "surrogatepass"))
+    # the suites added after the allow list was pinned: their own texts, and mutations drawn from a generator of their own
+    added = suite_texts(suite_files(False))
+    items += [t.encode("utf-8") for t in added]
+    rng_added = random.Random(a.seed ^ 0x5EED)
+    for _ in range(ADDED_MUTATIONS if added else 0):
+        t = rng_added.choice(added)
+        if len(t) > 1200:  # small windows, so that a divergence found here is a short, readable allow-list line
+            lines = t.split("\n")
+            i = rng_added.randrange(max(1, len(lines) - 8))
+            t = "\n".join(lines[i:i + 8])
+        items.append(mutate(rng_added, t).encode("utf-8", "surrogatepass"))
     items += [t.encode("utf-8") for t in REGRESSIONS]  # after the random part: the seeded run above is unchanged by them
     # a few byte-level cases the text path cannot produce
     items += [b"\xff", b"a: \xc3\n", b"\xef\xbb", b"a: \xed\xa0\x80\n", b"\xfe\xff"]

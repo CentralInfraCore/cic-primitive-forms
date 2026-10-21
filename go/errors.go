@@ -10,6 +10,8 @@ const (
 	PhaseParse     Phase = "parse"
 	PhaseRecognize Phase = "recognize"
 	PhaseValidate  Phase = "validate"
+	// PhasePathOf is the phase of PathOf: the identity of a list element could not be built.
+	PhasePathOf Phase = "path_of"
 )
 
 // Location is the source_location of ADR 0007: coordinates, or unavailable for a document

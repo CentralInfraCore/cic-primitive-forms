@@ -207,7 +207,7 @@ func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
 			id, kind := c["id"].(string), c["kind"].(string)
 			if kind != "recognize" {
 				// The validate cases that have a runner of their own are counted there.
-				if !(kind == "validate" && hasRunner(c)) {
+				if !(kind == "validate" && hasRunner(c)) && !isPathRun(kind) {
 					notRun[kind]++
 				}
 				continue
@@ -371,6 +371,9 @@ func shapeOf(t *testing.T, v any) forms.Shape {
 		if n, ok := m["min_items"].(int); ok {
 			s.MinItems, s.HasMinItems = n, true
 		}
+		if el, ok := m["elements"].(obj); ok {
+			s.Kind, s.Elements = forms.ShapeDeclaredList, elementsOf(t, el)
+		}
 	case (!hasType || typ == "composite") && m["fields"] != nil:
 		s.Kind = forms.ShapeComposite
 		names := []string{}
@@ -387,6 +390,37 @@ func shapeOf(t *testing.T, v any) forms.Shape {
 		t.Fatalf("unsupported fixture type %q", typ)
 	}
 	return s
+}
+
+// elementsOf reads the fixture notation of the element structure of a list: one case (key, fields) or cases.
+func elementsOf(t *testing.T, el obj) *forms.Elements {
+	t.Helper()
+	read := func(name string, c obj) forms.Case {
+		var key []string
+		for _, k := range c["key"].([]any) {
+			key = append(key, k.(string))
+		}
+		fields := c["fields"].(obj)
+		names := []string{}
+		for n := range fields {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		out := forms.Case{Name: name, Key: key}
+		for _, n := range names {
+			out.Fields = append(out.Fields, forms.NamedShape{Name: n, Shape: shapeOf(t, fields[n])})
+		}
+		return out
+	}
+	if cases, ok := el["cases"].([]any); ok {
+		els := &forms.Elements{Choice: true}
+		for _, raw := range cases {
+			c := raw.(obj)
+			els.Cases = append(els.Cases, read(c["name"].(string), c))
+		}
+		return els
+	}
+	return &forms.Elements{Cases: []forms.Case{read("", el)}}
 }
 
 func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
@@ -460,8 +494,8 @@ func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
 	}
 	t.Logf("presence validate cases run: %d", ran)
 	t.Logf("NOT RUN here: validate, not a presence case (see the accounting test): %d cases", notRun)
-	if ran != 29 {
-		t.Fatalf("the presence suite has 29 shape-based validate cases, ran %d", ran)
+	if ran != 37 {
+		t.Fatalf("the presence and lists suites have 37 shape-based validate cases, ran %d", ran)
 	}
 }
 
@@ -667,7 +701,7 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 			total++
 			kind := c["kind"].(string)
 			key := suite["suite"].(string) + "/" + kind
-			if kind == "recognize" || (kind == "validate" && hasRunner(c)) {
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) {
 				run[key]++
 				ran++
 			} else {
@@ -682,10 +716,178 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 81 || skipped != 258 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 81 + 258", ran, skipped, total)
+	if ran+skipped != total || ran != 114 || skipped != 233 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 114 + 233", ran, skipped, total)
+	}
+	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 {
+		t.Fatalf("%v", run)
 	}
 	if run["inherit/validate"] != 21 || run["presence/validate"] != 29 || run["recognition/recognize"]+run["presence/recognize"] != 31 {
 		t.Fatalf("%v", run)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// path_of and path_stability (ADR 0006): the identity of a list element in a path.
+
+func isPathRun(kind string) bool { return kind == "path_of" || kind == "path_stability" }
+
+// treeShape reads the synthetic tree notation of corpus/paths/vectors.yaml into a Shape. In the path fixtures
+// the key fields are the only mandatory fields (ADR 0006), so the fields of a list element are optional
+// except the key; the fields of a composite are optional.
+func treeShape(t *testing.T, v any, mandatory bool) forms.Shape {
+	t.Helper()
+	pres := forms.Optional
+	if mandatory {
+		pres = forms.Mandatory
+	}
+	if s, ok := v.(string); ok && s == "opaque" {
+		return forms.Shape{Kind: forms.ShapeOpaque, Presence: pres}
+	}
+	m := v.(obj)
+	switch {
+	case m["scalar"] != nil:
+		sc := forms.ScalarString
+		switch m["scalar"] {
+		case "integer":
+			sc = forms.ScalarInteger
+		case "boolean":
+			sc = forms.ScalarBoolean
+		}
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: sc, Presence: pres}
+	case m["set"] != nil:
+		return forms.Shape{Kind: forms.ShapeSet, Scalar: forms.ScalarString, Presence: pres}
+	case m["composite"] != nil:
+		return forms.Shape{Kind: forms.ShapeComposite, Fields: treeFields(t, m["composite"].(obj), nil), Presence: pres}
+	}
+	list := m["list"].(obj)
+	els := &forms.Elements{}
+	if choice, ok := list["choice"]; ok {
+		els.Choice = true
+		for _, raw := range choice.([]any) {
+			cs := raw.(obj)
+			var key []string
+			for _, k := range cs["key"].([]any) {
+				key = append(key, k.(string))
+			}
+			els.Cases = append(els.Cases, forms.Case{Name: cs["name"].(string), Fields: treeFields(t, cs["fields"].(obj), key), Key: key})
+		}
+	} else {
+		var key []string
+		for _, k := range list["key"].([]any) {
+			key = append(key, k.(string))
+		}
+		els.Cases = []forms.Case{{Fields: treeFields(t, list["fields"].(obj), key), Key: key}}
+	}
+	return forms.Shape{Kind: forms.ShapeDeclaredList, Elements: els, Presence: pres}
+}
+
+func treeFields(t *testing.T, fields obj, key []string) []forms.NamedShape {
+	t.Helper()
+	names := make([]string, 0, len(fields))
+	for k := range fields {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	var out []forms.NamedShape
+	for _, name := range names {
+		out = append(out, forms.NamedShape{Name: name, Shape: treeShape(t, fields[name], slices.Contains(key, name))})
+	}
+	return out
+}
+
+func rootOf(t *testing.T, suite obj, name string) forms.Shape {
+	t.Helper()
+	return forms.Shape{Kind: forms.ShapeComposite, Fields: treeFields(t, suite["trees"].(obj)[name].(obj), nil), Presence: forms.Mandatory}
+}
+
+func stepsOf(at any) []forms.Step {
+	var out []forms.Step
+	for _, s := range at.([]any) {
+		if n, ok := s.(int); ok {
+			out = append(out, forms.Step{Index: n, IsIndex: true})
+		} else {
+			out = append(out, forms.Step{Field: s.(string)})
+		}
+	}
+	return out
+}
+
+// pathOutcome is what PathOf says: a path, or the wire form of its one error.
+func pathOutcome(t *testing.T, id string, doc *forms.Node, root forms.Shape, at any) (string, []wire) {
+	t.Helper()
+	p, err := forms.PathOf(doc, root, accessKeys, stepsOf(at))
+	if err == nil {
+		return p, nil
+	}
+	var fe *forms.Error
+	if !errors.As(err, &fe) || fe.Kind != forms.ErrContract {
+		t.Fatalf("%s: outside the contract: %v", id, err)
+	}
+	var ws []wire
+	for _, v := range fe.Violations {
+		ws = append(ws, wireOf(v))
+	}
+	return "", ws
+}
+
+func documentOf(t *testing.T, c obj) *forms.Node {
+	t.Helper()
+	if src, ok := c["document_yaml"]; ok {
+		n, err := forms.Parse(src.(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	return nodeOf(t, c["document"])
+}
+
+func expectedPathWires(t *testing.T, expect obj) (string, []wire) {
+	t.Helper()
+	if p, ok := expect["path"]; ok {
+		return p.(string), nil
+	}
+	var ws []wire
+	for _, e := range expect["errors"].([]any) {
+		w := e.(obj)
+		ws = append(ws, wire{code: w["code"].(string), phase: w["phase"].(string), loc: "unavailable", path: w["logical_path"].(string)})
+	}
+	return "", ws
+}
+
+func TestPathCasesMatchTheCorpus(t *testing.T) {
+	ran := 0
+	for _, suite := range suites(t) {
+		if suite["suite"] != "paths" {
+			continue
+		}
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			id, kind := c["id"].(string), c["kind"].(string)
+			if !isPathRun(kind) {
+				continue
+			}
+			ran++
+			root := rootOf(t, suite, c["schema"].(obj)["synthetic"].(obj)["tree"].(string))
+			wantPath, wantErr := expectedPathWires(t, c["expect"].(obj))
+			if kind == "path_of" {
+				path, errs := pathOutcome(t, id, documentOf(t, c), root, c["at"])
+				if path != wantPath || !reflect.DeepEqual(errs, wantErr) {
+					t.Errorf("%s: got %q %v, want %q %v", id, path, errs, wantPath, wantErr)
+				}
+				continue
+			}
+			for i, v := range c["variants"].([]any) {
+				vc := v.(obj)
+				path, errs := pathOutcome(t, id, documentOf(t, vc), root, vc["at"])
+				if path != wantPath || !reflect.DeepEqual(errs, wantErr) {
+					t.Errorf("%s variant %d: got %q %v, want %q %v", id, i, path, errs, wantPath, wantErr)
+				}
+			}
+		}
+	}
+	if ran != 25 {
+		t.Fatalf("the corpus has 18 path_of and 7 path_stability cases, ran %d", ran)
 	}
 }
