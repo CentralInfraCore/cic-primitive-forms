@@ -68,14 +68,28 @@ pub enum ShapeType {
     },
 }
 
+/// A declared default value. Two defaults are equal when they hold the same value (`Node::same`): positions are
+/// not part of it.
+#[derive(Debug, Clone)]
+pub struct DefaultValue(pub Node);
+
+impl PartialEq for DefaultValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.same(&other.0)
+    }
+}
+
 /// A field descriptor: the members of a `nodes` entry that presence validation reads.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Shape {
     pub shape_type: ShapeType,
     pub presence: Presence,
     pub nullable: bool,
-    /// Only whether a default is declared matters here: it is never applied.
+    /// Whether a default is declared.
     pub has_default: bool,
+    /// The declared value, set by `compile_schema` for a node that takes a default (ADR 0011) and `None`
+    /// otherwise, also for a hand-built Shape that only says `has_default`. `apply_defaults` inserts a copy.
+    pub default: Option<DefaultValue>,
 }
 
 /// The result of validating one document (or its absence) against a shape.

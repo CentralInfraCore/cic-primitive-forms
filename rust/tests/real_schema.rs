@@ -11,8 +11,8 @@
 //! against it.
 
 use cic_primitive_forms::{
-    compile_schema, parse, sha256_hex, validate, CompiledSchema, Error, Mode, PolicyRule,
-    SchemaInput,
+    apply_defaults, compile_schema, emit, parse, sha256_hex, validate, CompiledSchema, Error, Mode,
+    PolicyRule, SchemaInput, VALUE_DEFAULT,
 };
 use serde_json::Value as J;
 
@@ -218,6 +218,20 @@ fn network_space_config_surface_compiles_and_validates_a_vcn_intent() {
             .map(|s| s.as_str().unwrap().to_string())
             .collect();
         assert_eq!(v.default_candidates, cands, "{id}");
+        // The defaults of a valid document are applied exactly at the candidates, and applying them again changes nothing.
+        if want_v.is_empty() {
+            let res = apply_defaults(Some(&node), &c.root, &access).unwrap();
+            let out = res.document.as_ref().expect(id);
+            let defaulted: Vec<String> = res
+                .origins
+                .iter()
+                .filter(|o| o.origin == VALUE_DEFAULT)
+                .map(|o| o.path.clone())
+                .collect();
+            assert_eq!(defaulted, cands, "{id}");
+            let again = apply_defaults(Some(out), &c.root, &access).unwrap();
+            assert_eq!(emit(again.document.as_ref().unwrap()), emit(out), "{id}");
+        }
     }
 }
 

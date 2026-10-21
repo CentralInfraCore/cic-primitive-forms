@@ -288,6 +288,7 @@ fn shape_strategy() -> impl Strategy<Value = Shape> {
                                 presence,
                                 nullable,
                                 has_default,
+                                default: None,
                             },
                         )
                     })
@@ -301,6 +302,7 @@ fn shape_strategy() -> impl Strategy<Value = Shape> {
             presence,
             nullable,
             has_default,
+            default: None,
         },
     )
 }
@@ -588,6 +590,7 @@ fn an_error_at_an_unwritable_name_is_ordered_by_its_segments() {
         presence: Presence::Mandatory,
         nullable: false,
         has_default: false,
+        default: None,
     };
     let schema = shape(ShapeType::Composite(vec![(
         "d".into(),

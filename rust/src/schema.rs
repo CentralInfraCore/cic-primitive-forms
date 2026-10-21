@@ -21,7 +21,8 @@ use crate::listitem::{Case, Elements};
 use crate::node::{Node, Value};
 use crate::parse::parse;
 use crate::policy::{read_policy, PolicySurface};
-use crate::validate::{Presence, ScalarType, Shape, ShapeType};
+use crate::role::read_role;
+use crate::validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType};
 
 pub const SCHEMA_INVALID: &str = "SCHEMA_INVALID";
 pub const SCHEMA_SHAPE_UNSUPPORTED: &str = "SCHEMA_SHAPE_UNSUPPORTED";
@@ -256,10 +257,47 @@ pub(crate) fn compile_with(
             presence: Presence::Mandatory,
             nullable: false,
             has_default: false,
+            default: None,
         },
         uses_item_choice: c.item_choice,
         unevaluated_contracts: c.unevaluated,
     })
+}
+
+/// The key set A of the Access atom (`access.yaml`): what recognition needs to tell an expanded node.
+pub(crate) const ACCESS_ATOM_KEYS: [&str; 6] = [
+    "value",
+    "access",
+    "modify",
+    "inherit",
+    "default_injection",
+    "conformance",
+];
+
+/// Whether `d` is a valid value of the node `shape` itself: the schema's own check of a default, so that applying it
+/// can never produce a document that does not validate.
+fn default_fits(shape: &Shape, d: &Node) -> bool {
+    let mut own = shape.clone();
+    own.presence = Presence::Mandatory;
+    own.has_default = false;
+    own.default = None;
+    let probe = Shape {
+        shape_type: ShapeType::Composite(vec![("default".to_string(), own)]),
+        presence: Presence::Mandatory,
+        nullable: false,
+        has_default: false,
+        default: None,
+    };
+    let doc = Node::new(Value::Map(vec![crate::node::Entry {
+        key: "default".to_string(),
+        key_pos: None,
+        value: d.clone(),
+    }]));
+    let a: Vec<String> = ACCESS_ATOM_KEYS.iter().map(|s| (*s).to_string()).collect();
+    match validate(Some(&doc), &probe, &a) {
+        Ok(v) => v.violations.is_empty(),
+        Err(_) => false,
+    }
 }
 
 fn check_ref(path: &str, v: Option<&Node>) -> Result<(), Problem> {
@@ -458,8 +496,10 @@ impl Compiler {
     fn node(&mut self, n: &Node, path: &str) -> Result<Shape, Problem> {
         let presence = Self::presence(n, path)?;
         let nullable = bool_member(n, "nullable", path)?.unwrap_or(false);
+        let role = read_role(n, path)?;
+        let declared = get(n, "default");
         let mut has_default = false;
-        if let Some(d) = get(n, "default") {
+        if let Some(d) = declared {
             if presence == Presence::Mandatory {
                 return Err(problem(
                     SCHEMA_INVALID,
@@ -469,6 +509,13 @@ impl Compiler {
             }
             if matches!(d.value, Value::Null) {
                 return Err(problem(SCHEMA_INVALID, path, "default: null is invalid"));
+            }
+            if !role.takes_default() {
+                return Err(problem(
+                    SCHEMA_INVALID,
+                    path,
+                    "a default is not allowed on a node whose Role does not take one (ADR 0011)",
+                ));
             }
             has_default = true;
         }
@@ -538,12 +585,24 @@ impl Compiler {
                 ))
             }
         };
-        Ok(Shape {
+        let mut shape = Shape {
             shape_type: kind,
             presence,
             nullable,
             has_default,
-        })
+            default: None,
+        };
+        if let Some(d) = declared {
+            if !default_fits(&shape, d) {
+                return Err(problem(
+                    SCHEMA_INVALID,
+                    &format!("{path}.default"),
+                    "the default is not a valid value of its own node",
+                ));
+            }
+            shape.default = Some(DefaultValue(d.clone()));
+        }
+        Ok(shape)
     }
 
     fn collection(&mut self, n: &Node, path: &str) -> Result<ShapeType, Problem> {

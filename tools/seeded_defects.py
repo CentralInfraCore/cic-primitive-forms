@@ -64,6 +64,39 @@ DEFECTS = [
      [("out.InheritPolicy, out.InheritPolicyDeclared = mode, true", "out.InheritPolicy, out.InheritPolicyDeclared = mode, false")]),
     ("go", "identity.base is dropped from the compiled schema", "schema.go",
      [("out.Base = strMember(id, \"base\")", "out.Base = \"\"")]),
+    # P3 second unit: schema defaults (go/defaults.go, go/role.go, rust/src/defaults.rs, rust/src/role.rs).
+    ("rust", "a present field is overwritten by its default", "src/defaults.rs",
+     [("visit(&mut entries[i].value, shape, a, path, found);", "if let Some(d) = &shape.default { entries[i].value = d.0.clone(); }\n                visit(&mut entries[i].value, shape, a, path, found);")]),
+    ("rust", "an inserted default is reported as authored", "src/defaults.rs",
+     [("found.push((path.clone(), VALUE_DEFAULT));", "found.push((path.clone(), VALUE_AUTHORED));")]),
+    ("rust", "the fields of a present composite are not defaulted", "src/defaults.rs",
+     [("(ShapeType::Composite(fields), _) => composite(value, fields, a, path, found),", "(ShapeType::Composite(_), _) => {}")]),
+    ("rust", "the fields of a list element are not defaulted", "src/defaults.rs",
+     [("composite(rec, &case.fields, a, path, found);", "let _ = (&case, &rec);")]),
+    ("rust", "a document with violations is defaulted anyway", "src/defaults.rs",
+     [("(Some(doc), true) => doc,", "(Some(doc), _) => doc,")]),
+    ("rust", "a default on a node whose Role does not take one is accepted", "src/role.rs",
+     [("self.authority == \"config\" && self.structural.is_empty()", "true")]),
+    ("rust", "an unknown short Role is read as config", "src/role.rs",
+     [("        _ => return None,", "        _ => (\"config\", vec![], None),")]),
+    ("rust", "a default that is not a valid value of its node is accepted", "src/schema.rs",
+     [("if !default_fits(&shape, d) {", "if false {")]),
+    ("go", "a present field is overwritten by its default", "defaults.go",
+     [("\t\t\td.record(fp, ValueOriginAuthored)\n\t\t\td.visit(value, f.Shape, fp)", "\t\t\tif f.Shape.Default != nil {\n\t\t\t\t*value = *cloneTree(f.Shape.Default)\n\t\t\t}\n\t\t\td.record(fp, ValueOriginAuthored)\n\t\t\td.visit(value, f.Shape, fp)")]),
+    ("go", "an inserted default is reported as authored", "defaults.go",
+     [("d.record(fp, ValueOriginDefault)", "d.record(fp, ValueOriginAuthored)")]),
+    ("go", "the fields of a present composite are not defaulted", "defaults.go",
+     [("\tcase shape.Kind == ShapeComposite:\n\t\td.composite(value, shape.Fields, path)", "\tcase shape.Kind == ShapeComposite:")]),
+    ("go", "the fields of a list element are not defaulted", "defaults.go",
+     [("d.composite(rec, c.Fields, append(slices.Clone(path), seg{item: id, isItem: true}))", "_, _, _ = rec, c, id")]),
+    ("go", "a document with violations is defaulted anyway", "defaults.go",
+     [("if len(v.Violations) > 0 || doc == nil {", "if doc == nil {")]),
+    ("go", "a default on a node whose Role does not take one is accepted", "role.go",
+     [("return r.authority == \"config\" && len(r.structural) == 0", "return true")]),
+    ("go", "an unknown short Role is read as config", "role.go",
+     [("\t\treturn roleAxes{}, schemaErr(SchemaInvalid, path, \"%q is not a Role (reference has no short form and must be written out)\", r.Str)", "\t\treturn roleAxes{authority: \"config\"}, nil")]),
+    ("go", "a default that is not a valid value of its node is accepted", "schema.go",
+     [("!defaultFits(s, declared)", "false")]),
     ("go", "integer 0 is read as no-inherit (0 coerced to false)", "access.go",
      [("case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeReset, nil", "case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeNoInherit, nil")]),
     ("go", "a missing version silently falls back to grammar 1", "access.go",
@@ -243,7 +276,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults"]
     return ["go", "test", "-count=1", "./..."]
 
 

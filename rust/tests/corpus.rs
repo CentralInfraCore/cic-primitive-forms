@@ -417,6 +417,7 @@ fn shape_of(y: &YamlOwned) -> Shape {
             presence: presence_of(&YamlOwned::Value(ScalarOwned::String(p.to_string()))),
             nullable: false,
             has_default: false,
+            default: None,
         };
     }
     let shape_type = match get(y, "type").map(|t| text(t, "type")) {
@@ -455,6 +456,7 @@ fn shape_of(y: &YamlOwned) -> Shape {
             .and_then(YamlOwned::as_bool)
             .unwrap_or(false),
         has_default: get(y, "default").is_some(),
+        default: None,
     }
 }
 
@@ -855,6 +857,7 @@ fn path_shape(shape_type: ShapeType, mandatory: bool) -> Shape {
         },
         nullable: false,
         has_default: false,
+        default: None,
     }
 }
 

@@ -81,8 +81,11 @@ type Shape struct {
 	HasMinItems bool
 	Presence    Presence
 	Nullable    bool
-	// HasDefault says only whether a default is declared: it is never applied.
+	// HasDefault says whether a default is declared.
 	HasDefault bool
+	// Default is the declared value, set by CompileSchema for a node that takes a default (ADR 0011) and nil
+	// otherwise, also for a hand-built Shape that only says HasDefault. ApplyDefaults inserts a copy of it.
+	Default *Node
 	// Elements is the element structure of a ShapeDeclaredList.
 	Elements *Elements
 }

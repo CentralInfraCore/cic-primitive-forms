@@ -10,6 +10,7 @@
 //! The expanded-form key set `A` is never hardcoded: the caller passes it in.
 
 pub mod access;
+pub mod defaults;
 pub mod emit;
 pub mod error;
 pub mod expand;
@@ -19,6 +20,7 @@ pub mod parse;
 pub mod pathtext;
 pub mod policy;
 pub mod recognize;
+pub(crate) mod role;
 pub mod schema;
 pub mod validate;
 
@@ -26,6 +28,7 @@ pub use access::{
     bind_grammar, is_cert_pattern, pinned_grammar_version, read_mode, read_rule, sha256_hex,
     write_mode, Grammar, Mode, Rule, INHERIT_SYMBOL, SUPPORTED_GRAMMARS,
 };
+pub use defaults::{apply_defaults, Defaulted, ValueOrigin, VALUE_AUTHORED, VALUE_DEFAULT};
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
 pub use expand::{
@@ -39,4 +42,4 @@ pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Re
 pub use policy::{PolicyRule, PolicySurface, SurfaceRule};
 pub use recognize::{recognize, Class, Outcome, Position};
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
-pub use validate::{validate, Presence, ScalarType, Shape, ShapeType, Validation};
+pub use validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType, Validation};
