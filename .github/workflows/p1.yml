@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -20,6 +20,7 @@ jobs:
           python-version: "3.12"
       - run: python3 tools/quality_gate.py selftest
       - run: python3 -W error::ResourceWarning -m unittest tools/test_shard_plan.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_cached_tool.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:

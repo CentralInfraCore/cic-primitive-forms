@@ -48,19 +48,4 @@ runs:
         SPEC: ${{ inputs.spec }}
         HIT: ${{ steps.cache.outputs.cache-hit }}
         BIN: ${{ steps.key.outputs.path }}
-      run: |
-        set -euo pipefail
-        # A cargo subcommand binary is run the way cargo runs it: `cargo mutants --help`, not `cargo-mutants --help`.
-        works() { [ -x "$BIN" ] && { [ "$KIND" = go ] || cargo +stable "${NAME#cargo-}" --help >/dev/null 2>&1; }; }
-        if [ "$HIT" = true ] && works; then
-          echo "$NAME: from the cache"
-          exit 0
-        fi
-        echo "$NAME: building $SPEC"
-        rm -f "$BIN"
-        if [ "$KIND" = cargo ]; then
-          cargo +stable install --locked "${SPEC%@*}" --version "${SPEC#*@}"
-        else
-          go install "$SPEC"
-        fi
-        test -x "$BIN"
+      run: bash "$GITHUB_ACTION_PATH/install.sh"

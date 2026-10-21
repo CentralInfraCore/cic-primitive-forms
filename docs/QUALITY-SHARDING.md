@@ -63,7 +63,7 @@ shard (the sum is 39 minutes).
   many mutants had no measured cost.
 * **Refreshing the table** is a reviewed data change: download the `rust-mutants-*` artifacts of a green run on `main`, then
   `python3 tools/shard_plan.py costs --outcomes <dir>/rust-mutants-*/outcomes.json --out tools/mutation-costs.json`.
-* The tests are `tools/test_shard_plan.py` (run by `quality-gate-selftest`), with 12 seeded defects of the planner (longest
+* The tests are `tools/test_shard_plan.py` (run by `quality-gate-selftest`, which also checks that every file `p1` uses is in its `pull_request.paths`), with 12 seeded defects of the planner (longest
   first turned around, round robin, a mutant dropped, an unanchored or unescaped regex, a weak `verify`, ...), each of which has
   to turn a test red.
 
@@ -73,7 +73,12 @@ shard (the sum is 39 minutes).
 minutes each, in the deciding job all three). `.github/actions/cached-tool` caches the built binary and nothing else. Its key
 holds the kind, the exact pinned crate or module version, the compiler that builds it (`rustc +stable --version` or `go
 version`), the runner image (`ImageOS`, `ImageVersion`) and the CPU: a new Rust release, a new image or a new tool version is a
-cache miss and the tool is built again from its pinned source. A cached binary has to run, otherwise it is rebuilt. The evidence
+cache miss and the tool is built again from its pinned source. A restored binary is used only if it passes a check, otherwise it is built again from the pinned source
+(`.github/actions/cached-tool/install.sh`): a cargo tool has to run as `cargo <subcommand> --help`; a Go tool has to carry the build
+information of the pinned package and module version (`go version -m`) and has to be startable (exit status below 126). That the
+executable bit is set is not enough. `tools/test_cached_tool.py` covers a good hit, a miss, a missing file, a corrupt or foreign
+binary, another version, another package, another module, a tool that cannot start and a bad fresh build, and has 10 seeded
+defects of the script, each of which has to turn a test red. The evidence
 record reads the tool versions from the binaries at run time, not from the cache key. Caches written on a pull request are not
 readable on `main`.
 
