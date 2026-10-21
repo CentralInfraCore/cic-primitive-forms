@@ -274,7 +274,7 @@ fn int_member(n: &Node, key: &str, path: &str) -> Result<Option<usize>, Problem>
     match get(n, key) {
         None => Ok(None),
         Some(m) => match m.value {
-            Value::Int(i) if (0..=1 << 31).contains(&i) => Ok(Some(i as usize)),
+            Value::Int(i) if i >= 0 => Ok(Some(i as usize)),
             _ => Err(problem(
                 SCHEMA_INVALID,
                 &format!("{path}.{key}"),

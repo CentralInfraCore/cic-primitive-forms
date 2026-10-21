@@ -93,6 +93,26 @@
     "code": "UNKNOWN_FIELD",
     "path": "$.routes[{to=\"a\"}].foo"
    }
+  },
+  {
+   "id": "refused-a-list-element-that-is-not-a-record",
+   "yaml": "routes:\n  - 1\n",
+   "unsupported": true
+  },
+  {
+   "id": "refused-a-list-element-without-an-identity",
+   "yaml": "routes:\n  - metric: 1\n",
+   "unsupported": true
+  },
+  {
+   "id": "refused-a-list-field-that-holds-a-scalar",
+   "yaml": "routes: 5\n",
+   "unsupported": true
+  },
+  {
+   "id": "refused-a-composite-field-that-holds-a-scalar",
+   "yaml": "ip: 5\n",
+   "unsupported": true
   }
  ],
  "contexts": [

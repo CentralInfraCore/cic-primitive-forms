@@ -23,6 +23,19 @@ func TestSharedPathTextEdges(t *testing.T) {
 			Error  string `json:"error"`
 			Offset int    `json:"offset"`
 		} `json:"cases"`
+		Format []struct {
+			Segments []struct {
+				Field string `json:"field"`
+				Item  *[]struct {
+					Name string  `json:"name"`
+					Str  *string `json:"str"`
+					Int  *int64  `json:"int"`
+					Bad  string  `json:"bad"`
+				} `json:"item"`
+			} `json:"segments"`
+			Error string `json:"error"`
+			Text  string `json:"text"`
+		} `json:"format"`
 	}
 	if err := json.Unmarshal(b, &file); err != nil {
 		t.Fatal(err)
@@ -44,6 +57,34 @@ func TestSharedPathTextEdges(t *testing.T) {
 		}
 		if text, ferr := forms.FormatPath(segs); ferr != nil || text != c.Path {
 			t.Errorf("%q: format(parse(t)) = %q (%v)", c.Path, text, ferr)
+		}
+	}
+	for i, c := range file.Format {
+		var segs []forms.PathSeg
+		for _, sg := range c.Segments {
+			if sg.Item == nil {
+				segs = append(segs, forms.PathSeg{Field: sg.Field})
+				continue
+			}
+			item := []forms.KeyComp{}
+			for _, k := range *sg.Item {
+				comp := forms.KeyComp{Name: k.Name, Bad: k.Bad}
+				if k.Str != nil {
+					comp.Str = *k.Str
+				}
+				if k.Int != nil {
+					comp.IsInt, comp.Int = true, *k.Int
+				}
+				item = append(item, comp)
+			}
+			segs = append(segs, forms.PathSeg{Item: item, IsItem: true})
+		}
+		text, perr := forms.FormatPath(segs)
+		switch {
+		case c.Error != "" && (perr == nil || perr.Code != c.Error || perr.Phase != forms.PhasePathFormat):
+			t.Errorf("format case %d: got %q %+v, want %s", i, text, perr, c.Error)
+		case c.Error == "" && (perr != nil || text != c.Text):
+			t.Errorf("format case %d: got %q %+v, want %q", i, text, perr, c.Text)
 		}
 	}
 }

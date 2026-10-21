@@ -182,6 +182,194 @@
   {
    "path": "$.l[{n a=\"x\"}]",
    "value": "x"
+  },
+  {
+   "path": "$.v[-",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.v[-1",
+   "error": "PATH_INDEX_SELECTOR",
+   "offset": 3
+  },
+  {
+   "path": "$.l[{n=\"\\u0020\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u001f",
+   "error": "PATH_SYNTAX",
+   "offset": 14
+  },
+  {
+   "path": "$.l[{n=\"\\u001",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=01}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 7
+  },
+  {
+   "path": "$.l[{n=\"\\n",
+   "error": "PATH_SYNTAX",
+   "offset": 10
+  }
+ ],
+ "format": [
+  {
+   "segments": [
+    {
+     "field": "a b"
+    }
+   ],
+   "text": "$.a b"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_EMPTY_NAME"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "a\nb",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "\nab",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "\nabc"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "a\u001fb"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "ab"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "a b"
+    }
+   ],
+   "text": "$.a b"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": []
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "on",
+       "bad": "boolean"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_KEY_UNSUPPORTED"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "n",
+       "bad": "range"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_INTEGER_RANGE"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "n",
+       "str": "a"
+      },
+      {
+       "name": "m",
+       "int": -7
+      }
+     ]
+    }
+   ],
+   "text": "$.l[{n=\"a\",m=-7}]"
   }
  ]
 }

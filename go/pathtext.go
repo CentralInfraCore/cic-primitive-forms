@@ -15,6 +15,13 @@ import (
 	"strings"
 )
 
+// zero is the zero value of T: the value that comes with an error and that nobody reads. Written this way so that no number
+// stands in an error return for a fault to change.
+func zero[T any]() T {
+	var z T
+	return z
+}
+
 // PathSeg is a segment of a path: a field, or a ListItem (the key components of one list element).
 type PathSeg struct {
 	Field  string
@@ -62,7 +69,10 @@ func ParsePath(text string) ([]PathSeg, *PathError) {
 	afterName := false // a selector may only directly follow a field name
 	i := 1
 	// every round takes at least one character, so the text length bounds the rounds (and what they build)
-	for round := 0; round < len(p.r) && i < len(p.r); round++ {
+	for range p.r {
+		if i >= len(p.r) {
+			break
+		}
 		switch p.r[i] {
 		case '.':
 			name, next, err := p.name(i+1, false)
@@ -102,23 +112,23 @@ func (p *pathParser) name(start int, inSelector bool) (string, int, *PathError) 
 		c := p.r[i]
 		if c == '\\' {
 			if i+1 >= len(p.r) || !strings.ContainsRune(escapable, p.r[i+1]) {
-				return "", 0, p.fail("PATH_BAD_ESCAPE", i)
+				return "", zero[int](), p.fail("PATH_BAD_ESCAPE", i)
 			}
 			b.WriteRune(p.r[i+1])
 			skip = 1
 		} else if c < 0x20 || c == 0x7f {
-			return "", 0, p.fail("PATH_SYNTAX", i)
+			return "", zero[int](), p.fail("PATH_SYNTAX", i)
 		} else if (!inSelector && (c == '.' || c == '[')) || (inSelector && c == '=') {
 			end = i
 			break
 		} else if strings.ContainsRune(escapable, c) {
-			return "", 0, p.fail("PATH_SYNTAX", i)
+			return "", zero[int](), p.fail("PATH_SYNTAX", i)
 		} else {
 			b.WriteRune(c)
 		}
 	}
 	if b.Len() == 0 {
-		return "", 0, p.fail("PATH_EMPTY_NAME", start)
+		return "", zero[int](), p.fail("PATH_EMPTY_NAME", start)
 	}
 	return b.String(), end, nil
 }
@@ -126,33 +136,33 @@ func (p *pathParser) name(start int, inSelector bool) (string, int, *PathError) 
 func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
 	i := start + 1
 	if i >= len(p.r) {
-		return nil, 0, p.fail("PATH_SYNTAX", i)
+		return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 	}
 	if isDigit(p.r[i]) || (p.r[i] == '-' && i+1 < len(p.r) && isDigit(p.r[i+1])) {
-		return nil, 0, p.fail("PATH_INDEX_SELECTOR", start)
+		return nil, zero[int](), p.fail("PATH_INDEX_SELECTOR", start)
 	}
 	if p.r[i] != '{' {
-		return nil, 0, p.fail("PATH_SYNTAX", i)
+		return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 	}
 	i++
 	var comps []KeyComp
-	// a round reads one component and the duplicate check ends a stalled one, but the text length bounds it anyway
-	for round := 0; round <= len(p.r); round++ {
+	// a round reads one component of at least one character, so the text length bounds the rounds
+	for range p.r {
 		nameStart := i
 		name, next, err := p.name(i, true)
 		if err != nil {
-			return nil, 0, err
+			return nil, zero[int](), err
 		}
 		if slices.ContainsFunc(comps, func(c KeyComp) bool { return c.Name == name }) {
-			return nil, 0, p.fail("PATH_DUPLICATE_COMPONENT", nameStart)
+			return nil, zero[int](), p.fail("PATH_DUPLICATE_COMPONENT", nameStart)
 		}
 		i = next
 		if i >= len(p.r) || p.r[i] != '=' {
-			return nil, 0, p.fail("PATH_SYNTAX", i)
+			return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 		}
 		i++
 		if i >= len(p.r) {
-			return nil, 0, p.fail("PATH_SYNTAX", i)
+			return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 		}
 		comp := KeyComp{Name: name}
 		if p.r[i] == '"' {
@@ -163,24 +173,24 @@ func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
 			comp.Int, i, err = p.integer(i)
 		}
 		if err != nil {
-			return nil, 0, err
+			return nil, zero[int](), err
 		}
 		comps = append(comps, comp)
 		if i >= len(p.r) {
-			return nil, 0, p.fail("PATH_SYNTAX", i)
+			return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 		}
 		if p.r[i] == ',' {
 			i++
 			continue
 		}
 		if p.r[i] != '}' {
-			return nil, 0, p.fail("PATH_SYNTAX", i)
+			return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 		}
 		i++
 		break
 	}
 	if i >= len(p.r) || p.r[i] != ']' {
-		return nil, 0, p.fail("PATH_SYNTAX", i)
+		return nil, zero[int](), p.fail("PATH_SYNTAX", i)
 	}
 	return comps, i + 1, nil
 }
@@ -196,12 +206,12 @@ func (p *pathParser) integer(start int) (int64, int, *PathError) {
 		i++
 	}
 	if i == ds {
-		return 0, 0, p.fail("PATH_SYNTAX", i)
+		return zero[int64](), zero[int](), p.fail("PATH_SYNTAX", i)
 	}
 	digits := string(p.r[ds:i])
 	switch {
 	case plus, len(digits) > 1 && digits[0] == '0', neg && digits == "0":
-		return 0, 0, p.fail("PATH_NONCANONICAL", start)
+		return zero[int64](), zero[int](), p.fail("PATH_NONCANONICAL", start)
 	}
 	text := digits
 	if neg {
@@ -209,7 +219,7 @@ func (p *pathParser) integer(start int) (int64, int, *PathError) {
 	}
 	n, err := strconv.ParseInt(text, 10, 64)
 	if err != nil {
-		return 0, 0, p.fail("PATH_INTEGER_RANGE", start)
+		return zero[int64](), zero[int](), p.fail("PATH_INTEGER_RANGE", start)
 	}
 	return n, i, nil
 }
@@ -229,13 +239,13 @@ func (p *pathParser) str(start int) (string, int, *PathError) {
 		case c == '"':
 			return b.String(), i + 1, nil
 		case c < 0x20:
-			return "", 0, p.fail("PATH_NONCANONICAL", i)
+			return "", zero[int](), p.fail("PATH_NONCANONICAL", i)
 		case c != '\\':
 			b.WriteRune(c)
 			continue
 		}
 		if i+1 >= len(p.r) {
-			return "", 0, p.fail("PATH_BAD_ESCAPE", i)
+			return "", zero[int](), p.fail("PATH_BAD_ESCAPE", i)
 		}
 		switch e := p.r[i+1]; e {
 		case '"', '\\':
@@ -245,26 +255,26 @@ func (p *pathParser) str(start int) (string, int, *PathError) {
 			b.WriteRune(map[rune]rune{'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t'}[e])
 			skip = 1
 		case '/':
-			return "", 0, p.fail("PATH_NONCANONICAL", i)
+			return "", zero[int](), p.fail("PATH_NONCANONICAL", i)
 		case 'u':
 			if i+6 > len(p.r) {
-				return "", 0, p.fail("PATH_BAD_ESCAPE", i)
+				return "", zero[int](), p.fail("PATH_BAD_ESCAPE", i)
 			}
 			hex := string(p.r[i+2 : i+6])
 			v, err := strconv.ParseUint(hex, 16, 32)
 			if err != nil || strings.ContainsAny(hex, "+-_ ") {
-				return "", 0, p.fail("PATH_BAD_ESCAPE", i)
+				return "", zero[int](), p.fail("PATH_BAD_ESCAPE", i)
 			}
 			if hex != strings.ToLower(hex) || v >= 0x20 || slices.Contains([]uint64{8, 9, 10, 12, 13}, v) {
-				return "", 0, p.fail("PATH_NONCANONICAL", i)
+				return "", zero[int](), p.fail("PATH_NONCANONICAL", i)
 			}
 			b.WriteRune(rune(v))
 			skip = 5
 		default:
-			return "", 0, p.fail("PATH_BAD_ESCAPE", i)
+			return "", zero[int](), p.fail("PATH_BAD_ESCAPE", i)
 		}
 	}
-	return "", 0, p.fail("PATH_SYNTAX", len(p.r))
+	return "", zero[int](), p.fail("PATH_SYNTAX", len(p.r))
 }
 
 // FormatPath is the canonical text of segments, or the error of the one that cannot be written: an empty field or component

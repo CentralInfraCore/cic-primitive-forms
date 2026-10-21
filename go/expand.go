@@ -312,7 +312,10 @@ func (w *formWalker) below(v *Node, shape Shape, path []seg, expand bool) (*Node
 		return cloneTree(v), nil
 	case shape.Kind == ShapeComposite:
 		return w.fields(v, shape.Fields, path, expand)
-	case shape.Kind == ShapeDeclaredList && shape.Elements != nil:
+	case shape.Kind == ShapeDeclaredList:
+		if shape.Elements == nil {
+			return nil, unsupported("a list with a declared element structure but no element description")
+		}
 		if v.Kind != KindSeq {
 			return nil, unsupported("a %s value where a list is declared", kindName(v))
 		}

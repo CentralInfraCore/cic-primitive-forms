@@ -84,6 +84,26 @@ fn the_shared_expand_collapse_cases() {
         let doc = parsed(id, c["yaml"].as_str().unwrap());
         let before = doc.clone();
         let result = expand(&doc, &shape, &a(), g, &Context::default());
+        if c.get("unsupported").and_then(J::as_bool) == Some(true) {
+            assert!(
+                matches!(result, Err(Error::Unsupported(_))),
+                "{id}: expand {result:?}"
+            );
+            // the same document is refused the same way when it is collapsed
+            let collapsed = collapse(
+                &doc,
+                &shape,
+                &a(),
+                g,
+                &Default::default(),
+                &Context::default(),
+            );
+            assert!(
+                matches!(collapsed, Err(Error::Unsupported(_))),
+                "{id}: collapse {collapsed:?}"
+            );
+            continue;
+        }
         if let Some(want) = c.get("error") {
             match result {
                 Err(Error::Contract(vs)) => {

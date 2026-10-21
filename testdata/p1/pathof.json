@@ -1,0 +1,157 @@
+{
+ "schema": "compile.small-config",
+ "cases": [
+  {
+   "id": "the-empty-address-is-the-root",
+   "yaml": "type: x\n",
+   "at": [],
+   "path": "$"
+  },
+  {
+   "id": "an-index-needs-its-list-field-first",
+   "yaml": "type: x\n",
+   "at": [
+    0
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "nothing-below-a-scalar",
+   "yaml": "type: x\n",
+   "at": [
+    "type",
+    "x"
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "an-undeclared-field",
+   "yaml": "type: x\n",
+   "at": [
+    "nope"
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "an-element-is-named-by-identity",
+   "yaml": "routes:\n  - to: a\n",
+   "at": [
+    "routes",
+    0
+   ],
+   "path": "$.routes[{to=\"a\"}]"
+  },
+  {
+   "id": "a-field-of-an-element",
+   "yaml": "routes:\n  - to: a\n    metric: 5\n",
+   "at": [
+    "routes",
+    0,
+    "metric"
+   ],
+   "path": "$.routes[{to=\"a\"}].metric"
+  },
+  {
+   "id": "the-list-field-may-be-written-expanded",
+   "yaml": "routes: {value: [{to: a}], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "at": [
+    "routes",
+    0,
+    "to"
+   ],
+   "path": "$.routes[{to=\"a\"}].to"
+  },
+  {
+   "id": "an-index-past-the-end",
+   "yaml": "routes:\n  - to: a\n",
+   "at": [
+    "routes",
+    5
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "a-negative-index",
+   "yaml": "routes:\n  - to: a\n",
+   "at": [
+    "routes",
+    -1
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "a-list-element-that-is-not-a-record",
+   "yaml": "routes:\n  - 1\n",
+   "at": [
+    "routes",
+    0
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "a-list-field-without-an-index-has-no-fields",
+   "yaml": "routes:\n  - to: a\n",
+   "at": [
+    "routes",
+    "to"
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "an-index-on-a-composite",
+   "yaml": "ip:\n  gateway: g\n",
+   "at": [
+    "ip",
+    0
+   ],
+   "unsupported": true
+  },
+  {
+   "id": "an-item-choice-element",
+   "yaml": "vlans:\n  - vlan_id: 100\n",
+   "at": [
+    "vlans",
+    0
+   ],
+   "path": "$.vlans[{vlan_id=100}]"
+  },
+  {
+   "id": "a-key-that-is-missing",
+   "yaml": "routes:\n  - metric: 1\n",
+   "at": [
+    "routes",
+    0
+   ],
+   "error": "PATH_KEY_MISSING",
+   "error_path": "$.routes"
+  },
+  {
+   "id": "a-duplicate-identity",
+   "yaml": "routes:\n  - to: a\n  - to: a\n",
+   "at": [
+    "routes",
+    1
+   ],
+   "error": "PATH_DUPLICATE_IDENTITY",
+   "error_path": "$.routes[{to=\"a\"}]"
+  },
+  {
+   "id": "a-unique-element-beside-a-duplicate-is-fine",
+   "yaml": "routes:\n  - to: a\n  - to: a\n  - to: b\n",
+   "at": [
+    "routes",
+    2
+   ],
+   "path": "$.routes[{to=\"b\"}]"
+  },
+  {
+   "id": "an-element-beside-one-without-identity-is-fine",
+   "yaml": "routes:\n  - metric: 1\n  - to: b\n",
+   "at": [
+    "routes",
+    1
+   ],
+   "path": "$.routes[{to=\"b\"}]"
+  }
+ ]
+}

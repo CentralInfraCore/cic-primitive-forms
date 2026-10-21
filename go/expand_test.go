@@ -19,6 +19,7 @@ type expandCase struct {
 	Expanded                     string          `json:"expanded_yaml"`
 	Provenance                   map[string]bool `json:"provenance"`
 	CollapseWithoutProvenanceYML string          `json:"collapse_without_provenance_yaml"`
+	Unsupported                  bool            `json:"unsupported"`
 	Error                        *struct {
 		Code string `json:"code"`
 		Path string `json:"path"`
@@ -94,6 +95,17 @@ func TestSharedExpandCollapseCases(t *testing.T) {
 			doc := parseCase(t, c.ID, c.YAML)
 			before := cloneNode(doc)
 			expanded, prov, err := forms.Expand(doc, shape, accessKeys, g, forms.Context{})
+			if c.Unsupported {
+				var fe *forms.Error
+				if !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+					t.Fatalf("expand: want an unsupported error, got %v", err)
+				}
+				// the same document is refused the same way when it is collapsed
+				if _, err := forms.Collapse(doc, shape, accessKeys, g, nil, forms.Context{}); !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+					t.Fatalf("collapse: want an unsupported error, got %v", err)
+				}
+				return
+			}
 			if c.Error != nil {
 				var fe *forms.Error
 				if !errors.As(err, &fe) || fe.Kind != forms.ErrContract || fe.Violations[0].Code != c.Error.Code || fe.Violations[0].LogicalPath != c.Error.Path {
@@ -229,4 +241,18 @@ func orDefault(s, d string) string {
 		return d
 	}
 	return s
+}
+
+// A list shape that declares an element structure but has no description of it is refused, never passed (Go builds Shapes by
+// hand; in Rust the element description is part of the type).
+func TestAListShapeWithoutItsElementDescriptionIsRefused(t *testing.T) {
+	shape := forms.Shape{Kind: forms.ShapeComposite, Fields: []forms.NamedShape{{Name: "l", Shape: forms.Shape{Kind: forms.ShapeDeclaredList, Presence: forms.Optional}}}}
+	doc := parseCase(t, "l", "l:\n  - a: 1\n")
+	var fe *forms.Error
+	if _, err := forms.Validate(doc, shape, accessKeys); !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+		t.Errorf("validate: %v", err)
+	}
+	if _, _, err := forms.Expand(doc, shape, accessKeys, boundGrammar(t), forms.Context{}); !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+		t.Errorf("expand: %v", err)
+	}
 }
