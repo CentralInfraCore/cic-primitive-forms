@@ -1,0 +1,689 @@
+{
+ "grammar": "cic-primitives-73ae469-71ee71ca",
+ "cases": [
+  {
+   "id": "policy.absent",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": false,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.empty-mapping",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface: {}\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.base-declared",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n    base: \"cic:core:ManagedEntity@v0.2.0\"\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "cic:core:ManagedEntity@v0.2.0",
+    "policy": {
+     "declared": false,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.real-shape",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: open\n    default_modify: owner\n    surface_rules:\n      - surface: state_surface\n        modify: [\"OU=adapters,O=cic\"]\n      - surface: config_surface\n        access: [O=owner]\n        modify: [O=owner]\n    inherit_policy: true\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": {
+      "symbol": "open"
+     },
+     "default_modify": {
+      "symbol": "owner"
+     },
+     "surface_rules": [
+      {
+       "surface": "state_surface",
+       "access": null,
+       "modify": {
+        "patterns": [
+         "OU=adapters,O=cic"
+        ]
+       }
+      },
+      {
+       "surface": "config_surface",
+       "access": {
+        "patterns": [
+         "O=owner"
+        ]
+       },
+       "modify": {
+        "patterns": [
+         "O=owner"
+        ]
+       }
+      }
+     ],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": true
+    }
+   }
+  },
+  {
+   "id": "policy.default-lists",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: []\n    default_modify: [\"O=a\", \"OU=b,O=c\"]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": {
+      "patterns": []
+     },
+     "default_modify": {
+      "patterns": [
+       "O=a",
+       "OU=b,O=c"
+      ]
+     },
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.mode-false",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: false\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "no-inherit",
+     "inherit_policy_declared": true
+    }
+   }
+  },
+  {
+   "id": "policy.mode-zero",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: 0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "reset",
+     "inherit_policy_declared": true
+    }
+   }
+  },
+  {
+   "id": "policy.mode-true",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: true\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": true
+    }
+   }
+  },
+  {
+   "id": "policy.rule-inherit-declares-nothing",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: config_surface\n        access: inherit\n        modify: [O=x]\n      - surface: state_surface\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [
+      {
+       "surface": "config_surface",
+       "access": null,
+       "modify": {
+        "patterns": [
+         "O=x"
+        ]
+       }
+      },
+      {
+       "surface": "state_surface",
+       "access": null,
+       "modify": null
+      }
+     ],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.same-surface-different-operations",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: config_surface\n        access: [O=a]\n      - surface: config_surface\n        modify: [O=b]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [
+      {
+       "surface": "config_surface",
+       "access": {
+        "patterns": [
+         "O=a"
+        ]
+       },
+       "modify": null
+      },
+      {
+       "surface": "config_surface",
+       "access": null,
+       "modify": {
+        "patterns": [
+         "O=b"
+        ]
+       }
+      }
+     ],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.inherit-then-rule-is-no-conflict",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: config_surface\n        access: inherit\n      - surface: config_surface\n        access: [O=a]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [
+      {
+       "surface": "config_surface",
+       "access": null,
+       "modify": null
+      },
+      {
+       "surface": "config_surface",
+       "access": {
+        "patterns": [
+         "O=a"
+        ]
+       },
+       "modify": null
+      }
+     ],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.empty-surface-rules",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules: []\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "base": "",
+    "policy": {
+     "declared": true,
+     "default_access": null,
+     "default_modify": null,
+     "surface_rules": [],
+     "inherit_policy": "inherit",
+     "inherit_policy_declared": false
+    }
+   }
+  },
+  {
+   "id": "policy.scalar-policy",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface: nothing\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.null-policy",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.unknown-member",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: open\n    shadow_rules: []\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.shadow_rules"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.access-owner",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: owner\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_access"
+     ]
+    ],
+    "details": [
+     "INVALID_ACCESS_VALUE"
+    ]
+   }
+  },
+  {
+   "id": "policy.modify-open",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_modify: open\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_modify"
+     ]
+    ],
+    "details": [
+     "INVALID_ACCESS_VALUE"
+    ]
+   }
+  },
+  {
+   "id": "policy.default-inherit",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: inherit\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_access"
+     ]
+    ],
+    "details": [
+     "the symbol inherit"
+    ]
+   }
+  },
+  {
+   "id": "policy.default-bare-pattern",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_modify: \"O=a\"\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_modify"
+     ]
+    ],
+    "details": [
+     "INVALID_ACCESS_VALUE"
+    ]
+   }
+  },
+  {
+   "id": "policy.default-null",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access:\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_access"
+     ]
+    ],
+    "details": [
+     "INVALID_ACCESS_VALUE"
+    ]
+   }
+  },
+  {
+   "id": "policy.bad-cert-pattern",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [\"O=a, OU=b\"]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_access"
+     ]
+    ],
+    "details": [
+     "INVALID_CERT_PATTERN"
+    ]
+   }
+  },
+  {
+   "id": "policy.mode-enum-in-grammar-1",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: reset\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.inherit_policy"
+     ]
+    ],
+    "details": [
+     "INHERIT_ENUM_IN_GRAMMAR_1"
+    ]
+   }
+  },
+  {
+   "id": "policy.mode-one",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: 1\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.inherit_policy"
+     ]
+    ],
+    "details": [
+     "INVALID_INHERIT"
+    ]
+   }
+  },
+  {
+   "id": "policy.mode-null",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy:\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.inherit_policy"
+     ]
+    ],
+    "details": [
+     "INVALID_INHERIT"
+    ]
+   }
+  },
+  {
+   "id": "policy.rules-not-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules: config_surface\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-not-mapping",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - config_surface\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0]"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-without-surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - access: [O=a]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0].surface"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-empty-surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: \"\"\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0].surface"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-unknown-member",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: s\n        read: [O=a]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0].read"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-symbol-open",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: s\n        access: open\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0].access"
+     ]
+    ],
+    "details": [
+     "INVALID_ACCESS_VALUE"
+    ]
+   }
+  },
+  {
+   "id": "policy.conflict-access",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: config_surface\n        access: [O=a]\n      - surface: config_surface\n        access: [O=b]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[1].access"
+     ]
+    ],
+    "details": [
+     "SURFACE_RULE_CONFLICT"
+    ]
+   }
+  },
+  {
+   "id": "policy.conflict-modify-empty-lists",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: s\n        modify: []\n      - surface: s\n        modify: []\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[1].modify"
+     ]
+    ],
+    "details": [
+     "SURFACE_RULE_CONFLICT"
+    ]
+   }
+  },
+  {
+   "id": "policy.all-problems-in-order",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: owner\n    unknown: 1\n    inherit_policy: 1\n    surface_rules:\n      - surface: s\n        access: open\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.default_access"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.unknown"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.inherit_policy"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0].access"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.base-unpinned",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n    base: \"cic:core:ManagedEntity\"\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.identity.base"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "policy.rule-not-mapping-then-more",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - config_surface\n      - surface: s\n        access: open\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": false,
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[0]"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "spec.policy_surface.surface_rules[1].access"
+     ]
+    ]
+   }
+  }
+ ]
+}

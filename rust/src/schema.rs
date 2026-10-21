@@ -15,11 +15,12 @@
 //! [`CompiledSchema::unevaluated_contracts`]), `description`, `role`, `capability` and the other
 //! descriptive members.
 
-use crate::access::sha256_hex;
+use crate::access::{sha256_hex, Grammar};
 use crate::error::{Error, SchemaProblem};
 use crate::listitem::{Case, Elements};
 use crate::node::{Node, Value};
 use crate::parse::parse;
+use crate::policy::{read_policy, PolicySurface};
 use crate::validate::{Presence, ScalarType, Shape, ShapeType};
 
 pub const SCHEMA_INVALID: &str = "SCHEMA_INVALID";
@@ -37,12 +38,18 @@ pub(crate) struct Profile {
     /// The grammar defines `item_choice` (cic-primitives PR #9). The primitives release v0.2.0 does
     /// not; the registry's `network-interface.yaml` already uses it (ADR 0002, finding 3).
     pub item_choice: bool,
+    /// The version of the `InheritanceMode` spelling the grammar defines (access-policy/1 is version 1:
+    /// `true | false | 0`): the grammar a schema's `inherit_policy` is read under.
+    pub access_grammar: i64,
 }
 
 /// devel at 73ae469: the temporary P0 compatibility profile of ADR 0002, not a release contract.
 const PROFILES: &[(&str, Profile)] = &[(
     "cic-primitives-73ae469-71ee71ca",
-    Profile { item_choice: true },
+    Profile {
+        item_choice: true,
+        access_grammar: 1,
+    },
 )];
 
 /// The preprocessed, version-pinned schema the caller supplies.
@@ -74,6 +81,10 @@ pub struct CompiledSchema {
     /// `metadata.validatedBy` as written (`"name version"`), kept so a caller can see a schema that
     /// declares an older release than the grammar it is read under.
     pub declared_validated_by: String,
+    /// `identity.base`, a pinned reference (`""` when the schema declares none).
+    pub base: String,
+    /// `spec.policy_surface` as declared; nothing is evaluated or defaulted.
+    pub policy: PolicySurface,
     /// The composite of the surface's nodes, mandatory.
     pub root: Shape,
     /// Whether any list of the surface is an `item_choice`.
@@ -83,9 +94,9 @@ pub struct CompiledSchema {
     pub unevaluated_contracts: Vec<String>,
 }
 
-type Problem = SchemaProblem;
+pub(crate) type Problem = SchemaProblem;
 
-fn problem(code: &'static str, path: &str, detail: &str) -> Problem {
+pub(crate) fn problem(code: &'static str, path: &str, detail: &str) -> Problem {
     SchemaProblem {
         code,
         path: path.to_string(),
@@ -93,7 +104,7 @@ fn problem(code: &'static str, path: &str, detail: &str) -> Problem {
     }
 }
 
-fn get<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
+pub(crate) fn get<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(entries) => entries.iter().find(|e| e.key == key).map(|e| &e.value),
         _ => None,
@@ -101,7 +112,7 @@ fn get<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
 }
 
 /// A string member, `""` when absent or not a string.
-fn str_member<'a>(n: &'a Node, key: &str) -> &'a str {
+pub(crate) fn str_member<'a>(n: &'a Node, key: &str) -> &'a str {
     match get(n, key).map(|v| &v.value) {
         Some(Value::Str(s)) => s,
         _ => "",
@@ -190,7 +201,9 @@ pub(crate) fn compile_with(
     c.refs(spec, input.surface)
         .map_err(|p| Error::Schema(vec![p]))?;
     let (mut kind, mut namespace, mut version) = (String::new(), String::new(), String::new());
+    let mut base = String::new();
     if let Some(id) = get(spec, "identity") {
+        base = str_member(id, "base").to_string();
         kind = str_member(id, "kind").to_string();
         namespace = str_member(id, "namespace").to_string();
         version = str_member(id, "version").to_string();
@@ -220,6 +233,11 @@ pub(crate) fn compile_with(
         }
     };
     let fields = c.fields(nodes, "$");
+    let policy = read_policy(
+        spec,
+        Grammar::pinned(c.profile.access_grammar),
+        &mut c.problems,
+    );
     if !c.problems.is_empty() {
         return Err(Error::Schema(c.problems));
     }
@@ -231,6 +249,8 @@ pub(crate) fn compile_with(
         grammar: input.grammar.to_string(),
         surface: input.surface.to_string(),
         declared_validated_by,
+        base,
+        policy,
         root: Shape {
             shape_type: ShapeType::Composite(fields),
             presence: Presence::Mandatory,
@@ -709,8 +729,20 @@ mod tests {
     fn item_choice_needs_the_grammar_to_define_it() {
         let schema = b"spec:\n  config_surface:\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases: []\n";
         let profiles = [
-            ("old", Profile { item_choice: false }),
-            ("new", Profile { item_choice: true }),
+            (
+                "old",
+                Profile {
+                    item_choice: false,
+                    access_grammar: 1,
+                },
+            ),
+            (
+                "new",
+                Profile {
+                    item_choice: true,
+                    access_grammar: 1,
+                },
+            ),
         ];
         let sha = sha256_hex(schema);
         let input = |grammar| SchemaInput {

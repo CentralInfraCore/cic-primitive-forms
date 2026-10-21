@@ -42,6 +42,12 @@ pub const INHERIT_SYMBOL: &str = "inherit";
 pub struct Grammar(i64);
 
 impl Grammar {
+    /// A grammar version a pinned profile defines (the schema reader's use); a document binds its
+    /// own through [`bind_grammar`].
+    pub(crate) fn pinned(version: i64) -> Self {
+        Grammar(version)
+    }
+
     #[must_use]
     pub fn version(self) -> i64 {
         self.0

@@ -203,6 +203,18 @@
     ],
     "candidates": []
    }
-  ]
+  ],
+  "base": "cic:core:ManagedEntity@v0.2.0",
+  "policy_summary": {
+   "declared": true,
+   "default_access": "open",
+   "default_modify": "owner",
+   "surface_rules": [
+    "state_surface",
+    "config_surface"
+   ],
+   "inherit_policy": "inherit",
+   "inherit_policy_declared": true
+  }
  }
 }

@@ -52,11 +52,14 @@ type grammarProfile struct {
 	// ItemChoice: the grammar defines item_choice (cic-primitives PR #9). The primitives release
 	// v0.2.0 does not; the registry's network-interface.yaml already uses it (ADR 0002, finding 3).
 	ItemChoice bool
+	// AccessGrammar is the version of the InheritanceMode spelling the grammar defines (access-policy/1
+	// is version 1: true | false | 0). It is the grammar the schema's inherit_policy is read under.
+	AccessGrammar int64
 }
 
 var grammarProfiles = map[string]grammarProfile{
 	// devel at 73ae469: the temporary P0 compatibility profile of ADR 0002, not a release contract.
-	"cic-primitives-73ae469-71ee71ca": {ItemChoice: true},
+	"cic-primitives-73ae469-71ee71ca": {ItemChoice: true, AccessGrammar: 1},
 }
 
 // SchemaInput is the preprocessed, version-pinned schema the caller supplies.
@@ -80,6 +83,10 @@ type CompiledSchema struct {
 	// DeclaredValidatedBy is metadata.validatedBy as written ("name version"), kept so a caller can
 	// see a schema that declares an older release than the grammar it is read under.
 	DeclaredValidatedBy string
+	// Base is identity.base, a pinned reference ("" when the schema declares none).
+	Base string
+	// Policy is spec.policy_surface as declared (see PolicySurface); nothing is evaluated or defaulted.
+	Policy PolicySurface
 	// Root is the composite of the surface's nodes, mandatory.
 	Root Shape
 	// UsesItemChoice says whether any list of the surface is an item_choice.
@@ -146,6 +153,7 @@ func compileWith(in SchemaInput, profiles map[string]grammarProfile) (*CompiledS
 	}
 	if id := lookup(spec, "identity"); id != nil {
 		out.Kind, out.Namespace, out.Version = strMember(id, "kind"), strMember(id, "namespace"), strMember(id, "version")
+		out.Base = strMember(id, "base")
 	}
 	if md := lookup(doc, "metadata"); md != nil {
 		if vb := lookup(md, "validatedBy"); vb != nil {
@@ -161,6 +169,7 @@ func compileWith(in SchemaInput, profiles map[string]grammarProfile) (*CompiledS
 		return nil, schemaErr(SchemaInvalid, in.Surface+".nodes", "a list is required")
 	}
 	fields := c.fields(nodes, "$")
+	out.Policy = c.policy(spec)
 	if len(c.problems) > 0 {
 		first := c.problems[0]
 		return nil, &Error{Kind: ErrSchema, SchemaCode: first.Code, Detail: first.Path + ": " + first.Detail, Problems: c.problems}

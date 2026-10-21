@@ -39,6 +39,31 @@ DEFECTS = [
      [("None if legacy => Err(invalid(\"LEGACY_INHERIT_IN_GRAMMAR_2\", node)),", "None if legacy => Ok(Mode::Inherit),")]),
     ("rust", "a violation drops its source position", "src/access.rs",
      [("location: node.pos.map_or(Location::Unavailable, Location::At),", "location: Location::Unavailable,")]),
+    # P3: spec.policy_surface and identity.base of the compiled schema (go/policy.go, rust/src/policy.rs).
+    ("rust", "two surface rules for the same surface and operation are not a conflict", "src/policy.rs",
+     [("if declared.iter().any(|(s, o)| *s == rule.surface && *o == op) {", "if false {")]),
+    ("rust", "an inherit member declares an empty rule (nobody) instead of no rule", "src/policy.rs",
+     [("Ok(Rule::Symbol) => continue, // inherit declares no rule for this operation", "Ok(Rule::Symbol) => Vec::new(),")]),
+    ("rust", "default_access accepts any symbol, owner included", "src/policy.rs",
+     [("Value::Str(s) if s == symbol => return Some(PolicyRule::Symbol(symbol)),", "Value::Str(s) if s == \"open\" || s == \"owner\" => return Some(PolicyRule::Symbol(if s == \"open\" { \"open\" } else { \"owner\" })),")]),
+    ("rust", "an unknown member of PolicySurface is ignored", "src/policy.rs",
+     [("_ => problems.push(invalid(&path, \"not a member of PolicySurface\")),", "_ => {}")]),
+    ("rust", "an explicit inherit_policy is not marked as declared", "src/policy.rs",
+     [("out.inherit_policy_declared = true;", "out.inherit_policy_declared = false;")]),
+    ("rust", "identity.base is dropped from the compiled schema", "src/schema.rs",
+     [("base = str_member(id, \"base\").to_string();", "base = String::new();")]),
+    ("go", "two surface rules for the same surface and operation are not a conflict", "policy.go",
+     [("case declared[key]:", "case false:")]),
+    ("go", "an inherit member declares an empty rule (nobody) instead of no rule", "policy.go",
+     [("case r.Symbol: // inherit declares no rule for this operation\n", "case r.Symbol:\n\t\t\t\t\tdeclared[key] = true\n\t\t\t\t\tif e.Key == \"access\" {\n\t\t\t\t\t\trule.Access = &PolicyRule{Patterns: []string{}}\n\t\t\t\t\t} else {\n\t\t\t\t\t\trule.Modify = &PolicyRule{Patterns: []string{}}\n\t\t\t\t\t}\n")]),
+    ("go", "default_access accepts any symbol, owner included", "policy.go",
+     [("if n.Str == symbol { // Str is empty for every kind but a string\n\t\treturn &PolicyRule{Symbol: symbol}", "if n.Str == \"open\" || n.Str == \"owner\" {\n\t\treturn &PolicyRule{Symbol: n.Str}")]),
+    ("go", "an unknown member of PolicySurface is ignored", "policy.go",
+     [("\t\tdefault:\n\t\t\tc.record(schemaErr(SchemaInvalid, path, \"not a member of PolicySurface\"))", "\t\tdefault:")]),
+    ("go", "an explicit inherit_policy is not marked as declared", "policy.go",
+     [("out.InheritPolicy, out.InheritPolicyDeclared = mode, true", "out.InheritPolicy, out.InheritPolicyDeclared = mode, false")]),
+    ("go", "identity.base is dropped from the compiled schema", "schema.go",
+     [("out.Base = strMember(id, \"base\")", "out.Base = \"\"")]),
     ("go", "integer 0 is read as no-inherit (0 coerced to false)", "access.go",
      [("case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeReset, nil", "case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeNoInherit, nil")]),
     ("go", "a missing version silently falls back to grammar 1", "access.go",
@@ -218,7 +243,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy"]
     return ["go", "test", "-count=1", "./..."]
 
 
