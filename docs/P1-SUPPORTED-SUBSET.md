@@ -285,6 +285,8 @@ nesting limit and their own wording of a syntax error.
 
 ## Parser parity (Rust against Go)
 
+**Stability of the generated inputs (#39).** The fixed-seed run and its allow list depend on the seed list, because the random edits `choice` from it. The seeds are therefore the *pinned* suites named in `tools/parity/gen_inputs.py` (`PINNED_SUITES`); a corpus suite added later (`corpus/lists`) is not a seed of that run but is appended after it, with its own texts and 3 000 mutations from a generator of its own, so adding a suite cannot reshuffle the pinned inputs again. Checked: with `corpus/lists` present the first 30 000 inputs are byte for byte those of the head before it, and the 286 allowed divergences, `changed: 0`, `new: 0` hold on them. The appended inputs found 2 divergences, both the open flow-context class (a `?` inside a plain scalar of a flow mapping), now in the allow list with their minimal forms.
+
 `tools/parity` compares `parse` in the two languages on the same inputs: `gen_inputs.py` writes
 30 005 deterministic inputs (the texts the repository holds, the pinned `access.yaml`, 450 hand-written
 cases that YAML readers disagree on, and seeded random edits of them), `rust/tests/parity_dump.rs` and
