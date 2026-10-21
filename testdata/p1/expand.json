@@ -195,6 +195,116 @@
     ]
    },
    "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "a-position-that-does-not-exist-is-not-attested",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.nemletezo"
+    ]
+   },
+   "error": "UNKNOWN_FIELD",
+   "phase": "path_resolve",
+   "path": "$.nemletezo"
+  },
+  {
+   "id": "an-entry-below-a-scalar",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.mtu.x"
+    ]
+   },
+   "error": "PATH_NO_CHILDREN",
+   "phase": "path_resolve",
+   "path": "$.mtu.x"
+  },
+  {
+   "id": "an-entry-that-is-not-a-canonical-path",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "mtu"
+    ]
+   },
+   "error": "PATH_SYNTAX",
+   "phase": "path_parse"
+  },
+  {
+   "id": "an-empty-entry",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     ""
+    ]
+   },
+   "error": "PATH_SYNTAX",
+   "phase": "path_parse"
+  },
+  {
+   "id": "an-entry-with-an-index",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.routes[0]"
+    ]
+   },
+   "error": "PATH_INDEX_SELECTOR",
+   "phase": "path_parse"
+  },
+  {
+   "id": "an-entry-with-the-wrong-key",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.routes[{metric=1}].metric"
+    ]
+   },
+   "error": "PATH_SELECTOR_MISMATCH",
+   "phase": "path_resolve",
+   "path": "$.routes[{metric=1}]"
+  },
+  {
+   "id": "the-root-is-not-a-position",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$"
+    ]
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "a-list-element-is-not-a-position",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.routes[{to=\"a\"}]"
+    ]
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "a-field-of-a-list-element-is-a-position",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.routes[{to=\"a\"}].metric",
+     "$.routes",
+     "$.ip.gateway"
+    ]
+   },
+   "ok": true
   }
  ],
  "materialized": [

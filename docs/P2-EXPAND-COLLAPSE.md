@@ -52,7 +52,12 @@ representation change from losing the authentication context.
 |---|---|---|
 | authored | none (the zero `Context`), or `origin: authored` alone | allowed; the absence of a basis is **not** an attestation |
 | materialized | `attestation` **and** `attested_positions` (which may be empty: an attestation that grants nothing) | positions in the set are `binding_attested` and never shortened; all others follow the unchanged rule |
-| anything else | a materialized document without its attestation or its positions; an authored one with either; an unknown origin; an empty or repeated position | `ORIGIN_ATTESTATION_MISMATCH` (phase `validate`, no location, no logical path); **nothing is expanded or collapsed** |
+| anything else | a materialized document without its attestation or its positions; an authored one with either; an unknown origin; a repeated position; the root or a list element named as a position | `ORIGIN_ATTESTATION_MISMATCH` (phase `validate`, source location `not_applicable`, no logical path); **nothing is expanded or collapsed** |
+| an entry that is not a position of the schema | a text that is not a canonical path (`PATH_SYNTAX`, `PATH_INDEX_SELECTOR`, ...), or that the schema does not resolve (`UNKNOWN_FIELD`, `PATH_NO_CHILDREN`, `PATH_SELECTOR_MISMATCH`, ...) | that path error, phase `path_parse` or `path_resolve`, source location `not_applicable`; **nothing is expanded or collapsed** |
+
+**The attested positions are resolved against the schema** (ADR 0010): each entry is parsed as a canonical logical path and
+resolved with `resolve_path`; it must name a primitive position. A binding is therefore never credited with a position that
+does not exist, and nothing is `binding_attested` merely because it appears in a list of strings.
 
 There is no callback and no default string: a materialized document cannot be shortened without saying which positions the
 binding attested. `expand` checks the same context (it creates no authority, so it does not change the result).
@@ -70,13 +75,13 @@ binding attested. `expand` checks the same context (it creates no authority, so 
 - The binding evidence itself (ADR 0010) is an input: not produced, not verified here.
 - A position whose logical path cannot be written (an empty name, a control character) is `UNSUPPORTED_SYNTAX`: its
   provenance would have no key.
-- The entries of `attested_positions` are not resolved against the schema here (ADR 0010 defers that to the scope
-  resolution); an entry that names no position of the document simply attests nothing.
+- An entry of `attested_positions` that is a valid position of the schema but that this particular document does not contain
+  (an optional field left out) attests nothing; the check is against the schema, not against the document.
 
 ## Evidence
 
 - **Corpus:** the 26 P2 cases (`collapse` 15, `roundtrip` 9, `expand` 1, `equality` 1) run in both languages, so the corpus
-  accounting is 140 run and 207 not run.
+  accounting is 240 run and 107 not run (the same PR also runs the 100 path-text cases, which the attested positions need).
 - **Shared cases:** `testdata/p1/expand.json` (9 documents and 12 context cases: all short, mixed with an explicit override, `null` and empty,
   an unknown field, `item_choice` elements named by identity, an expanded key value, an opaque value equal to `A`, `A`
   plus an extra key), each checked for the expanded text, the provenance, the round trip, the collapse without provenance

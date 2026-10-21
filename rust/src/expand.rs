@@ -24,6 +24,7 @@ use crate::access::{write_mode, Grammar, Mode, INHERIT_SYMBOL};
 use crate::error::{Error, Location, Phase, Violation};
 use crate::listitem::identify;
 use crate::node::{Entry, Node, Value};
+use crate::pathtext::{parse_path, resolve_path};
 use crate::recognize::{classify, location, logical_path, Class, Path, Seg};
 use crate::validate::{Shape, ShapeType};
 
@@ -42,7 +43,9 @@ pub enum DocOrigin {
 pub const ORIGIN_ATTESTATION_MISMATCH: &str = "ORIGIN_ATTESTATION_MISMATCH";
 
 /// The trusted context a document is processed with (ADR 0010): supplied by the caller, never read from the document, and
-/// not interpreted or verified here. The default is an authored document.
+/// not interpreted or verified here. The default is an authored document. The entries of `attested_positions` are
+/// resolved against the schema: each must name a primitive position of it, or the operation fails with the path error (or
+/// `ORIGIN_ATTESTATION_MISMATCH` for the root and a list element) and nothing is expanded or collapsed.
 ///
 /// `attestation` and `attested_positions` are present exactly when the origin is materialized (`Some(vec![])` is present
 /// and empty: an attestation that grants nothing). A position of a materialized document that is not in
@@ -56,36 +59,41 @@ pub struct Context {
 }
 
 impl Context {
-    fn check(&self) -> Result<(), Error> {
+    fn check(&self, root: &Shape) -> Result<(), Error> {
         let materialized = self.origin == DocOrigin::Materialized;
         let consistent = self.attestation.as_ref().is_some_and(|a| !a.is_empty()) == materialized
             && self.attested_positions.is_some() == materialized;
-        let distinct = self
-            .attested_positions
-            .iter()
-            .flatten()
-            .enumerate()
-            .all(|(i, p)| {
-                !p.is_empty()
-                    && !self
-                        .attested_positions
-                        .iter()
-                        .flatten()
-                        .take(i)
-                        .any(|q| q == p)
-            });
-        if consistent && distinct {
-            Ok(())
-        } else {
-            // no YAML node is at fault: no location and no logical path
-            Err(Error::Contract(vec![Violation {
-                code: ORIGIN_ATTESTATION_MISMATCH,
-                phase: Phase::Validate,
-                location: Location::Unavailable,
-                logical_path: None,
-            }]))
+        if !consistent {
+            return Err(mismatch());
         }
+        let positions = self.attested_positions.iter().flatten();
+        for (i, p) in positions.clone().enumerate() {
+            if positions.clone().take(i).any(|q| q == p) {
+                return Err(mismatch());
+            }
+            // An entry must name a primitive position of the schema (ADR 0010): a binding is never credited with a position
+            // that does not exist. A text that is not a canonical path, or that the schema cannot resolve, fails with the
+            // path error; the root and a list element resolve but are not positions.
+            let segs = parse_path(p).map_err(|e| Error::Contract(vec![e.violation()]))?;
+            let resolved =
+                resolve_path(root, &segs).map_err(|e| Error::Contract(vec![e.violation()]))?;
+            if !resolved.primitive {
+                return Err(mismatch());
+            }
+        }
+        Ok(())
     }
+}
+
+/// The context error: no YAML node is at fault, so its source location is `not_applicable` (ADR 0010) and it has no
+/// logical path.
+fn mismatch() -> Error {
+    Error::Contract(vec![Violation {
+        code: ORIGIN_ATTESTATION_MISMATCH,
+        phase: Phase::Validate,
+        location: Location::NotApplicable,
+        logical_path: None,
+    }])
 }
 
 /// How a primitive position of the authored document was written.
@@ -199,7 +207,7 @@ pub fn expand(
     g: Grammar,
     ctx: &Context,
 ) -> Result<(Node, Provenance), Error> {
-    ctx.check()?;
+    ctx.check(shape)?;
     let mut w = Walker {
         a,
         g,
@@ -225,7 +233,7 @@ pub fn collapse(
     prov: &Provenance,
     ctx: &Context,
 ) -> Result<Node, Error> {
-    ctx.check()?;
+    ctx.check(shape)?;
     let mut w = Walker {
         a,
         g,

@@ -207,6 +207,19 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
   element with the identity. `corpus/lists/vectors.yaml` carries a negative vector per code and phase, with source locations,
   and runs in both languages.
 
+## The text of logical paths (ADR 0006: `parse_path`, `format_path`, `resolve_path`)
+
+`ParsePath` / `parse_path` accepts only the canonical writing, so `format(parse(t)) == t` for every accepted `t`; a reading that
+is valid but not canonical (a leading zero, `+7`, `-0`, a needless `\u` escape, `\/`, an upper-case hex digit) is refused with
+`PATH_NONCANONICAL`, not rewritten. Errors carry the code, the phase (`path_parse`, `path_format`, `path_resolve`), the offset
+in code points (parse only) and, for resolution, the logical path up to and including the segment at fault; their source
+location is `not_applicable`. `resolve_path` resolves against the compiled schema by the declared identity (the key of the
+list, or of the `item_choice` case that the component names select) and says what the path addresses: root, scalar,
+composite, list, set, opaque or item, and whether that is a primitive position (a field is; the root and a list element are
+not). All 100 `path_parse`, `path_format` and `path_resolve` cases of the corpus run in both languages, and the edge cases the
+corpus does not spell out (every escape, the ends of the text, control characters, the space) are in
+`testdata/p1/pathtext.json`.
+
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
 | Input | Answer |
@@ -238,7 +251,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **140 run + 207 NOT RUN**.
+case of the corpus (339), assert that each is either run or listed here, and assert **240 run + 107 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -253,7 +266,7 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | lists | `validate` (list notation, ADR 0007 amendment) | 8 | **run**, both languages, complete machine response with source locations |
 | paths | `path_of` | 18 | **run**, both languages: identity of a list element in a path, errors with their path |
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
-| paths | `path_parse` 57, `path_resolve` 34, `path_format` 9 | 100 | NOT RUN |
+| paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 

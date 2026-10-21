@@ -39,14 +39,16 @@ const CodeOriginAttestationMismatch = "ORIGIN_ATTESTATION_MISMATCH"
 // absent, a non-nil empty slice is present and empty (an attestation that grants nothing). A position of a materialized
 // document that is not in AttestedPositions has the basis default; one that is has binding_attested and is never
 // shortened. For an authored document the absence of a basis is allowed and is not an attestation. The entries are exact
-// canonical logical paths.
+// canonical logical paths and are resolved against the schema: each must name a primitive position of it, or the
+// operation fails with the path error (or ORIGIN_ATTESTATION_MISMATCH for the root and a list element) and nothing is
+// expanded or collapsed.
 type Context struct {
 	Origin            string
 	Attestation       string
 	AttestedPositions []string
 }
 
-func (c Context) check() error {
+func (c Context) check(root Shape) error {
 	materialized := c.Origin == OriginMaterialized
 	if c.Origin != "" && c.Origin != OriginAuthored && !materialized {
 		return mismatch()
@@ -57,17 +59,36 @@ func (c Context) check() error {
 	}
 	seen := map[string]bool{}
 	for _, p := range c.AttestedPositions {
-		if p == "" || seen[p] {
+		if seen[p] {
 			return mismatch()
 		}
 		seen[p] = true
+		// An entry must name a primitive position of the schema (ADR 0010): a binding is never credited with a position
+		// that does not exist. A text that is not a canonical path, or that the schema cannot resolve, fails with the path
+		// error; the root and a list element resolve but are not positions.
+		segs, perr := ParsePath(p)
+		if perr != nil {
+			return pathContractError(perr)
+		}
+		res, perr := ResolvePath(root, segs)
+		if perr != nil {
+			return pathContractError(perr)
+		}
+		if !res.Primitive {
+			return mismatch()
+		}
 	}
 	return nil
 }
 
-// mismatch is the context error: no YAML node is at fault, so it has no location and no logical path.
+func pathContractError(e *PathError) error {
+	return &Error{Kind: ErrContract, Violations: []Violation{e.Violation()}}
+}
+
+// mismatch is the context error: no YAML node is at fault, so its source location is not_applicable (ADR 0010) and it has
+// no logical path.
 func mismatch() error {
-	return &Error{Kind: ErrContract, Violations: []Violation{{Code: CodeOriginAttestationMismatch, Phase: PhaseValidate}}}
+	return &Error{Kind: ErrContract, Violations: []Violation{{Code: CodeOriginAttestationMismatch, Phase: PhaseValidate, Location: Location{NotApplicable: true}}}}
 }
 
 // Origin says how a primitive position of the authored document was written.
@@ -184,7 +205,7 @@ func pathText(path []seg) (string, error) {
 // Expansion creates no authority (ADR 0010): ctx is checked for consistency and otherwise does not change the result, so
 // a materialized document cannot be expanded with a missing or contradictory context.
 func Expand(doc *Node, shape Shape, a []string, g Grammar, ctx Context) (*Node, Provenance, error) {
-	if err := ctx.check(); err != nil {
+	if err := ctx.check(shape); err != nil {
 		return nil, nil, err
 	}
 	w := &formWalker{a: a, g: g, prov: Provenance{}}
@@ -201,7 +222,7 @@ func Expand(doc *Node, shape Shape, a []string, g Grammar, ctx Context) (*Node, 
 // authored one with either) is ORIGIN_ATTESTATION_MISMATCH and nothing is collapsed; a position in
 // ctx.AttestedPositions is never shortened.
 func Collapse(doc *Node, shape Shape, a []string, g Grammar, prov Provenance, ctx Context) (*Node, error) {
-	if err := ctx.check(); err != nil {
+	if err := ctx.check(shape); err != nil {
 		return nil, err
 	}
 	w := &formWalker{a: a, g: g, prov: prov, attested: map[string]bool{}}

@@ -16,6 +16,7 @@ pub mod expand;
 pub mod listitem;
 pub mod node;
 pub mod parse;
+pub mod pathtext;
 pub mod recognize;
 pub mod schema;
 pub mod validate;
@@ -33,6 +34,7 @@ pub use expand::{
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};
 pub use parse::{parse, parse_with, Limits};
+pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use recognize::{recognize, Class, Outcome, Position};
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
 pub use validate::{validate, Presence, ScalarType, Shape, ShapeType, Validation};

@@ -164,6 +164,8 @@ func TestSharedTrustedContext(t *testing.T) {
 			Context contextJSON `json:"context"`
 			OK      bool        `json:"ok"`
 			Error   string      `json:"error"`
+			Phase   string      `json:"phase"`
+			Path    string      `json:"path"`
 		} `json:"contexts"`
 		Materialized []struct {
 			ID        string      `json:"id"`
@@ -188,8 +190,9 @@ func TestSharedTrustedContext(t *testing.T) {
 				case c.OK && err != nil:
 					t.Errorf("%v", err)
 				case !c.OK && (!errors.As(err, &fe) || fe.Kind != forms.ErrContract || fe.Violations[0].Code != c.Error ||
-					fe.Violations[0].Phase != forms.PhaseValidate || fe.Violations[0].Location.Available || fe.Violations[0].LogicalPath != ""):
-					t.Errorf("want %s, got %v", c.Error, err)
+					string(fe.Violations[0].Phase) != orDefault(c.Phase, "validate") || fe.Violations[0].LogicalPath != c.Path ||
+					fe.Violations[0].Location != (forms.Location{NotApplicable: true})):
+					t.Errorf("want %s/%s at %q, not_applicable; got %v", c.Error, orDefault(c.Phase, "validate"), c.Path, err)
 				}
 			}
 		})
@@ -211,4 +214,11 @@ func TestSharedTrustedContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+func orDefault(s, d string) string {
+	if s == "" {
+		return d
+	}
+	return s
 }

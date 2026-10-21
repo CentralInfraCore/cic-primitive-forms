@@ -26,6 +26,11 @@ pub const DUPLICATE_IDENTITY: &str = "PATH_DUPLICATE_IDENTITY";
 pub enum KeyValue {
     Str(String),
     Int(i64),
+    /// A value that has no encoding (ADR 0006), only for `format_path`, which is given components from outside; an identity
+    /// built from a document never holds one.
+    Boolean(bool),
+    /// An integer beyond signed 64 bits, only for `format_path`.
+    OutOfRange,
 }
 
 /// One component of an element identity: the name of the key field and its typed value.

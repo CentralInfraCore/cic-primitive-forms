@@ -1,0 +1,187 @@
+{
+ "cases": [
+  {
+   "path": "$.l[{n=\"x\\by\"}]",
+   "value": "x\by"
+  },
+  {
+   "path": "$.l[{n=\"x\\fy\"}]",
+   "value": "x\fy"
+  },
+  {
+   "path": "$.l[{n=\"x\\ny\"}]",
+   "value": "x\ny"
+  },
+  {
+   "path": "$.l[{n=\"x\\ry\"}]",
+   "value": "x\ry"
+  },
+  {
+   "path": "$.l[{n=\"x\\ty\"}]",
+   "value": "x\ty"
+  },
+  {
+   "path": "$.l[{n=\"x\\\"y\"}]",
+   "value": "x\"y"
+  },
+  {
+   "path": "$.l[{n=\"x\\\\y\"}]",
+   "value": "x\\y"
+  },
+  {
+   "path": "$.l[{n=\"\\u0001\\u001f\"}]",
+   "value": "\u0001\u001f"
+  },
+  {
+   "path": "$.l[{n=\"\"}]",
+   "value": ""
+  },
+  {
+   "path": "$.v[-x]",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.v[{a=-}]",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=x}]",
+   "error": "PATH_SYNTAX",
+   "offset": 7
+  },
+  {
+   "path": "$.v[{a=1",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=-12",
+   "error": "PATH_SYNTAX",
+   "offset": 10
+  },
+  {
+   "path": "$.l[{n=\"a\tb\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=\"\\u007f\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u0008\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u000d\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u000c\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u0009\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u00zz\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u00\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u+041\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"a",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=1,}]",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=1 }]",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=1}x",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.l[{",
+   "error": "PATH_EMPTY_NAME",
+   "offset": 5
+  },
+  {
+   "path": "$.l[{n",
+   "error": "PATH_SYNTAX",
+   "offset": 6
+  },
+  {
+   "path": "$.l[{n=",
+   "error": "PATH_SYNTAX",
+   "offset": 7
+  },
+  {
+   "path": "$x",
+   "error": "PATH_SYNTAX",
+   "offset": 1
+  },
+  {
+   "path": "$.a=b",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a,b",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a b[{n=\"x\"}]",
+   "value": "x"
+  },
+  {
+   "path": "$.l[{n=\"a b\"}]",
+   "value": "a b"
+  },
+  {
+   "path": "$.l[{n a=\"x\"}]",
+   "value": "x"
+  }
+ ]
+}

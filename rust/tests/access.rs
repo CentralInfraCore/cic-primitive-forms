@@ -145,7 +145,10 @@ fn violations_are_anchored_at_the_value_and_name_the_phase() {
     assert_eq!(e.logical_path, None);
     let at = match e.location {
         cic_primitive_forms::Location::At(p) => (p.line, p.column, p.offset),
-        cic_primitive_forms::Location::Unavailable => panic!("a parsed value has a position"),
+        cic_primitive_forms::Location::Unavailable
+        | cic_primitive_forms::Location::NotApplicable => {
+            panic!("a parsed value has a position")
+        }
     };
     assert_eq!(at, (1, 4, 3));
     let m = parse("m: 1\n").unwrap();

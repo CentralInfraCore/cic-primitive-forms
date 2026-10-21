@@ -11,11 +11,15 @@ package forms
 
 // KeyComp is one component of an element identity: the name of the key field and a typed value, a string
 // or an integer (ADR 0006: no other key type has an encoding).
+//
+// Bad is only for FormatPath, which is given components from outside: "boolean" or "range" mark a value that has no
+// encoding (PATH_KEY_UNSUPPORTED, PATH_INTEGER_RANGE). An identity built from a document never has one.
 type KeyComp struct {
 	Name  string
 	IsInt bool
 	Str   string
 	Int   int64
+	Bad   string
 }
 
 // The codes of an element whose identity cannot be built or is not unique. They are the path_of codes of

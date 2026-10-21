@@ -11,9 +11,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use cic_primitive_forms::{
-    collapse_position, emit, expand_position, parse, path_of, recognize, Case, Class, Elements,
-    Error, Location, Node, Phase, Position, Presence, ScalarType, Shape, ShapeType, Step, Value,
-    Violation,
+    collapse_position, emit, expand_position, format_path, parse, parse_path, path_of, recognize,
+    resolve_path, Case, Class, Elements, Error, KeyComp, KeyValue, Location, Node, PathSeg, Phase,
+    Position, Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -143,9 +143,13 @@ fn wire(v: &Violation) -> Wire {
         Phase::Recognize => "recognize",
         Phase::Validate => "validate",
         Phase::PathOf => "path_of",
+        Phase::PathParse => "path_parse",
+        Phase::PathFormat => "path_format",
+        Phase::PathResolve => "path_resolve",
     };
     let loc = match v.location {
         Location::Unavailable => "unavailable".to_string(),
+        Location::NotApplicable => "not_applicable".to_string(),
         Location::At(p) => format!("{}:{}:{}", p.line, p.column, p.offset),
     };
     (
@@ -171,8 +175,12 @@ fn expected_wire(e: &YamlOwned) -> Wire {
     }
     let loc = get(e, "source_location").expect("source_location");
     let loc = if let Some(state) = get(loc, "state") {
-        assert_eq!(text(state, "state"), "unavailable");
-        "unavailable".to_string()
+        let state = text(state, "state");
+        assert!(
+            ["unavailable", "not_applicable"].contains(&state),
+            "state {state}"
+        );
+        state.to_string()
     } else {
         let n = |k: &str| get(loc, k).and_then(YamlOwned::as_integer).expect(k);
         format!("{}:{}:{}", n("line"), n("column"), n("offset"))
@@ -804,10 +812,13 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (140, 207),
+        (240, 107),
         "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability run"
     );
     assert_eq!(run.get("lists/validate"), Some(&8));
+    assert_eq!(run.get("paths/path_parse"), Some(&57));
+    assert_eq!(run.get("paths/path_format"), Some(&9));
+    assert_eq!(run.get("paths/path_resolve"), Some(&34));
     assert_eq!(run.get("paths/path_of"), Some(&18));
     assert_eq!(run.get("paths/path_stability"), Some(&7));
     assert_eq!(run.get("inherit/validate"), Some(&21));
@@ -828,7 +839,10 @@ fn is_p2_run(kind: &str) -> bool {
 }
 
 fn is_path_run(kind: &str) -> bool {
-    kind == "path_of" || kind == "path_stability"
+    matches!(
+        kind,
+        "path_of" | "path_stability" | "path_parse" | "path_format" | "path_resolve"
+    )
 }
 
 fn path_shape(shape_type: ShapeType, mandatory: bool) -> Shape {
@@ -996,7 +1010,7 @@ fn path_cases_match_the_corpus() {
         {
             let id = text(get(case, "id").expect("id"), "id");
             let kind = text(get(case, "kind").expect("kind"), "kind");
-            if !is_path_run(kind) {
+            if kind != "path_of" && kind != "path_stability" {
                 continue;
             }
             ran += 1;
@@ -1159,4 +1173,193 @@ fn expand_collapse_cases_match_the_corpus() {
         }
     }
     assert_eq!(ran, 26, "expand 1, collapse 15, roundtrip 9, equality 1");
+}
+
+// ---------------------------------------------------------------------------
+// path_parse, path_format, path_resolve (ADR 0006): the text of logical paths.
+
+/// Segments as one comparable string, the same for parsed segments and for the fixture's.
+fn segs_string(segs: &[PathSeg]) -> String {
+    segs.iter()
+        .map(|s| match s {
+            PathSeg::Field(f) => format!("f:{f:?}"),
+            PathSeg::Item(item) => format!(
+                "i:[{}]",
+                item.iter()
+                    .map(|c| match &c.value {
+                        KeyValue::Str(v) => format!("{:?}=s:{v:?}", c.name),
+                        KeyValue::Int(n) => format!("{:?}=i:{n}", c.name),
+                        other => format!("{:?}={other:?}", c.name),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn segments_of(y: &YamlOwned) -> Vec<PathSeg> {
+    y.as_vec()
+        .expect("segments: a list")
+        .iter()
+        .map(|s| {
+            if let Some(f) = get(s, "field") {
+                return PathSeg::Field(text(f, "field").to_string());
+            }
+            PathSeg::Item(
+                get(s, "item")
+                    .and_then(YamlOwned::as_vec)
+                    .expect("item")
+                    .iter()
+                    .map(|c| {
+                        let key = get(c, "key").expect("key");
+                        let value = match text(get(key, "type").expect("type"), "type") {
+                            "string" => {
+                                KeyValue::Str(text(get(key, "value").unwrap(), "value").to_string())
+                            }
+                            // beyond signed 64 bits: not an integer the loader could hold
+                            "integer" => get(key, "value")
+                                .and_then(YamlOwned::as_integer)
+                                .map_or(KeyValue::OutOfRange, KeyValue::Int),
+                            _ => KeyValue::Boolean(true),
+                        };
+                        KeyComp {
+                            name: text(get(c, "name").expect("name"), "name").to_string(),
+                            value,
+                        }
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn path_text_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "paths" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let kind = text(get(case, "kind").expect("kind"), "kind");
+            if !["path_parse", "path_format", "path_resolve"].contains(&kind) {
+                continue;
+            }
+            ran += 1;
+            let expect = get(case, "expect").expect("expect");
+            let mut error = None;
+            match kind {
+                "path_parse" => {
+                    let path = text(get(case, "path").unwrap(), "path");
+                    match parse_path(path) {
+                        Ok(segs) => {
+                            assert_eq!(
+                                segs_string(&segs),
+                                segs_string(&segments_of(
+                                    get(expect, "segments").expect("segments")
+                                )),
+                                "{id}"
+                            );
+                            // every accepted text is the canonical writing of its segments
+                            assert_eq!(
+                                format_path(&segs).as_deref(),
+                                Ok(path),
+                                "{id}: format(parse(t))"
+                            );
+                        }
+                        Err(e) => error = Some(e),
+                    }
+                }
+                "path_format" => match format_path(&segments_of(get(case, "segments").unwrap())) {
+                    Ok(t) => assert_eq!(
+                        Some(t.as_str()),
+                        get(expect, "text").and_then(YamlOwned::as_str),
+                        "{id}"
+                    ),
+                    Err(e) => error = Some(e),
+                },
+                _ => {
+                    let segs =
+                        parse_path(text(get(case, "path").unwrap(), "path")).unwrap_or_else(|e| {
+                            panic!("{id}: the path to resolve does not parse: {e:?}")
+                        });
+                    let tree = text(
+                        get(
+                            get(case, "schema")
+                                .and_then(|s| get(s, "synthetic"))
+                                .unwrap(),
+                            "tree",
+                        )
+                        .unwrap(),
+                        "tree",
+                    );
+                    let root = path_shape(
+                        ShapeType::Composite(tree_fields(
+                            get(get(&suite, "trees").expect("trees"), tree).expect("tree"),
+                            &[],
+                        )),
+                        true,
+                    );
+                    match resolve_path(&root, &segs) {
+                        Ok(r) => {
+                            assert_eq!(
+                                Some(r.target),
+                                get(expect, "target").and_then(YamlOwned::as_str),
+                                "{id}"
+                            );
+                            assert_eq!(
+                                Some(r.primitive),
+                                get(expect, "primitive_position").and_then(YamlOwned::as_bool),
+                                "{id}"
+                            );
+                        }
+                        Err(e) => error = Some(e),
+                    }
+                }
+            }
+            match (get(expect, "errors").and_then(YamlOwned::as_vec), error) {
+                (None, None) => {}
+                (Some(errs), Some(e)) => {
+                    let want = &errs[0];
+                    assert_eq!(
+                        Some(e.code),
+                        get(want, "code").and_then(YamlOwned::as_str),
+                        "{id}"
+                    );
+                    assert_eq!(
+                        Some(e.phase.as_str()),
+                        get(want, "phase").and_then(YamlOwned::as_str),
+                        "{id}"
+                    );
+                    assert_eq!(
+                        e.logical_path.as_deref().unwrap_or(""),
+                        get(want, "logical_path")
+                            .and_then(YamlOwned::as_str)
+                            .unwrap_or(""),
+                        "{id}"
+                    );
+                    if let Some(off) = get(want, "path_offset").and_then(YamlOwned::as_integer) {
+                        assert_eq!(i64::try_from(e.offset).unwrap(), off, "{id}: offset");
+                    }
+                    assert_eq!(
+                        get(get(want, "source_location").unwrap(), "state")
+                            .and_then(YamlOwned::as_str),
+                        Some("not_applicable"),
+                        "{id}"
+                    );
+                }
+                (want, got) => panic!("{id}: want {want:?}, got {got:?}"),
+            }
+        }
+    }
+    assert_eq!(
+        ran, 100,
+        "57 path_parse, 9 path_format and 34 path_resolve cases"
+    );
 }

@@ -196,11 +196,16 @@ fn the_shared_trusted_context() {
                 (Some(true), Ok(())) => {}
                 (None, Err(Error::Contract(vs))) => {
                     assert_eq!(vs[0].code, c["error"].as_str().unwrap(), "{id}");
-                    assert_eq!(vs[0].phase.as_str(), "validate", "{id}");
-                    assert!(vs[0].logical_path.is_none(), "{id}");
+                    let phase = c.get("phase").and_then(J::as_str).unwrap_or("validate");
+                    assert_eq!(vs[0].phase.as_str(), phase, "{id}");
+                    assert_eq!(
+                        vs[0].logical_path.as_deref(),
+                        c.get("path").and_then(J::as_str),
+                        "{id}"
+                    );
                     assert_eq!(
                         vs[0].location,
-                        cic_primitive_forms::Location::Unavailable,
+                        cic_primitive_forms::Location::NotApplicable,
                         "{id}"
                     );
                 }
