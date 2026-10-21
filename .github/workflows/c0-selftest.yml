@@ -1,0 +1,33 @@
+name: c0-selftest
+# The research prototype of step C0 (docs/C0-GO-MUTANT-ID-STUDY.md) is a Go module of its own under tools/c0/mutid, outside the module
+# of go/, so p1 never builds it. This runs its tests and vet. Research only: it is not a required check and nothing reuses a verdict.
+on:
+  pull_request:
+    paths:
+      - "tools/c0/**"
+      - "docs/C0-GO-MUTANT-ID-STUDY.md"
+      - ".github/workflows/c0-selftest.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/c0/**"
+      - "docs/C0-GO-MUTANT-ID-STUDY.md"
+      - ".github/workflows/c0-selftest.yml"
+permissions:
+  contents: read
+jobs:
+  mutid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/c0/mutid
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+      - run: go build ./...
