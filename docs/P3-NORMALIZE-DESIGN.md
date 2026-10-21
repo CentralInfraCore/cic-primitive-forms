@@ -1,8 +1,9 @@
 # P3: normalize — design proposal
 
-Status: **proposal, no code**. It is written for the review that opens P3 and follows the accepted ADR 0001, 0003, 0004, 0006, 0010
-and the pinned `access-policy/1` grammar (cic-primitives D-018, `P0-4-ACCESS-GRAMMAR.md`); it re-opens none of them. Open decisions are
-listed at the end and are the owner's.
+Status: **design, no code**. It follows the accepted ADR 0001, 0003, 0004, 0006, 0010 and the pinned `access-policy/1` grammar
+(cic-primitives D-018, `P0-4-ACCESS-GRAMMAR.md`); it re-opens none of them. The four open decisions of the first version were taken in the
+architecture review of this PR (section 8); the one that needs an ADR is written as the *proposed* `docs/adr/0011-defaults-by-role.md`,
+and **no P3 code is written before ADR 0011 is accepted and the P2 post-merge evidence is complete**.
 
 P3 in `PHASES.md`: *Normalize: defaults, `inherit: true/false/0`. Exit: the same input and schema give the same fully resolved
 result in both languages.* Resolving a reference from a supplied snapshot and materializing is **P5**; this document does not.
@@ -27,26 +28,39 @@ of the position or object that declared it. A later resolver (Relay) takes that 
 
 ## 2. What the input is, what the output is
 
-Input: an expanded document (P2, with its `Provenance`), the compiled schema (`config_surface` only, as in P1), the bound access
-grammar, and the policy tree of the objects the schema declares (their `PolicySurface`). Output: a **normalized object** — the same
-tree of primitive positions, each with
+Input: an expanded document (P2, with its `Provenance`), the compiled schema (the `config_surface` nodes **and** the `policy_surface` and
+`identity.base` declarations, section 4), the bound access grammar. Output: one `NormalizationResult` produced by one deterministic
+operation, bound to that document and that schema:
 
-- `value` (unchanged where it was authored or has no default),
-- `value_origin`: `authored` | `default` (the schema default applied to an absent field) — never `inherited` for a value,
-- `policy`: the six Access fields as written (explicit ones untouched), plus `effective.access` and `effective.modify` (rule, layer,
-  source path),
-- the P2 `Provenance` entry, carried through unchanged.
+```
+NormalizationResult
+  normalized_object            the tree of primitive positions, values and their origin
+    <position>
+      value                    unchanged where it was authored or has no default
+      value_origin             authored | default          (never "inherited": see below)
+      policy                   the six Access fields as written; explicit ones untouched
+      provenance               the P2 entry, carried through unchanged
+  policy_resolution            keyed by logical path, separate from the value tree
+    <logical_path>
+      access: { rule, layer, source_path }
+      modify: { rule, layer, source_path }
+```
 
-Normalization is **idempotent** (`normalize(normalize(x)) == normalize(x)`) and **never changes an authored value or an explicit policy
-setting**; it only adds what was absent and annotates.
+- `value_origin` is `authored` or `default` and nothing else. Inheritance here concerns **policy rules**, not copying values down a tree, so
+  a value is never "inherited".
+- The effective rules are **not** part of the value tree: a consumer processes the values without taking resolved policy data for fields the
+  configuration declares. They live only in `policy_resolution`.
+- Normalization is **idempotent** (`normalize(normalize(x)) == normalize(x)`) and **never changes an authored value or an explicit
+  policy setting**; it only adds what was absent and annotates.
 
 ## 3. Defaults (ADR 0003 rules 3-4)
 
 - A default applies **only to an absent field**. Never to `null`, `""`, `0`, `false`, `[]`, `{}` (rule 3, already tested in P1 as
   *candidates*).
-- Whether it may apply depends on **Role** (rule 4). ADR 0003 leaves the table open; P3 needs it: the `config` role takes a default,
-  `state`/`operational` never do (a missing observation is a coverage fact, rule 8), `derived` and `volatile` fields are not defaulted
-  from the schema, a `key` field is mandatory and has none. This table is **decision 1**.
+- Whether it may apply depends on **Role** (rule 4). The rule is ADR 0011 (proposed): a schema default applies to an absent field only if
+  the node is `config` (the authority axis; written or by its default), optional, and has no `key`, `reference`, `derived` or `volatile`
+  role; `state`, `operational`, `derived`, `volatile` and `key` never take one. A schema that declares a default on a node whose Role
+  does not take one is `SCHEMA_INVALID` at compile time, and an unknown Role value is never read as `config`.
 - A field that declares a default but is **mandatory** is a schema defect already refused in P1 (`SCHEMA_INVALID`).
 - `default_injection` stays separate from the permission decision and from `value` (ADR 0003 rule 6).
 
@@ -67,6 +81,14 @@ setting**; it only adds what was absent and annotates.
   only as the effective rule's layer `system`.
 - A policy of an object that is `absent` or `{}` is transparent; a missing object, a cycle, or an `unknown` policy the walk must read
   gives `unknown`, never an invented rule.
+
+- **None and unknown are kept.** A `none` rule (a `reset` barrier with no local rule) and an `unknown` one (a policy the walk must read is not
+  known) are never turned into `open` or into any assumed permission, and an empty rule list never goes looking for a more permissive
+  parent. A policy that is absent or declared empty (`{}`) is a legal, transparent state; a policy that is invalid or cannot be resolved is a
+  different state (`unknown`) and never yields a more permissive rule.
+- **The compiled schema reads the policy.** P3 extends `compile_schema` to read `policy_surface` (`default_access`, `default_modify`,
+  `surface_rules`, `inherit_policy`) and `identity.base`, and nothing more: no authentication, no certificate check, no external snapshot
+  (that is P5). Until then P1 compiled only the nodes of `config_surface`.
 
 The pinned `access_policy.py` and its golden vectors (`access-vectors/`) are the executable reference of this order; P3 ports it and
 adds the layer and the source path to its output. Where Forms and that reference disagree, the reference wins until D-018 changes.
@@ -101,15 +123,16 @@ fields inherit from its list field and its object, not from a sibling.
   fuzz target, seeded defects, mutation, branch coverage: the same gates as P1/P2, no relaxation.
 - The golden vectors of `access-vectors/` run against the Forms port in both languages (they are the cross-check of the semantics).
 
-## 8. Decisions for the owner
+## 8. Decisions (taken in the architecture review of this PR)
 
-1. **The Role table for defaults** (section 3): which roles take a schema default. The table needs an ADR (0011) before code.
-2. **Is the effective rule part of the normalized object, or a second output?** A separate `PolicyResolution` keeps the normalized
-   value tree free of policy data; one object is simpler for the consumer. Proposal: a second output keyed by logical path.
-3. **Does the Forms port of the resolver stop at the rule (this document) or also decide, given a request context?** Proposal: stop at
-   the rule; the decision belongs to the Relay (the review's boundary), the golden vectors still check the order.
-4. **Where the policy tree comes from**: the schema's `policy_surface` is already in the pinned schema (P1 compiled only `config_surface`
-   nodes); P3 must read `policy_surface` and `identity.base`. Reading it extends the compile step; confirm that is wanted now.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Role and defaults | `config` takes a default (optional, declared); `state`, `operational`, `derived`, `volatile`, `key` do not. Written as ADR 0011 (**proposed**; acceptance is the repository's act, and it precedes the implementation). |
+| 2 | Where the effective rule goes | A separate `policy_resolution` keyed by logical path (section 2). |
+| 3 | How far the resolver port goes | It stops at the rule, its layer and its source; the decision (a request, an authenticated requestor, a trusted owner) is the Relay's. `none` and `unknown` are kept. |
+| 4 | Is `policy_surface` compiled in P3 | Yes (section 4), still P3 and not P5. |
+
+Open and not decided by the review: how a node whose role is **only** `reference` is treated (ADR 0011 takes it as *not applicable*, conservatively).
 
 ## 9. Not in P3
 
