@@ -11,6 +11,7 @@ implementation, not a decision: it follows the accepted ADRs and re-opens none o
 | recognize / validate | `recognize` | `Recognize` | ADR 0001 recognition at a synthetic position, then the position validation of ADR 0003/0007 (`MAP_AT_SCALAR_POSITION`, `UNKNOWN_FIELD`, `EXPANDED_WITH_EXTRA_KEY`) |
 | emit | `emit` | `Emit` | Deterministic block-style YAML; the text always parses back to the same value |
 | access-policy/1 reading | `read_mode`, `read_rule`, `bind_grammar`, `pinned_grammar_version`, `is_cert_pattern` | `ReadMode`, `ReadRule`, `BindGrammar`, `PinnedGrammarVersion`, `IsCertPattern` | `InheritanceMode` in grammar 1 or 2, an `access`/`modify` value, the grammar version binding derived from the verified pinned schema (see below) |
+| schema compile | `compile_schema` | `CompileSchema` | A pinned CIC schema (bytes + SHA-256 + grammar pin + surface) to the Shape tree `validate` reads; every refusal named by schema path (see "Schema-bound validation") |
 | presence validation | `validate` | `Validate` | Absent / null / value against a Shape: `mandatory`, `optional`, `nullable`, scalar type, `min_items`, composite fields; every error with `logical_path`; default *candidates* (see below) |
 
 The expanded key set `A` is an argument, never a constant of the library. The input is never
@@ -100,6 +101,80 @@ nothing (P3), decides no permission and applies no default.
 The five upstream codes are emitted unchanged, not renamed or invented. No vector uses them, and the corpus gate
 rejects a registry code no case uses, so they cannot enter the registry yet: this is a reported gap (finding 6).
 
+## Schema-bound validation (ADR 0002; `compile_schema` / `CompileSchema`)
+
+The first step from "validate against a hand-built Shape" to "validate an authored document against a CIC schema":
+
+    authored YAML  +  pinned schema (bytes, SHA-256, grammar pin, surface)  ->  validation result
+
+The library fetches nothing, resolves nothing and has no schema meaning of its own. The caller supplies the schema
+bytes and the digest they were pinned with; the grammar identity is the pin name of `corpus/pins.yaml`; the surface
+is named by the caller, never by the document, and is `config_surface`, the authored intent.
+
+* **Binding order, fail-closed.** `SCHEMA_DIGEST_MISMATCH` (the bytes are not the pinned ones), then
+  `GRAMMAR_PIN_UNKNOWN` (the library carries a profile only for the pins it knows; there is no default), then
+  `SURFACE_UNSUPPORTED` (anything but `config_surface`). All three are `ErrBinding`. `state_surface` is a processing
+  target of ADR 0002 but is **refused here on purpose**: a missing mandatory field on it is a coverage fact, not an
+  authoring error (ADR 0003, rule 8), and an observation validated with authoring semantics would be stated wrongly.
+* **Grammar profile and `item_choice`.** The one known pin (`cic-primitives-73ae469-71ee71ca`, `devel`) defines
+  `item_choice`; the primitives release v0.2.0 does not, and a schema such as the registry's `network-interface.yaml`
+  already uses it while declaring `validatedBy: cic-primitives v0.2.0` (ADR 0002, finding 3). Under a profile without
+  the feature the schema is refused with `SCHEMA_FEATURE_NOT_IN_GRAMMAR`; the profile is the pinned contract and
+  nothing infers it from the document. The declared `validatedBy` is kept in `declared_validated_by` so the
+  difference stays visible. This is the temporary P0 compatibility profile, not a release contract.
+* **What is read.** `shape_type` `scalar` (`string`, `integer`, `boolean`), `composite`, `collection` (`list` with
+  `item_fields` or `item_choice`; `set` with `item_scalar_type`) and `opaque`; the presence axis, where **only
+  `true` is a valid value of `mandatory`/`optional`, both together contradict, and neither means mandatory**;
+  `nullable`; `default` (its presence only; invalid on a mandatory field, invalid as `null`); `min_items`; the list
+  key rules (exactly one `role: key` field, or several named exactly by `item_key`; per `item_choice` case a `key`
+  naming exactly the case's key fields, unique case names, no two cases with one key set, C17).
+* **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
+  `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
+  reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
+  `SCHEMA_FEATURE_NOT_IN_GRAMMAR`. The error lists **every** refused node of the schema in schema order (the first
+  problem of each node), so a schema is judged in one pass.
+* **Passed through, not evaluated.** `contract`, `description`, `role`, `capability` and the other descriptive
+  members. A node that declares a `contract` is listed in `unevaluated_contracts`; validation does not check it.
+  Dependency digests (ADR 0002 asks each pinned dependency to carry its own) are **not** checked yet: a reference is
+  pinned by version only.
+* **Validation of what was compiled.** A `set` is a list of scalars of its type (`MIN_ITEMS_NOT_MET`; a wrong element
+  type is outside the registry like any wrong type). A list with a declared element structure is checked for being a
+  list and for `min_items`; **a non-empty one is `UNSUPPORTED_SYNTAX`**, never a silent pass: validating elements
+  needs the identity and case-selection rules and the ADR 0006 selectors, which are the next slice.
+* **Codes** (outside `corpus/codes.yaml`, like the upstream binding codes; the shared cases of
+  `testdata/p1/schema.json` use them): `SCHEMA_DIGEST_MISMATCH`, `GRAMMAR_PIN_UNKNOWN`, `SURFACE_UNSUPPORTED`,
+  `SCHEMA_INVALID`, `SCHEMA_SHAPE_UNSUPPORTED`, `SCHEMA_REF_UNPINNED`, `SCHEMA_FEATURE_NOT_IN_GRAMMAR`.
+* **Tests.** `testdata/p1/schema.json` is one file of synthetic cases (compile, then documents) that both languages
+  run (`go/schema_test.go`, `rust/tests/schema.rs`). The real registry schemas are checked against
+  `testdata/p1/real-schemas.json` (`go/real_schema_test.go`, `rust/tests/real_schema.rs`): the files are
+  CC BY-NC-SA 4.0 and not vendored; `CIC_REGISTRY_ROOT` points at a checkout at the pinned commit, the SHA-256 of
+  each must equal its pin (`corpus/pins.yaml`, `schemas.*`), and the tests **fail**, not skip, without it (the
+  `upstream-pinned` action provides it in CI). Seeded defects (`tools/seeded_defects.py`) show the suites turn red
+  on a skipped digest check, a skipped grammar check, an accepted default on a non-optional field, an accepted list
+  without a key, an unpinned reference and the number/bytes scalars read as unknown.
+
+### What the real schemas showed
+
+Both at the pinned registry commit `6db77d4`:
+
+* `general/network/network-space/network-space.yaml` (NetworkSpace, the provider-neutral VCN/VPC/VNet space):
+  `config_surface` **compiles** (7 fields, no `item_choice`, one declared contract not evaluated) and an authored VCN
+  intent is validated against the registry's own definition: `cidr_block` is mandatory; `ipv6_enabled: ~` is
+  `NULL_NOT_ALLOWED`, not an absent field; an undeclared `display_name` or `compartment_id` is `UNKNOWN_FIELD` (the
+  registry schema has no such config fields, a gap already noted in the VCN pipeline work);
+  `secondary_cidr_blocks: []` is valid and a non-empty one is refused as outside this slice (list elements).
+* `general/network/network-interface/network-interface.yaml`: `config_surface` is **refused with 22
+  `SCHEMA_INVALID` problems**: 22 fields (`stp.*`, `poe.*`, `storm_control.*`, `qinq.*`, ...) declare a `default`
+  without saying `optional`. By `shape.yaml` such a field is mandatory, and a mandatory field has no default. The
+  library does not guess that `optional` was meant; the schema (a working copy, not a signed release) has to say
+  it. The 22 paths are in `testdata/p1/real-schemas.json` and were cross-checked with an independent scan of the
+  file. `vlans` and `vxlans` are `item_choice` lists and compile under the `devel` profile; their elements are
+  not yet validated.
+* A scan of the other unversioned `general/**` working copies at that commit (`config_surface`): `network-space`,
+  `subnet`, `dhcp-options`, `dhcp-service`, `kubernetes-node` and `storage-resource` compile. The adapters declare no
+  `config_surface` (they are not authored intent; refused as `SCHEMA_INVALID`), `kubernetes-cluster` has two
+  defaults without `optional`, and `compute-resource` uses the scalar type `number` (`SCHEMA_SHAPE_UNSUPPORTED`).
+
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
 | Input | Answer |
@@ -117,13 +192,14 @@ rejects a registry code no case uses, so they cannot enter the registry yet: thi
 | a value of the wrong type in presence validation (a string where an integer is declared, a list where a mapping is declared, ...) | `UNSUPPORTED_SYNTAX`: the registry has **no code** for it (finding 4) |
 | an expanded Access node inside a validated document | `UNSUPPORTED_SYNTAX`: its `value` is validated with expand/collapse (P2) |
 | effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (P2), grammar-version migration (`migrate_mode`) | not implemented |
-| Shape types `number`, `bytes`, `set`, `choice`, `item_choice`, list element shapes, schema validity rules (`default` with `mandatory`, `default: null` with `nullable`) | not modelled |
+| Validating the **elements** of a list (`item_fields`, `item_choice`) | `UNSUPPORTED_SYNTAX` for a non-empty list of a schema-compiled shape (next slice: element identity, case selection, ADR 0006 selectors) |
+| Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts` |
 
 These three codes are **not** in `corpus/codes.yaml`; they mark the boundary of the slice and are
 not part of the ADR 0007 machine response. The limits are implementation defaults, not decided
 values. Also out of the slice: the other corpus kinds (`validate` 66, `path_*` 125, `diff` 66,
 `collapse`, `expand`, `roundtrip`, `basis`, `equality`), the `shape` presence rules and type checks,
-the Access vocabulary, schema loading from the pinned real schemas, source-preserving emit (P3b),
+the Access vocabulary, source-preserving emit (P3b),
 expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P5).
 
 ## Corpus coverage: run and `NOT RUN`

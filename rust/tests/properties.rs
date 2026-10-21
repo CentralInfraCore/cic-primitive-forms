@@ -228,6 +228,22 @@ fn conforming(shape: &Shape, rng: &mut Rng, path: &mut Vec<String>, omit: &[Stri
             ))
         }
         ShapeType::Opaque => Node::new(Value::Str("any".into())),
+        ShapeType::Set { item, min_items } => {
+            let n = min_items.unwrap_or(0) + (rng.next() % 2) as usize;
+            Node::new(Value::Seq(
+                (0..n)
+                    .map(|i| {
+                        Node::new(match item {
+                            ScalarType::String => Value::Str(format!("s{i}")),
+                            ScalarType::Integer => Value::Int(i as i64),
+                            ScalarType::Boolean => Value::Bool(i % 2 == 0),
+                        })
+                    })
+                    .collect(),
+            ))
+        }
+        // The elements of a declared list are not validated by the slice, so a conforming value has none.
+        ShapeType::DeclaredList { .. } => Node::new(Value::Seq(Vec::new())),
         ShapeType::Composite(fields) => {
             let mut entries = Vec::new();
             for (name, f) in fields {

@@ -46,6 +46,9 @@ const (
 	// GRAMMAR_VERSION_CONFLICT) or GRAMMAR_DIGEST_MISMATCH (ADR 0002); none is renamed. Nothing falls
 	// back to a default version.
 	ErrBinding
+	// ErrSchema is a pinned schema that CompileSchema refused: a structure outside ADR 0002 or a
+	// Shape feature this slice does not process. Its code is SchemaCode; the Detail names the node.
+	ErrSchema
 )
 
 // Error is a failure of Parse or Recognize.
@@ -55,6 +58,16 @@ type Error struct {
 	Detail     string
 	// BindingCode is the code of an ErrBinding error.
 	BindingCode string
+	// SchemaCode is the code of an ErrSchema error: the code of its first problem.
+	SchemaCode string
+	// Problems are every refusal of an ErrSchema error, in schema order: the first problem of each
+	// node, so a schema is reported in one pass and not one defect at a time.
+	Problems []SchemaProblem
+}
+
+// SchemaProblem is one refusal of a schema: a code and the canonical path of the schema node.
+type SchemaProblem struct {
+	Code, Path, Detail string
 }
 
 // Code is the stable code of the error. The codes of the last three kinds are outside the
@@ -67,6 +80,8 @@ func (e *Error) Code() string {
 		return "UNSUPPORTED_SYNTAX"
 	case ErrBinding:
 		return e.BindingCode
+	case ErrSchema:
+		return e.SchemaCode
 	case ErrSyntax:
 		return "YAML_SYNTAX"
 	default:

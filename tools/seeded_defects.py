@@ -93,6 +93,36 @@ DEFECTS = [
      [("\t\t\trefused = indent == 0", "\t\t\trefused = true")]),
     ("go", "a syntax error in a second document is reported as a second document", "parse.go",
      [("\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, &Error{Kind: ErrSyntax, Detail: err.Error()}", "\tcase !errors.Is(err, io.EOF):\n\t\treturn nil, unsupported(\"more than one document\")")]),
+    # Schema compile (ADR 0002, docs/P1-SUPPORTED-SUBSET.md "Schema-bound validation"): the shared schema cases and the
+    # real registry schema must turn red on each.
+    ("rust", "a schema is compiled without verifying its digest", "src/schema.rs",
+     [("if sha256_hex(input.bytes) != input.sha256 {", "if false {")]),
+    ("rust", "a default on a field that does not say optional is accepted", "src/schema.rs",
+     [("if presence == Presence::Mandatory {", "if false {")]),
+    ("rust", "an unknown grammar pin is read as a known one", "src/schema.rs",
+     [("None => return Err(Error::Binding(GRAMMAR_PIN_UNKNOWN)),", "None => Profile { item_choice: true },")]),
+    ("rust", "item_choice is read under a grammar that does not define it", "src/schema.rs",
+     [("if !self.profile.item_choice {", "if false {")]),
+    ("rust", "a list without a key is accepted", "src/schema.rs",
+     [("if keys.is_empty() {", "if keys.is_empty() {\n            return Ok(());\n        }\n        if false {")]),
+    ("rust", "the scalar types number and bytes are read as unknown", "src/schema.rs",
+     [("\"number\" | \"bytes\" => Err(problem(", "\"number_\" | \"bytes_\" => Err(problem(")]),
+    ("rust", "an unpinned reference is accepted", "src/schema.rs",
+     [("Value::Str(s) if is_pinned_ref(s) => Ok(()),", "Value::Str(_) => Ok(()),")]),
+    ("go", "a schema is compiled without verifying its digest", "schema.go",
+     [("if SHA256Hex(in.Bytes) != in.SHA256 {", "if false {")]),
+    ("go", "a default on a field that does not say optional is accepted", "schema.go",
+     [("if s.Presence == Mandatory {", "if false {")]),
+    ("go", "an unknown grammar pin is read as a known one", "schema.go",
+     [("profile, ok := profiles[in.Grammar]\n\tif !ok {", "profile, ok := profiles[in.Grammar]\n\tif false {")]),
+    ("go", "item_choice is read under a grammar that does not define it", "schema.go",
+     [("if !c.profile.ItemChoice {", "if false {")]),
+    ("go", "a list without a key is accepted", "schema.go",
+     [("case len(keys) == 0:", "case len(keys) == 0:\n\t\treturn nil\n\tcase false:")]),
+    ("go", "the scalar types number and bytes are read as unknown", "schema.go",
+     [("if v.Str == \"number\" || v.Str == \"bytes\" {", "if false {")]),
+    ("go", "an unpinned reference is accepted", "schema.go",
+     [("if v.Kind != KindStr || !pinnedRef.MatchString(v.Str) {", "if false {")]),
 ]
 
 
@@ -112,7 +142,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema"]
     return ["go", "test", "-count=1", "./..."]
 
 
@@ -121,9 +151,10 @@ def main():
     langs = ("rust", "go") if which == "all" else (which,)
     bad = 0
     env = dict(os.environ, CIC_FORMS_ROOT=ROOT)
-    if "CIC_PRIMITIVES_ROOT" not in env:
-        print("CIC_PRIMITIVES_ROOT is not set: the corpus runners need the pinned checkout")
-        return 2
+    for name in ("CIC_PRIMITIVES_ROOT", "CIC_REGISTRY_ROOT"):
+        if name not in env:
+            print("%s is not set: the runners need the pinned checkout" % name)
+            return 2
     for lang in langs:
         with tempfile.TemporaryDirectory() as tmp:
             env["CARGO_TARGET_DIR"] = os.path.join(tmp, "target")

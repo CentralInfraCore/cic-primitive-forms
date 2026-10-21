@@ -4,6 +4,9 @@ description: >
   CIC_PRIMITIVES_ROOT at it. The corpus runners read the pinned schemas/atomic/access.yaml from there and
   verify its SHA-256 against the pin before they derive the Access grammar version from it. Nothing is
   vendored (CC BY-NC-SA 4.0); a wrong commit is a failed digest, not a silent difference.
+  The same holds for the real registry schema the schema-compile tests read (corpus/pins.yaml,
+  schemas.*): cic-schema-registry is checked out at the pinned commit, only the
+  directories of the pinned files, and CIC_REGISTRY_ROOT points at it.
 runs:
   using: composite
   steps:
@@ -20,3 +23,19 @@ runs:
       run: |
         test "$(git -C upstream/cic-primitives rev-parse HEAD)" = "${{ steps.pin.outputs.commit }}"
         echo "CIC_PRIMITIVES_ROOT=$GITHUB_WORKSPACE/upstream/cic-primitives" >> "$GITHUB_ENV"
+    - id: registry_pin
+      shell: bash
+      run: |
+        echo "commit=$(sed -n '/^  registry-network-interface:/,/^  [a-z]/{s/^    commit: //p}' corpus/pins.yaml | head -1)" >> "$GITHUB_OUTPUT"
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        repository: CentralInfraCore/cic-schema-registry
+        ref: ${{ steps.registry_pin.outputs.commit }}
+        path: upstream/cic-schema-registry
+        sparse-checkout: |
+          general/network/network-interface
+          general/network/network-space
+    - shell: bash
+      run: |
+        test "$(git -C upstream/cic-schema-registry rev-parse HEAD)" = "${{ steps.registry_pin.outputs.commit }}"
+        echo "CIC_REGISTRY_ROOT=$GITHUB_WORKSPACE/upstream/cic-schema-registry" >> "$GITHUB_ENV"

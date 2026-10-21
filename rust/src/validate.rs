@@ -53,6 +53,16 @@ pub enum ShapeType {
     },
     /// Any value, nothing below it.
     Opaque,
+    /// A `collection`/`set`: a list of scalars of type `item`, no key.
+    Set {
+        item: ScalarType,
+        min_items: Option<usize>,
+    },
+    /// A list whose element structure the schema declares (`item_fields`, `item_choice`). The elements
+    /// are not validated by this slice: a non-empty value is [`Error::Unsupported`], never a silent pass.
+    DeclaredList {
+        min_items: Option<usize>,
+    },
 }
 
 /// A field descriptor: the members of a `nodes` entry that presence validation reads.
@@ -132,6 +142,18 @@ impl Walk<'_> {
             ShapeType::Opaque => Ok(()),
             ShapeType::Scalar(t) => self.scalar(node, *t, path),
             ShapeType::List { min_items } => self.list(node, *min_items, path),
+            ShapeType::Set { item, min_items } => self.set(node, *item, *min_items, path),
+            ShapeType::DeclaredList { min_items } => {
+                self.list(node, *min_items, path)?;
+                match &node.value {
+                    Value::Seq(items) if !items.is_empty() => Err(Error::Unsupported(
+                        "validation of the elements of a list with a declared element structure \
+                         (item_fields, item_choice) is outside this slice"
+                            .into(),
+                    )),
+                    _ => Ok(()),
+                }
+            }
             ShapeType::Composite(fields) => self.composite(node, fields, path),
         }
     }
@@ -191,6 +213,31 @@ impl Walk<'_> {
         };
         if min_items.is_some_and(|min| items.len() < min) {
             self.validation(path, "MIN_ITEMS_NOT_MET", location(node.pos));
+        }
+        Ok(())
+    }
+
+    fn set(
+        &mut self,
+        node: &Node,
+        item: ScalarType,
+        min_items: Option<usize>,
+        path: &Path,
+    ) -> Result<(), Error> {
+        let items = match &node.value {
+            Value::Seq(items) => items,
+            other => {
+                return Err(Error::Unsupported(format!(
+                    "a {:?} value where a set is declared (no code in the registry)",
+                    kind_name(other)
+                )))
+            }
+        };
+        if min_items.is_some_and(|min| items.len() < min) {
+            self.validation(path, "MIN_ITEMS_NOT_MET", location(node.pos));
+        }
+        for it in items {
+            self.scalar(it, item, path)?;
         }
         Ok(())
     }

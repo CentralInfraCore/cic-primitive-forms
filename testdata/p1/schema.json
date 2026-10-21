@@ -1,0 +1,1096 @@
+{
+ "grammar": "cic-primitives-73ae469-71ee71ca",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "cases": [
+  {
+   "id": "compile.small-config",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        atomic_ref: \"cic:core:Shape@v0.2.0\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n        contract:\n          - type: range\n            expression: \"68..9216\"\n      - name: ip\n        shape_type: composite\n        optional: true\n        fields:\n          - name: addresses\n            shape_type: collection\n            collection_variant: set\n            item_scalar_type: string\n            optional: true\n            min_items: 1\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n      - name: blob\n        shape_type: opaque\n        optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        min_items: 1\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - name: ref\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - name: vlan_id\n                  shape_type: scalar\n                  scalar_type: integer\n                  role: key\n                - name: vlan_mode\n                  shape_type: scalar\n                  scalar_type: string\n                  optional: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": true,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "valid-minimal",
+     "yaml": "type: physical\n",
+     "expect": {
+      "violations": [],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "valid-full",
+     "yaml": "type: physical\nenabled: false\nmtu: 9000\nip:\n  addresses: [10.0.0.1/24]\n  gateway: 10.0.0.254\nblob:\n  anything: [1, 2]\nroutes: []\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "missing-mandatory",
+     "yaml": "enabled: true\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "MISSING_MANDATORY",
+        "path": "$.type"
+       }
+      ],
+      "candidates": [
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "null-mandatory",
+     "yaml": "type: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.type"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "null-does-not-trigger-default",
+     "yaml": "type: x\nmtu: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.mtu"
+       }
+      ],
+      "candidates": [
+       "$.enabled"
+      ]
+     }
+    },
+    {
+     "id": "unknown-field",
+     "yaml": "type: x\nspeed: 100\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "UNKNOWN_FIELD",
+        "path": "$.speed"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "unknown-nested-field",
+     "yaml": "type: x\nip:\n  mask: 24\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "UNKNOWN_FIELD",
+        "path": "$.ip.mask"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "set-min-items",
+     "yaml": "type: x\nip:\n  addresses: []\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "MIN_ITEMS_NOT_MET",
+        "path": "$.ip.addresses"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "map-at-scalar",
+     "yaml": "type:\n  a: 1\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "MAP_AT_SCALAR_POSITION",
+        "path": "$.type"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "set-element-of-wrong-type",
+     "yaml": "type: x\nip:\n  addresses: [1]\n",
+     "expect": {
+      "unsupported": true
+     }
+    },
+    {
+     "id": "scalar-of-wrong-type",
+     "yaml": "type: 5\n",
+     "expect": {
+      "unsupported": true
+     }
+    },
+    {
+     "id": "list-min-items",
+     "yaml": "type: x\nvlans: []\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "MIN_ITEMS_NOT_MET",
+        "path": "$.vlans"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "list-elements-are-refused-not-passed",
+     "yaml": "type: x\nroutes:\n  - to: 10.0.0.0/8\n",
+     "expect": {
+      "unsupported": true
+     }
+    },
+    {
+     "id": "item-choice-elements-are-refused-not-passed",
+     "yaml": "type: x\nvlans:\n  - vlan_id: 100\n",
+     "expect": {
+      "unsupported": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.default-without-optional",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: boolean\n        default: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.default-null",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: ~\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.mandatory-false",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        mandatory: false\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.mandatory-and-optional",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n        optional: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.scalar-number",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: number\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_SHAPE_UNSUPPORTED",
+    "problems": [
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.a.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.scalar-unknown-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: float\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.choice",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: choice\n        cases: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_SHAPE_UNSUPPORTED",
+    "problems": [
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.unknown-shape-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: object\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.shape_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.scalar-with-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.composite-without-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: composite\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.fields"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-without-key",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-several-keys-without-item-key",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: y\n            shape_type: scalar\n            scalar_type: string\n            role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-item-key-names-wrong-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_key: [x, z]\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: y\n            shape_type: scalar\n            scalar_type: string\n            role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-both-element-forms",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n            role: key\n        item_choice:\n          cases: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.set-without-item-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-same-key-set",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: [id]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: two\n              key: [id]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[1].key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-duplicate-case-name",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: [id]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: one\n              key: [n]\n              fields:\n                - name: n\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[1]"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.duplicate-field",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.unpinned-node-ref",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        atomic_ref: \"schemas/atomic/shape.yaml\"\n        shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.config_surface.nodes[0].atomic_ref"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.every-defect-is-reported-in-one-pass",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: number\n      - name: b\n        shape_type: scalar\n        scalar_type: boolean\n        default: true\n      - name: c\n        shape_type: composite\n        optional: true\n        fields:\n          - name: d\n            shape_type: choice\n      - name: ok\n        shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_SHAPE_UNSUPPORTED",
+    "problems": [
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.a.scalar_type"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "$.b"
+     ],
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.c.d"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "bind.digest-mismatch",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        atomic_ref: \"cic:core:Shape@v0.2.0\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n        contract:\n          - type: range\n            expression: \"68..9216\"\n      - name: ip\n        shape_type: composite\n        optional: true\n        fields:\n          - name: addresses\n            shape_type: collection\n            collection_variant: set\n            item_scalar_type: string\n            optional: true\n            min_items: 1\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n      - name: blob\n        shape_type: opaque\n        optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        min_items: 1\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - name: ref\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - name: vlan_id\n                  shape_type: scalar\n                  scalar_type: integer\n                  role: key\n                - name: vlan_mode\n                  shape_type: scalar\n                  scalar_type: string\n                  optional: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_DIGEST_MISMATCH"
+   },
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "id": "bind.unknown-grammar",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        atomic_ref: \"cic:core:Shape@v0.2.0\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n        contract:\n          - type: range\n            expression: \"68..9216\"\n      - name: ip\n        shape_type: composite\n        optional: true\n        fields:\n          - name: addresses\n            shape_type: collection\n            collection_variant: set\n            item_scalar_type: string\n            optional: true\n            min_items: 1\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n      - name: blob\n        shape_type: opaque\n        optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        min_items: 1\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - name: ref\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - name: vlan_id\n                  shape_type: scalar\n                  scalar_type: integer\n                  role: key\n                - name: vlan_mode\n                  shape_type: scalar\n                  scalar_type: string\n                  optional: true\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "GRAMMAR_PIN_UNKNOWN"
+   },
+   "grammar": "cic-primitives-960ee0f-00000000"
+  },
+  {
+   "id": "bind.policy-surface-is-not-a-target",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        atomic_ref: \"cic:core:Shape@v0.2.0\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n        contract:\n          - type: range\n            expression: \"68..9216\"\n      - name: ip\n        shape_type: composite\n        optional: true\n        fields:\n          - name: addresses\n            shape_type: collection\n            collection_variant: set\n            item_scalar_type: string\n            optional: true\n            min_items: 1\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n      - name: blob\n        shape_type: opaque\n        optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        min_items: 1\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - name: ref\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - name: vlan_id\n                  shape_type: scalar\n                  scalar_type: integer\n                  role: key\n                - name: vlan_mode\n                  shape_type: scalar\n                  scalar_type: string\n                  optional: true\n",
+   "surface": "policy_surface",
+   "compile": {
+    "error": "SURFACE_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "bind.state-surface-is-not-validated-as-authoring",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        atomic_ref: \"cic:core:Shape@v0.2.0\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n        contract:\n          - type: range\n            expression: \"68..9216\"\n      - name: ip\n        shape_type: composite\n        optional: true\n        fields:\n          - name: addresses\n            shape_type: collection\n            collection_variant: set\n            item_scalar_type: string\n            optional: true\n            min_items: 1\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n      - name: blob\n        shape_type: opaque\n        optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        min_items: 1\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - name: ref\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - name: vlan_id\n                  shape_type: scalar\n                  scalar_type: integer\n                  role: key\n                - name: vlan_mode\n                  shape_type: scalar\n                  scalar_type: string\n                  optional: true\n",
+   "surface": "state_surface",
+   "compile": {
+    "error": "SURFACE_UNSUPPORTED"
+   }
+  },
+  {
+   "id": "compile.node-without-name",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$[0]"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.node-not-a-mapping",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - just-a-string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$[0]"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.flag-not-boolean",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        nullable: yes-please\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.nullable"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.mandatory-not-boolean",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        mandatory: \"yes\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.mandatory"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.optional-not-boolean",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        optional: 1\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.optional"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.optional-false",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n        optional: false\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.shape-type-missing",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.shape_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.scalar-type-missing",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.scalar-bytes",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: bytes\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_SHAPE_UNSUPPORTED",
+    "problems": [
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.a.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.composite-with-empty-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: composite\n        fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.fields"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.composite-with-scalar-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: composite\n        scalar_type: string\n        fields:\n          - name: b\n            shape_type: scalar\n            scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.opaque-with-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: opaque\n        fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.collection-variant-missing",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.collection_variant"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.collection-variant-unknown",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: bag\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.collection_variant"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.collection-with-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.min-items-negative",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        min_items: -1\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.min_items"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.max-items-not-integer",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        max_items: many\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.max_items"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.set-with-item-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        item_fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-with-item-scalar-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-without-element-form",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.list-with-empty-item-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_fields"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-key-not-a-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_key: x\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n            role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-key-with-a-non-string",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_key: [x, 1]\n        item_fields:\n          - name: x\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: y\n            shape_type: scalar\n            scalar_type: string\n            role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-single-case",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: [id]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-not-a-mapping",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice: [x, y]\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-case-without-name",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - key: [id]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: two\n              key: [n]\n              fields:\n                - name: n\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[0]"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-case-without-fields",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: [id]\n            - name: two\n              key: [n]\n              fields:\n                - name: n\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[0].fields"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-case-key-missing",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: two\n              key: [n]\n              fields:\n                - name: n\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[0].key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-case-key-not-the-role-key",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: [id, extra]\n              fields:\n                - name: id\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n            - name: two\n              key: [n]\n              fields:\n                - name: n\n                  shape_type: scalar\n                  scalar_type: string\n                  role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[0].key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.unpinned-aggregate-ref",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.config_surface.aggregate_ref"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.a-defect-in-an-element-field-is-reported",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields:\n          - name: id\n            shape_type: scalar\n            scalar_type: float\n            role: key\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a[].id.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.composite-key-and-set-key-forms",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: nics\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_key: [zone, name]\n        item_fields:\n          - name: name\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: zone\n            shape_type: scalar\n            scalar_type: string\n            role: key\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "empty-list-is-valid",
+     "yaml": "nics: []\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "absent-is-valid",
+     "yaml": "{}\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.surface-missing",
+   "schema": "spec:\n  identity:\n    kind: Demo\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "config_surface"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.no-spec",
+   "schema": "metadata:\n  name: x\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "spec"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.nodes-missing",
+   "schema": "spec:\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "config_surface.nodes"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.unpinned-base",
+   "schema": "spec:\n  base:\n    ref: \"schemas/aggregate/managed-entity.yaml\"\n  config_surface:\n    nodes: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.base.ref"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.unpinned-identity-base",
+   "schema": "spec:\n  identity:\n    base: \"ManagedEntity\"\n  config_surface:\n    nodes: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.identity.base"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.yaml-outside-the-subset",
+   "schema": "spec: &a\n  config_surface:\n    nodes: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "id": "compile.empty-surface",
+   "surface": "config_surface",
+   "schema": "spec:\n  config_surface:\n    nodes: []\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [],
+    "kind": "",
+    "namespace": "",
+    "version": ""
+   },
+   "documents": [
+    {
+     "id": "anything-unknown",
+     "yaml": "a: 1\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "UNKNOWN_FIELD",
+        "path": "$.a"
+       }
+      ],
+      "candidates": []
+     }
+    }
+   ]
+  }
+ ]
+}
