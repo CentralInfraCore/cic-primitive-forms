@@ -223,7 +223,7 @@ func (c *compiler) fields(list *Node, path string) []NamedShape {
 	seen := map[string]bool{}
 	for i, n := range list.Items {
 		name := strMember(n, "name")
-		if n.Kind != KindMap || name == "" {
+		if name == "" { // a node that is not a mapping has no name either
 			c.record(schemaErr(SchemaInvalid, sprintf("%s[%d]", path, i), "a node must be a mapping with a non-empty string name"))
 			continue
 		}
@@ -257,18 +257,18 @@ func boolMember(n *Node, key, path string) (v, ok bool, err *Error) {
 func (c *compiler) presence(n *Node, path string) (Presence, *Error) {
 	mand, hasM, err := boolMember(n, "mandatory", path)
 	if err != nil {
-		return 0, err
+		return zero[Presence](), err
 	}
 	opt, hasO, err := boolMember(n, "optional", path)
 	if err != nil {
-		return 0, err
+		return zero[Presence](), err
 	}
 	// shape.yaml: only the value true is valid for either member; mandatory: false and optional: false are not.
 	switch {
 	case (hasM && !mand) || (hasO && !opt):
-		return 0, schemaErr(SchemaInvalid, path, "mandatory and optional take only the value true")
+		return zero[Presence](), schemaErr(SchemaInvalid, path, "mandatory and optional take only the value true")
 	case hasM && hasO:
-		return 0, schemaErr(SchemaInvalid, path, "mandatory and optional contradict each other")
+		return zero[Presence](), schemaErr(SchemaInvalid, path, "mandatory and optional contradict each other")
 	case hasO:
 		return Optional, nil
 	}
@@ -280,15 +280,15 @@ var scalarTypes = map[string]ScalarType{"string": ScalarString, "integer": Scala
 func (c *compiler) scalarType(n *Node, key, path string) (ScalarType, *Error) {
 	v := lookup(n, key)
 	if v == nil || v.Kind != KindStr {
-		return 0, schemaErr(SchemaInvalid, path+"."+key, "a scalar type is required")
+		return zero[ScalarType](), schemaErr(SchemaInvalid, path+"."+key, "a scalar type is required")
 	}
 	if t, ok := scalarTypes[v.Str]; ok {
 		return t, nil
 	}
 	if v.Str == "number" || v.Str == "bytes" {
-		return 0, schemaErr(SchemaShapeUnsupported, path+"."+key, "scalar type %q is not processed by this slice", v.Str)
+		return zero[ScalarType](), schemaErr(SchemaShapeUnsupported, path+"."+key, "scalar type %q is not processed by this slice", v.Str)
 	}
-	return 0, schemaErr(SchemaInvalid, path+"."+key, "unknown scalar type %q", v.Str)
+	return zero[ScalarType](), schemaErr(SchemaInvalid, path+"."+key, "unknown scalar type %q", v.Str)
 }
 
 func forbid(n *Node, path string, keys ...string) *Error {
@@ -404,10 +404,10 @@ func (c *compiler) collection(n *Node, path string, s *Shape) *Error {
 func intMember(n *Node, key, path string) (int, bool, *Error) {
 	m := lookup(n, key)
 	if m == nil {
-		return 0, false, nil
+		return zero[int](), false, nil
 	}
-	if m.Kind != KindInt || m.Int < 0 || m.Int > 1<<31 {
-		return 0, true, schemaErr(SchemaInvalid, path+"."+key, "a non-negative integer is required")
+	if m.Kind != KindInt || m.Int < 0 {
+		return zero[int](), true, schemaErr(SchemaInvalid, path+"."+key, "a non-negative integer is required")
 	}
 	return int(m.Int), true, nil
 }
@@ -474,7 +474,7 @@ func (c *compiler) itemChoiceCases(choice *Node, path string) (*Elements, *Error
 	}
 	c.itemChoice = true
 	cases := lookup(choice, "cases")
-	if choice.Kind != KindMap || cases == nil || cases.Kind != KindSeq || len(cases.Items) < 2 {
+	if cases == nil || cases.Kind != KindSeq || len(cases.Items) < 2 { // a choice that is not a mapping has no cases either
 		return nil, schemaErr(SchemaInvalid, path+".item_choice", "cases (at least two) are required")
 	}
 	els := &Elements{Choice: true}

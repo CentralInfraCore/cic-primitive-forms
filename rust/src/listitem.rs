@@ -26,6 +26,11 @@ pub const DUPLICATE_IDENTITY: &str = "PATH_DUPLICATE_IDENTITY";
 pub enum KeyValue {
     Str(String),
     Int(i64),
+    /// A value that has no encoding (ADR 0006), only for `format_path`, which is given components from outside; an identity
+    /// built from a document never holds one.
+    Boolean(bool),
+    /// An integer beyond signed 64 bits, only for `format_path`.
+    OutOfRange,
 }
 
 /// One component of an element identity: the name of the key field and its typed value.
@@ -144,6 +149,7 @@ fn fail(code: &'static str, path: &Path) -> Error {
         phase: Phase::PathOf,
         location: Location::Unavailable,
         logical_path: logical_path(path),
+        path_offset: None,
     }])
 }
 
@@ -168,7 +174,11 @@ pub fn path_of(doc: &Node, shape: &Shape, a: &[String], at: &[Step]) -> Result<S
     let mut node = doc;
     let mut path: Path = Vec::new();
     let mut i = 0;
-    while i < at.len() {
+    // every round takes at least one step of the address, so its length bounds the rounds (and the path they build)
+    for _ in 0..at.len() {
+        if i >= at.len() {
+            break;
+        }
         let name = match &at[i] {
             Step::Field(name) => name,
             Step::Index(_) => {

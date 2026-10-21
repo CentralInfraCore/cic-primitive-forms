@@ -7,7 +7,7 @@
 //! * parse never panics, whatever the text, and the positions it reports lie inside the text;
 //! * recognition depends on the key set only, and recognize does not change its input.
 
-use cic_primitive_forms::{emit, parse, recognize, Class, Entry, Node, Position, Value};
+use cic_primitive_forms::{emit, parse, recognize, Class, Context, Entry, Node, Position, Value};
 use proptest::prelude::*;
 
 fn key_strategy() -> impl Strategy<Value = String> {
@@ -50,6 +50,115 @@ fn node() -> impl Strategy<Value = Node> {
             }),
         ]
     })
+}
+
+fn grammar_1() -> cic_primitive_forms::Grammar {
+    let one = Value::Int(1);
+    cic_primitive_forms::bind_grammar(Some(&one), Some(&one)).expect("grammar 1")
+}
+
+/// A composite root that is not nullable: the root of a document is the surface itself, not a position.
+fn document_root(mut shape: Shape) -> Option<Shape> {
+    shape.nullable = false;
+    matches!(shape.shape_type, ShapeType::Composite(_)).then_some(shape)
+}
+
+/// True when `n` is an expanded node: a mapping with exactly the keys of `A`.
+fn is_wrapper(n: &Node) -> bool {
+    match &n.value {
+        Value::Map(es) => {
+            es.len() == a().len() && a().iter().all(|k| es.iter().any(|e| &e.key == k))
+        }
+        _ => false,
+    }
+}
+
+fn defaults_only(n: &Node) -> bool {
+    let Value::Map(es) = &n.value else {
+        return false;
+    };
+    es.iter().all(|e| match e.key.as_str() {
+        "access" | "modify" => matches!(&e.value.value, Value::Str(s) if s == "inherit"),
+        "inherit" => matches!(e.value.value, Value::Bool(true)),
+        "default_injection" => matches!(e.value.value, Value::Null),
+        "conformance" => matches!(&e.value.value, Value::Str(s) if s == "implemented"),
+        _ => true,
+    })
+}
+
+/// Gives every top-level wrapper some non-default policy, one setting each, as the author could have written it.
+fn make_explicit(n: &mut Node, rng: &mut Rng) {
+    let Value::Map(entries) = &mut n.value else {
+        return;
+    };
+    for e in entries {
+        let Value::Map(fields) = &mut e.value.value else {
+            continue;
+        };
+        for f in fields {
+            let pick = rng.coin();
+            match f.key.as_str() {
+                "access" | "modify" if pick => {
+                    f.value =
+                        Node::new(Value::Seq(vec![Node::new(Value::Str("OU=admins".into()))]));
+                }
+                "inherit" => {
+                    f.value = Node::new(if pick {
+                        Value::Int(0)
+                    } else {
+                        Value::Bool(false)
+                    })
+                }
+                "default_injection" if pick => f.value = Node::new(Value::Int(0)),
+                "conformance" if pick => f.value = Node::new(Value::Str("deprecated".into())),
+                _ => {}
+            }
+        }
+    }
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(512))]
+
+    #[test]
+    fn collapse_of_expand_gives_back_the_authored_document(shape in shape_strategy(), seed in 1u64..u64::MAX) {
+        let Some(shape) = document_root(shape) else { return Ok(()) };
+        let doc = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
+        let before = doc.clone();
+        let g = grammar_1();
+        let (expanded, prov) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(doc.same(&before), "expand changed its input");
+        prop_assert!(prov.values().all(|o| !o.authored_expanded));
+        let back = cic_primitive_forms::collapse(&expanded, &shape, &a(), g, &prov, &Context::default()).unwrap();
+        prop_assert!(back.same(&doc));
+        let (again, prov2) = cic_primitive_forms::expand(&expanded, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(again.same(&expanded), "expand is not idempotent");
+        prop_assert_eq!(prov2.len(), prov.len());
+        prop_assert!(prov2.values().all(|o| o.authored_expanded));
+    }
+
+    #[test]
+    fn an_explicit_policy_setting_is_never_lost(shape in shape_strategy(), seed in 1u64..u64::MAX) {
+        let Some(shape) = document_root(shape) else { return Ok(()) };
+        let doc = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
+        let g = grammar_1();
+        let (mut expanded, _) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
+        make_explicit(&mut expanded, &mut Rng(seed ^ 0x9E37_79B9));
+        let (again, prov) = cic_primitive_forms::expand(&expanded, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(again.same(&expanded), "expand changed an authored expanded node");
+        let with = cic_primitive_forms::collapse(&again, &shape, &a(), g, &prov, &Context::default()).unwrap();
+        prop_assert!(with.same(&expanded), "with provenance an authored expanded document stays as authored");
+        // without the provenance the law alone decides: a non-default field keeps its position expanded
+        let plain = cic_primitive_forms::collapse(&again, &shape, &a(), g, &Default::default(), &Context::default()).unwrap();
+        if let (Value::Map(orig), Value::Map(now)) = (&expanded.value, &plain.value) {
+            for o in orig {
+                let n = now.iter().find(|e| e.key == o.key).expect("a position disappeared");
+                if is_wrapper(&o.value) && !defaults_only(&o.value) {
+                    prop_assert!(is_wrapper(&n.value), "a position with an explicit setting was shortened: {}", o.key);
+                }
+            }
+        }
+    }
 }
 
 proptest! {

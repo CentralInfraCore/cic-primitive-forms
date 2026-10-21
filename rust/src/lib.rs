@@ -12,9 +12,11 @@
 pub mod access;
 pub mod emit;
 pub mod error;
+pub mod expand;
 pub mod listitem;
 pub mod node;
 pub mod parse;
+pub mod pathtext;
 pub mod recognize;
 pub mod schema;
 pub mod validate;
@@ -25,9 +27,14 @@ pub use access::{
 };
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
+pub use expand::{
+    collapse, collapse_position, expand, expand_position, Context, DocOrigin, Origin, Provenance,
+    BASIS_BINDING, ORIGIN_ATTESTATION_MISMATCH,
+};
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};
 pub use parse::{parse, parse_with, Limits};
+pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use recognize::{recognize, Class, Outcome, Position};
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
 pub use validate::{validate, Presence, ScalarType, Shape, ShapeType, Validation};

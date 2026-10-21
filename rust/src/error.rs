@@ -10,6 +10,10 @@ pub enum Phase {
     Validate,
     /// The identity of a list element could not be built (`path_of`).
     PathOf,
+    /// The phases of the path operations (ADR 0006): no source location, only the text of the path.
+    PathParse,
+    PathFormat,
+    PathResolve,
 }
 
 impl Phase {
@@ -20,6 +24,9 @@ impl Phase {
             Phase::Recognize => "recognize",
             Phase::Validate => "validate",
             Phase::PathOf => "path_of",
+            Phase::PathParse => "path_parse",
+            Phase::PathFormat => "path_format",
+            Phase::PathResolve => "path_resolve",
         }
     }
 }
@@ -30,6 +37,8 @@ impl Phase {
 pub enum Location {
     At(Pos),
     Unavailable,
+    /// No YAML node can be at fault (a context error, a path operation): neither coordinates nor merely unavailable.
+    NotApplicable,
 }
 
 /// One entry of the machine response (code, phase, source location, logical path).
@@ -43,6 +52,9 @@ pub struct Violation {
     /// out: the parse phase, a single position with no structure around it, and a location
     /// the synthetic schema cannot name (a list element has no declared identity).
     pub logical_path: Option<String>,
+    /// The offset in code points of the offending character in the path text, for phase `path_parse` only (ADR 0007): it is
+    /// present there, `0` included, and never invented for another phase.
+    pub path_offset: Option<usize>,
 }
 
 /// A failure. Only [`Error::Contract`] is the ADR 0007 machine response; the others are

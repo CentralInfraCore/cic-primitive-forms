@@ -120,6 +120,9 @@ type wire struct{ code, phase, loc, path string }
 
 func wireOf(v forms.Violation) wire {
 	loc := "unavailable"
+	if v.Location.NotApplicable {
+		loc = "not_applicable"
+	}
 	if v.Location.Available {
 		p := v.Location.Pos
 		loc = fmt.Sprintf("%d:%d:%d", p.Line, p.Column, p.Offset)
@@ -138,9 +141,10 @@ func expectedWire(t *testing.T, e any) wire {
 	sl := m["source_location"].(obj)
 	loc := "unavailable"
 	if state, ok := sl["state"]; ok {
-		if state != "unavailable" {
+		if state != "unavailable" && state != "not_applicable" {
 			t.Fatalf("state %v", state)
 		}
+		loc = state.(string)
 	} else {
 		loc = fmt.Sprintf("%d:%d:%d", sl["line"], sl["column"], sl["offset"])
 	}
@@ -207,7 +211,7 @@ func TestRecognizeCasesMatchTheCorpus(t *testing.T) {
 			id, kind := c["id"].(string), c["kind"].(string)
 			if kind != "recognize" {
 				// The validate cases that have a runner of their own are counted there.
-				if !(kind == "validate" && hasRunner(c)) && !isPathRun(kind) {
+				if !(kind == "validate" && hasRunner(c)) && !isPathRun(kind) && !isP2Run(kind) {
 					notRun[kind]++
 				}
 				continue
@@ -701,7 +705,7 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 			total++
 			kind := c["kind"].(string)
 			key := suite["suite"].(string) + "/" + kind
-			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) {
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) {
 				run[key]++
 				ran++
 			} else {
@@ -716,10 +720,11 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 114 || skipped != 233 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 114 + 233", ran, skipped, total)
+	if ran+skipped != total || ran != 240 || skipped != 107 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 240 + 107", ran, skipped, total)
 	}
-	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 {
+	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 ||
+		run["paths/path_parse"] != 57 || run["paths/path_format"] != 9 || run["paths/path_resolve"] != 34 {
 		t.Fatalf("%v", run)
 	}
 	if run["inherit/validate"] != 21 || run["presence/validate"] != 29 || run["recognition/recognize"]+run["presence/recognize"] != 31 {
@@ -730,7 +735,14 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 // ---------------------------------------------------------------------------
 // path_of and path_stability (ADR 0006): the identity of a list element in a path.
 
-func isPathRun(kind string) bool { return kind == "path_of" || kind == "path_stability" }
+func isPathRun(kind string) bool {
+	return kind == "path_of" || kind == "path_stability" || kind == "path_parse" || kind == "path_format" || kind == "path_resolve"
+}
+
+// isP2Run says whether a case is run by the expand/collapse runner: the four P2 kinds.
+func isP2Run(kind string) bool {
+	return kind == "expand" || kind == "collapse" || kind == "roundtrip" || kind == "equality"
+}
 
 // treeShape reads the synthetic tree notation of corpus/paths/vectors.yaml into a Shape. In the path fixtures
 // the key fields are the only mandatory fields (ADR 0006), so the fields of a list element are optional
@@ -865,7 +877,7 @@ func TestPathCasesMatchTheCorpus(t *testing.T) {
 		for _, raw := range suite["cases"].([]any) {
 			c := raw.(obj)
 			id, kind := c["id"].(string), c["kind"].(string)
-			if !isPathRun(kind) {
+			if kind != "path_of" && kind != "path_stability" {
 				continue
 			}
 			ran++
@@ -889,5 +901,246 @@ func TestPathCasesMatchTheCorpus(t *testing.T) {
 	}
 	if ran != 25 {
 		t.Fatalf("the corpus has 18 path_of and 7 path_stability cases, ran %d", ran)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// expand, collapse, roundtrip, equality (ADR 0001 "Round trip", ADR 0003, ADR 0010): one primitive position.
+
+// typedMatches says whether n is the typed value a fixture spells ({type, value}).
+func typedMatches(t *testing.T, n *forms.Node, want any) bool {
+	t.Helper()
+	w := want.(obj)
+	if w["type"] == "absent" {
+		return n == nil
+	}
+	if n == nil {
+		return false
+	}
+	return n.Same(nodeOf(t, w["value"]))
+}
+
+func fieldsMatch(t *testing.T, id string, n *forms.Node, fields any) {
+	t.Helper()
+	for name, want := range fields.(obj) {
+		var got *forms.Node
+		for _, e := range n.Entries {
+			if e.Key == name {
+				got = e.Value
+			}
+		}
+		if !typedMatches(t, got, want) {
+			t.Errorf("%s: field %s does not match %v", id, name, want)
+		}
+	}
+}
+
+func TestExpandCollapseCasesMatchTheCorpus(t *testing.T) {
+	g := boundGrammar(t)
+	ran := 0
+	for _, suite := range suites(t) {
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			id, kind := c["id"].(string), c["kind"].(string)
+			if !isP2Run(kind) {
+				continue
+			}
+			ran++
+			expect := c["expect"].(obj)
+			switch kind {
+			case "equality":
+				a, b := nodeOf(t, c["a"]), nodeOf(t, c["b"])
+				if a.Same(b) != expect["equal"].(bool) {
+					t.Errorf("%s: equal: got %v", id, !expect["equal"].(bool))
+				}
+			case "expand":
+				out, authored, err := forms.ExpandPosition(nodeOf(t, c["input"]), accessKeys, g)
+				if err != nil || authored {
+					t.Fatalf("%s: %v authored=%v", id, err, authored)
+				}
+				fieldsMatch(t, id, out, expect["fields"])
+			case "collapse":
+				in := nodeOf(t, c["input"])
+				basis, _ := c["basis"].(string)
+				out, err := forms.CollapsePosition(in, c["authored_expanded"].(bool), basis, accessKeys, g)
+				if err != nil {
+					t.Fatalf("%s: %v", id, err)
+				}
+				got := "short"
+				if out.Kind == forms.KindMap && len(out.Entries) == len(accessKeys) && out.Same(in) {
+					got = "expanded"
+				}
+				if got != expect["collapse"] {
+					t.Errorf("%s: collapse: got %s, want %v", id, got, expect["collapse"])
+				}
+				if f, ok := expect["fields"]; ok {
+					fieldsMatch(t, id, out, f)
+				}
+			case "roundtrip":
+				var in *forms.Node
+				if _, absent := c["absent"]; !absent {
+					in = nodeOf(t, c["input"])
+				}
+				if in == nil {
+					// absent stays absent: there is no node to expand or collapse
+					if !typedMatches(t, nil, expect["collapsed"]) || !typedMatches(t, nil, expect["expanded"]) {
+						t.Errorf("%s: absent must stay absent", id)
+					}
+					continue
+				}
+				expanded, authored, err := forms.ExpandPosition(in, accessKeys, g)
+				if err != nil {
+					t.Fatalf("%s: %v", id, err)
+				}
+				back, err := forms.CollapsePosition(expanded, authored, "", accessKeys, g)
+				if err != nil {
+					t.Fatalf("%s: %v", id, err)
+				}
+				if f, ok := expect["fields"]; ok {
+					fieldsMatch(t, id, back, f)
+					continue
+				}
+				value := expanded
+				for _, e := range expanded.Entries {
+					if e.Key == "value" {
+						value = e.Value
+					}
+				}
+				if !typedMatches(t, value, expect["expanded"]) || !typedMatches(t, back, expect["collapsed"]) {
+					t.Errorf("%s: the round trip does not give back %v / %v", id, expect["expanded"], expect["collapsed"])
+				}
+			}
+		}
+	}
+	if ran != 26 {
+		t.Fatalf("the corpus has 26 expand, collapse, roundtrip and equality cases, ran %d", ran)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// path_parse, path_format, path_resolve (ADR 0006): the text of logical paths.
+
+func segmentsOf(t *testing.T, raw any) []forms.PathSeg {
+	t.Helper()
+	out := []forms.PathSeg{}
+	for _, r := range raw.([]any) {
+		m := r.(obj)
+		if f, ok := m["field"]; ok {
+			out = append(out, forms.PathSeg{Field: f.(string)})
+			continue
+		}
+		item := []forms.KeyComp{}
+		for _, c := range m["item"].([]any) {
+			cm := c.(obj)
+			key := cm["key"].(obj)
+			comp := forms.KeyComp{Name: cm["name"].(string)}
+			switch key["type"] {
+			case "string":
+				comp.Str = key["value"].(string)
+			case "integer":
+				comp.IsInt = true
+				switch n := key["value"].(type) {
+				case int:
+					comp.Int = int64(n)
+				default:
+					comp.Bad = "range" // beyond signed 64 bits
+				}
+			default:
+				comp.Bad = "boolean"
+			}
+			item = append(item, comp)
+		}
+		out = append(out, forms.PathSeg{Item: item, IsItem: true})
+	}
+	return out
+}
+
+func segmentsWire(segs []forms.PathSeg) []any {
+	out := []any{}
+	for _, s := range segs {
+		if !s.IsItem {
+			out = append(out, obj{"field": s.Field})
+			continue
+		}
+		item := []any{}
+		for _, c := range s.Item {
+			if c.IsInt {
+				item = append(item, obj{"name": c.Name, "key": obj{"type": "integer", "value": int(c.Int)}})
+			} else {
+				item = append(item, obj{"name": c.Name, "key": obj{"type": "string", "value": c.Str}})
+			}
+		}
+		out = append(out, obj{"item": item})
+	}
+	return out
+}
+
+func TestPathTextCasesMatchTheCorpus(t *testing.T) {
+	ran := 0
+	for _, suite := range suites(t) {
+		if suite["suite"] != "paths" {
+			continue
+		}
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			id, kind := c["id"].(string), c["kind"].(string)
+			if kind != "path_parse" && kind != "path_format" && kind != "path_resolve" {
+				continue
+			}
+			ran++
+			expect := c["expect"].(obj)
+			var perr *forms.PathError
+			switch kind {
+			case "path_parse":
+				segs, err := forms.ParsePath(c["path"].(string))
+				perr = err
+				if err == nil && !reflect.DeepEqual(segmentsWire(segs), expect["segments"]) {
+					t.Errorf("%s: segments\n got %v\nwant %v", id, segmentsWire(segs), expect["segments"])
+				}
+				if err == nil {
+					// every accepted text is the canonical writing of its segments
+					if text, ferr := forms.FormatPath(segs); ferr != nil || text != c["path"].(string) {
+						t.Errorf("%s: format(parse(t)) = %q (%v), want %q", id, text, ferr, c["path"])
+					}
+				}
+			case "path_format":
+				text, err := forms.FormatPath(segmentsOf(t, c["segments"]))
+				perr = err
+				if err == nil && text != expect["text"] {
+					t.Errorf("%s: text %q, want %q", id, text, expect["text"])
+				}
+			default:
+				segs, err := forms.ParsePath(c["path"].(string))
+				if err != nil {
+					t.Fatalf("%s: the path to resolve does not parse: %v", id, err)
+				}
+				res, err := forms.ResolvePath(rootOf(t, suite, c["schema"].(obj)["synthetic"].(obj)["tree"].(string)), segs)
+				perr = err
+				if err == nil && (res.Target != expect["target"] || res.Primitive != expect["primitive_position"]) {
+					t.Errorf("%s: resolved %+v, want %v/%v", id, res, expect["target"], expect["primitive_position"])
+				}
+			}
+			errs, wantErr := expect["errors"].([]any)
+			switch {
+			case wantErr && perr == nil:
+				t.Errorf("%s: want an error, got none", id)
+			case !wantErr && perr != nil:
+				t.Errorf("%s: unexpected %+v", id, perr)
+			case wantErr:
+				e := errs[0].(obj)
+				if perr.Code != e["code"] || string(perr.Phase) != e["phase"] || perr.LogicalPath != func() string { s, _ := e["logical_path"].(string); return s }() {
+					t.Errorf("%s: got %+v, want %v", id, perr, e)
+				}
+				if off, ok := e["path_offset"]; ok && perr.Offset != off {
+					t.Errorf("%s: offset %d, want %v", id, perr.Offset, off)
+				}
+				if sl := e["source_location"].(obj); sl["state"] != "not_applicable" {
+					t.Errorf("%s: a path error has no source location", id)
+				}
+			}
+		}
+	}
+	if ran != 100 {
+		t.Fatalf("the corpus has 57 path_parse, 9 path_format and 34 path_resolve cases, ran %d", ran)
 	}
 }

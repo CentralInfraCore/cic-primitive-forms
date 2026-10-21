@@ -247,7 +247,7 @@ fn anchors_follow_adr_0007() {
     let v = validate(Some(&n), &s, &a()).unwrap().violations;
     let at = |v: &Violation| match v.location {
         Location::At(p) => (p.line, p.column, p.offset),
-        Location::Unavailable => panic!(),
+        Location::Unavailable | Location::NotApplicable => panic!(),
     };
     let by = |path: &str| {
         v.iter()

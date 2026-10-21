@@ -207,6 +207,20 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
   element with the identity. `corpus/lists/vectors.yaml` carries a negative vector per code and phase, with source locations,
   and runs in both languages.
 
+## The text of logical paths (ADR 0006: `parse_path`, `format_path`, `resolve_path`)
+
+`ParsePath` / `parse_path` accepts only the canonical writing, so `format(parse(t)) == t` for every accepted `t`; a reading that
+is valid but not canonical (a leading zero, `+7`, `-0`, a needless `\u` escape, `\/`, an upper-case hex digit) is refused with
+`PATH_NONCANONICAL`, not rewritten. Errors carry the code, the phase (`path_parse`, `path_format`, `path_resolve`), the offset
+in code points (parse only) and, for resolution, the logical path up to and including the segment at fault; their source
+location is `not_applicable`. In the machine response (`Violation`) the offset is `path_offset`: present for every `path_parse`
+error, `0` included, and absent for every other phase (ADR 0007), never invented. `resolve_path` resolves against the compiled schema by the declared identity (the key of the
+list, or of the `item_choice` case that the component names select) and says what the path addresses: root, scalar,
+composite, list, set, opaque or item, and whether that is a primitive position (a field is; the root and a list element are
+not). All 100 `path_parse`, `path_format` and `path_resolve` cases of the corpus run in both languages, and the edge cases the
+corpus does not spell out (every escape, the ends of the text, control characters, the space) are in
+`testdata/p1/pathtext.json`.
+
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
 | Input | Answer |
@@ -223,7 +237,7 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
 | a scalar where a mapping or a list is declared, a non-record list element, a list inside a record | `UNSUPPORTED_SYNTAX` (the slice has no rule) |
 | a value of the wrong type in presence validation (a string where an integer is declared, a list where a mapping is declared, ...) | `UNSUPPORTED_SYNTAX`: the registry has **no code** for it (finding 4) |
 | an expanded Access node inside a validated document | `UNSUPPORTED_SYNTAX`: its `value` is validated with expand/collapse (P2) |
-| effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (P2), grammar-version migration (`migrate_mode`) | not implemented |
+| effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (now P2, `docs/P2-EXPAND-COLLAPSE.md`), grammar-version migration (`migrate_mode`) | not implemented |
 | A list element that is not a record, or an element field of the wrong type | `UNSUPPORTED_SYNTAX` (no code in the registry) |
 | An expanded Access node as a key value or any element field | `UNSUPPORTED_SYNTAX` (P2): the key's identity looks through it (`path_of`), but validating its `value` is expand/collapse |
 | Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts` |
@@ -238,7 +252,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **114 run + 233 NOT RUN**.
+case of the corpus (339), assert that each is either run or listed here, and assert **240 run + 107 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -248,12 +262,12 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | inherit | `validate` (slot `inherit_key`, `inherit_policy`, `access_modify`) | 21 | **run**, complete machine response, typed value preserved, grammar bound from the verified pin |
 | conformance | `validate` (slot `conformance`) | 16 | NOT RUN (ADR 0010, conformance basis) |
 | conformance | `basis` | 16 | NOT RUN (ADR 0010) |
-| conformance, presence, recognition | `collapse` | 15 | NOT RUN (P2) |
-| inherit, presence | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
+| conformance, presence, recognition | `collapse` | 15 | **run**, both languages (P2, `docs/P2-EXPAND-COLLAPSE.md`); the 4 conformance ones take the ADR 0010 basis as an input |
+| inherit, presence | `roundtrip` 9, `expand` 1, `equality` 1 | 11 | **run**, both languages (P2) |
 | lists | `validate` (list notation, ADR 0007 amendment) | 8 | **run**, both languages, complete machine response with source locations |
 | paths | `path_of` | 18 | **run**, both languages: identity of a list element in a path, errors with their path |
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
-| paths | `path_parse` 57, `path_resolve` 34, `path_format` 9 | 100 | NOT RUN |
+| paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 

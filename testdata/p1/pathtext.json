@@ -1,0 +1,375 @@
+{
+ "cases": [
+  {
+   "path": "$.l[{n=\"x\\by\"}]",
+   "value": "x\by"
+  },
+  {
+   "path": "$.l[{n=\"x\\fy\"}]",
+   "value": "x\fy"
+  },
+  {
+   "path": "$.l[{n=\"x\\ny\"}]",
+   "value": "x\ny"
+  },
+  {
+   "path": "$.l[{n=\"x\\ry\"}]",
+   "value": "x\ry"
+  },
+  {
+   "path": "$.l[{n=\"x\\ty\"}]",
+   "value": "x\ty"
+  },
+  {
+   "path": "$.l[{n=\"x\\\"y\"}]",
+   "value": "x\"y"
+  },
+  {
+   "path": "$.l[{n=\"x\\\\y\"}]",
+   "value": "x\\y"
+  },
+  {
+   "path": "$.l[{n=\"\\u0001\\u001f\"}]",
+   "value": "\u0001\u001f"
+  },
+  {
+   "path": "$.l[{n=\"\"}]",
+   "value": ""
+  },
+  {
+   "path": "$.v[-x]",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.v[{a=-}]",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=x}]",
+   "error": "PATH_SYNTAX",
+   "offset": 7
+  },
+  {
+   "path": "$.v[{a=1",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=-12",
+   "error": "PATH_SYNTAX",
+   "offset": 10
+  },
+  {
+   "path": "$.l[{n=\"a\tb\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=\"\\u007f\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u0008\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u000d\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u000c\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u0009\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u00zz\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u00\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u+041\"}]",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"a",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=1,}]",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[{n=1 }]",
+   "error": "PATH_SYNTAX",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=1}x",
+   "error": "PATH_SYNTAX",
+   "offset": 9
+  },
+  {
+   "path": "$.l[",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.l[{",
+   "error": "PATH_EMPTY_NAME",
+   "offset": 5
+  },
+  {
+   "path": "$.l[{n",
+   "error": "PATH_SYNTAX",
+   "offset": 6
+  },
+  {
+   "path": "$.l[{n=",
+   "error": "PATH_SYNTAX",
+   "offset": 7
+  },
+  {
+   "path": "$x",
+   "error": "PATH_SYNTAX",
+   "offset": 1
+  },
+  {
+   "path": "$.a=b",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a,b",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a",
+   "error": "PATH_SYNTAX",
+   "offset": 3
+  },
+  {
+   "path": "$.a b[{n=\"x\"}]",
+   "value": "x"
+  },
+  {
+   "path": "$.l[{n=\"a b\"}]",
+   "value": "a b"
+  },
+  {
+   "path": "$.l[{n a=\"x\"}]",
+   "value": "x"
+  },
+  {
+   "path": "$.v[-",
+   "error": "PATH_SYNTAX",
+   "offset": 4
+  },
+  {
+   "path": "$.v[-1",
+   "error": "PATH_INDEX_SELECTOR",
+   "offset": 3
+  },
+  {
+   "path": "$.l[{n=\"\\u0020\"}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 8
+  },
+  {
+   "path": "$.l[{n=\"\\u001f",
+   "error": "PATH_SYNTAX",
+   "offset": 14
+  },
+  {
+   "path": "$.l[{n=\"\\u001",
+   "error": "PATH_BAD_ESCAPE",
+   "offset": 8
+  },
+  {
+   "path": "$.v[{a=01}]",
+   "error": "PATH_NONCANONICAL",
+   "offset": 7
+  },
+  {
+   "path": "$.l[{n=\"\\n",
+   "error": "PATH_SYNTAX",
+   "offset": 10
+  }
+ ],
+ "format": [
+  {
+   "segments": [
+    {
+     "field": "a b"
+    }
+   ],
+   "text": "$.a b"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_EMPTY_NAME"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "a\nb",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "\nab",
+       "str": "x"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "\nabc"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "a\u001fb"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "ab"
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "a b"
+    }
+   ],
+   "text": "$.a b"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": []
+    }
+   ],
+   "error": "PATH_SYNTAX"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "on",
+       "bad": "boolean"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_KEY_UNSUPPORTED"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "n",
+       "bad": "range"
+      }
+     ]
+    }
+   ],
+   "error": "PATH_INTEGER_RANGE"
+  },
+  {
+   "segments": [
+    {
+     "field": "l"
+    },
+    {
+     "item": [
+      {
+       "name": "n",
+       "str": "a"
+      },
+      {
+       "name": "m",
+       "int": -7
+      }
+     ]
+    }
+   ],
+   "text": "$.l[{n=\"a\",m=-7}]"
+  }
+ ]
+}

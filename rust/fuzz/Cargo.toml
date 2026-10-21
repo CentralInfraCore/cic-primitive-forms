@@ -28,6 +28,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "expand"
+path = "fuzz_targets/expand.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "access"
 path = "fuzz_targets/access.rs"
 test = false

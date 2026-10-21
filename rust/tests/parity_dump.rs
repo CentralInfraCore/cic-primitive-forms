@@ -40,7 +40,7 @@ fn outcome(bytes: &[u8]) -> Json {
             "phase": v.phase.as_str(),
             "loc": match v.location {
                 Location::At(p) => json!([p.line, p.column, p.offset]),
-                Location::Unavailable => Json::Null,
+                Location::Unavailable | Location::NotApplicable => Json::Null,
             }
         })).collect::<Vec<_>>()}),
         Err(e) => json!({"err": e.code()}),

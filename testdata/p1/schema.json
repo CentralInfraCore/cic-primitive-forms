@@ -1538,6 +1538,208 @@
      }
     }
    ]
+  },
+  {
+   "id": "compile.atomic-ref-that-is-not-a-string",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        atomic_ref: 5\n        shape_type: scalar\n        scalar_type: string\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_REF_UNPINNED",
+    "problems": [
+     [
+      "SCHEMA_REF_UNPINNED",
+      "spec.config_surface.nodes[0].atomic_ref"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-fields-that-is-not-a-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_fields: x\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_fields"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-without-cases",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice: {}\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-cases-that-are-not-a-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases: x\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.item-choice-case-with-no-key-at-all",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases:\n            - name: one\n              key: []\n              fields:\n                - {name: x, shape_type: scalar, scalar_type: string}\n            - name: two\n              key: [n]\n              fields:\n                - {name: n, shape_type: scalar, scalar_type: string, role: key}\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.item_choice.cases[0].key"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.a-duplicate-name-does-not-stop-the-walk",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n      - name: a\n        shape_type: scalar\n        scalar_type: string\n      - name: b\n        shape_type: scalar\n        scalar_type: float\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a"
+     ],
+     [
+      "SCHEMA_INVALID",
+      "$.b.scalar_type"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.min-items-that-is-not-a-number",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        min_items: lots\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_INVALID",
+    "problems": [
+     [
+      "SCHEMA_INVALID",
+      "$.a.min_items"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "compile.zero-min-items-and-the-ends-of-a-document",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: tags\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        min_items: 0\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - {name: to, shape_type: scalar, scalar_type: string, role: key}\n          - {name: metric, shape_type: scalar, scalar_type: integer, optional: true}\n      - name: vlans\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_choice:\n          cases:\n            - name: referenced\n              key: [ref]\n              fields:\n                - {name: ref, shape_type: scalar, scalar_type: string, role: key}\n            - name: inline\n              key: [vlan_id]\n              fields:\n                - {name: vlan_id, shape_type: scalar, scalar_type: integer, role: key}\n                - {name: vlan_mode, shape_type: scalar, scalar_type: string, optional: true}\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": true,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "an-empty-set-meets-a-zero-minimum",
+     "yaml": "tags: []\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "duplicates-do-not-stop-the-elements-after-them",
+     "yaml": "routes:\n  - to: a\n  - to: a\n  - to: b\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_DUPLICATE_IDENTITY",
+        "path": "$.routes[{to=\"a\"}]"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"b\"}].metric"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "integer-identities-order-numerically-across-the-sign",
+     "yaml": "vlans:\n  - vlan_id: 5\n    vlan_mode: ~\n  - vlan_id: -5\n    vlan_mode: ~\n  - vlan_id: 9223372036854775807\n    vlan_mode: ~\n  - vlan_id: -9223372036854775808\n    vlan_mode: ~\n  - vlan_id: 0\n    vlan_mode: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=-9223372036854775808}].vlan_mode"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=-5}].vlan_mode"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=0}].vlan_mode"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=5}].vlan_mode"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=9223372036854775807}].vlan_mode"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "identities-of-different-cases-order-by-component-name",
+     "yaml": "vlans:\n  - vlan_id: 1\n  - vlan_id: 1\n  - ref: x\n  - ref: x\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_DUPLICATE_IDENTITY",
+        "path": "$.vlans[{ref=\"x\"}]"
+       },
+       {
+        "code": "PATH_DUPLICATE_IDENTITY",
+        "path": "$.vlans[{vlan_id=1}]"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "a-list-element-that-is-not-a-record-is-refused",
+     "yaml": "routes:\n  - 1\n",
+     "expect": {
+      "unsupported": true
+     }
+    },
+    {
+     "id": "a-list-where-a-mapping-is-declared",
+     "yaml": "tags: 5\n",
+     "expect": {
+      "unsupported": true
+     }
+    }
+   ]
   }
  ]
 }

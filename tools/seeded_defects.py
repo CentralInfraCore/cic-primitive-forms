@@ -148,6 +148,57 @@ DEFECTS = [
      [("            _ => return Err((KEY_TYPE, raw)),", "            _ => return Err((KEY_TYPE, rec)),")]),
     ("go", "a duplicate identity is anchored at the first element, not the second", "validate.go",
      [("if seen[k] == 2 {", "if seen[k] == 1 {")]),
+    # Expand and collapse (ADR 0001 "Round trip", ADR 0010): the law, the explicit settings, the authored form.
+    ("rust", "an explicit policy setting is dropped by collapse", "src/expand.rs",
+     [("if !entry(n, k).is_some_and(|got| got.same(&d)) {", "if false {")]),
+    ("rust", "an authored expanded position is shortened", "src/expand.rs",
+     [("|| authored_expanded || basis == BASIS_BINDING", "|| basis == BASIS_BINDING")]),
+    ("rust", "a binding_attested position is shortened", "src/expand.rs",
+     [("|| authored_expanded || basis == BASIS_BINDING", "|| authored_expanded")]),
+    ("rust", "a value that would be read as expanded is shortened", "src/expand.rs",
+     [("Some(value) if matches!(classify(value, a), Ok(Class::Short)) => value.clone(),", "Some(value) => value.clone(),")]),
+    ("go", "an explicit policy setting is dropped by collapse", "expand.go",
+     [("if got := entry(n, k); got == nil || !got.Same(d) {", "if false {")]),
+    ("go", "an authored expanded position is shortened", "expand.go",
+     [("if authoredExpanded || basis == BasisBinding {", "if basis == BasisBinding {")]),
+    ("go", "a binding_attested position is shortened", "expand.go",
+     [("if authoredExpanded || basis == BasisBinding {", "if authoredExpanded {")]),
+    ("go", "a value that would be read as expanded is shortened", "expand.go",
+     [("if class, _ := classify(value, a); class != ClassShort {", "if false {")]),
+    # The two contracts of the P2 architecture review: an undeclared key is refused, a contradictory context is refused.
+    ("rust", "an undeclared key passes through expand and collapse", "src/expand.rs",
+     [("                None => {\n                    let mut p = path.clone();", "                None => {\n                    out.push(Entry { key: e.key.clone(), key_pos: e.key_pos, value: e.value.clone() });\n                    continue;\n                }\n                Some(_) if false => {\n                    let mut p = path.clone();")]),
+    ("rust", "a contradictory context is collapsed anyway", "src/expand.rs",
+     [("    ctx.check(shape)?;\n    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),", "    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),")]),
+    ("rust", "a position outside the attested set is treated as attested", "src/expand.rs",
+     [("let basis = if self.attested.contains(&text) {", "let basis = if self.attested.is_empty() || self.attested.contains(&text) {")]),
+    ("go", "an undeclared key passes through expand and collapse", "expand.go",
+     [("\t\tif i < 0 {\n", "\t\tif i < 0 {\n\t\t\tout.Entries = append(out.Entries, Entry{Key: e.Key, KeyPos: e.KeyPos, Value: cloneTree(e.Value)})\n\t\t\tcontinue\n\t\t}\n\t\tif false {\n")]),
+    ("go", "a contradictory context is collapsed anyway", "expand.go",
+     [("\tif err := ctx.check(shape); err != nil {\n\t\treturn nil, err\n\t}", "\tif false {\n\t\treturn nil, nil\n\t}")]),
+    ("go", "a position outside the attested set is treated as attested", "expand.go",
+     [("\tif w.attested[text] {", "\tif len(w.attested) == 0 || w.attested[text] {")]),
+    # Paths as text and the attested positions (ADR 0006, ADR 0010): resolved against the schema, strict, with the right location.
+    ("rust", "an attested position that the schema does not resolve is accepted", "src/expand.rs",
+     [("            let resolved =\n                resolve_path(root, &segs).map_err(|e| Error::Contract(vec![e.violation()]))?;", "            let resolved = resolve_path(root, &segs).unwrap_or(crate::pathtext::Resolved { target: \"scalar\", primitive: true });")]),
+    ("rust", "the context error has an unavailable source location", "src/expand.rs",
+     [("        location: Location::NotApplicable,", "        location: Location::Unavailable,")]),
+    ("rust", "a path integer with a leading zero is accepted", "src/pathtext.rs",
+     [("if plus || (digits.len() > 1 && digits.starts_with('0')) || (neg && digits == \"0\") {", "if plus || (neg && digits == \"0\") {")]),
+    ("go", "an attested position that the schema does not resolve is accepted", "expand.go",
+     [("\t\tres, perr := ResolvePath(root, segs)\n\t\tif perr != nil {", "\t\tres, perr := ResolvePath(root, segs)\n\t\tif perr != nil {\n\t\t\tres = Resolved{Target: \"scalar\", Primitive: true}\n\t\t\tperr = nil\n\t\t}\n\t\tif false {")]),
+    ("go", "the context error has an unavailable source location", "expand.go",
+     [("Phase: PhaseValidate, Location: Location{NotApplicable: true}}}}", "Phase: PhaseValidate}}}")]),
+    ("go", "a path integer with a leading zero is accepted", "pathtext.go",
+     [("case plus, len(digits) > 1 && digits[0] == '0', neg && digits == \"0\":", "case plus, neg && digits == \"0\":")]),
+    ("rust", "the path_offset of a path_parse error is dropped from the machine response", "src/pathtext.rs",
+     [("path_offset: (self.phase == Phase::PathParse).then_some(self.offset),", "path_offset: None,")]),
+    ("rust", "a path_offset is invented for another phase", "src/pathtext.rs",
+     [("path_offset: (self.phase == Phase::PathParse).then_some(self.offset),", "path_offset: Some(self.offset),")]),
+    ("go", "the path_offset of a path_parse error is dropped from the machine response", "pathtext.go",
+     [("\tif e.Phase == PhasePathParse {", "\tif false {")]),
+    ("go", "a path_offset is invented for another phase", "pathtext.go",
+     [("\tif e.Phase == PhasePathParse {", "\tif true {")]),
 ]
 
 
@@ -167,7 +218,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand"]
     return ["go", "test", "-count=1", "./..."]
 
 

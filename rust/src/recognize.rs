@@ -95,6 +95,7 @@ pub(crate) fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
             phase: Phase::Recognize,
             location: location(node.pos),
             logical_path: None,
+            path_offset: None,
         })
     }
 }
@@ -117,6 +118,7 @@ fn validate_short(
                         phase: Phase::Validate,
                         location: location(node.pos),
                         logical_path: None,
+                        path_offset: None,
                     },
                 ));
             }
@@ -140,6 +142,7 @@ fn validate_short(
                         phase: Phase::Validate,
                         location: location(e.key_pos),
                         logical_path: None,
+                        path_offset: None,
                     },
                 ));
             }
@@ -180,7 +183,7 @@ pub(crate) fn logical_path(path: &Path) -> Option<String> {
 }
 
 /// A field or component name with the ADR 0006 escape set; false for a name that cannot be written.
-fn write_name(out: &mut String, name: &str) -> bool {
+pub(crate) fn write_name(out: &mut String, name: &str) -> bool {
     if name.is_empty() || name.chars().any(|c| c <= '\u{1f}' || c == '\u{7f}') {
         return false;
     }
@@ -194,7 +197,7 @@ fn write_name(out: &mut String, name: &str) -> bool {
 }
 
 /// `[{name="value",n=1}]`: strings as canonical double-quoted JSON, integers bare.
-fn write_selector(out: &mut String, item: &[crate::listitem::KeyComp]) -> bool {
+pub(crate) fn write_selector(out: &mut String, item: &[crate::listitem::KeyComp]) -> bool {
     use crate::listitem::KeyValue;
     if item.is_empty() {
         return false;
@@ -211,6 +214,7 @@ fn write_selector(out: &mut String, item: &[crate::listitem::KeyComp]) -> bool {
         match &c.value {
             KeyValue::Int(n) => out.push_str(&n.to_string()),
             KeyValue::Str(s) => write_json_string(out, s),
+            KeyValue::Boolean(_) | KeyValue::OutOfRange => return false,
         }
     }
     out.push_str("}]");
@@ -324,6 +328,7 @@ fn recognize_list(
                             phase: Phase::Validate,
                             location: location(e.key_pos),
                             logical_path: None,
+                            path_offset: None,
                         },
                     ));
                     continue;

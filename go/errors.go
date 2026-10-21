@@ -12,13 +12,21 @@ const (
 	PhaseValidate  Phase = "validate"
 	// PhasePathOf is the phase of PathOf: the identity of a list element could not be built.
 	PhasePathOf Phase = "path_of"
+	// The phases of the path operations (ADR 0006): no source location, only the text of the path.
+	PhasePathParse   Phase = "path_parse"
+	PhasePathFormat  Phase = "path_format"
+	PhasePathResolve Phase = "path_resolve"
 )
 
 // Location is the source_location of ADR 0007: coordinates, or unavailable for a document
 // supplied as an already parsed value. A position is never invented.
+//
+// NotApplicable is the third state: no YAML node can be at fault (a context error, a path operation), so the location is
+// neither coordinates nor merely unavailable. The zero Location is unavailable.
 type Location struct {
-	Available bool
-	Pos       Pos
+	Available     bool
+	NotApplicable bool
+	Pos           Pos
 }
 
 // Violation is one entry of the machine response (code, phase, source location, logical
@@ -31,6 +39,9 @@ type Violation struct {
 	// leaves it out: the parse phase, a single position with no structure around it, and a
 	// location the synthetic schema cannot name (a list element has no declared identity).
 	LogicalPath string
+	// PathOffset is the offset in code points of the offending character in the path text, for phase path_parse only
+	// (ADR 0007): present there, zero included, and nil for every other phase.
+	PathOffset *int
 }
 
 // ErrorKind says which boundary an Error is.
