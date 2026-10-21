@@ -95,6 +95,19 @@ class EvidenceWorkflowTests(unittest.TestCase):
                 if run is not None:
                     self.assertNotIn("${{", run, "%s / %s interpolates an expression into a shell" % (job, step.get("name")))
 
+    def test_the_watchdog_asks_for_a_run_only_for_a_slot_that_has_no_record(self):
+        step = next(s for s in self.steps("watch") if s.get("name", "").startswith("The slot of the day"))
+        run = step["run"]
+        self.assertEqual(run.count("gh workflow run evidence.yml"), 1)
+        before = run[:run.index("gh workflow run evidence.yml")]
+        self.assertIn("-eq 3", before)                                               # only the exit status "no record"
+        self.assertIn("has no record$/", before)                                     # and only from the line that says so
+        self.assertIn("[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}", before)             # for a date, not for anything
+        self.assertIn('[ -n "$slot" ] ||', before)                                   # and not for an empty slot
+        after = run[run.index("gh workflow run evidence.yml"):]
+        self.assertIn("elif [ $rc -ne 0 ]", after)                                   # every other failure fails the job
+        self.assertRegex(after, r"\n\s+exit \$rc\n")                                 # with its own status, not 0
+
     def test_the_run_is_for_main_and_the_checkout_keeps_no_credentials(self):
         for job, body in self.ev["jobs"].items():
             for step in body["steps"]:
