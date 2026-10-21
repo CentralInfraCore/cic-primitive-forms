@@ -449,14 +449,20 @@ proptest! {
         let before = n.clone();
         if let Ok(v) = validate(Some(&n), &shape, &a()) {
             let keys: Vec<(Option<String>, &str)> = v.violations.iter().map(|x| (x.logical_path.clone(), x.code)).collect();
-            let mut sorted_keys = keys.clone();
-            sorted_keys.sort_by(|x, y| {
+            // The order is ADR 0007's: by the segments of the position, which the implementation has even where the
+            // path cannot be written as text (an empty or control-character name has no `logical_path`). The response
+            // does not carry those segments, so the path text is the oracle: it orders the errors that have one (the
+            // Go peer does the same). The order of an error without text is pinned by
+            // `an_error_at_an_unwritable_name_is_ordered_by_its_segments`.
+            let written: Vec<&(Option<String>, &str)> = keys.iter().filter(|k| k.0.is_some()).collect();
+            let mut sorted_written = written.clone();
+            sorted_written.sort_by(|x, y| {
                 let seg = |p: &Option<String>| p.as_ref().map(|t| t.split('.').skip(1).map(str::to_string).collect::<Vec<_>>());
                 seg(&x.0).cmp(&seg(&y.0)).then(x.1.cmp(y.1))
             });
             // Escaped names would need the ADR 0006 lexer to split; the order is checked without them.
-            if keys.iter().all(|k| k.0.as_deref().is_none_or(|p| !p.contains('\\'))) {
-                prop_assert_eq!(&keys, &sorted_keys, "sorted by path, then code");
+            if written.iter().all(|k| k.0.as_deref().is_none_or(|p| !p.contains('\\'))) {
+                prop_assert_eq!(&written, &sorted_written, "sorted by path, then code");
             }
             prop_assert_eq!(keys.len(), keys.iter().collect::<std::collections::BTreeSet<_>>().len(), "unique");
             let phases: std::collections::BTreeSet<_> = v.violations.iter().map(|x| x.phase.as_str()).collect();
@@ -570,4 +576,44 @@ proptest! {
         prop_assert!(n.same(&before));
         prop_assert_eq!(n.pos, before.pos);
     }
+}
+
+/// Issue #46: an error at a position whose name cannot be written (an empty name) has no `logical_path`, but it has
+/// a place in the order: ADR 0007 orders by segments, `Field` by the UTF-8 bytes of the name. Here `$.<<` sorts
+/// before `$.d.<empty>` because `<<` sorts before `d`, whatever the second one's text.
+#[test]
+fn an_error_at_an_unwritable_name_is_ordered_by_its_segments() {
+    let shape = |shape_type| Shape {
+        shape_type,
+        presence: Presence::Mandatory,
+        nullable: false,
+        has_default: false,
+    };
+    let schema = shape(ShapeType::Composite(vec![(
+        "d".into(),
+        shape(ShapeType::Composite(vec![])),
+    )]));
+    let null = || Node::new(Value::Null);
+    let entry = |key: &str, value| Entry {
+        key: key.into(),
+        key_pos: None,
+        value,
+    };
+    let doc = Node::new(Value::Map(vec![
+        entry("<<", null()),
+        entry("d", Node::new(Value::Map(vec![entry("", null())]))),
+    ]));
+    let v = validate(Some(&doc), &schema, &a()).unwrap();
+    let got: Vec<(Option<String>, &str)> = v
+        .violations
+        .iter()
+        .map(|x| (x.logical_path.clone(), x.code))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (Some("$.<<".to_string()), "UNKNOWN_FIELD"),
+            (None, "UNKNOWN_FIELD")
+        ]
+    );
 }
