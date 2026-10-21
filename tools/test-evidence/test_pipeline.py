@@ -4,11 +4,15 @@ import os
 import subprocess
 import sys
 import tempfile
+import io
+import types
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+import evidence  # noqa: E402
 import pipeline  # noqa: E402
 import publish  # noqa: E402
 import test_evidence as te  # noqa: E402
@@ -172,6 +176,33 @@ class ReadBackTests(unittest.TestCase):
     def test_a_fail_record_does_not_stand_for_a_slot_it_is_still_a_record(self):
         self.put(outcome="fail", slot="2026-10-20")
         self.assertEqual(pipeline.watch(self.checkout(), NOW, self.ctx()), ("2026-10-20", True))   # the run happened; the chain rule judges it
+
+
+    def watch_command(self, att=None):
+        """What the workflow's watchdog step sees: (exit status, stdout, stderr) of `evidence.py watch`."""
+        ctx = self.ctx(att=att) if att is not None else self.ctx()
+        out, err = io.StringIO(), io.StringIO()
+        args = types.SimpleNamespace(evidence=self.checkout())
+        with mock.patch.object(evidence, "_now", return_value=NOW), mock.patch.object(evidence, "_read_ctx", return_value=ctx), \
+                mock.patch("sys.stdout", out), mock.patch("sys.stderr", err):
+            rc = evidence.cmd_watch(args)
+        return rc, out.getvalue(), err.getvalue()
+
+    def test_the_watch_command_says_no_record_only_when_there_is_none(self):
+        self.put(slot="2026-10-19", measured=NOW - datetime.timedelta(days=1, hours=5))
+        rc, out, _ = self.watch_command()
+        self.assertEqual((rc, out), (3, "slot 2026-10-20: has no record\n"))
+        self.put(slot="2026-10-20")
+        rc, out, _ = self.watch_command()
+        self.assertEqual((rc, out), (0, "slot 2026-10-20: has a record\n"))
+
+    def test_a_listed_record_that_does_not_verify_is_undecided_not_no_record(self):
+        self.put(slot="2026-10-20")
+        rc, out, err = self.watch_command(att=te.Attested(ok=False))
+        self.assertEqual(rc, evidence.WATCH_UNDECIDED)
+        self.assertNotEqual(rc, evidence.WATCH_NO_RECORD)
+        self.assertNotIn("slot", out)                # nothing for the workflow to read a slot from
+        self.assertIn("PipelineError", err)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@
     evidence.py build --collected DIR --root DIR --event E [--slot D] --out DIR     make the record of the run (a file named by its hash)
     evidence.py publish --record FILE --origin URL                     add it to the ci-evidence branch (token in $EVIDENCE_TOKEN)
     evidence.py verify-published --evidence DIR --root DIR --record NAME   read the branch back as a verifier would
-    evidence.py watch --evidence DIR --root DIR                       exit 3 if the latest due slot has no record
+    evidence.py watch --evidence DIR --root DIR                       exit 3 if the latest due slot has no record, 4 if that cannot be decided
 
 These are the steps of .github/workflows/evidence.yml (docs/EVIDENCE-PUBLISHING.md).
 """
@@ -187,10 +187,19 @@ def cmd_verify_published(a):
     return 0
 
 
+WATCH_NO_RECORD = 3   # the one answer the watchdog acts on: the latest due slot has no verified record
+WATCH_UNDECIDED = 4   # the branch could not be read or a listed record does not verify: nobody is asked to run anything
+
+
 def cmd_watch(a):
-    slot, present = pipeline.watch(a.evidence, _now(), _read_ctx(a))
+    try:
+        slot, present = pipeline.watch(a.evidence, _now(), _read_ctx(a))
+    except pipeline.PipelineError as e:
+        # not "no record": a record that is listed and does not verify must be looked at, not answered with another run
+        print("%s: %s" % (type(e).__name__, e), file=sys.stderr)
+        return WATCH_UNDECIDED
     print("slot %s: %s" % (slot, "has a record" if present else "has no record"))
-    return 0 if present else 3
+    return 0 if present else WATCH_NO_RECORD
 
 
 def selftest():

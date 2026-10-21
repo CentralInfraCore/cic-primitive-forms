@@ -114,9 +114,12 @@ jobs:
           rc=$?
           echo "$out"
           if [ $rc -eq 3 ]; then
-            slot=$(echo "$out" | sed -n 's/^slot \([0-9-]*\):.*/\1/p')
+            # only "the slot has no record" asks for a run; any other failure (exit 4 and the rest) fails this job and asks for nothing
+            slot=$(echo "$out" | sed -n 's/^slot \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\): has no record$/\1/p')
+            [ -n "$slot" ] || { echo "::error::exit 3 without a slot line: not asking for a run"; exit 1; }
             echo "::warning::the slot $slot has no record: asking for the run"
             gh workflow run evidence.yml --ref main -f slot="$slot"
           elif [ $rc -ne 0 ]; then
+            echo "::error::the watchdog could not decide (exit $rc): look at the branch ci-evidence"
             exit $rc
           fi
