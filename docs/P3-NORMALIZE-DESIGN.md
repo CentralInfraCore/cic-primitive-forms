@@ -2,8 +2,9 @@
 
 Status: **design, no code**. It follows the accepted ADR 0001, 0003, 0004, 0006, 0010 and the pinned `access-policy/1` grammar
 (cic-primitives D-018, `P0-4-ACCESS-GRAMMAR.md`); it re-opens none of them. The four open decisions of the first version were taken in the
-architecture review of this PR (section 8); the one that needs an ADR is written as the *proposed* `docs/adr/0011-defaults-by-role.md`,
-and **no P3 code is written before ADR 0011 is accepted and the P2 post-merge evidence is complete**.
+architecture review of this PR (section 8); the one that needs an ADR is written as `docs/adr/0011-defaults-by-role.md`, **accepted**
+2026-10-21 (with the default ban for `reference`). The P2 post-merge evidence is complete, so the P3 implementation may start, in small
+steps (the ADR's acceptance record: the schema compiler first, default application after).
 
 P3 in `PHASES.md`: *Normalize: defaults, `inherit: true/false/0`. Exit: the same input and schema give the same fully resolved
 result in both languages.* Resolving a reference from a supplied snapshot and materializing is **P5**; this document does not.
@@ -57,7 +58,7 @@ NormalizationResult
 
 - A default applies **only to an absent field**. Never to `null`, `""`, `0`, `false`, `[]`, `{}` (rule 3, already tested in P1 as
   *candidates*).
-- Whether it may apply depends on **Role** (rule 4). The rule is ADR 0011 (proposed): a schema default applies to an absent field only if
+- Whether it may apply depends on **Role** (rule 4). The rule is ADR 0011 (accepted): a schema default applies to an absent field only if
   the node is `config` (the authority axis; written or by its default), optional, and has no `key`, `reference`, `derived` or `volatile`
   role; `state`, `operational`, `derived`, `volatile` and `key` never take one. A schema that declares a default on a node whose Role
   does not take one is `SCHEMA_INVALID` at compile time, and an unknown Role value is never read as `config`.
@@ -127,12 +128,12 @@ fields inherit from its list field and its object, not from a sibling.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Role and defaults | `config` takes a default (optional, declared); `state`, `operational`, `derived`, `volatile`, `key` do not. Written as ADR 0011 (**proposed**; acceptance is the repository's act, and it precedes the implementation). |
+| 1 | Role and defaults | `config` takes a default (optional, declared); `state`, `operational`, `derived`, `volatile`, `key` do not. Written as ADR 0011 (**accepted** 2026-10-21). |
 | 2 | Where the effective rule goes | A separate `policy_resolution` keyed by logical path (section 2). |
 | 3 | How far the resolver port goes | It stops at the rule, its layer and its source; the decision (a request, an authenticated requestor, a trusted owner) is the Relay's. `none` and `unknown` are kept. |
 | 4 | Is `policy_surface` compiled in P3 | Yes (section 4), still P3 and not P5. |
 
-Open and not decided by the review: how a node whose role is **only** `reference` is treated (ADR 0011 takes it as *not applicable*, conservatively).
+Closed at the acceptance of ADR 0011: a node whose role is **only** `reference` takes no default (a declared one is `SCHEMA_INVALID`); explicit references stay valid.
 
 ## 9. Not in P3
 

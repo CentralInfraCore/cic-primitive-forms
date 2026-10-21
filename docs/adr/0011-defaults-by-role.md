@@ -1,8 +1,7 @@
 # ADR 0011: which Role takes a schema default
 
-Status: **proposed**. It closes the point ADR 0003 rule 4 left open ("whether a default may be applied depends on Role, not only on
-the field") and is a precondition of the P3 implementation (`docs/P3-NORMALIZE-DESIGN.md`). It is not accepted until the repository
-accepts it; no P3 code is written before.
+Status: **accepted** (2026-10-21, see "Acceptance record" at the end). It closes the point ADR 0003 rule 4 left open ("whether a default
+may be applied depends on Role, not only on the field") and is a precondition of the P3 implementation (`docs/P3-NORMALIZE-DESIGN.md`).
 
 ## Context
 
@@ -28,7 +27,7 @@ A schema default is applied to an absent field **if and only if all of these hol
 | `derived` | no | the derivation creates the value, not a schema default |
 | `volatile` | no | short-lived, not persisted desired state |
 | `key` | no | an identity: normalization creates or changes no identity (ADR 0006); a key is also mandatory |
-| `reference` | no (**conservative; not decided by the review**) | a default pointer to another node would invent a referential dependency |
+| `reference` | no (decided at acceptance, see below) | a default pointer to another node would invent a referential dependency; P3 has no reference resolution (that is P5) |
 
 An explicit `null`, `0`, `false`, empty string, list or mapping is never replaced by a default, in any Role.
 
@@ -49,7 +48,20 @@ An explicit `null`, `0`, `false`, empty string, list or mapping is never replace
 - The compiler (P1) gains the role check; the check is a P3 task together with the normalizer, in both languages, with shared
   cases for each row of the table and for the refusals above.
 
-## Not decided here
+## The `reference` question (closed at acceptance)
 
-How a node whose **only** role value is `reference` is read when a default is declared (the table says: not applicable, hence
-`SCHEMA_INVALID`); the review did not decide it, and it is the first thing to confirm when this ADR is accepted.
+A node whose **only** role value is `reference` does not take a schema default: a default declared on it is `SCHEMA_INVALID` at compile
+time, like on any other Role in the table. The reason is not a technical necessity (the upstream `role.yaml` does not forbid `reference`
+together with `config`) but a scope decision: P3 resolves no references (snapshot-based reference resolution is P5), so the normalizer
+must not create a referential dependency whose target and validity nobody checks. An **explicit** reference is unaffected and stays valid.
+If a schema-declared default reference is needed later, it is introduced by a separate ADR with its own shared cases.
+
+## Acceptance record
+
+Accepted on 2026-10-21 on the owner's instruction, given in the session after the P3 design (`docs/P3-NORMALIZE-DESIGN.md`, PR 42) was
+reviewed: the three-axis rule, the compile-time refusals and the default ban for `reference` as written above. The acceptance itself is
+recorded by merging this change, which touches only this ADR and the status lines of the P3 design that mention it.
+
+*Accepted* means this is the normative contract for P3 defaults; it is **not** evidence that an implementation exists. The P3 code is
+written in small Rust and Go units with shared cases, in this order: the schema compiler learns `policy_surface` and `identity.base`;
+then default application, with its own shared cases. P3 takes no access decision and does no snapshot-based reference resolution.
