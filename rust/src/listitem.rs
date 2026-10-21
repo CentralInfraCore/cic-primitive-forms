@@ -174,7 +174,11 @@ pub fn path_of(doc: &Node, shape: &Shape, a: &[String], at: &[Step]) -> Result<S
     let mut node = doc;
     let mut path: Path = Vec::new();
     let mut i = 0;
-    while i < at.len() {
+    // every round takes at least one step of the address, so its length bounds the rounds (and the path they build)
+    for _ in 0..at.len() {
+        if i >= at.len() {
+            break;
+        }
         let name = match &at[i] {
             Step::Field(name) => name,
             Step::Index(_) => {

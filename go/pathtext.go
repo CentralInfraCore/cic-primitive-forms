@@ -60,7 +60,9 @@ func ParsePath(text string) ([]PathSeg, *PathError) {
 	}
 	var segs []PathSeg
 	afterName := false // a selector may only directly follow a field name
-	for i := 1; i < len(p.r); {
+	i := 1
+	// every round takes at least one character, so the text length bounds the rounds (and what they build)
+	for round := 0; round < len(p.r) && i < len(p.r); round++ {
 		switch p.r[i] {
 		case '.':
 			name, next, err := p.name(i+1, false)
@@ -85,33 +87,40 @@ func ParsePath(text string) ([]PathSeg, *PathError) {
 }
 
 // name reads a field name, or the name of a selector component; the first character that ends it is not consumed.
+//
+// The scans are loops over the text, never a manual index that a fault could stop advancing: what they build is bounded by
+// the length of the input.
 func (p *pathParser) name(start int, inSelector bool) (string, int, *PathError) {
 	var b strings.Builder
-	i := start
-loop:
-	for i < len(p.r) {
-		switch c := p.r[i]; {
-		case c == '\\':
+	skip := 0 // characters already taken by an escape
+	end := len(p.r)
+	for i := start; i < len(p.r); i++ {
+		if skip > 0 {
+			skip--
+			continue
+		}
+		c := p.r[i]
+		if c == '\\' {
 			if i+1 >= len(p.r) || !strings.ContainsRune(escapable, p.r[i+1]) {
 				return "", 0, p.fail("PATH_BAD_ESCAPE", i)
 			}
 			b.WriteRune(p.r[i+1])
-			i += 2
-		case c < 0x20 || c == 0x7f:
+			skip = 1
+		} else if c < 0x20 || c == 0x7f {
 			return "", 0, p.fail("PATH_SYNTAX", i)
-		case !inSelector && (c == '.' || c == '['), inSelector && c == '=':
-			break loop
-		case strings.ContainsRune(escapable, c):
+		} else if (!inSelector && (c == '.' || c == '[')) || (inSelector && c == '=') {
+			end = i
+			break
+		} else if strings.ContainsRune(escapable, c) {
 			return "", 0, p.fail("PATH_SYNTAX", i)
-		default:
+		} else {
 			b.WriteRune(c)
-			i++
 		}
 	}
 	if b.Len() == 0 {
 		return "", 0, p.fail("PATH_EMPTY_NAME", start)
 	}
-	return b.String(), i, nil
+	return b.String(), end, nil
 }
 
 func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
@@ -127,7 +136,8 @@ func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
 	}
 	i++
 	var comps []KeyComp
-	for {
+	// a round reads one component and the duplicate check ends a stalled one, but the text length bounds it anyway
+	for round := 0; round <= len(p.r); round++ {
 		nameStart := i
 		name, next, err := p.name(i, true)
 		if err != nil {
@@ -208,7 +218,12 @@ func (p *pathParser) integer(start int) (int64, int, *PathError) {
 // characters, everything else literal.
 func (p *pathParser) str(start int) (string, int, *PathError) {
 	var b strings.Builder
-	for i := start + 1; i < len(p.r); {
+	skip := 0 // characters already taken by an escape
+	for i := start + 1; i < len(p.r); i++ {
+		if skip > 0 {
+			skip--
+			continue
+		}
 		c := p.r[i]
 		switch {
 		case c == '"':
@@ -217,7 +232,6 @@ func (p *pathParser) str(start int) (string, int, *PathError) {
 			return "", 0, p.fail("PATH_NONCANONICAL", i)
 		case c != '\\':
 			b.WriteRune(c)
-			i++
 			continue
 		}
 		if i+1 >= len(p.r) {
@@ -226,10 +240,10 @@ func (p *pathParser) str(start int) (string, int, *PathError) {
 		switch e := p.r[i+1]; e {
 		case '"', '\\':
 			b.WriteRune(e)
-			i += 2
+			skip = 1
 		case 'b', 'f', 'n', 'r', 't':
 			b.WriteRune(map[rune]rune{'b': '\b', 'f': '\f', 'n': '\n', 'r': '\r', 't': '\t'}[e])
-			i += 2
+			skip = 1
 		case '/':
 			return "", 0, p.fail("PATH_NONCANONICAL", i)
 		case 'u':
@@ -245,7 +259,7 @@ func (p *pathParser) str(start int) (string, int, *PathError) {
 				return "", 0, p.fail("PATH_NONCANONICAL", i)
 			}
 			b.WriteRune(rune(v))
-			i += 6
+			skip = 5
 		default:
 			return "", 0, p.fail("PATH_BAD_ESCAPE", i)
 		}

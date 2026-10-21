@@ -69,7 +69,11 @@ pub fn parse_path(text: &str) -> Result<Vec<PathSeg>, PathError> {
     let mut segs = Vec::new();
     let mut after_name = false; // a selector may only directly follow a field name
     let mut i = 1;
-    while i < r.len() {
+    // every round takes at least one character, so the text length bounds the rounds (and what they build)
+    for _ in 0..r.len() {
+        if i >= r.len() {
+            break;
+        }
         match r[i] {
             '.' => {
                 let (name, next) = name(&r, i + 1, false)?;
@@ -90,34 +94,41 @@ pub fn parse_path(text: &str) -> Result<Vec<PathSeg>, PathError> {
 }
 
 /// A field name, or the name of a selector component; the first character that ends it is not consumed.
+///
+/// The scans below are `for` loops over the text, never a manual index that a fault could stop advancing: what they build
+/// is bounded by the length of the input.
 fn name(r: &[char], start: usize, in_selector: bool) -> Result<(String, usize), PathError> {
     let mut b = String::new();
-    let mut i = start;
-    while i < r.len() {
-        let c = r[i];
+    let mut skip = 0usize; // characters already taken by an escape
+    let mut end = r.len();
+    for (i, &c) in r.iter().enumerate().skip(start) {
+        if skip > 0 {
+            skip -= 1;
+            continue;
+        }
         if c == '\\' {
             match r.get(i + 1) {
                 Some(e) if ESCAPABLE.contains(*e) => {
                     b.push(*e);
-                    i += 2;
+                    skip = 1;
                 }
                 _ => return Err(fail("PATH_BAD_ESCAPE", i)),
             }
         } else if c < '\u{20}' || c == '\u{7f}' {
             return Err(fail("PATH_SYNTAX", i));
         } else if (!in_selector && (c == '.' || c == '[')) || (in_selector && c == '=') {
+            end = i;
             break;
         } else if ESCAPABLE.contains(c) {
             return Err(fail("PATH_SYNTAX", i));
         } else {
             b.push(c);
-            i += 1;
         }
     }
     if b.is_empty() {
         return Err(fail("PATH_EMPTY_NAME", start));
     }
-    Ok((b, i))
+    Ok((b, end))
 }
 
 fn selector(r: &[char], start: usize) -> Result<(Vec<KeyComp>, usize), PathError> {
@@ -173,26 +184,21 @@ fn selector(r: &[char], start: usize) -> Result<(Vec<KeyComp>, usize), PathError
 }
 
 fn integer(r: &[char], start: usize) -> Result<(i64, usize), PathError> {
-    let mut i = start;
-    let plus = r[i] == '+';
-    let neg = r[i] == '-';
-    if plus || neg {
-        i += 1;
+    let plus = r[start] == '+';
+    let neg = r[start] == '-';
+    let ds = if plus || neg { start + 1 } else { start };
+    let count = r[ds..].iter().take_while(|c| is_digit(**c)).count();
+    let end = ds + count;
+    if count == 0 {
+        return Err(fail("PATH_SYNTAX", end));
     }
-    let ds = i;
-    while i < r.len() && is_digit(r[i]) {
-        i += 1;
-    }
-    if i == ds {
-        return Err(fail("PATH_SYNTAX", i));
-    }
-    let digits: String = r[ds..i].iter().collect();
+    let digits: String = r[ds..end].iter().collect();
     if plus || (digits.len() > 1 && digits.starts_with('0')) || (neg && digits == "0") {
         return Err(fail("PATH_NONCANONICAL", start));
     }
     let text = if neg { format!("-{digits}") } else { digits };
     match text.parse::<i64>() {
-        Ok(n) => Ok((n, i)),
+        Ok(n) => Ok((n, end)),
         Err(_) => Err(fail("PATH_INTEGER_RANGE", start)),
     }
 }
@@ -201,9 +207,12 @@ fn integer(r: &[char], start: usize) -> Result<(i64, usize), PathError> {
 /// control characters, everything else literal.
 fn string(r: &[char], start: usize) -> Result<(String, usize), PathError> {
     let mut b = String::new();
-    let mut i = start + 1;
-    while i < r.len() {
-        let c = r[i];
+    let mut skip = 0usize; // characters already taken by an escape
+    for (i, &c) in r.iter().enumerate().skip(start + 1) {
+        if skip > 0 {
+            skip -= 1;
+            continue;
+        }
         if c == '"' {
             return Ok((b, i + 1));
         }
@@ -212,14 +221,13 @@ fn string(r: &[char], start: usize) -> Result<(String, usize), PathError> {
         }
         if c != '\\' {
             b.push(c);
-            i += 1;
             continue;
         }
         match r.get(i + 1) {
             None => return Err(fail("PATH_BAD_ESCAPE", i)),
             Some(&e @ ('"' | '\\')) => {
                 b.push(e);
-                i += 2;
+                skip = 1;
             }
             Some(&e @ ('b' | 'f' | 'n' | 'r' | 't')) => {
                 b.push(match e {
@@ -229,7 +237,7 @@ fn string(r: &[char], start: usize) -> Result<(String, usize), PathError> {
                     'r' => '\r',
                     _ => '\t',
                 });
-                i += 2;
+                skip = 1;
             }
             Some('/') => return Err(fail("PATH_NONCANONICAL", i)),
             Some('u') => {
@@ -244,7 +252,7 @@ fn string(r: &[char], start: usize) -> Result<(String, usize), PathError> {
                     return Err(fail("PATH_NONCANONICAL", i));
                 }
                 b.push(char::from_u32(v).expect("below 0x20"));
-                i += 6;
+                skip = 5;
             }
             Some(_) => return Err(fail("PATH_BAD_ESCAPE", i)),
         }
