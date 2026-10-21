@@ -17,6 +17,7 @@
 
 use crate::access::sha256_hex;
 use crate::error::{Error, SchemaProblem};
+use crate::listitem::{Case, Elements};
 use crate::node::{Node, Value};
 use crate::parse::parse;
 use crate::validate::{Presence, ScalarType, Shape, ShapeType};
@@ -552,12 +553,18 @@ impl Compiler {
                 "item_fields and item_choice are exclusive",
             )),
             (Some(fields), None) => {
-                self.item_fields(n, fields, path)?;
-                Ok(ShapeType::DeclaredList { min_items })
+                let elements = self.item_fields(n, fields, path)?;
+                Ok(ShapeType::DeclaredList {
+                    min_items,
+                    elements,
+                })
             }
             (None, Some(choice)) => {
-                self.item_choice_cases(choice, path)?;
-                Ok(ShapeType::DeclaredList { min_items })
+                let elements = self.item_choice_cases(choice, path)?;
+                Ok(ShapeType::DeclaredList {
+                    min_items,
+                    elements,
+                })
             }
             (None, None) => Err(problem(
                 SCHEMA_INVALID,
@@ -567,7 +574,7 @@ impl Compiler {
         }
     }
 
-    fn item_fields(&mut self, owner: &Node, list: &Node, path: &str) -> Result<(), Problem> {
+    fn item_fields(&mut self, owner: &Node, list: &Node, path: &str) -> Result<Elements, Problem> {
         let items = match seq(list) {
             Some(i) if !i.is_empty() => i,
             _ => {
@@ -578,7 +585,7 @@ impl Compiler {
                 ))
             }
         };
-        self.fields(items, &format!("{path}[]"));
+        let fields = self.fields(items, &format!("{path}[]"));
         let keys = key_fields(items);
         let item_key = get(owner, "item_key");
         if keys.is_empty() {
@@ -588,25 +595,37 @@ impl Compiler {
                 "a list needs a key: one item_fields entry with role: key",
             ));
         }
-        match item_key {
-            None if keys.len() == 1 => Ok(()),
-            None => Err(problem(
-                SCHEMA_INVALID,
-                path,
-                "several key fields need item_key",
-            )),
-            Some(k) => match names(k) {
-                Some(n) if same_set(&n, &keys) => Ok(()),
-                _ => Err(problem(
+        let order = match item_key {
+            None if keys.len() == 1 => keys,
+            None => {
+                return Err(problem(
                     SCHEMA_INVALID,
-                    &format!("{path}.item_key"),
-                    "item_key must name exactly the role: key fields",
-                )),
+                    path,
+                    "several key fields need item_key",
+                ))
+            }
+            Some(k) => match names(k) {
+                Some(n) if same_set(&n, &keys) => n,
+                _ => {
+                    return Err(problem(
+                        SCHEMA_INVALID,
+                        &format!("{path}.item_key"),
+                        "item_key must name exactly the role: key fields",
+                    ))
+                }
             },
-        }
+        };
+        Ok(Elements {
+            choice: false,
+            cases: vec![Case {
+                name: String::new(),
+                fields,
+                key: order,
+            }],
+        })
     }
 
-    fn item_choice_cases(&mut self, choice: &Node, path: &str) -> Result<(), Problem> {
+    fn item_choice_cases(&mut self, choice: &Node, path: &str) -> Result<Elements, Problem> {
         if !self.profile.item_choice {
             return Err(problem(
                 SCHEMA_FEATURE_NOT_IN_GRAMMAR,
@@ -627,6 +646,7 @@ impl Compiler {
         };
         let mut seen_names: Vec<&str> = Vec::new();
         let mut seen_keys: Vec<Vec<String>> = Vec::new();
+        let mut compiled: Vec<Case> = Vec::new();
         for (i, cs) in cases.iter().enumerate() {
             let name = str_member(cs, "name");
             let cp = format!("{path}.item_choice.cases[{i}]");
@@ -647,7 +667,7 @@ impl Compiler {
                     ))
                 }
             };
-            self.fields(fields, &cp);
+            let case_fields = self.fields(fields, &cp);
             let key = get(cs, "key").and_then(names).unwrap_or_default();
             if key.is_empty() || !same_set(&key, &key_fields(fields)) {
                 return Err(problem(
@@ -663,9 +683,17 @@ impl Compiler {
                     "two cases resolve to the same key field set (C17)",
                 ));
             }
-            seen_keys.push(key);
+            seen_keys.push(key.clone());
+            compiled.push(Case {
+                name: name.to_string(),
+                fields: case_fields,
+                key,
+            });
         }
-        Ok(())
+        Ok(Elements {
+            choice: true,
+            cases: compiled,
+        })
     }
 }
 

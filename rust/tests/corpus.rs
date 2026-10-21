@@ -11,7 +11,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use cic_primitive_forms::{
-    emit, parse, recognize, Class, Error, Location, Node, Phase, Position, Value, Violation,
+    emit, parse, path_of, recognize, Case, Class, Elements, Error, Location, Node, Phase, Position,
+    Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -140,6 +141,7 @@ fn wire(v: &Violation) -> Wire {
         Phase::Parse => "parse",
         Phase::Recognize => "recognize",
         Phase::Validate => "validate",
+        Phase::PathOf => "path_of",
     };
     let loc = match v.location {
         Location::Unavailable => "unavailable".to_string(),
@@ -388,7 +390,7 @@ fn corpus_documents_survive_emit_and_parse() {
 // field. No schema of its own is defined; the library takes the Shape members only.
 // ---------------------------------------------------------------------------
 
-use cic_primitive_forms::{validate, Presence, ScalarType, Shape, ShapeType};
+use cic_primitive_forms::validate;
 
 fn presence_of(y: &YamlOwned) -> Presence {
     match text(y, "presence") {
@@ -736,7 +738,8 @@ fn the_run_and_not_run_accounting_is_exact() {
             total += 1;
             let kind = text(get(case, "kind").expect("kind"), "kind");
             let key = format!("{suite}/{kind}");
-            if kind == "recognize" || (kind == "validate" && has_runner(case)) {
+            if kind == "recognize" || (kind == "validate" && has_runner(case)) || is_path_run(kind)
+            {
                 *run.entry(key).or_default() += 1;
             } else {
                 *not_run.entry(key).or_default() += 1;
@@ -754,9 +757,11 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (81, 258),
-        "31 recognize + 29 presence validate + 21 inherit validate run"
+        (106, 233),
+        "31 recognize + 29 presence validate + 21 inherit validate + 18 path_of + 7 path_stability run"
     );
+    assert_eq!(run.get("paths/path_of"), Some(&18));
+    assert_eq!(run.get("paths/path_stability"), Some(&7));
     assert_eq!(run.get("inherit/validate"), Some(&21));
     assert_eq!(run.get("presence/validate"), Some(&29));
     assert_eq!(
@@ -764,4 +769,221 @@ fn the_run_and_not_run_accounting_is_exact() {
             + run.get("presence/recognize").copied().unwrap_or(0),
         31
     );
+}
+
+// ---------------------------------------------------------------------------
+// path_of and path_stability (ADR 0006): the identity of a list element in a path.
+
+fn is_path_run(kind: &str) -> bool {
+    kind == "path_of" || kind == "path_stability"
+}
+
+fn path_shape(shape_type: ShapeType, mandatory: bool) -> Shape {
+    Shape {
+        shape_type,
+        presence: if mandatory {
+            Presence::Mandatory
+        } else {
+            Presence::Optional
+        },
+        nullable: false,
+        has_default: false,
+    }
+}
+
+/// The synthetic tree notation of `corpus/paths/vectors.yaml` as a Shape. In the path fixtures the key
+/// fields are the only mandatory fields (ADR 0006), so the fields of a list element are optional except the
+/// key; the fields of a composite are optional.
+fn tree_shape(y: &YamlOwned, mandatory: bool) -> Shape {
+    if y.as_str() == Some("opaque") {
+        return path_shape(ShapeType::Opaque, mandatory);
+    }
+    if let Some(sc) = get(y, "scalar") {
+        let t = match text(sc, "scalar") {
+            "integer" => ScalarType::Integer,
+            "boolean" => ScalarType::Boolean,
+            _ => ScalarType::String,
+        };
+        return path_shape(ShapeType::Scalar(t), mandatory);
+    }
+    if get(y, "set").is_some() {
+        return path_shape(
+            ShapeType::Set {
+                item: ScalarType::String,
+                min_items: None,
+            },
+            mandatory,
+        );
+    }
+    if let Some(c) = get(y, "composite") {
+        return path_shape(ShapeType::Composite(tree_fields(c, &[])), mandatory);
+    }
+    let list = get(y, "list").expect("list");
+    let key_of = |y: &YamlOwned| -> Vec<String> {
+        get(y, "key")
+            .and_then(YamlOwned::as_vec)
+            .expect("key")
+            .iter()
+            .map(|k| text(k, "key").to_string())
+            .collect()
+    };
+    let elements = if let Some(choice) = get(list, "choice") {
+        Elements {
+            choice: true,
+            cases: choice
+                .as_vec()
+                .expect("choice")
+                .iter()
+                .map(|cs| {
+                    let key = key_of(cs);
+                    Case {
+                        name: text(get(cs, "name").expect("name"), "name").to_string(),
+                        fields: tree_fields(get(cs, "fields").expect("fields"), &key),
+                        key,
+                    }
+                })
+                .collect(),
+        }
+    } else {
+        let key = key_of(list);
+        Elements {
+            choice: false,
+            cases: vec![Case {
+                name: String::new(),
+                fields: tree_fields(get(list, "fields").expect("fields"), &key),
+                key,
+            }],
+        }
+    };
+    path_shape(
+        ShapeType::DeclaredList {
+            min_items: None,
+            elements,
+        },
+        mandatory,
+    )
+}
+
+fn tree_fields(y: &YamlOwned, key: &[String]) -> Vec<(String, Shape)> {
+    let mut fields: Vec<(String, Shape)> = y
+        .as_mapping()
+        .expect("fields: a mapping")
+        .iter()
+        .map(|(k, v)| {
+            let name = text(k, "field name").to_string();
+            let shape = tree_shape(v, key.contains(&name));
+            (name, shape)
+        })
+        .collect();
+    fields.sort_by(|a, b| a.0.cmp(&b.0));
+    fields
+}
+
+fn steps_of(y: &YamlOwned) -> Vec<Step> {
+    y.as_vec()
+        .expect("at: a list")
+        .iter()
+        .map(|s| match s.as_integer() {
+            Some(n) => Step::Index(usize::try_from(n).expect("index")),
+            None => Step::Field(text(s, "step").to_string()),
+        })
+        .collect()
+}
+
+/// What `path_of` says: a path, or the wire form of its one error.
+fn path_outcome(id: &str, doc: &Node, root: &Shape, at: &YamlOwned) -> (String, Vec<Wire>) {
+    match path_of(doc, root, &a(), &steps_of(at)) {
+        Ok(p) => (p, Vec::new()),
+        Err(Error::Contract(vs)) => (String::new(), vs.iter().map(wire).collect()),
+        Err(other) => panic!("{id}: outside the contract: {other:?}"),
+    }
+}
+
+fn document_of(case: &YamlOwned) -> Node {
+    match get(case, "document_yaml") {
+        Some(src) => parse(text(src, "document_yaml")).expect("document_yaml"),
+        None => node_of(get(case, "document").expect("document")),
+    }
+}
+
+fn expected_path_wires(expect: &YamlOwned) -> (String, Vec<Wire>) {
+    if let Some(p) = get(expect, "path") {
+        return (text(p, "path").to_string(), Vec::new());
+    }
+    let errors = get(expect, "errors")
+        .and_then(YamlOwned::as_vec)
+        .expect("errors")
+        .iter()
+        .map(|e| {
+            (
+                text(get(e, "code").expect("code"), "code").to_string(),
+                text(get(e, "phase").expect("phase"), "phase").to_string(),
+                "unavailable".to_string(),
+                text(
+                    get(e, "logical_path").expect("logical_path"),
+                    "logical_path",
+                )
+                .to_string(),
+            )
+        })
+        .collect();
+    (String::new(), errors)
+}
+
+#[test]
+fn path_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "paths" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let kind = text(get(case, "kind").expect("kind"), "kind");
+            if !is_path_run(kind) {
+                continue;
+            }
+            ran += 1;
+            let tree = text(
+                get(
+                    get(case, "schema")
+                        .and_then(|s| get(s, "synthetic"))
+                        .unwrap(),
+                    "tree",
+                )
+                .unwrap(),
+                "tree",
+            );
+            let root = path_shape(
+                ShapeType::Composite(tree_fields(
+                    get(get(&suite, "trees").expect("trees"), tree).expect("tree"),
+                    &[],
+                )),
+                true,
+            );
+            let (want_path, want_err) = expected_path_wires(get(case, "expect").expect("expect"));
+            if kind == "path_of" {
+                let got = path_outcome(id, &document_of(case), &root, get(case, "at").expect("at"));
+                assert_eq!(got, (want_path, want_err), "{id}");
+                continue;
+            }
+            for (i, v) in get(case, "variants")
+                .and_then(YamlOwned::as_vec)
+                .expect("variants")
+                .iter()
+                .enumerate()
+            {
+                let got = path_outcome(id, &document_of(v), &root, get(v, "at").expect("at"));
+                assert_eq!(
+                    got,
+                    (want_path.clone(), want_err.clone()),
+                    "{id} variant {i}"
+                );
+            }
+        }
+    }
+    assert_eq!(ran, 25, "18 path_of and 7 path_stability cases");
 }

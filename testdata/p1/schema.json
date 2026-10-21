@@ -184,15 +184,212 @@
      }
     },
     {
-     "id": "list-elements-are-refused-not-passed",
-     "yaml": "type: x\nroutes:\n  - to: 10.0.0.0/8\n",
+     "id": "list-element-is-not-a-record",
+     "yaml": "type: x\nroutes:\n  - 1\n",
      "expect": {
       "unsupported": true
      }
     },
     {
-     "id": "item-choice-elements-are-refused-not-passed",
-     "yaml": "type: x\nvlans:\n  - vlan_id: 100\n",
+     "id": "routes-valid",
+     "yaml": "type: x\nroutes:\n  - to: 10.0.0.0/8\n    metric: 5\n  - to: 0.0.0.0/0\n",
+     "expect": {
+      "violations": [],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-unknown-field-in-an-element",
+     "yaml": "type: x\nroutes:\n  - to: a\n    foo: 1\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "UNKNOWN_FIELD",
+        "path": "$.routes[{to=\"a\"}].foo"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-key-missing",
+     "yaml": "type: x\nroutes:\n  - metric: 1\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_KEY_MISSING",
+        "path": "$.routes"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-key-of-the-wrong-type",
+     "yaml": "type: x\nroutes:\n  - to: 5\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_KEY_TYPE",
+        "path": "$.routes"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-duplicate-identity-is-one-error-and-nothing-below",
+     "yaml": "type: x\nroutes:\n  - to: a\n    metric: ~\n  - to: a\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_DUPLICATE_IDENTITY",
+        "path": "$.routes[{to=\"a\"}]"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-error-inside-an-element-is-named-by-identity",
+     "yaml": "type: x\nroutes:\n  - to: \"a\\\"b\"\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"a\\\"b\"}].metric"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "routes-element-field-of-the-wrong-type",
+     "yaml": "type: x\nroutes:\n  - to: a\n    metric: x\n",
+     "expect": {
+      "unsupported": true
+     }
+    },
+    {
+     "id": "routes-errors-are-ordered-by-identity-not-by-position",
+     "yaml": "type: x\nroutes:\n  - to: b\n    metric: ~\n  - to: a\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"a\"}].metric"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"b\"}].metric"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-both-cases",
+     "yaml": "type: x\nvlans:\n  - ref: x\n  - vlan_id: 100\n    vlan_mode: trunk\n",
+     "expect": {
+      "violations": [],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-matches-no-case",
+     "yaml": "type: x\nvlans:\n  - ref: x\n    vlan_id: 1\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_CASE_NONE",
+        "path": "$.vlans"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-case-key-of-the-wrong-type",
+     "yaml": "type: x\nvlans:\n  - vlan_id: \"100\"\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_KEY_TYPE",
+        "path": "$.vlans"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-error-inside-an-element",
+     "yaml": "type: x\nvlans:\n  - vlan_id: 100\n    vlan_mode: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=100}].vlan_mode"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-integer-identities-order-numerically",
+     "yaml": "type: x\nvlans:\n  - vlan_id: 10\n    vlan_mode: ~\n  - vlan_id: 9\n    vlan_mode: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=9}].vlan_mode"
+       },
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.vlans[{vlan_id=10}].vlan_mode"
+       }
+      ],
+      "candidates": [
+       "$.enabled",
+       "$.mtu"
+      ]
+     }
+    },
+    {
+     "id": "vlans-expanded-key-is-expand-collapse",
+     "yaml": "type: x\nvlans:\n  - vlan_id: {value: 100, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
      "expect": {
       "unsupported": true
      }
@@ -1085,6 +1282,256 @@
        {
         "code": "UNKNOWN_FIELD",
         "path": "$.a"
+       }
+      ],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.composite-key-identity-in-declared-order",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: nics\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_key: [zone, name]\n        item_fields:\n          - name: name\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: zone\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: subnet\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "valid",
+     "yaml": "nics:\n  - name: n0\n    zone: eu\n    subnet: s\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "error-path-uses-the-schema-order-not-the-document-order",
+     "yaml": "nics:\n  - subnet: ~\n    name: n0\n    zone: eu\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.nics[{zone=\"eu\",name=\"n0\"}].subnet"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "one-component-missing",
+     "yaml": "nics:\n  - name: n0\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_KEY_MISSING",
+        "path": "$.nics"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "the-same-name-in-another-zone-is-another-element",
+     "yaml": "nics:\n  - name: n0\n    zone: eu\n  - name: n0\n    zone: us\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "the-same-pair-twice",
+     "yaml": "nics:\n  - name: n0\n    zone: eu\n  - zone: eu\n    name: n0\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_DUPLICATE_IDENTITY",
+        "path": "$.nics[{zone=\"eu\",name=\"n0\"}]"
+       }
+      ],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.overlapping-cases",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: items\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_choice:\n          cases:\n            - name: a\n              key: [k1]\n              fields:\n                - {name: k1, shape_type: scalar, scalar_type: string, role: key}\n                - {name: k2, shape_type: scalar, scalar_type: string, optional: true}\n                - {name: x, shape_type: scalar, scalar_type: string, optional: true}\n            - name: b\n              key: [k2]\n              fields:\n                - {name: k1, shape_type: scalar, scalar_type: string, optional: true}\n                - {name: k2, shape_type: scalar, scalar_type: string, role: key}\n                - {name: x, shape_type: scalar, scalar_type: string, optional: true}\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": true,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "one-key-present-selects-the-case",
+     "yaml": "items:\n  - k1: a\n    x: \"1\"\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    },
+    {
+     "id": "both-key-fields-present-match-both-cases",
+     "yaml": "items:\n  - k1: a\n    k2: b\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_CASE_AMBIGUOUS",
+        "path": "$.items"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "no-key-field-matches-no-case",
+     "yaml": "items:\n  - x: \"1\"\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_CASE_NONE",
+        "path": "$.items"
+       }
+      ],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.boolean-key",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: flags\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - {name: \"on\", shape_type: scalar, scalar_type: boolean, role: key}\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "a-boolean-key-has-no-encoding",
+     "yaml": "flags:\n  - \"on\": true\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_KEY_UNSUPPORTED",
+        "path": "$.flags"
+       }
+      ],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.case-selection-by-presence",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: items\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_choice:\n          cases:\n            - name: a\n              key: [k]\n              fields:\n                - {name: k, shape_type: scalar, scalar_type: string, role: key, optional: true}\n                - {name: m, shape_type: scalar, scalar_type: string}\n            - name: b\n              key: [n]\n              fields:\n                - {name: n, shape_type: scalar, scalar_type: string, role: key}\n                - {name: extra, shape_type: scalar, scalar_type: string, optional: true}\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": true,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "a-mandatory-field-of-a-case-must-be-present",
+     "yaml": "items:\n  - k: x\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_CASE_NONE",
+        "path": "$.items"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "a-key-field-must-be-present-even-when-it-says-optional",
+     "yaml": "items:\n  - m: y\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "PATH_CASE_NONE",
+        "path": "$.items"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "both-present",
+     "yaml": "items:\n  - k: x\n    m: y\n  - n: z\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "compile.canonical-key-text",
+   "surface": "config_surface",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - {name: to, shape_type: scalar, scalar_type: string, role: key}\n          - {name: metric, shape_type: scalar, scalar_type: integer, optional: true}\n",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "short-escapes",
+     "yaml": "routes:\n  - to: \"q\\\"b\\\\s\\tt\\nn\\rr\\bb\\ff\"\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"q\\\"b\\\\s\\tt\\nn\\rr\\bb\\ff\"}].metric"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "a-space-is-literal",
+     "yaml": "routes:\n  - to: a b\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"a b\"}].metric"
+       }
+      ],
+      "candidates": []
+     }
+    },
+    {
+     "id": "other-controls-are-lower-case-hex-and-del-and-non-ascii-are-literal",
+     "yaml": "routes:\n  - to: \"a\\u0001\\u001fz\\u007f\\u00e9\"\n    metric: ~\n",
+     "expect": {
+      "violations": [
+       {
+        "code": "NULL_NOT_ALLOWED",
+        "path": "$.routes[{to=\"a\\u0001\\u001fzé\"}].metric"
        }
       ],
       "candidates": []

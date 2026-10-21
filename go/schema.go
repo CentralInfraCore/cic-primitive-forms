@@ -390,9 +390,13 @@ func (c *compiler) collection(n *Node, path string, s *Shape) *Error {
 	case fields != nil && choice != nil:
 		return schemaErr(SchemaInvalid, path, "item_fields and item_choice are exclusive")
 	case fields != nil:
-		return c.itemFields(n, fields, path)
+		els, err := c.itemFields(n, fields, path)
+		s.Elements = els
+		return err
 	case choice != nil:
-		return c.itemChoiceCases(choice, path)
+		els, err := c.itemChoiceCases(choice, path)
+		s.Elements = els
+		return err
 	}
 	return schemaErr(SchemaInvalid, path, "a list needs item_fields or item_choice")
 }
@@ -419,25 +423,28 @@ func keyFields(list *Node) []string {
 	return out
 }
 
-func (c *compiler) itemFields(owner, list *Node, path string) *Error {
+func (c *compiler) itemFields(owner, list *Node, path string) (*Elements, *Error) {
 	if list.Kind != KindSeq || len(list.Items) == 0 {
-		return schemaErr(SchemaInvalid, path+".item_fields", "at least one element field is required")
+		return nil, schemaErr(SchemaInvalid, path+".item_fields", "at least one element field is required")
 	}
-	c.fields(list, path+"[]")
+	fields := c.fields(list, path+"[]")
 	keys := keyFields(list)
 	itemKey := lookup(owner, "item_key")
+	var order []string
 	switch {
 	case len(keys) == 0:
-		return schemaErr(SchemaInvalid, path, "a list needs a key: one item_fields entry with role: key")
+		return nil, schemaErr(SchemaInvalid, path, "a list needs a key: one item_fields entry with role: key")
 	case len(keys) == 1 && itemKey == nil:
-		return nil
+		order = keys
 	case itemKey == nil:
-		return schemaErr(SchemaInvalid, path, "several key fields need item_key")
+		return nil, schemaErr(SchemaInvalid, path, "several key fields need item_key")
+	default:
+		order = names(itemKey)
+		if order == nil || !sameSet(order, keys) {
+			return nil, schemaErr(SchemaInvalid, path+".item_key", "item_key must name exactly the role: key fields")
+		}
 	}
-	if names := names(itemKey); names == nil || !sameSet(names, keys) {
-		return schemaErr(SchemaInvalid, path+".item_key", "item_key must name exactly the role: key fields")
-	}
-	return nil
+	return &Elements{Cases: []Case{{Fields: fields, Key: order}}}, nil
 }
 
 func names(n *Node) []string {
@@ -461,44 +468,46 @@ func sameSet(a, b []string) bool {
 	return slices.Equal(x, y) && len(slices.Compact(x)) == len(x)
 }
 
-func (c *compiler) itemChoiceCases(choice *Node, path string) *Error {
+func (c *compiler) itemChoiceCases(choice *Node, path string) (*Elements, *Error) {
 	if !c.profile.ItemChoice {
-		return schemaErr(SchemaFeatureNotInGrammar, path+".item_choice", "the pinned grammar does not define item_choice")
+		return nil, schemaErr(SchemaFeatureNotInGrammar, path+".item_choice", "the pinned grammar does not define item_choice")
 	}
 	c.itemChoice = true
 	cases := lookup(choice, "cases")
 	if choice.Kind != KindMap || cases == nil || cases.Kind != KindSeq || len(cases.Items) < 2 {
-		return schemaErr(SchemaInvalid, path+".item_choice", "cases (at least two) are required")
+		return nil, schemaErr(SchemaInvalid, path+".item_choice", "cases (at least two) are required")
 	}
+	els := &Elements{Choice: true}
 	seenName := map[string]bool{}
 	var seenKeys [][]string
 	for i, cs := range cases.Items {
 		name := strMember(cs, "name")
 		cp := sprintf("%s.item_choice.cases[%d]", path, i)
 		if name == "" {
-			return schemaErr(SchemaInvalid, cp, "a case needs a name")
+			return nil, schemaErr(SchemaInvalid, cp, "a case needs a name")
 		}
 		if seenName[name] {
-			return schemaErr(SchemaInvalid, cp, "duplicate case name %q", name)
+			return nil, schemaErr(SchemaInvalid, cp, "duplicate case name %q", name)
 		}
 		seenName[name] = true
 		fields := lookup(cs, "fields")
 		if fields == nil || fields.Kind != KindSeq || len(fields.Items) == 0 {
-			return schemaErr(SchemaInvalid, cp+".fields", "at least one field is required")
+			return nil, schemaErr(SchemaInvalid, cp+".fields", "at least one field is required")
 		}
-		c.fields(fields, cp)
+		compiled := c.fields(fields, cp)
 		key := names(orEmpty(lookup(cs, "key")))
 		if len(key) == 0 || !sameSet(key, keyFields(fields)) {
-			return schemaErr(SchemaInvalid, cp+".key", "key must name exactly the role: key fields of the case")
+			return nil, schemaErr(SchemaInvalid, cp+".key", "key must name exactly the role: key fields of the case")
 		}
 		for _, k := range seenKeys {
 			if sameSet(k, key) {
-				return schemaErr(SchemaInvalid, cp+".key", "two cases resolve to the same key field set (C17)")
+				return nil, schemaErr(SchemaInvalid, cp+".key", "two cases resolve to the same key field set (C17)")
 			}
 		}
 		seenKeys = append(seenKeys, key)
+		els.Cases = append(els.Cases, Case{Name: name, Fields: compiled, Key: key})
 	}
-	return nil
+	return els, nil
 }
 
 func orEmpty(n *Node) *Node {
