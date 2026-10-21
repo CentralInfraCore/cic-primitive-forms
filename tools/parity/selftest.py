@@ -74,6 +74,9 @@ def main():
         bad += 0 if ok else 1
 
     i = div[0]
+    # Allowed inputs that already stopped diverging in the run as it is: a fix must raise this number by one, whatever it is.
+    _, base_out = run(inputs, rust, go, allow)
+    gone_before = int(base_out.rsplit("no longer divergent:", 1)[1].split()[0])
     case("the run as it is", 0, "changed: 0; new: 0")
     case("a known divergence answers differently on the Go side", 1, "CHANGED", go_o={i: alt(gs[i])})
     case("a known divergence answers differently on the Rust side", 1, "CHANGED", rust_o={i: alt(rs[i])})
@@ -83,7 +86,7 @@ def main():
          allow_lines=[l for l in open(allow).read().splitlines() if not l.startswith(ins[i])])
     j = agree[0]
     case("an input that agreed now diverges", 1, "NEW", go_o={j: alt(gs[j])})
-    case("an allowed input stops diverging (a fix)", 0, "no longer divergent: 1", go_o={i: rs[i]})
+    case("an allowed input stops diverging (a fix)", 0, "no longer divergent: %d" % (gone_before + 1), go_o={i: rs[i]})
     # A refusal with a code the parsers cannot answer with, or an outcome that is not in the dump format, is a fault of
     # the harness or of a parser: red on either side, also when both sides say the same, also for an allowed input.
     unknown = {"err": "SOMETHING_NEW"}

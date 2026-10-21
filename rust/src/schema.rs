@@ -299,7 +299,10 @@ fn forbid(n: &Node, path: &str, keys: &[&str]) -> Result<(), Problem> {
 /// The names of the `item_fields` entries that carry `role: key`, in declaration order.
 fn key_fields(list: &[Node]) -> Vec<String> {
     list.iter()
-        .filter(|f| matches!(get(f, "role").map(|r| &r.value), Some(Value::Str(r)) if r == "key"))
+        .filter(|f| match get(f, "role").map(|r| &r.value) {
+            Some(Value::Str(r)) => r == "key",
+            _ => false,
+        })
         .map(|f| str_member(f, "name").to_string())
         .collect()
 }
