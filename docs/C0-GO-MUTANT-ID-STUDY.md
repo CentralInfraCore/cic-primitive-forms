@@ -48,7 +48,7 @@ The id says which mutant it is; the body digest says whether the function it liv
 | **ids unique** | **824 of 824**; 186 of them need an ordinal above 1 (the same change twice in one function) |
 | mutants outside a function or declaration | 0 (8 are in package-level declarations) |
 | deterministic | two enumerations of the same tree: identical ids and digests |
-| **enumeration time, no test run** | **8.9 s** (8.93 and 8.83 s) |
+| **enumeration time, no test run** | **8.9 s** (8.93 and 8.83 s on the study runs; 12.4 and 13.7 s when section 7 was rerun from a clean clone on a busier machine) |
 | deriving the ids | 0.4 s |
 | for scale | one Go shard of `quality` runs 3-6 minutes; the whole FULL ~25 minutes |
 
