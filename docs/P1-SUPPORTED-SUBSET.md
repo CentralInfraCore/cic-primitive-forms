@@ -223,7 +223,7 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
 | a scalar where a mapping or a list is declared, a non-record list element, a list inside a record | `UNSUPPORTED_SYNTAX` (the slice has no rule) |
 | a value of the wrong type in presence validation (a string where an integer is declared, a list where a mapping is declared, ...) | `UNSUPPORTED_SYNTAX`: the registry has **no code** for it (finding 4) |
 | an expanded Access node inside a validated document | `UNSUPPORTED_SYNTAX`: its `value` is validated with expand/collapse (P2) |
-| effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (P2), grammar-version migration (`migrate_mode`) | not implemented |
+| effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (now P2, `docs/P2-EXPAND-COLLAPSE.md`), grammar-version migration (`migrate_mode`) | not implemented |
 | A list element that is not a record, or an element field of the wrong type | `UNSUPPORTED_SYNTAX` (no code in the registry) |
 | An expanded Access node as a key value or any element field | `UNSUPPORTED_SYNTAX` (P2): the key's identity looks through it (`path_of`), but validating its `value` is expand/collapse |
 | Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts` |
@@ -238,7 +238,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **114 run + 233 NOT RUN**.
+case of the corpus (339), assert that each is either run or listed here, and assert **140 run + 207 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -248,8 +248,8 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | inherit | `validate` (slot `inherit_key`, `inherit_policy`, `access_modify`) | 21 | **run**, complete machine response, typed value preserved, grammar bound from the verified pin |
 | conformance | `validate` (slot `conformance`) | 16 | NOT RUN (ADR 0010, conformance basis) |
 | conformance | `basis` | 16 | NOT RUN (ADR 0010) |
-| conformance, presence, recognition | `collapse` | 15 | NOT RUN (P2) |
-| inherit, presence | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
+| conformance, presence, recognition | `collapse` | 15 | **run**, both languages (P2, `docs/P2-EXPAND-COLLAPSE.md`); the 4 conformance ones take the ADR 0010 basis as an input |
+| inherit, presence | `roundtrip` 9, `expand` 1, `equality` 1 | 11 | **run**, both languages (P2) |
 | lists | `validate` (list notation, ADR 0007 amendment) | 8 | **run**, both languages, complete machine response with source locations |
 | paths | `path_of` | 18 | **run**, both languages: identity of a list element in a path, errors with their path |
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |

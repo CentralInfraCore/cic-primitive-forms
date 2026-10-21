@@ -1,0 +1,90 @@
+{
+ "schema": "compile.small-config",
+ "grammar_spelling": "inherit: true is the spelling of access grammar 1",
+ "cases": [
+  {
+   "id": "all-short",
+   "yaml": "type: physical\nmtu: 1500\nip:\n  addresses: [10.0.0.1/24]\n  gateway: g\nblob: {a: 1}\nroutes:\n  - to: a\n    metric: 5\n",
+   "expanded_yaml": "type: {value: physical, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nmtu: {value: 1500, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nip: {value: {addresses: {value: [10.0.0.1/24], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}, gateway: {value: g, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nblob: {value: {a: 1}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nroutes: {value: [{to: {value: a, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}, metric: {value: 5, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.type": false,
+    "$.mtu": false,
+    "$.ip": false,
+    "$.ip.addresses": false,
+    "$.ip.gateway": false,
+    "$.blob": false,
+    "$.routes": false,
+    "$.routes[{to=\"a\"}].to": false,
+    "$.routes[{to=\"a\"}].metric": false
+   }
+  },
+  {
+   "id": "mixed-authored-expanded-explicit-override-and-short",
+   "yaml": "type: {value: physical, access: [\"OU=admins\"], modify: inherit, inherit: false, default_injection: ~, conformance: implemented}\nmtu: 1500\nip: {value: {gateway: g}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "expanded_yaml": "type: {value: physical, access: [\"OU=admins\"], modify: inherit, inherit: false, default_injection: ~, conformance: implemented}\nmtu: {value: 1500, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nip: {value: {gateway: {value: g, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.type": true,
+    "$.mtu": false,
+    "$.ip": true,
+    "$.ip.gateway": false
+   },
+   "collapse_without_provenance_yaml": "type: {value: physical, access: [\"OU=admins\"], modify: inherit, inherit: false, default_injection: ~, conformance: implemented}\nmtu: 1500\nip: {gateway: g}\n"
+  },
+  {
+   "id": "null-empty-and-absent-stay-what-they-are",
+   "yaml": "blob: ~\nroutes: []\n",
+   "expanded_yaml": "blob: {value: ~, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nroutes: {value: [], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.blob": false,
+    "$.routes": false
+   }
+  },
+  {
+   "id": "unknown-field-passes-through-untouched",
+   "yaml": "type: x\nzz: {anything: 1}\n",
+   "expanded_yaml": "type: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nzz: {anything: 1}\n",
+   "provenance": {
+    "$.type": false
+   }
+  },
+  {
+   "id": "item-choice-elements-fields-are-positions-named-by-identity",
+   "yaml": "vlans:\n  - ref: x\n  - vlan_id: 100\n    vlan_mode: trunk\n",
+   "expanded_yaml": "vlans: {value: [{ref: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}, {vlan_id: {value: 100, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}, vlan_mode: {value: trunk, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.vlans": false,
+    "$.vlans[{ref=\"x\"}].ref": false,
+    "$.vlans[{vlan_id=100}].vlan_id": false,
+    "$.vlans[{vlan_id=100}].vlan_mode": false
+   }
+  },
+  {
+   "id": "expanded-key-value-names-the-same-identity",
+   "yaml": "routes:\n  - to: {value: a, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n    metric: 5\n",
+   "expanded_yaml": "routes: {value: [{to: {value: a, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}, metric: {value: 5, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.routes": false,
+    "$.routes[{to=\"a\"}].to": true,
+    "$.routes[{to=\"a\"}].metric": false
+   },
+   "collapse_without_provenance_yaml": "routes:\n  - to: a\n    metric: 5\n"
+  },
+  {
+   "id": "opaque-value-equal-to-A-stays-expanded-without-provenance",
+   "yaml": "blob: {value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "expanded_yaml": "blob: {value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+   "provenance": {
+    "$.blob": true
+   },
+   "collapse_without_provenance_yaml": "blob: {value: {access: 2, conformance: 6, default_injection: 5, inherit: 4, modify: 3, value: 1}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"
+  },
+  {
+   "id": "all-of-A-plus-an-extra-key-is-refused",
+   "yaml": "type: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented, extra: 1}\n",
+   "error": {
+    "code": "EXPANDED_WITH_EXTRA_KEY",
+    "path": "$.type"
+   }
+  }
+ ]
+}

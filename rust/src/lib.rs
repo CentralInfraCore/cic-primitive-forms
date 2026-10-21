@@ -12,6 +12,7 @@
 pub mod access;
 pub mod emit;
 pub mod error;
+pub mod expand;
 pub mod listitem;
 pub mod node;
 pub mod parse;
@@ -25,6 +26,9 @@ pub use access::{
 };
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
+pub use expand::{
+    collapse, collapse_position, expand, expand_position, Origin, Provenance, BASIS_BINDING,
+};
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};
 pub use parse::{parse, parse_with, Limits};

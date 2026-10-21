@@ -188,3 +188,49 @@ func FuzzAccess(f *testing.F) {
 		}
 	})
 }
+
+// FuzzExpandCollapse checks, on every input that parses and expands, the law of ADR 0001: the input is not changed,
+// collapse(expand(x)) with the provenance gives x back, and expand is idempotent. The Rust peer is the target
+// `expand`. CIC_FUZZ_CANARY works as in FuzzParse.
+func FuzzExpandCollapse(f *testing.F) {
+	s := vectors(f)
+	for _, v := range s.ParseOK {
+		f.Add(v.YAML)
+	}
+	for _, seed := range []string{"", "a: x\n", "a: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
+		"a: x\nc: {d: true, e: [1]}\ng: [1, 2]\n", "c: {value: {d: true}, access: [OU=a], modify: inherit, inherit: 0, default_injection: 0, conformance: deprecated}\n"} {
+		f.Add(seed)
+	}
+	g, err := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: 1}, &forms.Node{Kind: forms.KindInt, Int: 1})
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(n)
+		expanded, prov, err := forms.Expand(n, fuzzShape(), keySet, g)
+		if forms.Emit(n) != before {
+			t.Fatalf("%q: the input changed", text)
+		}
+		if err != nil {
+			return
+		}
+		back, err := forms.Collapse(expanded, fuzzShape(), keySet, g, prov, nil)
+		if err != nil || !back.Same(n) {
+			t.Fatalf("%q: collapse(expand(x)) != x (%v)", text, err)
+		}
+		again, _, err := forms.Expand(expanded, fuzzShape(), keySet, g)
+		if err != nil || !again.Same(expanded) {
+			t.Fatalf("%q: expand is not idempotent (%v)", text, err)
+		}
+	})
+}

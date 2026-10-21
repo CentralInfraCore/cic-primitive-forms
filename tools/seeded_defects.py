@@ -148,6 +148,23 @@ DEFECTS = [
      [("            _ => return Err((KEY_TYPE, raw)),", "            _ => return Err((KEY_TYPE, rec)),")]),
     ("go", "a duplicate identity is anchored at the first element, not the second", "validate.go",
      [("if seen[k] == 2 {", "if seen[k] == 1 {")]),
+    # Expand and collapse (ADR 0001 "Round trip", ADR 0010): the law, the explicit settings, the authored form.
+    ("rust", "an explicit policy setting is dropped by collapse", "src/expand.rs",
+     [("if !entry(n, k).is_some_and(|got| got.same(&d)) {", "if false {")]),
+    ("rust", "an authored expanded position is shortened", "src/expand.rs",
+     [("|| authored_expanded || basis == BASIS_BINDING", "|| basis == BASIS_BINDING")]),
+    ("rust", "a binding_attested position is shortened", "src/expand.rs",
+     [("|| authored_expanded || basis == BASIS_BINDING", "|| authored_expanded")]),
+    ("rust", "a value that would be read as expanded is shortened", "src/expand.rs",
+     [("Some(value) if matches!(classify(value, a), Ok(Class::Short)) => value.clone(),", "Some(value) => value.clone(),")]),
+    ("go", "an explicit policy setting is dropped by collapse", "expand.go",
+     [("if got := entry(n, k); got == nil || !got.Same(d) {", "if false {")]),
+    ("go", "an authored expanded position is shortened", "expand.go",
+     [("if authoredExpanded || basis == BasisBinding {", "if basis == BasisBinding {")]),
+    ("go", "a binding_attested position is shortened", "expand.go",
+     [("if authoredExpanded || basis == BasisBinding {", "if authoredExpanded {")]),
+    ("go", "a value that would be read as expanded is shortened", "expand.go",
+     [("if class, _ := classify(value, a); class != ClassShort {", "if false {")]),
 ]
 
 
@@ -167,7 +184,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand"]
     return ["go", "test", "-count=1", "./..."]
 
 

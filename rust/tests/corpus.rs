@@ -11,8 +11,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use cic_primitive_forms::{
-    emit, parse, path_of, recognize, Case, Class, Elements, Error, Location, Node, Phase, Position,
-    Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
+    collapse_position, emit, expand_position, parse, path_of, recognize, Case, Class, Elements,
+    Error, Location, Node, Phase, Position, Presence, ScalarType, Shape, ShapeType, Step, Value,
+    Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -781,7 +782,10 @@ fn the_run_and_not_run_accounting_is_exact() {
             total += 1;
             let kind = text(get(case, "kind").expect("kind"), "kind");
             let key = format!("{suite}/{kind}");
-            if kind == "recognize" || (kind == "validate" && has_runner(case)) || is_path_run(kind)
+            if kind == "recognize"
+                || (kind == "validate" && has_runner(case))
+                || is_path_run(kind)
+                || is_p2_run(kind)
             {
                 *run.entry(key).or_default() += 1;
             } else {
@@ -800,7 +804,7 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (114, 233),
+        (140, 207),
         "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability run"
     );
     assert_eq!(run.get("lists/validate"), Some(&8));
@@ -817,6 +821,11 @@ fn the_run_and_not_run_accounting_is_exact() {
 
 // ---------------------------------------------------------------------------
 // path_of and path_stability (ADR 0006): the identity of a list element in a path.
+
+/// The four P2 kinds, run at one primitive position.
+fn is_p2_run(kind: &str) -> bool {
+    matches!(kind, "expand" | "collapse" | "roundtrip" | "equality")
+}
 
 fn is_path_run(kind: &str) -> bool {
     kind == "path_of" || kind == "path_stability"
@@ -1030,4 +1039,124 @@ fn path_cases_match_the_corpus() {
         }
     }
     assert_eq!(ran, 25, "18 path_of and 7 path_stability cases");
+}
+
+// ---------------------------------------------------------------------------
+// expand, collapse, roundtrip, equality (ADR 0001 "Round trip", ADR 0003, ADR 0010): one primitive position.
+
+/// Whether `n` is the typed value a fixture spells (`{type, value}`); `type: absent` is no node at all.
+fn typed_matches(n: Option<&Node>, want: &YamlOwned) -> bool {
+    if get(want, "type").and_then(YamlOwned::as_str) == Some("absent") {
+        return n.is_none();
+    }
+    n.is_some_and(|n| n.same(&node_of(get(want, "value").expect("value"))))
+}
+
+fn fields_match(id: &str, n: &Node, fields: &YamlOwned) {
+    for (name, want) in fields.as_mapping().expect("fields: a mapping") {
+        let name = text(name, "field name");
+        let got = match &n.value {
+            Value::Map(es) => es.iter().find(|e| e.key == name).map(|e| &e.value),
+            _ => None,
+        };
+        assert!(
+            typed_matches(got, want),
+            "{id}: field {name} does not match"
+        );
+    }
+}
+
+#[test]
+fn expand_collapse_cases_match_the_corpus() {
+    let g = bound_grammar();
+    let mut ran = 0;
+    for (_, suite) in suites() {
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let kind = text(get(case, "kind").expect("kind"), "kind");
+            if !is_p2_run(kind) {
+                continue;
+            }
+            ran += 1;
+            let expect = get(case, "expect").expect("expect");
+            match kind {
+                "equality" => {
+                    let a_node = node_of(get(case, "a").expect("a"));
+                    let b_node = node_of(get(case, "b").expect("b"));
+                    let want = get(expect, "equal").and_then(YamlOwned::as_bool).unwrap();
+                    assert_eq!(a_node.same(&b_node), want, "{id}");
+                }
+                "expand" => {
+                    let (out, authored) =
+                        expand_position(&node_of(get(case, "input").unwrap()), &a(), g)
+                            .unwrap_or_else(|e| panic!("{id}: {e:?}"));
+                    assert!(!authored, "{id}");
+                    fields_match(id, &out, get(expect, "fields").unwrap());
+                }
+                "collapse" => {
+                    let input = node_of(get(case, "input").unwrap());
+                    let authored = get(case, "authored_expanded")
+                        .and_then(YamlOwned::as_bool)
+                        .unwrap();
+                    let basis = get(case, "basis").and_then(YamlOwned::as_str).unwrap_or("");
+                    let out = collapse_position(&input, authored, basis, &a(), g);
+                    let got = if out.same(&input) {
+                        "expanded"
+                    } else {
+                        "short"
+                    };
+                    assert_eq!(
+                        Some(got),
+                        get(expect, "collapse").and_then(YamlOwned::as_str),
+                        "{id}"
+                    );
+                    if let Some(f) = get(expect, "fields") {
+                        fields_match(id, &out, f);
+                    }
+                }
+                _ => {
+                    let input = if get(case, "absent").is_some() {
+                        None
+                    } else {
+                        Some(node_of(get(case, "input").unwrap()))
+                    };
+                    let Some(input) = input else {
+                        // absent stays absent: there is no node to expand or collapse
+                        assert!(
+                            typed_matches(None, get(expect, "collapsed").unwrap()),
+                            "{id}"
+                        );
+                        assert!(
+                            typed_matches(None, get(expect, "expanded").unwrap()),
+                            "{id}"
+                        );
+                        continue;
+                    };
+                    let (expanded, authored) =
+                        expand_position(&input, &a(), g).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+                    let back = collapse_position(&expanded, authored, "", &a(), g);
+                    if let Some(f) = get(expect, "fields") {
+                        fields_match(id, &back, f);
+                        continue;
+                    }
+                    let value = match &expanded.value {
+                        Value::Map(es) => es.iter().find(|e| e.key == "value").map(|e| &e.value),
+                        _ => None,
+                    };
+                    assert!(
+                        typed_matches(value, get(expect, "expanded").unwrap()),
+                        "{id}: expanded"
+                    );
+                    assert!(
+                        typed_matches(Some(&back), get(expect, "collapsed").unwrap()),
+                        "{id}: collapsed"
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!(ran, 26, "expand 1, collapse 15, roundtrip 9, equality 1");
 }
