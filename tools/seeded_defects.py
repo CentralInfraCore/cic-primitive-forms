@@ -191,6 +191,14 @@ DEFECTS = [
      [("Phase: PhaseValidate, Location: Location{NotApplicable: true}}}}", "Phase: PhaseValidate}}}")]),
     ("go", "a path integer with a leading zero is accepted", "pathtext.go",
      [("case plus, len(digits) > 1 && digits[0] == '0', neg && digits == \"0\":", "case plus, neg && digits == \"0\":")]),
+    ("rust", "the path_offset of a path_parse error is dropped from the machine response", "src/pathtext.rs",
+     [("path_offset: (self.phase == Phase::PathParse).then_some(self.offset),", "path_offset: None,")]),
+    ("rust", "a path_offset is invented for another phase", "src/pathtext.rs",
+     [("path_offset: (self.phase == Phase::PathParse).then_some(self.offset),", "path_offset: Some(self.offset),")]),
+    ("go", "the path_offset of a path_parse error is dropped from the machine response", "pathtext.go",
+     [("\tif e.Phase == PhasePathParse {", "\tif false {")]),
+    ("go", "a path_offset is invented for another phase", "pathtext.go",
+     [("\tif e.Phase == PhasePathParse {", "\tif true {")]),
 ]
 
 

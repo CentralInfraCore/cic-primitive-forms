@@ -213,7 +213,8 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
 is valid but not canonical (a leading zero, `+7`, `-0`, a needless `\u` escape, `\/`, an upper-case hex digit) is refused with
 `PATH_NONCANONICAL`, not rewritten. Errors carry the code, the phase (`path_parse`, `path_format`, `path_resolve`), the offset
 in code points (parse only) and, for resolution, the logical path up to and including the segment at fault; their source
-location is `not_applicable`. `resolve_path` resolves against the compiled schema by the declared identity (the key of the
+location is `not_applicable`. In the machine response (`Violation`) the offset is `path_offset`: present for every `path_parse`
+error, `0` included, and absent for every other phase (ADR 0007), never invented. `resolve_path` resolves against the compiled schema by the declared identity (the key of the
 list, or of the `item_choice` case that the component names select) and says what the path addresses: root, scalar,
 composite, list, set, opaque or item, and whether that is a primitive position (a field is; the root and a list element are
 not). All 100 `path_parse`, `path_format` and `path_resolve` cases of the corpus run in both languages, and the edge cases the

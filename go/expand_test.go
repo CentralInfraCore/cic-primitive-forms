@@ -166,6 +166,7 @@ func TestSharedTrustedContext(t *testing.T) {
 			Error   string      `json:"error"`
 			Phase   string      `json:"phase"`
 			Path    string      `json:"path"`
+			Offset  *int        `json:"offset"`
 		} `json:"contexts"`
 		Materialized []struct {
 			ID        string      `json:"id"`
@@ -193,6 +194,9 @@ func TestSharedTrustedContext(t *testing.T) {
 					string(fe.Violations[0].Phase) != orDefault(c.Phase, "validate") || fe.Violations[0].LogicalPath != c.Path ||
 					fe.Violations[0].Location != (forms.Location{NotApplicable: true})):
 					t.Errorf("want %s/%s at %q, not_applicable; got %v", c.Error, orDefault(c.Phase, "validate"), c.Path, err)
+				case !c.OK && !samePathOffset(fe.Violations[0].PathOffset, c.Offset):
+					// path_offset is there for path_parse (zero included) and nowhere else
+					t.Errorf("%s: path_offset %v, want %v", c.ID, fe.Violations[0].PathOffset, c.Offset)
 				}
 			}
 		})
@@ -214,6 +218,10 @@ func TestSharedTrustedContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+func samePathOffset(got, want *int) bool {
+	return (got == nil) == (want == nil) && (got == nil || *got == *want)
 }
 
 func orDefault(s, d string) string {

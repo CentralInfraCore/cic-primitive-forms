@@ -208,6 +208,12 @@ fn the_shared_trusted_context() {
                         cic_primitive_forms::Location::NotApplicable,
                         "{id}"
                     );
+                    // path_offset is there for path_parse (zero included) and nowhere else
+                    assert_eq!(
+                        vs[0].path_offset,
+                        c.get("offset").and_then(J::as_u64).map(|n| n as usize),
+                        "{id}"
+                    );
                 }
                 (want, got) => panic!("{id}: {want:?} {got:?}"),
             }

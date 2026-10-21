@@ -37,6 +37,7 @@ impl PathError {
             phase: self.phase,
             location: Location::NotApplicable,
             logical_path: self.logical_path.clone(),
+            path_offset: (self.phase == Phase::PathParse).then_some(self.offset),
         }
     }
 }

@@ -95,6 +95,7 @@ pub(crate) fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
             phase: Phase::Recognize,
             location: location(node.pos),
             logical_path: None,
+            path_offset: None,
         })
     }
 }
@@ -117,6 +118,7 @@ fn validate_short(
                         phase: Phase::Validate,
                         location: location(node.pos),
                         logical_path: None,
+                        path_offset: None,
                     },
                 ));
             }
@@ -140,6 +142,7 @@ fn validate_short(
                         phase: Phase::Validate,
                         location: location(e.key_pos),
                         logical_path: None,
+                        path_offset: None,
                     },
                 ));
             }
@@ -325,6 +328,7 @@ fn recognize_list(
                             phase: Phase::Validate,
                             location: location(e.key_pos),
                             logical_path: None,
+                            path_offset: None,
                         },
                     ));
                     continue;

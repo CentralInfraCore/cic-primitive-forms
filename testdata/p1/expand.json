@@ -232,7 +232,8 @@
     ]
    },
    "error": "PATH_SYNTAX",
-   "phase": "path_parse"
+   "phase": "path_parse",
+   "offset": 0
   },
   {
    "id": "an-empty-entry",
@@ -244,7 +245,8 @@
     ]
    },
    "error": "PATH_SYNTAX",
-   "phase": "path_parse"
+   "phase": "path_parse",
+   "offset": 0
   },
   {
    "id": "an-entry-with-an-index",
@@ -256,7 +258,8 @@
     ]
    },
    "error": "PATH_INDEX_SELECTOR",
-   "phase": "path_parse"
+   "phase": "path_parse",
+   "offset": 8
   },
   {
    "id": "an-entry-with-the-wrong-key",
@@ -270,6 +273,19 @@
    "error": "PATH_SELECTOR_MISMATCH",
    "phase": "path_resolve",
    "path": "$.routes[{metric=1}]"
+  },
+  {
+   "id": "a-trailing-dot-is-an-empty-name-at-a-non-zero-offset",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.mtu."
+    ]
+   },
+   "error": "PATH_EMPTY_NAME",
+   "phase": "path_parse",
+   "offset": 6
   },
   {
    "id": "the-root-is-not-a-position",

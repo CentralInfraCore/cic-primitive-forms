@@ -102,6 +102,7 @@ fn found(code: &'static str, phase: Phase, location: Location) -> Violation {
         phase,
         location,
         logical_path: None,
+        path_offset: None,
     }
 }
 

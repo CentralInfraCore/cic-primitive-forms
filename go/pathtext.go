@@ -34,7 +34,12 @@ func (e *PathError) Error() string { return fmt.Sprintf("%s (%s)", e.Code, e.Pha
 
 // Violation is the machine-response form of the error: no source location applies.
 func (e *PathError) Violation() Violation {
-	return Violation{Code: e.Code, Phase: e.Phase, Location: Location{NotApplicable: true}, LogicalPath: e.LogicalPath}
+	v := Violation{Code: e.Code, Phase: e.Phase, Location: Location{NotApplicable: true}, LogicalPath: e.LogicalPath}
+	if e.Phase == PhasePathParse {
+		offset := e.Offset
+		v.PathOffset = &offset
+	}
+	return v
 }
 
 const escapable = "\\.[]{}=,"

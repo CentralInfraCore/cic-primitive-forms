@@ -93,6 +93,7 @@ fn mismatch() -> Error {
         phase: Phase::Validate,
         location: Location::NotApplicable,
         logical_path: None,
+        path_offset: None,
     }])
 }
 
@@ -288,6 +289,7 @@ impl Walker<'_> {
                         phase: Phase::Validate,
                         location: location(e.key_pos),
                         logical_path: logical_path(&p),
+                        path_offset: None,
                     }]));
                 }
                 Some((_, shape)) => {

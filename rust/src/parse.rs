@@ -181,6 +181,7 @@ impl State<'_, '_> {
                                 phase: Phase::Parse,
                                 location: Location::At(at),
                                 logical_path: None,
+                                path_offset: None,
                             }]));
                         }
                         return Ok(());

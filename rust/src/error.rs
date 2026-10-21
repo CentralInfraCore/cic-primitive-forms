@@ -52,6 +52,9 @@ pub struct Violation {
     /// out: the parse phase, a single position with no structure around it, and a location
     /// the synthetic schema cannot name (a list element has no declared identity).
     pub logical_path: Option<String>,
+    /// The offset in code points of the offending character in the path text, for phase `path_parse` only (ADR 0007): it is
+    /// present there, `0` included, and never invented for another phase.
+    pub path_offset: Option<usize>,
 }
 
 /// A failure. Only [`Error::Contract`] is the ADR 0007 machine response; the others are

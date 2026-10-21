@@ -39,6 +39,9 @@ type Violation struct {
 	// leaves it out: the parse phase, a single position with no structure around it, and a
 	// location the synthetic schema cannot name (a list element has no declared identity).
 	LogicalPath string
+	// PathOffset is the offset in code points of the offending character in the path text, for phase path_parse only
+	// (ADR 0007): present there, zero included, and nil for every other phase.
+	PathOffset *int
 }
 
 // ErrorKind says which boundary an Error is.

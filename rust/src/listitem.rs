@@ -149,6 +149,7 @@ fn fail(code: &'static str, path: &Path) -> Error {
         phase: Phase::PathOf,
         location: Location::Unavailable,
         logical_path: logical_path(path),
+        path_offset: None,
     }])
 }
 
