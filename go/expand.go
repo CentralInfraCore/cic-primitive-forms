@@ -15,13 +15,60 @@ package forms
 // canonical logical path, so Collapse(Expand(x)) gives back the meaning of x: a short position is short again, an
 // authored expanded one stays expanded, absent stays absent and null stays null. The input is never modified.
 //
-// Both expect a document that validates: a key of a composite the schema does not declare passes through
-// untouched, and a structure the schema does not allow is an Unsupported error.
+// Both expect a document that validates and fail closed otherwise: a key the schema does not declare is UNKNOWN_FIELD
+// (the first in document order), and a structure the schema does not allow is an Unsupported error.
 
 import "slices"
 
 // BasisBinding is the conformance basis (ADR 0010) that is never shortened: the value is binding data.
 const BasisBinding = "binding_attested"
+
+// The origins of a document (ADR 0010).
+const (
+	OriginAuthored     = "authored"
+	OriginMaterialized = "materialized"
+)
+
+// CodeOriginAttestationMismatch is the context error of ADR 0010: the origin and the attestation contradict each other.
+const CodeOriginAttestationMismatch = "ORIGIN_ATTESTATION_MISMATCH"
+
+// Context is the trusted context a document is processed with (ADR 0010); it is supplied by the caller, never read from
+// the document, and it is not interpreted or verified here. The zero Context is an authored document.
+//
+// Attestation and AttestedPositions are present exactly when the origin is materialized: AttestedPositions nil is
+// absent, a non-nil empty slice is present and empty (an attestation that grants nothing). A position of a materialized
+// document that is not in AttestedPositions has the basis default; one that is has binding_attested and is never
+// shortened. For an authored document the absence of a basis is allowed and is not an attestation. The entries are exact
+// canonical logical paths.
+type Context struct {
+	Origin            string
+	Attestation       string
+	AttestedPositions []string
+}
+
+func (c Context) check() error {
+	materialized := c.Origin == OriginMaterialized
+	if c.Origin != "" && c.Origin != OriginAuthored && !materialized {
+		return mismatch()
+	}
+	hasAtt, hasPos := c.Attestation != "", c.AttestedPositions != nil
+	if materialized != hasAtt || materialized != hasPos {
+		return mismatch()
+	}
+	seen := map[string]bool{}
+	for _, p := range c.AttestedPositions {
+		if p == "" || seen[p] {
+			return mismatch()
+		}
+		seen[p] = true
+	}
+	return nil
+}
+
+// mismatch is the context error: no YAML node is at fault, so it has no location and no logical path.
+func mismatch() error {
+	return &Error{Kind: ErrContract, Violations: []Violation{{Code: CodeOriginAttestationMismatch, Phase: PhaseValidate}}}
+}
 
 // Origin says how a primitive position of the authored document was written.
 type Origin struct {
@@ -117,10 +164,10 @@ func CollapsePosition(n *Node, authoredExpanded bool, basis string, a []string, 
 }
 
 type formWalker struct {
-	a     []string
-	g     Grammar
-	prov  Provenance
-	basis func(path string) string
+	a        []string
+	g        Grammar
+	prov     Provenance
+	attested map[string]bool
 }
 
 func pathText(path []seg) (string, error) {
@@ -133,7 +180,13 @@ func pathText(path []seg) (string, error) {
 
 // Expand wraps every primitive position of doc, which must be a mapping read against shape (a composite), and returns
 // the expanded document and the provenance of each position.
-func Expand(doc *Node, shape Shape, a []string, g Grammar) (*Node, Provenance, error) {
+//
+// Expansion creates no authority (ADR 0010): ctx is checked for consistency and otherwise does not change the result, so
+// a materialized document cannot be expanded with a missing or contradictory context.
+func Expand(doc *Node, shape Shape, a []string, g Grammar, ctx Context) (*Node, Provenance, error) {
+	if err := ctx.check(); err != nil {
+		return nil, nil, err
+	}
 	w := &formWalker{a: a, g: g, prov: Provenance{}}
 	out, err := w.record(doc, shape, nil, true)
 	if err != nil {
@@ -143,9 +196,18 @@ func Expand(doc *Node, shape Shape, a []string, g Grammar) (*Node, Provenance, e
 }
 
 // Collapse is the inverse of Expand under the law of ADR 0001. prov says which positions were authored expanded (a
-// position it does not name is not); basis, when it is not nil, gives the conformance basis of a position by its path.
-func Collapse(doc *Node, shape Shape, a []string, g Grammar, prov Provenance, basis func(path string) string) (*Node, error) {
-	w := &formWalker{a: a, g: g, prov: prov, basis: basis}
+// position it does not name is not). ctx is the trusted context of ADR 0010: the conformance basis of a position follows
+// it, never the writing. A contradictory context (a materialized document without its attestation or positions, an
+// authored one with either) is ORIGIN_ATTESTATION_MISMATCH and nothing is collapsed; a position in
+// ctx.AttestedPositions is never shortened.
+func Collapse(doc *Node, shape Shape, a []string, g Grammar, prov Provenance, ctx Context) (*Node, error) {
+	if err := ctx.check(); err != nil {
+		return nil, err
+	}
+	w := &formWalker{a: a, g: g, prov: prov, attested: map[string]bool{}}
+	for _, p := range ctx.AttestedPositions {
+		w.attested[p] = true
+	}
 	return w.record(doc, shape, nil, false)
 }
 
@@ -162,8 +224,11 @@ func (w *formWalker) fields(n *Node, fields []NamedShape, path []seg, expand boo
 	for _, e := range n.Entries {
 		i := slices.IndexFunc(fields, func(f NamedShape) bool { return f.Name == e.Key })
 		if i < 0 {
-			out.Entries = append(out.Entries, Entry{Key: e.Key, KeyPos: e.KeyPos, Value: cloneTree(e.Value)})
-			continue
+			// An undeclared key is not an intent: nothing validated or normalized can be made of it. The raw document is
+			// still the caller's own input; a lossless pass-through would be a different, explicitly unvalidated mode.
+			return nil, &Error{Kind: ErrContract, Violations: []Violation{{
+				Code: "UNKNOWN_FIELD", Phase: PhaseValidate, Location: loc(e.KeyPos),
+				LogicalPath: logicalPath(append(slices.Clone(path), seg{field: e.Key}))}}}
 		}
 		v, err := w.position(e.Value, fields[i].Shape, append(slices.Clone(path), seg{field: e.Key}), expand)
 		if err != nil {
@@ -197,8 +262,8 @@ func (w *formWalker) position(n *Node, shape Shape, path []seg, expand bool) (*N
 		return nil, err
 	}
 	basis := ""
-	if w.basis != nil {
-		basis = w.basis(text)
+	if w.attested[text] {
+		basis = BasisBinding
 	}
 	return CollapsePosition(inner, w.prov[text].AuthoredExpanded, basis, w.a, w.g)
 }

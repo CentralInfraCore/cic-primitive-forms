@@ -4,7 +4,7 @@
 
 use cic_primitive_forms::{
     bind_grammar, collapse, compile_schema, emit, expand, parse, pinned_grammar_version,
-    sha256_hex, Error, Grammar, Node, SchemaInput, Shape, Value, BASIS_BINDING,
+    sha256_hex, Context, DocOrigin, Error, Grammar, Node, SchemaInput, Shape, Value,
 };
 use serde_json::Value as J;
 
@@ -83,7 +83,7 @@ fn the_shared_expand_collapse_cases() {
         let id = c["id"].as_str().unwrap();
         let doc = parsed(id, c["yaml"].as_str().unwrap());
         let before = doc.clone();
-        let result = expand(&doc, &shape, &a(), g);
+        let result = expand(&doc, &shape, &a(), g, &Context::default());
         if let Some(want) = c.get("error") {
             match result {
                 Err(Error::Contract(vs)) => {
@@ -113,7 +113,7 @@ fn the_shared_expand_collapse_cases() {
             );
         }
         // the round trip: what was authored comes back, with the provenance
-        let back = collapse(&expanded, &shape, &a(), g, &prov, None).unwrap();
+        let back = collapse(&expanded, &shape, &a(), g, &prov, &Context::default()).unwrap();
         assert!(
             back.same(&doc),
             "{id}: collapse(expand(x)) != x\n got {}\nwant {}",
@@ -125,19 +125,101 @@ fn the_shared_expand_collapse_cases() {
             .get("collapse_without_provenance_yaml")
             .and_then(J::as_str)
         {
-            let plain = collapse(&expanded, &shape, &a(), g, &Default::default(), None).unwrap();
+            let plain = collapse(
+                &expanded,
+                &shape,
+                &a(),
+                g,
+                &Default::default(),
+                &Context::default(),
+            )
+            .unwrap();
             assert!(
                 plain.same(&parsed(id, text)),
                 "{id}: without provenance\n got {}",
                 emit(&plain)
             );
         }
-        // a binding-attested position is never shortened
-        let attested = |_: &str| BASIS_BINDING.to_string();
-        let kept = collapse(&expanded, &shape, &a(), g, &prov, Some(&attested)).unwrap();
+        // every position attested by the binding is never shortened
+        let all = Context {
+            origin: DocOrigin::Materialized,
+            attestation: Some("att".into()),
+            attested_positions: Some(prov.keys().cloned().collect()),
+        };
+        let kept = collapse(&expanded, &shape, &a(), g, &prov, &all).unwrap();
         assert!(
             kept.same(&expanded),
-            "{id}: a binding_attested document must stay as it is"
+            "{id}: a document attested everywhere must stay as it is"
+        );
+    }
+}
+
+fn context_of(j: &J) -> Context {
+    Context {
+        origin: match j.get("origin").and_then(J::as_str) {
+            None | Some("authored") => DocOrigin::Authored,
+            Some("materialized") => DocOrigin::Materialized,
+            // an origin that is neither is a contradiction the Go peer spells as a string; here it maps to a context
+            // that cannot be consistent: authored with an attestation
+            Some(_) => {
+                return Context {
+                    attestation: Some("x".into()),
+                    ..Context::default()
+                }
+            }
+        },
+        attestation: j.get("attestation").and_then(J::as_str).map(String::from),
+        attested_positions: j
+            .get("attested_positions")
+            .and_then(J::as_array)
+            .map(|a| a.iter().map(|p| p.as_str().unwrap().to_string()).collect()),
+    }
+}
+
+#[test]
+fn the_shared_trusted_context() {
+    let file: J = serde_json::from_str(
+        &std::fs::read_to_string(repo_root().join("testdata/p1/expand.json")).unwrap(),
+    )
+    .unwrap();
+    let (shape, g) = (small_config(), grammar());
+    let doc = parsed("context", "type: physical\nmtu: 1500\n");
+    for c in file["contexts"].as_array().unwrap() {
+        let id = c["id"].as_str().unwrap();
+        let ctx = context_of(&c["context"]);
+        let results = [
+            expand(&doc, &shape, &a(), g, &ctx).map(|_| ()),
+            collapse(&doc, &shape, &a(), g, &Default::default(), &ctx).map(|_| ()),
+        ];
+        for r in results {
+            match (c.get("ok").and_then(J::as_bool), r) {
+                (Some(true), Ok(())) => {}
+                (None, Err(Error::Contract(vs))) => {
+                    assert_eq!(vs[0].code, c["error"].as_str().unwrap(), "{id}");
+                    assert_eq!(vs[0].phase.as_str(), "validate", "{id}");
+                    assert!(vs[0].logical_path.is_none(), "{id}");
+                    assert_eq!(
+                        vs[0].location,
+                        cic_primitive_forms::Location::Unavailable,
+                        "{id}"
+                    );
+                }
+                (want, got) => panic!("{id}: {want:?} {got:?}"),
+            }
+        }
+    }
+    for c in file["materialized"].as_array().unwrap() {
+        let id = c["id"].as_str().unwrap();
+        let ctx = context_of(&c["context"]);
+        let d = parsed(id, c["yaml"].as_str().unwrap());
+        let (expanded, prov) = expand(&d, &shape, &a(), g, &ctx).unwrap();
+        let got = collapse(&expanded, &shape, &a(), g, &prov, &ctx).unwrap();
+        let want = parsed(id, c["collapsed_yaml"].as_str().unwrap());
+        assert!(
+            got.same(&want),
+            "{id}: got {}\nwant {}",
+            emit(&got),
+            emit(&want)
         );
     }
 }

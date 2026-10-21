@@ -40,14 +40,6 @@
    }
   },
   {
-   "id": "unknown-field-passes-through-untouched",
-   "yaml": "type: x\nzz: {anything: 1}\n",
-   "expanded_yaml": "type: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nzz: {anything: 1}\n",
-   "provenance": {
-    "$.type": false
-   }
-  },
-  {
    "id": "item-choice-elements-fields-are-positions-named-by-identity",
    "yaml": "vlans:\n  - ref: x\n  - vlan_id: 100\n    vlan_mode: trunk\n",
    "expanded_yaml": "vlans: {value: [{ref: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}, {vlan_id: {value: 100, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}, vlan_mode: {value: trunk, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}}], access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n",
@@ -85,6 +77,161 @@
     "code": "EXPANDED_WITH_EXTRA_KEY",
     "path": "$.type"
    }
+  },
+  {
+   "id": "an-undeclared-key-is-refused-not-passed-through",
+   "yaml": "type: x\nzz: {anything: 1}\n",
+   "error": {
+    "code": "UNKNOWN_FIELD",
+    "path": "$.zz"
+   }
+  },
+  {
+   "id": "an-undeclared-key-inside-an-element-is-named-by-identity",
+   "yaml": "routes:\n  - to: a\n    foo: 1\n",
+   "error": {
+    "code": "UNKNOWN_FIELD",
+    "path": "$.routes[{to=\"a\"}].foo"
+   }
+  }
+ ],
+ "contexts": [
+  {
+   "id": "authored-without-context-is-allowed",
+   "context": {},
+   "ok": true
+  },
+  {
+   "id": "authored-explicit",
+   "context": {
+    "origin": "authored"
+   },
+   "ok": true
+  },
+  {
+   "id": "materialized-with-attestation-and-positions",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.mtu"
+    ]
+   },
+   "ok": true
+  },
+  {
+   "id": "materialized-attestation-without-positions-grants-nothing",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": []
+   },
+   "ok": true
+  },
+  {
+   "id": "materialized-without-attestation",
+   "context": {
+    "origin": "materialized",
+    "attested_positions": [
+     "$.mtu"
+    ]
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "materialized-without-positions",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1"
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "materialized-without-anything",
+   "context": {
+    "origin": "materialized"
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "authored-with-an-attestation",
+   "context": {
+    "origin": "authored",
+    "attestation": "att-1"
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "authored-with-positions",
+   "context": {
+    "attested_positions": [
+     "$.mtu"
+    ]
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "default-origin-with-an-attestation",
+   "context": {
+    "attestation": "att-1"
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "an-origin-that-is-neither",
+   "context": {
+    "origin": "compiled"
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  },
+  {
+   "id": "a-position-twice",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.mtu",
+     "$.mtu"
+    ]
+   },
+   "error": "ORIGIN_ATTESTATION_MISMATCH"
+  }
+ ],
+ "materialized": [
+  {
+   "id": "an-attested-position-is-never-shortened",
+   "yaml": "type: physical\nmtu: 1500\n",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.mtu"
+    ]
+   },
+   "collapsed_yaml": "type: physical\nmtu: {value: 1500, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"
+  },
+  {
+   "id": "an-unattested-position-follows-the-unchanged-rule",
+   "yaml": "type: physical\nmtu: 1500\n",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": []
+   },
+   "collapsed_yaml": "type: physical\nmtu: 1500\n"
+  },
+  {
+   "id": "an-attested-position-written-short-is-still-binding-data",
+   "yaml": "type: physical\nmtu: 1500\n",
+   "context": {
+    "origin": "materialized",
+    "attestation": "att-1",
+    "attested_positions": [
+     "$.type",
+     "$.mtu"
+    ]
+   },
+   "collapsed_yaml": "type: {value: physical, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\nmtu: {value: 1500, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"
   }
  ]
 }

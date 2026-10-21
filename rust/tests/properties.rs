@@ -7,7 +7,7 @@
 //! * parse never panics, whatever the text, and the positions it reports lie inside the text;
 //! * recognition depends on the key set only, and recognize does not change its input.
 
-use cic_primitive_forms::{emit, parse, recognize, Class, Entry, Node, Position, Value};
+use cic_primitive_forms::{emit, parse, recognize, Class, Context, Entry, Node, Position, Value};
 use proptest::prelude::*;
 
 fn key_strategy() -> impl Strategy<Value = String> {
@@ -126,12 +126,12 @@ proptest! {
         let doc = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
         let before = doc.clone();
         let g = grammar_1();
-        let (expanded, prov) = cic_primitive_forms::expand(&doc, &shape, &a(), g).unwrap();
+        let (expanded, prov) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
         prop_assert!(doc.same(&before), "expand changed its input");
         prop_assert!(prov.values().all(|o| !o.authored_expanded));
-        let back = cic_primitive_forms::collapse(&expanded, &shape, &a(), g, &prov, None).unwrap();
+        let back = cic_primitive_forms::collapse(&expanded, &shape, &a(), g, &prov, &Context::default()).unwrap();
         prop_assert!(back.same(&doc));
-        let (again, prov2) = cic_primitive_forms::expand(&expanded, &shape, &a(), g).unwrap();
+        let (again, prov2) = cic_primitive_forms::expand(&expanded, &shape, &a(), g, &Context::default()).unwrap();
         prop_assert!(again.same(&expanded), "expand is not idempotent");
         prop_assert_eq!(prov2.len(), prov.len());
         prop_assert!(prov2.values().all(|o| o.authored_expanded));
@@ -142,14 +142,14 @@ proptest! {
         let Some(shape) = document_root(shape) else { return Ok(()) };
         let doc = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
         let g = grammar_1();
-        let (mut expanded, _) = cic_primitive_forms::expand(&doc, &shape, &a(), g).unwrap();
+        let (mut expanded, _) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
         make_explicit(&mut expanded, &mut Rng(seed ^ 0x9E37_79B9));
-        let (again, prov) = cic_primitive_forms::expand(&expanded, &shape, &a(), g).unwrap();
+        let (again, prov) = cic_primitive_forms::expand(&expanded, &shape, &a(), g, &Context::default()).unwrap();
         prop_assert!(again.same(&expanded), "expand changed an authored expanded node");
-        let with = cic_primitive_forms::collapse(&again, &shape, &a(), g, &prov, None).unwrap();
+        let with = cic_primitive_forms::collapse(&again, &shape, &a(), g, &prov, &Context::default()).unwrap();
         prop_assert!(with.same(&expanded), "with provenance an authored expanded document stays as authored");
         // without the provenance the law alone decides: a non-default field keeps its position expanded
-        let plain = cic_primitive_forms::collapse(&again, &shape, &a(), g, &Default::default(), None).unwrap();
+        let plain = cic_primitive_forms::collapse(&again, &shape, &a(), g, &Default::default(), &Context::default()).unwrap();
         if let (Value::Map(orig), Value::Map(now)) = (&expanded.value, &plain.value) {
             for o in orig {
                 let n = now.iter().find(|e| e.key == o.key).expect("a position disappeared");

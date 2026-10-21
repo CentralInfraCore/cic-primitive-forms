@@ -6,7 +6,7 @@
 #![no_main]
 
 use cic_primitive_forms::{
-    bind_grammar, collapse, expand, parse, Presence, ScalarType, Shape, ShapeType, Value,
+    bind_grammar, collapse, expand, parse, Context, Presence, ScalarType, Shape, ShapeType, Value,
 };
 use libfuzzer_sys::fuzz_target;
 
@@ -50,13 +50,13 @@ fuzz_target!(|data: &[u8]| {
     let one = Value::Int(1);
     let g = bind_grammar(Some(&one), Some(&one)).expect("grammar 1");
     let shape = fuzz_shape();
-    let result = expand(&n, &shape, &a, g);
+    let result = expand(&n, &shape, &a, g, &Context::default());
     assert!(n.same(&before), "expand changed its input {text:?}");
     let Ok((expanded, prov)) = result else {
         return;
     };
-    let back = collapse(&expanded, &shape, &a, g, &prov, None).expect("collapse of an expanded document");
+    let back = collapse(&expanded, &shape, &a, g, &prov, &Context::default()).expect("collapse of an expanded document");
     assert!(back.same(&n), "collapse(expand(x)) != x for {text:?}");
-    let (again, _) = expand(&expanded, &shape, &a, g).expect("expand of an expanded document");
+    let (again, _) = expand(&expanded, &shape, &a, g, &Context::default()).expect("expand of an expanded document");
     assert!(again.same(&expanded), "expand is not idempotent for {text:?}");
 });

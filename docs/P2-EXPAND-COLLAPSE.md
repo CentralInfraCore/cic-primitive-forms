@@ -1,6 +1,6 @@
 # P2: recursive expand and collapse
 
-Status: **implemented in Rust and Go** (this PR), pending the architecture review that PHASES.md puts at the end of P2.
+Status: **implemented in Rust and Go**; the architecture review that PHASES.md puts at the end of P2 is done (see "Review decisions"), subject to the two contract corrections made here.
 It follows the accepted ADR 0001 ("Round trip"), ADR 0003 (rules 5-6), ADR 0004 (symbolic `inherit`), ADR 0010 (the
 conformance basis) and re-opens none of them.
 
@@ -19,8 +19,8 @@ values: `expand` records it (`Provenance`) and `collapse` reads it back.
 |---|---|---|---|
 | one position, expand | `expand_position` | `ExpandPosition` | short -> the six keys with the symbolic defaults; expanded -> as authored; all of `A` plus a key -> `EXPANDED_WITH_EXTRA_KEY` |
 | one position, collapse | `collapse_position` | `CollapsePosition` | the ADR 0001 law (below) |
-| a document, expand | `expand` | `Expand` | every primitive position, recursively; returns the expanded document and the `Provenance` |
-| a document, collapse | `collapse` | `Collapse` | the inverse, with the `Provenance` and an optional conformance basis per position |
+| a document, expand | `expand` | `Expand` | every primitive position, recursively; returns the expanded document and the `Provenance`; checks the trusted `Context` |
+| a document, collapse | `collapse` | `Collapse` | the inverse, with the `Provenance` and the trusted `Context` (ADR 0010) |
 
 **The symbolic defaults** are `access: inherit`, `modify: inherit`, `inherit` in the spelling of the **bound** access
 grammar (`true` in grammar 1, the enum name in grammar 2: the caller binds the grammar, nothing is defaulted),
@@ -35,29 +35,49 @@ as it is (no explicit setting is ever dropped):
 
 1. every policy field equals the symbolic default;
 2. the position was not authored expanded (the provenance says, a position it does not name was not);
-3. its conformance basis is not `binding_attested` (the caller gives it per position, by logical path);
+3. its conformance basis is not `binding_attested` (derived from the trusted `Context`, below);
 4. the short form is recognized as short: the value is not a mapping holding all of `A`.
 
 **Provenance** is a map from the canonical logical path of a position (`$.vlans[{vlan_id=100}].vlan_mode`) to whether it was
 authored expanded. Keyed by the logical path it survives list reordering. Without it only the law decides, which is
 deliberate and tested: a document that was never authored (a resolved object) collapses by the law alone.
 
+## The trusted context (ADR 0010)
+
+The basis of a position follows the **context the caller supplies**, never the writing: `Context{origin, attestation,
+attested_positions}`. The library does not verify the attestation (that is the Relay's, P5/P6); it only stops the
+representation change from losing the authentication context.
+
+| Document | Context | Result |
+|---|---|---|
+| authored | none (the zero `Context`), or `origin: authored` alone | allowed; the absence of a basis is **not** an attestation |
+| materialized | `attestation` **and** `attested_positions` (which may be empty: an attestation that grants nothing) | positions in the set are `binding_attested` and never shortened; all others follow the unchanged rule |
+| anything else | a materialized document without its attestation or its positions; an authored one with either; an unknown origin; an empty or repeated position | `ORIGIN_ATTESTATION_MISMATCH` (phase `validate`, no location, no logical path); **nothing is expanded or collapsed** |
+
+There is no callback and no default string: a materialized document cannot be shortened without saying which positions the
+binding attested. `expand` checks the same context (it creates no authority, so it does not change the result).
+
 ## Boundaries
 
-- Both expect a document that **validates**. A key of a composite the schema does not declare passes through untouched; a
-  structure the schema does not allow (a non-record list element, an element without an identity, a non-mapping where a
-  composite is declared) is `UNSUPPORTED_SYNTAX`, not a guess.
+- Both expect a document that **validates** and **fail closed** otherwise. A key the schema does not declare is
+  `UNKNOWN_FIELD` (the first in document order, with its logical path and the position of the key): nothing validated or
+  normalized can be made of an undeclared key. The raw document remains the caller's own input; a lossless pass-through
+  would be a separate, explicitly unvalidated mode whose result must not be given the validated status. A structure the schema
+  does not allow (a non-record list element, an element without an identity, a non-mapping where a composite is declared) is
+  `UNSUPPORTED_SYNTAX`, not a guess.
 - The root of a document is a composite, not a position: it is never wrapped.
 - Nothing is resolved, defaulted from a Role or normalized: that is P3. `default` of a field is not applied.
-- The binding evidence itself (ADR 0010) is not produced here: `binding_attested` is an input.
+- The binding evidence itself (ADR 0010) is an input: not produced, not verified here.
 - A position whose logical path cannot be written (an empty name, a control character) is `UNSUPPORTED_SYNTAX`: its
   provenance would have no key.
+- The entries of `attested_positions` are not resolved against the schema here (ADR 0010 defers that to the scope
+  resolution); an entry that names no position of the document simply attests nothing.
 
 ## Evidence
 
 - **Corpus:** the 26 P2 cases (`collapse` 15, `roundtrip` 9, `expand` 1, `equality` 1) run in both languages, so the corpus
   accounting is 140 run and 207 not run.
-- **Shared cases:** `testdata/p1/expand.json` (8 documents: all short, mixed with an explicit override, `null` and empty,
+- **Shared cases:** `testdata/p1/expand.json` (9 documents and 12 context cases: all short, mixed with an explicit override, `null` and empty,
   an unknown field, `item_choice` elements named by identity, an expanded key value, an opaque value equal to `A`, `A`
   plus an extra key), each checked for the expanded text, the provenance, the round trip, the collapse without provenance
   and the `binding_attested` rule.
@@ -66,18 +86,29 @@ deliberate and tested: a document that was never authored (a resolved object) co
   provenance.
 - **Fuzzing:** `FuzzExpandCollapse` (Go) and the `expand` target (Rust), with the canary proof of the other targets.
 - **Seeded defects:** a dropped explicit setting, a shortened authored-expanded position, a shortened `binding_attested`
-  position and a shortened value that would be read as expanded are all caught in both languages.
+  position, a shortened value that would be read as expanded, an undeclared key passed through, a contradictory context
+  collapsed anyway and a position outside the attested set treated as attested are all caught in both languages.
 - **Mutation:** `cargo mutants` on `src/expand.rs`: 22 of 22 viable mutants caught.
 
-## Questions for the architecture review (PHASES.md: the stop at the end of P2)
+## Review decisions (the stop at the end of P2)
 
-1. **Full expansion.** `expand` wraps *every* position, including nested ones, so an expanded document is verbose. Is that the
-   intended normal form for P3, or should P3 expand on demand?
-2. **Provenance as a side map** (keyed by logical path) against a marker inside the expanded node. A side map keeps the six
-   keys of `A` exactly as ADR 0001 defines them; a marker would change `A`.
-3. **The basis as a callback.** The conformance basis (ADR 0010) is a property of the position that only the caller knows. A
-   function by path keeps this library free of the binding. Is that the right seam, or should the basis travel in the
-   provenance?
-4. **Undeclared keys pass through.** The alternative is to refuse them; validation already reports them as `UNKNOWN_FIELD`.
-5. **List element identity as the provenance key.** If an element's key value is itself changed by an override, its
-   provenance path changes: acceptable, because the identity is the meaning.
+| Question | Decision | Why |
+|---|---|---|
+| 1. Full expansion | Complete, recursive expansion is the normal input of P3; the authored form stays alongside | one representation is easier to normalize deterministically |
+| 2. Where provenance lives | A separate side map | the six keys of the Access atom stay as defined; metadata is not mixed into the primitive's value |
+| 3. The conformance basis | A separate, typed trusted context, not a callback | the origin of an authored form and the origin of a credible device capability are different things |
+| 4. Undeclared keys | Refused by default in the schema-bound path | an undeclared authored key cannot become a checked, normalizable intent |
+| 5. A list element's key changes | No silent provenance re-binding | a changed key is a change of identity, not a reordering |
+
+Two corrections to this PR came out of the review and are done: undeclared keys fail closed (`UNKNOWN_FIELD`) in `expand`
+and `collapse`, and the conformance basis comes from the typed trusted `Context`, with a structured error for a missing or
+contradictory one. Both have shared negative cases in Rust and Go (`testdata/p1/expand.json`) and seeded defects.
+
+**Consequence for P3 (a rule, not an implementation).** Resolving defaults and inheritance must never change the declared key
+of a list element. `$.vlans[{vlan_id=100}]` becoming `$.vlans[{vlan_id=200}]` is not a value normalization: it is an identity
+change, which the later diff/patch layer must treat explicitly, keeping both the original and the target identity. A
+reordering stays harmless, because provenance is bound to the logical identifier and not to a list index.
+
+**Three separate notions** that must stay separate: the *authored provenance* (how a position was written, this PR), the
+*resolution origin* (where a resolved value came from, P3) and the *authenticated binding basis* (what the trusted context
+attests, ADR 0010). None of them is derived from another.

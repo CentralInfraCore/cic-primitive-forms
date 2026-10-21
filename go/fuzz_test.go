@@ -217,18 +217,18 @@ func FuzzExpandCollapse(f *testing.F) {
 			return
 		}
 		before := forms.Emit(n)
-		expanded, prov, err := forms.Expand(n, fuzzShape(), keySet, g)
+		expanded, prov, err := forms.Expand(n, fuzzShape(), keySet, g, forms.Context{})
 		if forms.Emit(n) != before {
 			t.Fatalf("%q: the input changed", text)
 		}
 		if err != nil {
 			return
 		}
-		back, err := forms.Collapse(expanded, fuzzShape(), keySet, g, prov, nil)
+		back, err := forms.Collapse(expanded, fuzzShape(), keySet, g, prov, forms.Context{})
 		if err != nil || !back.Same(n) {
 			t.Fatalf("%q: collapse(expand(x)) != x (%v)", text, err)
 		}
-		again, _, err := forms.Expand(expanded, fuzzShape(), keySet, g)
+		again, _, err := forms.Expand(expanded, fuzzShape(), keySet, g, forms.Context{})
 		if err != nil || !again.Same(expanded) {
 			t.Fatalf("%q: expand is not idempotent (%v)", text, err)
 		}

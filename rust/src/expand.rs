@@ -14,20 +14,79 @@
 //! keyed by the canonical logical path, so `collapse(expand(x))` gives back the meaning of `x`. The input is never
 //! modified.
 //!
-//! Both expect a document that validates: a key of a composite the schema does not declare passes through untouched,
-//! and a structure the schema does not allow is an [`Error::Unsupported`].
+//! Both expect a document that validates and fail closed otherwise: a key the schema does not declare is
+//! `UNKNOWN_FIELD` (the first in document order), and a structure the schema does not allow is an
+//! [`Error::Unsupported`].
 
 use std::collections::BTreeMap;
 
 use crate::access::{write_mode, Grammar, Mode, INHERIT_SYMBOL};
-use crate::error::Error;
+use crate::error::{Error, Location, Phase, Violation};
 use crate::listitem::identify;
 use crate::node::{Entry, Node, Value};
-use crate::recognize::{classify, logical_path, Class, Path, Seg};
+use crate::recognize::{classify, location, logical_path, Class, Path, Seg};
 use crate::validate::{Shape, ShapeType};
 
 /// The conformance basis (ADR 0010) that is never shortened: the value is binding data.
 pub const BASIS_BINDING: &str = "binding_attested";
+
+/// The origin of a document (ADR 0010).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DocOrigin {
+    #[default]
+    Authored,
+    Materialized,
+}
+
+/// The code of the context error of ADR 0010: the origin and the attestation contradict each other.
+pub const ORIGIN_ATTESTATION_MISMATCH: &str = "ORIGIN_ATTESTATION_MISMATCH";
+
+/// The trusted context a document is processed with (ADR 0010): supplied by the caller, never read from the document, and
+/// not interpreted or verified here. The default is an authored document.
+///
+/// `attestation` and `attested_positions` are present exactly when the origin is materialized (`Some(vec![])` is present
+/// and empty: an attestation that grants nothing). A position of a materialized document that is not in
+/// `attested_positions` has the basis default; one that is has `binding_attested` and is never shortened. For an authored
+/// document the absence of a basis is allowed and is not an attestation. The entries are exact canonical logical paths.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Context {
+    pub origin: DocOrigin,
+    pub attestation: Option<String>,
+    pub attested_positions: Option<Vec<String>>,
+}
+
+impl Context {
+    fn check(&self) -> Result<(), Error> {
+        let materialized = self.origin == DocOrigin::Materialized;
+        let consistent = self.attestation.as_ref().is_some_and(|a| !a.is_empty()) == materialized
+            && self.attested_positions.is_some() == materialized;
+        let distinct = self
+            .attested_positions
+            .iter()
+            .flatten()
+            .enumerate()
+            .all(|(i, p)| {
+                !p.is_empty()
+                    && !self
+                        .attested_positions
+                        .iter()
+                        .flatten()
+                        .take(i)
+                        .any(|q| q == p)
+            });
+        if consistent && distinct {
+            Ok(())
+        } else {
+            // no YAML node is at fault: no location and no logical path
+            Err(Error::Contract(vec![Violation {
+                code: ORIGIN_ATTESTATION_MISMATCH,
+                phase: Phase::Validate,
+                location: Location::Unavailable,
+                logical_path: None,
+            }]))
+        }
+    }
+}
 
 /// How a primitive position of the authored document was written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,7 +176,7 @@ struct Walker<'a> {
     a: &'a [String],
     g: Grammar,
     prov: Provenance,
-    basis: Option<&'a dyn Fn(&str) -> String>,
+    attested: Vec<String>,
 }
 
 fn path_text(path: &Path) -> Result<String, Error> {
@@ -127,7 +186,8 @@ fn path_text(path: &Path) -> Result<String, Error> {
 }
 
 /// Wraps every primitive position of `doc`, a mapping read against `shape` (a composite), and returns the expanded
-/// document and the provenance of each position.
+/// document and the provenance of each position. Expansion creates no authority (ADR 0010): `ctx` is checked for
+/// consistency and otherwise does not change the result.
 ///
 /// # Errors
 /// The recognition error of [`expand_position`] with its logical path, or [`Error::Unsupported`] for a structure the
@@ -137,21 +197,25 @@ pub fn expand(
     shape: &Shape,
     a: &[String],
     g: Grammar,
+    ctx: &Context,
 ) -> Result<(Node, Provenance), Error> {
+    ctx.check()?;
     let mut w = Walker {
         a,
         g,
         prov: Provenance::new(),
-        basis: None,
+        attested: Vec::new(),
     };
     let out = w.record(doc, shape, &mut Vec::new(), true)?;
     Ok((out, w.prov))
 }
 
 /// The inverse of [`expand`] under the law of ADR 0001. `prov` says which positions were authored expanded (a position
-/// it does not name is not); `basis`, when given, gives the conformance basis of a position by its path.
+/// it does not name is not). `ctx` is the trusted context of ADR 0010: the conformance basis of a position follows it,
+/// never the writing, and a position in `ctx.attested_positions` is never shortened.
 ///
 /// # Errors
+/// `ORIGIN_ATTESTATION_MISMATCH` ([`Error::Contract`]) for a contradictory context, nothing is collapsed;
 /// [`Error::Unsupported`] for a structure the schema does not allow.
 pub fn collapse(
     doc: &Node,
@@ -159,13 +223,14 @@ pub fn collapse(
     a: &[String],
     g: Grammar,
     prov: &Provenance,
-    basis: Option<&dyn Fn(&str) -> String>,
+    ctx: &Context,
 ) -> Result<Node, Error> {
+    ctx.check()?;
     let mut w = Walker {
         a,
         g,
         prov: prov.clone(),
-        basis,
+        attested: ctx.attested_positions.clone().unwrap_or_default(),
     };
     w.record(doc, shape, &mut Vec::new(), false)
 }
@@ -204,7 +269,19 @@ impl Walker<'_> {
         let mut out = Vec::with_capacity(entries.len());
         for e in entries {
             let value = match fields.iter().find(|(name, _)| *name == e.key) {
-                None => e.value.clone(),
+                // An undeclared key is not an intent: nothing validated or normalized can be made of it. The raw
+                // document stays the caller's own input; a lossless pass-through would be a different, explicitly
+                // unvalidated mode.
+                None => {
+                    let mut p = path.clone();
+                    p.push(Seg::Field(e.key.clone()));
+                    return Err(Error::Contract(vec![Violation {
+                        code: "UNKNOWN_FIELD",
+                        phase: Phase::Validate,
+                        location: location(e.key_pos),
+                        logical_path: logical_path(&p),
+                    }]));
+                }
                 Some((_, shape)) => {
                     path.push(Seg::Field(e.key.clone()));
                     let v = self.position(&e.value, shape, path, expand);
@@ -255,9 +332,13 @@ impl Walker<'_> {
             return self.below(n, shape, path, false);
         }
         let inner = self.rewrap(n.clone(), shape, path, false)?;
-        let basis = self.basis.map_or_else(String::new, |f| f(&text));
+        let basis = if self.attested.contains(&text) {
+            BASIS_BINDING
+        } else {
+            ""
+        };
         let authored = self.prov.get(&text).is_some_and(|o| o.authored_expanded);
-        Ok(collapse_position(&inner, authored, &basis, self.a, self.g))
+        Ok(collapse_position(&inner, authored, basis, self.a, self.g))
     }
 
     /// Replaces the value of an expanded wrapper by the value processed below it.

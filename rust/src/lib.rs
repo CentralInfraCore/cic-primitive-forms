@@ -27,7 +27,8 @@ pub use access::{
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
 pub use expand::{
-    collapse, collapse_position, expand, expand_position, Origin, Provenance, BASIS_BINDING,
+    collapse, collapse_position, expand, expand_position, Context, DocOrigin, Origin, Provenance,
+    BASIS_BINDING, ORIGIN_ATTESTATION_MISMATCH,
 };
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};

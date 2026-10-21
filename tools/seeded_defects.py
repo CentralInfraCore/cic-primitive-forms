@@ -165,6 +165,19 @@ DEFECTS = [
      [("if authoredExpanded || basis == BasisBinding {", "if authoredExpanded {")]),
     ("go", "a value that would be read as expanded is shortened", "expand.go",
      [("if class, _ := classify(value, a); class != ClassShort {", "if false {")]),
+    # The two contracts of the P2 architecture review: an undeclared key is refused, a contradictory context is refused.
+    ("rust", "an undeclared key passes through expand and collapse", "src/expand.rs",
+     [("                None => {\n                    let mut p = path.clone();", "                None => {\n                    out.push(Entry { key: e.key.clone(), key_pos: e.key_pos, value: e.value.clone() });\n                    continue;\n                }\n                Some(_) if false => {\n                    let mut p = path.clone();")]),
+    ("rust", "a contradictory context is collapsed anyway", "src/expand.rs",
+     [("    ctx.check()?;\n    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),", "    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),")]),
+    ("rust", "a position outside the attested set is treated as attested", "src/expand.rs",
+     [("let basis = if self.attested.contains(&text) {", "let basis = if self.attested.is_empty() || self.attested.contains(&text) {")]),
+    ("go", "an undeclared key passes through expand and collapse", "expand.go",
+     [("\t\tif i < 0 {\n", "\t\tif i < 0 {\n\t\t\tout.Entries = append(out.Entries, Entry{Key: e.Key, KeyPos: e.KeyPos, Value: cloneTree(e.Value)})\n\t\t\tcontinue\n\t\t}\n\t\tif false {\n")]),
+    ("go", "a contradictory context is collapsed anyway", "expand.go",
+     [("\tif err := ctx.check(); err != nil {\n\t\treturn nil, err\n\t}", "\tif false {\n\t\treturn nil, nil\n\t}")]),
+    ("go", "a position outside the attested set is treated as attested", "expand.go",
+     [("\tif w.attested[text] {", "\tif len(w.attested) == 0 || w.attested[text] {")]),
 ]
 
 

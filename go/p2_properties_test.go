@@ -26,7 +26,7 @@ func TestPropertyCollapseOfExpandGivesBackTheAuthoredDocument(t *testing.T) {
 		seed := xorshift(rapid.Uint64Min(1).Draw(t, "seed"))
 		doc := conforming(s, &seed, nil, nil)
 		before := forms.Emit(doc)
-		expanded, prov, err := forms.Expand(doc, s, keySet, g)
+		expanded, prov, err := forms.Expand(doc, s, keySet, g, forms.Context{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -38,11 +38,11 @@ func TestPropertyCollapseOfExpandGivesBackTheAuthoredDocument(t *testing.T) {
 				t.Fatalf("%s was authored short", p)
 			}
 		}
-		back, err := forms.Collapse(expanded, s, keySet, g, prov, nil)
+		back, err := forms.Collapse(expanded, s, keySet, g, prov, forms.Context{})
 		if err != nil || !back.Same(doc) {
 			t.Fatalf("collapse(expand(x)) != x: %v\n%s\n%s", err, forms.Emit(back), before)
 		}
-		again, prov2, err := forms.Expand(expanded, s, keySet, g)
+		again, prov2, err := forms.Expand(expanded, s, keySet, g, forms.Context{})
 		if err != nil || !again.Same(expanded) {
 			t.Fatalf("expand is not idempotent: %v", err)
 		}
@@ -95,21 +95,21 @@ func TestPropertyAnExplicitPolicySettingIsNeverLost(t *testing.T) {
 		s := rootShape(t)
 		seed := xorshift(rapid.Uint64Min(1).Draw(t, "seed"))
 		doc := conforming(s, &seed, nil, nil)
-		expanded, _, err := forms.Expand(doc, s, keySet, g)
+		expanded, _, err := forms.Expand(doc, s, keySet, g, forms.Context{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		explicit(expanded, &seed) // the author wrote some policy: a position with any non-default field
-		again, prov, err := forms.Expand(expanded, s, keySet, g)
+		again, prov, err := forms.Expand(expanded, s, keySet, g, forms.Context{})
 		if err != nil || !again.Same(expanded) {
 			t.Fatalf("expand changed an authored expanded node: %v", err)
 		}
-		withProv, err := forms.Collapse(again, s, keySet, g, prov, nil)
+		withProv, err := forms.Collapse(again, s, keySet, g, prov, forms.Context{})
 		if err != nil || !withProv.Same(expanded) {
 			t.Fatalf("with provenance an authored expanded document stays as authored: %v", err)
 		}
 		// without the provenance the law alone decides: a non-default field keeps its position expanded
-		plain, err := forms.Collapse(again, s, keySet, g, nil, nil)
+		plain, err := forms.Collapse(again, s, keySet, g, nil, forms.Context{})
 		if err != nil {
 			t.Fatal(err)
 		}
