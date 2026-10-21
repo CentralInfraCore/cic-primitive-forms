@@ -24,6 +24,7 @@ Job `watch` (07:47 UTC, after the slot was due at 06:00) dispatches `evidence.ym
 verified record. `evidence.py watch` answers with exit 0 (a record), 3 (no record: the only answer that asks for a run, and only with
 the date of the slot) or 4 (undecided: the branch cannot be read, or a listed record does not verify). Exit 4, or any other failure,
 fails the job and asks for nothing: a record that is there and does not verify is looked at, not answered with another run.
+What to do when a run fails, and when it is safe to switch on again, is 5.1 to 5.5 of `docs/EVIDENCE-SETUP.md`.
 
 ## Slots and triggers
 
