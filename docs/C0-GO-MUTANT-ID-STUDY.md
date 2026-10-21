@@ -181,15 +181,24 @@ design, and was not done.
 
 ## 7. Reproduce
 
+The prototype is a Go module of its own (`tools/c0/mutid/go.mod`); the repository root has no Go module, so build and test from its
+directory. Workflow `c0-selftest` runs the first line on every change to `tools/c0`; it is research and not a required check.
+
 ```
-go build -o /tmp/mutid ./tools/c0/mutid                    # needs only the Go toolchain
-tools/c0/enumerate.sh go /tmp/rec                          # go-mutesting on the PATH; no test runs
-/tmp/mutid ids -orig /tmp/rec/orig -mut /tmp/rec/mut -index /tmp/rec/index.tsv > ids.tsv
-/tmp/mutid closure -src go > closure.tsv
-python3 tools/c0/impact.py closure.tsv ids.tsv
-python3 tools/c0/edits.py comments go /tmp/exp/go          # then enumerate and ids again, and
-python3 tools/c0/cmp.py ids.tsv /tmp/exp/ids.tsv           # compare (edit names: see edits.py)
+cd tools/c0/mutid && go vet ./... && go test -count=1 ./... && go build -o /tmp/mutid .
+cd ../../..                                                # back to the repository root
+tools/c0/enumerate.sh go /tmp/rec                          # go-mutesting (the pinned version) and go on the PATH; no test runs
+/tmp/mutid ids -orig /tmp/rec/orig -mut /tmp/rec/mut -index /tmp/rec/index.tsv > /tmp/ids.tsv
+/tmp/mutid closure -src go > /tmp/closure.tsv
+python3 tools/c0/impact.py /tmp/closure.tsv /tmp/ids.tsv
+python3 tools/c0/edits.py comments go /tmp/exp/go          # one experiment of section 2; the names are in edits.py. Then:
+tools/c0/enumerate.sh /tmp/exp/go /tmp/exp/rec
+/tmp/mutid ids -orig /tmp/exp/rec/orig -mut /tmp/exp/rec/mut -index /tmp/exp/rec/index.tsv > /tmp/exp/ids.tsv
+python3 tools/c0/cmp.py /tmp/ids.tsv /tmp/exp/ids.tsv
 ```
 
-`go test ./tools/c0/mutid` checks the id rule on small sources (a line shift and comments keep it, an edit elsewhere keeps the
-digest, an edit inside moves it, equal changes are told apart, a mutant that changes no token is refused).
+The unit tests check the id rule on small sources (a line shift and comments keep it, an edit elsewhere keeps the digest, an edit
+inside moves it, equal changes are told apart, a mutant that changes no token is refused).
+
+Nothing here is wired into the gate, the shard tools or the evidence record, and no verdict of an earlier commit is reused anywhere:
+this is a study of whether such a reuse could be made sound, not a step towards switching it on.
