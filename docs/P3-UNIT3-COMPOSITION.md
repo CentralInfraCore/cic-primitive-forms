@@ -69,9 +69,11 @@ NormalizationResult
    expanded-authored position beside an inserted one; every grammar spelling (1 and 2); a list element reordered (the result
    keyed by logical path does not change); the attested positions of a materialized document are not shortened and are never
    given a default.
-2. Properties: `denormalize(normalize(x)) == x`; `normalize` is idempotent on the pair; no authored value or explicit policy
-   changes; the `default` set of `value_origin` equals the default candidates of the validation of `x`; the result is
-   independent of list and mapping order.
+2. Properties: `denormalize(normalize(x)) == x`, **including** an authored value that equals the default of its field (it
+   stays `authored` and is not dropped), a document that mixes short and expanded positions, and list elements in another order
+   (the result is keyed by logical path, so reordering changes nothing); `normalize` is idempotent on the **pair** (object and
+   `value_origin`), not on the object alone; no authored value or explicit policy changes; the `default` set of `value_origin`
+   equals the default candidates of the validation of `x`; the result is independent of list and mapping order.
 3. Seeded defects for: an inserted position that gets a provenance entry, a `default_injection` that carries the default, an
    origin re-derived from the values, a default inserted into an absent composite.
 4. The same gates as before: branch coverage, mutation, fuzz with a canary, parity of the two languages.
