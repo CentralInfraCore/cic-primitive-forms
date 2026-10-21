@@ -39,6 +39,13 @@ const (
 	ShapeList
 	// ShapeOpaque is any value, nothing below it.
 	ShapeOpaque
+	// ShapeSet is a collection/set: a list of scalars of type Scalar, no key. MinItems is checked
+	// when HasMinItems is set.
+	ShapeSet
+	// ShapeDeclaredList is a list whose element structure the schema declares (item_fields or
+	// item_choice). The elements are not validated by this slice: a non-empty value is an
+	// Unsupported error, never a silent pass. MinItems is checked when HasMinItems is set.
+	ShapeDeclaredList
 )
 
 // NamedShape is one field of a composite.
@@ -113,6 +120,10 @@ func (w *walk) visit(node *Node, shape Shape, path []seg, keyPos, parentPos *Pos
 		return w.scalar(node, shape.Scalar, path)
 	case ShapeList:
 		return w.list(node, shape, path)
+	case ShapeSet:
+		return w.set(node, shape, path)
+	case ShapeDeclaredList:
+		return w.declaredList(node, shape, path)
 	case ShapeComposite:
 		return w.composite(node, shape.Fields, path)
 	}
@@ -157,6 +168,31 @@ func (w *walk) list(node *Node, shape Shape, path []seg) error {
 	}
 	if shape.HasMinItems && len(node.Items) < shape.MinItems {
 		w.add(path, "MIN_ITEMS_NOT_MET", loc(node.Pos))
+	}
+	return nil
+}
+
+func (w *walk) set(node *Node, shape Shape, path []seg) error {
+	if node.Kind != KindSeq {
+		return unsupported("a %s value where a set is declared (no code in the registry)", kindName(node))
+	}
+	if shape.HasMinItems && len(node.Items) < shape.MinItems {
+		w.add(path, "MIN_ITEMS_NOT_MET", loc(node.Pos))
+	}
+	for _, it := range node.Items {
+		if err := w.scalar(it, shape.Scalar, path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
+	if err := w.list(node, shape, path); err != nil {
+		return err
+	}
+	if len(node.Items) > 0 {
+		return unsupported("validation of the elements of a list with a declared element structure (item_fields, item_choice) is outside this slice")
 	}
 	return nil
 }

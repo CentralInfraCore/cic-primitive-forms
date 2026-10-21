@@ -38,3 +38,10 @@ schemas:
     commit: 6db77d4dca4ce3af3be66b3a7a85404fd0b63684
     path: general/network/network-interface/network-interface.yaml
     sha256: e338815ca93c40a656ce440082ddfcda08023a24aa05ce526acdbce466da7ca3
+  # NetworkSpace (the provider-neutral VCN/VPC/VNet space) at the same registry commit: a real schema whose
+  # config_surface compiles, so the OCI VCN intent can be validated against the registry's own definition.
+  registry-network-space:
+    repo: CentralInfraCore/cic-schema-registry
+    commit: 6db77d4dca4ce3af3be66b3a7a85404fd0b63684
+    path: general/network/network-space/network-space.yaml
+    sha256: c9a4d14cf03e75ed6815519f9884f0621ce3ba6e70e49320b1639ac384c83b68

@@ -60,6 +60,18 @@ pub enum Error {
     /// `GRAMMAR_VERSION_CONFLICT`) or `GRAMMAR_DIGEST_MISMATCH` (ADR 0002); none of them is
     /// renamed. Nothing falls back to a default version.
     Binding(&'static str),
+    /// A pinned schema that `compile_schema` refused: a structure outside ADR 0002 or a Shape feature
+    /// this slice does not process. Non-empty; the code is the first problem's.
+    Schema(Vec<SchemaProblem>),
+}
+
+/// One refusal of a schema: a code and the canonical path of the schema node. The detail is
+/// for people and not part of the contract.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaProblem {
+    pub code: &'static str,
+    pub path: String,
+    pub detail: String,
 }
 
 impl Error {
@@ -73,6 +85,7 @@ impl Error {
             Error::Syntax(_) => "YAML_SYNTAX",
             Error::Limit(_) => "LIMIT_EXCEEDED",
             Error::Binding(code) => code,
+            Error::Schema(problems) => problems[0].code,
         }
     }
 }

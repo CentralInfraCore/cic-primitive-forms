@@ -1,0 +1,185 @@
+{
+ "note": "Expected outcomes for the schemas pinned in corpus/pins.yaml (CC BY-NC-SA 4.0, not vendored; read from CIC_REGISTRY_ROOT). Paths and codes only.",
+ "refused": {
+  "pin": "registry-network-interface",
+  "surface": "config_surface",
+  "error": "SCHEMA_INVALID",
+  "problems": [
+   [
+    "SCHEMA_INVALID",
+    "$.stp.enabled"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.mode"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.port_priority"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.edge_port"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.bpdu_guard"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.bpdu_filter"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.stp.root_guard"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.poe.enabled"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.poe.mode"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.poe.priority"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.storm_control.action"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.qinq.enabled"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.qinq.tpid"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lacp.interval"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lacp.system_priority"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lacp.port_priority"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lacp.min_links"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lldp.enabled"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lldp.transmit"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.lldp.receive"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.port_mirror.enabled"
+   ],
+   [
+    "SCHEMA_INVALID",
+    "$.port_mirror.direction"
+   ]
+  ]
+ },
+ "state_refused": {
+  "pin": "registry-network-interface",
+  "error": "SURFACE_UNSUPPORTED"
+ },
+ "accepted": {
+  "pin": "registry-network-space",
+  "surface": "config_surface",
+  "kind": "NetworkSpace",
+  "namespace": "cic:network",
+  "uses_item_choice": false,
+  "unevaluated_contracts": [
+   "$.cidr_block"
+  ],
+  "declared_validated_by": "cic-primitives v0.2.0",
+  "documents": [
+   {
+    "id": "vcn-minimal",
+    "yaml": "cidr_block: 10.0.0.0/16\n",
+    "violations": [],
+    "candidates": []
+   },
+   {
+    "id": "vcn-full",
+    "yaml": "cidr_block: 10.0.0.0/16\nipv6_enabled: true\ndns_support_enabled: false\ndns_hostnames_enabled: true\ndns_label: vcn1\nsecondary_cidr_blocks: []\n",
+    "violations": [],
+    "candidates": []
+   },
+   {
+    "id": "missing-cidr",
+    "yaml": "ipv6_enabled: false\n",
+    "violations": [
+     [
+      "MISSING_MANDATORY",
+      "$.cidr_block"
+     ]
+    ],
+    "candidates": []
+   },
+   {
+    "id": "null-cidr",
+    "yaml": "cidr_block: ~\n",
+    "violations": [
+     [
+      "NULL_NOT_ALLOWED",
+      "$.cidr_block"
+     ]
+    ],
+    "candidates": []
+   },
+   {
+    "id": "null-is-not-absence",
+    "yaml": "cidr_block: 10.0.0.0/16\nipv6_enabled: ~\n",
+    "violations": [
+     [
+      "NULL_NOT_ALLOWED",
+      "$.ipv6_enabled"
+     ]
+    ],
+    "candidates": []
+   },
+   {
+    "id": "undeclared-fields-are-reported",
+    "yaml": "cidr_block: 10.0.0.0/16\ndisplay_name: vcn-a\ncompartment_id: ocid1.compartment\n",
+    "violations": [
+     [
+      "UNKNOWN_FIELD",
+      "$.compartment_id"
+     ],
+     [
+      "UNKNOWN_FIELD",
+      "$.display_name"
+     ]
+    ],
+    "candidates": []
+   },
+   {
+    "id": "wrong-type-has-no-code",
+    "yaml": "cidr_block: 10.0.0.0/16\nipv6_enabled: \"yes\"\n",
+    "unsupported": true
+   },
+   {
+    "id": "list-elements-refused",
+    "yaml": "cidr_block: 10.0.0.0/16\nsecondary_cidr_blocks:\n  - cidr: 10.1.0.0/16\n",
+    "unsupported": true
+   }
+  ]
+ }
+}

@@ -1,6 +1,7 @@
 package forms
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -135,5 +136,24 @@ func TestTheScansStopAndGoOnWhereTheYamlDoes(t *testing.T) {
 		if _, err := Parse(text); err != nil {
 			t.Errorf("%q: %v", text, err)
 		}
+	}
+}
+
+// A grammar profile without item_choice refuses a schema that uses it, instead of reading it (ADR 0002,
+// finding 3). The only pin the library knows defines it, so the refusal is tested with a profile table
+// of its own; the primitives release v0.2.0 is not a known pin (it would be GRAMMAR_PIN_UNKNOWN).
+func TestItemChoiceNeedsTheGrammarToDefineIt(t *testing.T) {
+	schema := []byte("spec:\n  config_surface:\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: list\n        item_choice:\n          cases: []\n")
+	profiles := map[string]grammarProfile{"old": {ItemChoice: false}, "new": {ItemChoice: true}}
+	in := SchemaInput{Bytes: schema, SHA256: SHA256Hex(schema), Grammar: "old", Surface: "config_surface"}
+	_, err := compileWith(in, profiles)
+	var e *Error
+	if !errors.As(err, &e) || e.Code() != SchemaFeatureNotInGrammar || e.Problems[0].Path != "$.a.item_choice" {
+		t.Fatalf("got %v", err)
+	}
+	in.Grammar = "new"
+	_, err = compileWith(in, profiles)
+	if !errors.As(err, &e) || e.Code() != SchemaInvalid {
+		t.Fatalf("with the feature the structure is checked instead: %v", err)
 	}
 }
