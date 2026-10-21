@@ -508,3 +508,10 @@ and that reading an `access`/`modify` value and an `InheritanceMode` under both 
    value never reaches the reading.
 8. The corpus runners now need a checkout of `cic-primitives` at the pinned commit (`CIC_PRIMITIVES_ROOT`) to derive the
    grammar version from the verified schema; CI provides it through `.github/actions/upstream-pinned`.
+9. **Two levels of guarantee for the order of a response (issue #46, ADR 0007 "Which error comes first").** The order is by
+   path *segments*. The property test checks it for the errors that have a written path (`logical_path`), in both languages,
+   against the path text; that is a full check of the order of those errors. An error whose path cannot be written (an empty
+   name, a control character) has no text, and the property does not compare its place; one fixed case
+   (`an_error_at_an_unwritable_name_is_ordered_by_its_segments`, with the replayed seed) pins it down instead. A complete
+   segment-based oracle would need the response to carry the segments, which the contract does not give; the narrower
+   guarantee is deliberate and is stated here so it is not read as the wider one.
