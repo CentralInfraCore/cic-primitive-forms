@@ -213,6 +213,31 @@ compare; it knows no schema and no document. The gate checks structure
 only. It does not produce parse, recognition or validation errors, and a green run
 still says nothing about Rust or Go.
 
+## Amendment: the list-element identity codes in `validate` (2026-10-21, owner decision)
+
+`PATH_KEY_MISSING`, `PATH_KEY_TYPE`, `PATH_KEY_UNSUPPORTED`, `PATH_CASE_NONE`, `PATH_CASE_AMBIGUOUS` and
+`PATH_DUPLICATE_IDENTITY` were registered for `path_of` only. Validating a document against a schema meets the same
+facts (ADR 0002 "List identity", ADR 0006 "Building a path from a document"), and a response holds one phase, so the six codes
+are now also reported in phase `validate`. Meaning, code and trigger do not change:
+
+- in `path_of` the error stays `phase: path_of` (no source location, `unavailable`);
+- while validating a document the same fact is `phase: validate`, with the anchors below and the rules of "Source location"
+  and "Logical path in errors" as for every other validation error.
+
+| Code (phase `validate`) | Anchor | Logical path |
+|---|---|---|
+| `PATH_KEY_MISSING` | `mapping`: the element's record, which starts at its first key | the list (`$.items`) |
+| `PATH_KEY_TYPE` | `value`: the key value of the element | the list |
+| `PATH_KEY_UNSUPPORTED` (provisional) | `value`: the key value | the list |
+| `PATH_CASE_NONE`, `PATH_CASE_AMBIGUOUS` | `mapping`: the element's record | the list |
+| `PATH_DUPLICATE_IDENTITY` | `mapping`: the record of the **second** element that has the identity | the identity (`$.items[{name="a"}]`) |
+
+The logical path is extended to the element's identity only where the identification succeeded: a duplicate is reported at its
+identity and nothing is reported below an element that already has an error; a failed identification is reported at the list.
+A duplicate identity is one error per identity, never one per element and never mapped to an index. The corpus has a negative vector
+for each new phase in `corpus/lists/vectors.yaml`, in the `validate` kind with the list notation of its header
+(`shape.elements`, ADR 0005 fixture notation, not a schema).
+
 ## Not decided here
 
 - Message wording and translation.

@@ -414,11 +414,18 @@ fn shape_of(y: &YamlOwned) -> Shape {
         Some("string") => ShapeType::Scalar(ScalarType::String),
         Some("integer") => ShapeType::Scalar(ScalarType::Integer),
         Some("boolean") => ShapeType::Scalar(ScalarType::Boolean),
-        Some("list") => ShapeType::List {
-            min_items: get(y, "min_items")
+        Some("list") => {
+            let min_items = get(y, "min_items")
                 .and_then(YamlOwned::as_integer)
-                .map(|n| usize::try_from(n).expect("min_items is not negative")),
-        },
+                .map(|n| usize::try_from(n).expect("min_items is not negative"));
+            match get(y, "elements") {
+                Some(el) => ShapeType::DeclaredList {
+                    min_items,
+                    elements: elements_of(el),
+                },
+                None => ShapeType::List { min_items },
+            }
+        }
         Some("composite") | None if get(y, "fields").is_some() => {
             let mut fields: Vec<(String, Shape)> = get(y, "fields")
                 .and_then(YamlOwned::as_mapping)
@@ -439,6 +446,42 @@ fn shape_of(y: &YamlOwned) -> Shape {
             .and_then(YamlOwned::as_bool)
             .unwrap_or(false),
         has_default: get(y, "default").is_some(),
+    }
+}
+
+/// The fixture notation of the element structure of a list: one case (key, fields) or cases.
+fn elements_of(el: &YamlOwned) -> Elements {
+    let read = |name: &str, c: &YamlOwned| -> Case {
+        let mut fields: Vec<(String, Shape)> = get(c, "fields")
+            .and_then(YamlOwned::as_mapping)
+            .expect("fields: a mapping")
+            .iter()
+            .map(|(k, v)| (text(k, "field name").to_string(), shape_of(v)))
+            .collect();
+        fields.sort_by(|a, b| a.0.cmp(&b.0));
+        Case {
+            name: name.to_string(),
+            fields,
+            key: get(c, "key")
+                .and_then(YamlOwned::as_vec)
+                .expect("key")
+                .iter()
+                .map(|k| text(k, "key").to_string())
+                .collect(),
+        }
+    };
+    match get(el, "cases").and_then(YamlOwned::as_vec) {
+        Some(cases) => Elements {
+            choice: true,
+            cases: cases
+                .iter()
+                .map(|c| read(text(get(c, "name").expect("name"), "name"), c))
+                .collect(),
+        },
+        None => Elements {
+            choice: false,
+            cases: vec![read("", el)],
+        },
     }
 }
 
@@ -533,8 +576,8 @@ fn presence_validate_cases_match_the_corpus() {
         println!("NOT RUN: {kind}: {n} cases");
     }
     assert_eq!(
-        ran, 29,
-        "the presence suite has 29 shape-based validate cases"
+        ran, 37,
+        "the presence and lists suites have 37 shape-based validate cases"
     );
     assert!(
         failures.is_empty(),
@@ -757,9 +800,10 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (106, 233),
-        "31 recognize + 29 presence validate + 21 inherit validate + 18 path_of + 7 path_stability run"
+        (114, 233),
+        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability run"
     );
+    assert_eq!(run.get("lists/validate"), Some(&8));
     assert_eq!(run.get("paths/path_of"), Some(&18));
     assert_eq!(run.get("paths/path_stability"), Some(&7));
     assert_eq!(run.get("inherit/validate"), Some(&21));

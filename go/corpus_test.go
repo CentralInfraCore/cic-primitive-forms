@@ -371,6 +371,9 @@ func shapeOf(t *testing.T, v any) forms.Shape {
 		if n, ok := m["min_items"].(int); ok {
 			s.MinItems, s.HasMinItems = n, true
 		}
+		if el, ok := m["elements"].(obj); ok {
+			s.Kind, s.Elements = forms.ShapeDeclaredList, elementsOf(t, el)
+		}
 	case (!hasType || typ == "composite") && m["fields"] != nil:
 		s.Kind = forms.ShapeComposite
 		names := []string{}
@@ -387,6 +390,37 @@ func shapeOf(t *testing.T, v any) forms.Shape {
 		t.Fatalf("unsupported fixture type %q", typ)
 	}
 	return s
+}
+
+// elementsOf reads the fixture notation of the element structure of a list: one case (key, fields) or cases.
+func elementsOf(t *testing.T, el obj) *forms.Elements {
+	t.Helper()
+	read := func(name string, c obj) forms.Case {
+		var key []string
+		for _, k := range c["key"].([]any) {
+			key = append(key, k.(string))
+		}
+		fields := c["fields"].(obj)
+		names := []string{}
+		for n := range fields {
+			names = append(names, n)
+		}
+		sort.Strings(names)
+		out := forms.Case{Name: name, Key: key}
+		for _, n := range names {
+			out.Fields = append(out.Fields, forms.NamedShape{Name: n, Shape: shapeOf(t, fields[n])})
+		}
+		return out
+	}
+	if cases, ok := el["cases"].([]any); ok {
+		els := &forms.Elements{Choice: true}
+		for _, raw := range cases {
+			c := raw.(obj)
+			els.Cases = append(els.Cases, read(c["name"].(string), c))
+		}
+		return els
+	}
+	return &forms.Elements{Cases: []forms.Case{read("", el)}}
 }
 
 func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
@@ -460,8 +494,8 @@ func TestPresenceValidateCasesMatchTheCorpus(t *testing.T) {
 	}
 	t.Logf("presence validate cases run: %d", ran)
 	t.Logf("NOT RUN here: validate, not a presence case (see the accounting test): %d cases", notRun)
-	if ran != 29 {
-		t.Fatalf("the presence suite has 29 shape-based validate cases, ran %d", ran)
+	if ran != 37 {
+		t.Fatalf("the presence and lists suites have 37 shape-based validate cases, ran %d", ran)
 	}
 }
 
@@ -682,10 +716,10 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 106 || skipped != 233 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 106 + 233", ran, skipped, total)
+	if ran+skipped != total || ran != 114 || skipped != 233 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 114 + 233", ran, skipped, total)
 	}
-	if run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 {
+	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 {
 		t.Fatalf("%v", run)
 	}
 	if run["inherit/validate"] != 21 || run["presence/validate"] != 29 || run["recognition/recognize"]+run["presence/recognize"] != 31 {

@@ -125,7 +125,7 @@ DEFECTS = [
      [("if v.Kind != KindStr || !pinnedRef.MatchString(v.Str) {", "if false {")]),
     # List elements (ADR 0002/0006): identity from the declared key, case selection, duplicates, canonical paths.
     ("rust", "a duplicate identity is not reported", "src/validate.rs",
-     [("if twice(seg) && !reported.contains(&seg) {", "if false {")]),
+     [("if seen.contains(&seg) && !reported.contains(&seg) {", "if false {")]),
     ("rust", "an item_choice record that matches several cases takes the first", "src/listitem.rs",
      [("if found.is_some() {", "if false {")]),
     ("rust", "an Access wrapper around a key value is not looked through", "src/listitem.rs",
@@ -133,7 +133,7 @@ DEFECTS = [
     ("rust", "a boolean key is given an encoding", "src/listitem.rs",
      [("Some(ShapeType::Scalar(t)) if *t != ScalarType::Boolean => *t,", "Some(ShapeType::Scalar(t)) => *t,")]),
     ("go", "a duplicate identity is not reported", "validate.go",
-     [("if count[k] < 2 {", "if true {")]),
+     [("if seen[k] == 2 {", "if false {")]),
     ("go", "an item_choice record that matches several cases takes the first", "listitem.go",
      [("if c != nil {", "if false {")]),
     ("go", "an Access wrapper around a key value is not looked through", "listitem.go",
@@ -142,6 +142,12 @@ DEFECTS = [
      [("shape.Kind != ShapeScalar || shape.Scalar == ScalarBoolean", "shape.Kind != ShapeScalar")]),
     ("go", "integer identities are ordered as text", "recognize.go",
      [("fmt.Sprintf(\"1%020d\", uint64(c.Int)^(1<<63))", "fmt.Sprintf(\"1%d\", c.Int)")]),
+    ("go", "a key of the wrong type is anchored at the record, not at the value", "listitem.go",
+     [("default:\n\t\t\treturn nil, nil, CodeKeyType, raw", "default:\n\t\t\treturn nil, nil, CodeKeyType, rec")]),
+    ("rust", "a key of the wrong type is anchored at the record, not at the value", "src/listitem.rs",
+     [("            _ => return Err((KEY_TYPE, raw)),", "            _ => return Err((KEY_TYPE, rec)),")]),
+    ("go", "a duplicate identity is anchored at the first element, not the second", "validate.go",
+     [("if seen[k] == 2 {", "if seen[k] == 1 {")]),
 ]
 
 

@@ -1,0 +1,73 @@
+# Provisional list element cases for ADR 0002, ADR 0006 and the ADR 0007 amendment (identity codes in validate).
+# Format: ADR 0005. schema.synthetic.shape is a fixture notation, NOT a schema; the shared runner binds it to the
+# real Shape members. A list is {type: list, elements: ...}: elements is {key: [names], fields: {...}} (one case, a
+# plain list) or {cases: [{name, key, fields}, ...]} (item_choice). The key fields are mandatory by default of the
+# presence axis; the identity comes from `key` only, never from a field name or the position.
+corpus_format: 2
+suite: lists
+status: provisional
+defaults: {adr: ADR-0007, grammar: cic-primitives-73ae469-71ee71ca}
+cases:
+  - id: lists.identity-from-the-declared-key
+    kind: validate
+    polarity: positive
+    description: two elements with different keys are two elements, in any order
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {name: {presence: mandatory, type: string}, note: {presence: optional, type: string}}, key: [name]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - name: b\n  - name: a\n    note: x\n"
+    expect: {valid: true}
+  - id: lists.key-missing-anchors-the-record
+    kind: validate
+    polarity: negative
+    description: the element has no key component; the anchor is the element's record, which starts at its first key
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {name: {presence: mandatory, type: string}, note: {presence: optional, type: string}}, key: [name]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - note: x\n"
+    expect: {errors: [{code: PATH_KEY_MISSING, logical_path: $.items, phase: validate, source_location: {column: 5, line: 2, offset: 11}}]}
+    codes_status: stable
+  - id: lists.key-of-the-wrong-type-anchors-the-value
+    kind: validate
+    polarity: negative
+    description: an integer where the key is a string; the anchor is the key value
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {name: {presence: mandatory, type: string}}, key: [name]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - name: 5\n"
+    expect: {errors: [{code: PATH_KEY_TYPE, logical_path: $.items, phase: validate, source_location: {column: 11, line: 2, offset: 17}}]}
+    codes_status: stable
+  - id: lists.boolean-key-has-no-encoding
+    kind: validate
+    polarity: negative
+    description: ADR 0006 defines string and integer keys only; the anchor is the key value
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {flag: {presence: mandatory, type: boolean}}, key: [flag]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - flag: true\n"
+    expect: {errors: [{code: PATH_KEY_UNSUPPORTED, logical_path: $.items, phase: validate, source_location: {column: 11, line: 2, offset: 17}}]}
+    codes_status: provisional
+  - id: lists.item-choice-matches-no-case
+    kind: validate
+    polarity: negative
+    description: z is declared by no case, so no case matches; the anchor is the record
+    schema: {synthetic: {shape: {fields: {items: {elements: {cases: [{fields: {ka: {presence: mandatory, type: string}}, key: [ka], name: a}, {fields: {kb: {presence: mandatory, type: string}}, key: [kb], name: b}]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - z: x\n"
+    expect: {errors: [{code: PATH_CASE_NONE, logical_path: $.items, phase: validate, source_location: {column: 5, line: 2, offset: 11}}]}
+    codes_status: stable
+  - id: lists.item-choice-matches-several-cases
+    kind: validate
+    polarity: negative
+    description: both cases declare k1 and k2 and the record holds both key fields, so both match
+    schema: {synthetic: {shape: {fields: {items: {elements: {cases: [{fields: {k1: {presence: mandatory, type: string}, k2: {presence: optional, type: string}}, key: [k1], name: a}, {fields: {k1: {presence: optional, type: string}, k2: {presence: mandatory, type: string}}, key: [k2], name: b}]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - k1: a\n    k2: b\n"
+    expect: {errors: [{code: PATH_CASE_AMBIGUOUS, logical_path: $.items, phase: validate, source_location: {column: 5, line: 2, offset: 11}}]}
+    codes_status: stable
+  - id: lists.duplicate-identity-anchors-the-second-element
+    kind: validate
+    polarity: negative
+    description: one error at the identity, never mapped to an index; nothing is reported below it
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {name: {presence: mandatory, type: string}, note: {presence: optional, type: string}}, key: [name]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - name: a\n    note: ~\n  - name: a\n"
+    expect: {errors: [{code: PATH_DUPLICATE_IDENTITY, logical_path: '$.items[{name="a"}]', phase: validate, source_location: {column: 5, line: 4, offset: 35}}]}
+    codes_status: stable
+  - id: lists.error-inside-an-element-is-named-by-its-identity
+    kind: validate
+    polarity: negative
+    description: the logical path is extended to the identity because the identification succeeded
+    schema: {synthetic: {shape: {fields: {items: {elements: {fields: {name: {presence: mandatory, type: string}, note: {presence: optional, type: string}}, key: [name]}, presence: optional, type: list}}, presence: optional, type: composite}}}
+    input_yaml: "items:\n  - name: a\n    note: ~\n"
+    expect: {errors: [{code: NULL_NOT_ALLOWED, logical_path: '$.items[{name="a"}].note', phase: validate, source_location: {column: 11, line: 3, offset: 29}}]}
+    codes_status: stable

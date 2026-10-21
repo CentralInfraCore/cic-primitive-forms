@@ -231,20 +231,23 @@ impl Walk<'_> {
             }
             match identify(it, elements, self.a) {
                 Ok((case, id)) => found.push((it, case, Seg::Item(id))),
-                Err(code) => self.validation(path, code, location(it.pos)),
+                Err((code, at)) => self.validation(path, code, location(at.pos)),
             }
         }
         // Two elements with one identity cannot be told apart by a path: one error at the identity, and
         // nothing is reported below a node that already has an error.
         let twice = |seg: &Seg| found.iter().filter(|(_, _, s)| s == seg).count() > 1;
+        // The error is anchored at the second element that has the identity.
+        let mut seen: Vec<&Seg> = Vec::new();
         let mut reported: Vec<&Seg> = Vec::new();
         for (it, _, seg) in &found {
-            if twice(seg) && !reported.contains(&seg) {
+            if seen.contains(&seg) && !reported.contains(&seg) {
                 reported.push(seg);
                 path.push(seg.clone());
                 self.validation(path, DUPLICATE_IDENTITY, location(it.pos));
                 path.pop();
             }
+            seen.push(seg);
         }
         for (it, case, seg) in &found {
             if twice(seg) {

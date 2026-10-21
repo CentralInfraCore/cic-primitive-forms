@@ -199,14 +199,13 @@ identity: `$.vlans[{vlan_id=100}].vlan_mode`, not `$.vlans[1].vlan_mode`.
   ordered as ADR 0007 says: by component name, strings by UTF-8 bytes before integers, integers numerically (`{vlan_id=9}`
   before `{vlan_id=10}`), independent of the list order.
 * **Corpus.** The 18 `path_of` and 7 `path_stability` cases of `corpus/paths` run in both languages; the validation of
-  elements is in the shared `testdata/p1/schema.json` (list, `item_choice`, composite key in schema order, ambiguity,
+  elements is in `corpus/lists` and the shared `testdata/p1/schema.json` (list, `item_choice`, composite key in schema order, ambiguity,
   boolean key, canonical key text) and, against the registry's `network-space`, in `testdata/p1/real-schemas.json`.
-* **Open contract point: the phase of these codes.** `corpus/codes.yaml` lists `PATH_KEY_MISSING`, `PATH_KEY_TYPE`,
-  `PATH_CASE_NONE`, `PATH_CASE_AMBIGUOUS` and `PATH_DUPLICATE_IDENTITY` for the phase `path_of` only (the key and
-  duplicate ones are stable, `PATH_KEY_UNSUPPORTED` provisional). Validation reports them in phase `validate`, since a
-  response holds one phase. That needs an ADR 0007 amendment (add `validate` to the phases of these five codes, with a
-  negative vector each, which needs the corpus `validate` kind to describe lists). The registry is **not** changed
-  here, so `make corpus` stays what it was; the shared JSON cases are the evidence meanwhile.
+* **Phase and anchors.** The six identity codes are reported in phase `path_of` by `path_of` and in phase `validate` by
+  `Validate` (ADR 0007, "Amendment: the list-element identity codes in `validate`"): the missing key and the case errors are
+  anchored at the element's record, a key value of the wrong or an unsupported type at that value, a duplicate at the second
+  element with the identity. `corpus/lists/vectors.yaml` carries a negative vector per code and phase, with source locations,
+  and runs in both languages.
 
 ## Explicitly not supported (each is an error, never a reinterpretation)
 
@@ -239,7 +238,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **106 run + 233 NOT RUN**.
+case of the corpus (339), assert that each is either run or listed here, and assert **114 run + 233 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -251,6 +250,7 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | conformance | `basis` | 16 | NOT RUN (ADR 0010) |
 | conformance, presence, recognition | `collapse` | 15 | NOT RUN (P2) |
 | inherit, presence | `roundtrip`, `expand`, `equality` | 11 | NOT RUN (P2) |
+| lists | `validate` (list notation, ADR 0007 amendment) | 8 | **run**, both languages, complete machine response with source locations |
 | paths | `path_of` | 18 | **run**, both languages: identity of a list element in a path, errors with their path |
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
 | paths | `path_parse` 57, `path_resolve` 34, `path_format` 9 | 100 | NOT RUN |

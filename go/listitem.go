@@ -82,37 +82,37 @@ func (c *Case) matches(rec *Node) bool {
 }
 
 // identify selects the case of a record and builds its identity. code is "" on success, else the
-// error code (CodeKey*, CodeCase*); the case is nil then.
-func identify(rec *Node, els *Elements, a []string) (*Case, []KeyComp, string) {
-	var c *Case
+// error code (CodeKey*, CodeCase*); the case is nil then. at is the node a source position is taken from
+// (ADR 0007): the key value for a key of the wrong or an unsupported type, the record for every other error.
+func identify(rec *Node, els *Elements, a []string) (c *Case, id []KeyComp, code string, at *Node) {
 	if els.Choice {
 		for i := range els.Cases {
 			if els.Cases[i].matches(rec) {
 				if c != nil {
-					return nil, nil, CodeCaseAmbiguous
+					return nil, nil, CodeCaseAmbiguous, rec
 				}
 				c = &els.Cases[i]
 			}
 		}
 		if c == nil {
-			return nil, nil, CodeCaseNone
+			return nil, nil, CodeCaseNone, rec
 		}
 	} else {
 		c = &els.Cases[0]
 	}
-	id := make([]KeyComp, 0, len(c.Key))
+	id = make([]KeyComp, 0, len(c.Key))
 	for _, name := range c.Key {
 		raw := entry(rec, name)
 		if raw == nil {
-			return nil, nil, CodeKeyMissing
+			return nil, nil, CodeKeyMissing, rec
 		}
 		shape, _ := fieldOf(c, name)
 		if shape.Kind != ShapeScalar || shape.Scalar == ScalarBoolean {
-			return nil, nil, CodeKeyUnsupported
+			return nil, nil, CodeKeyUnsupported, raw
 		}
 		v, ok := through(raw, a)
 		if !ok {
-			return nil, nil, CodeKeyType
+			return nil, nil, CodeKeyType, raw
 		}
 		switch {
 		case v.Kind == KindStr && shape.Scalar == ScalarString:
@@ -120,10 +120,10 @@ func identify(rec *Node, els *Elements, a []string) (*Case, []KeyComp, string) {
 		case v.Kind == KindInt && shape.Scalar == ScalarInteger:
 			id = append(id, KeyComp{Name: name, IsInt: true, Int: v.Int})
 		default:
-			return nil, nil, CodeKeyType
+			return nil, nil, CodeKeyType, raw
 		}
 	}
-	return c, id, ""
+	return c, id, "", nil
 }
 
 // Step is one step of an address in a document: a field name or a list index. The index only selects
@@ -177,7 +177,7 @@ func PathOf(doc *Node, shape Shape, a []string, at []Step) (string, error) {
 		fail := func(code string, at []seg) error {
 			return &Error{Kind: ErrContract, Violations: []Violation{{Code: code, Phase: PhasePathOf, LogicalPath: logicalPath(at)}}}
 		}
-		c, id, code := identify(rec, cur.Elements, a)
+		c, id, code, _ := identify(rec, cur.Elements, a)
 		if code != "" {
 			return "", fail(code, path)
 		}
@@ -186,7 +186,7 @@ func PathOf(doc *Node, shape Shape, a []string, at []Step) (string, error) {
 			if j == idx || other.Kind != KindMap {
 				continue
 			}
-			_, oid, ocode := identify(other, cur.Elements, a)
+			_, oid, ocode, _ := identify(other, cur.Elements, a)
 			twin := seg{item: oid, isItem: true}
 			if ocode == "" && twin.key() == item.key() {
 				return "", fail(CodeDuplicateIdent, append(append([]seg{}, path...), item))

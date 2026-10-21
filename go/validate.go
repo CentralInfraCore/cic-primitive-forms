@@ -226,9 +226,9 @@ func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
 		if it.Kind != KindMap {
 			return unsupported("a %s value where a list element record is declared (no code in the registry)", kindName(it))
 		}
-		c, id, code := identify(it, shape.Elements, w.a)
+		c, id, code, at := identify(it, shape.Elements, w.a)
 		if code != "" {
-			w.add(path, code, loc(it.Pos))
+			w.add(path, code, loc(at.Pos))
 			continue
 		}
 		s := seg{item: id, isItem: true}
@@ -237,14 +237,12 @@ func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
 	}
 	// Two elements with one identity cannot be told apart by a path: one error at the identity, and
 	// nothing is reported below a node that already has an error.
-	reported := map[string]bool{}
+	// The error is anchored at the second element that has the identity.
+	seen := map[string]int{}
 	for _, e := range els {
 		k := e.item.key()
-		if count[k] < 2 {
-			continue
-		}
-		if !reported[k] {
-			reported[k] = true
+		seen[k]++
+		if seen[k] == 2 {
 			w.add(append(slices.Clone(path), e.item), "PATH_DUPLICATE_IDENTITY", loc(e.node.Pos))
 		}
 	}

@@ -93,38 +93,42 @@ fn matches(c: &Case, rec: &Node) -> bool {
         })
 }
 
-/// Selects the case of a record and builds its identity; the error is the code.
-pub(crate) fn identify<'e>(
-    rec: &Node,
+/// Why an element has no identity: the code, and the node a source position is taken from (ADR 0007): the
+/// key value for a key of the wrong or an unsupported type, the record for every other error.
+pub(crate) type Refusal<'n> = (&'static str, &'n Node);
+
+/// Selects the case of a record and builds its identity.
+pub(crate) fn identify<'e, 'n>(
+    rec: &'n Node,
     els: &'e Elements,
     a: &[String],
-) -> Result<(&'e Case, Vec<KeyComp>), &'static str> {
+) -> Result<(&'e Case, Vec<KeyComp>), Refusal<'n>> {
     let case = if els.choice {
         let mut found: Option<&Case> = None;
         for c in &els.cases {
             if matches(c, rec) {
                 if found.is_some() {
-                    return Err(CASE_AMBIGUOUS);
+                    return Err((CASE_AMBIGUOUS, rec));
                 }
                 found = Some(c);
             }
         }
-        found.ok_or(CASE_NONE)?
+        found.ok_or((CASE_NONE, rec))?
     } else {
         &els.cases[0]
     };
     let mut id = Vec::with_capacity(case.key.len());
     for name in &case.key {
-        let raw = entry(rec, name).ok_or(KEY_MISSING)?;
+        let raw = entry(rec, name).ok_or((KEY_MISSING, rec))?;
         let scalar = match field_of(case, name).map(|s| &s.shape_type) {
             Some(ShapeType::Scalar(t)) if *t != ScalarType::Boolean => *t,
-            _ => return Err(KEY_UNSUPPORTED),
+            _ => return Err((KEY_UNSUPPORTED, raw)),
         };
-        let v = through(raw, a).ok_or(KEY_TYPE)?;
+        let v = through(raw, a).ok_or((KEY_TYPE, raw))?;
         let value = match (&v.value, scalar) {
             (Value::Str(s), ScalarType::String) => KeyValue::Str(s.clone()),
             (Value::Int(n), ScalarType::Integer) => KeyValue::Int(*n),
-            _ => return Err(KEY_TYPE),
+            _ => return Err((KEY_TYPE, raw)),
         };
         id.push(KeyComp {
             name: name.clone(),
@@ -197,11 +201,13 @@ pub fn path_of(doc: &Node, shape: &Shape, a: &[String], at: &[Step]) -> Result<S
         if !matches!(rec.value, Value::Map(_)) {
             return Err(nothing(i, "a list element is not a record"));
         }
-        let (case, id) = identify(rec, elements, a).map_err(|code| fail(code, &path))?;
+        let (case, id) = identify(rec, elements, a).map_err(|(code, _)| fail(code, &path))?;
         let item = Seg::Item(id);
         for (j, other) in items.iter().enumerate() {
-            let twin = identify(other, elements, a).map(|(_, oid)| Seg::Item(oid));
-            if j != idx && twin.as_ref() == Ok(&item) {
+            let twin = identify(other, elements, a)
+                .ok()
+                .map(|(_, oid)| Seg::Item(oid));
+            if j != idx && twin.as_ref() == Some(&item) {
                 let mut p = path.clone();
                 p.push(item);
                 return Err(fail(DUPLICATE_IDENTITY, &p));
