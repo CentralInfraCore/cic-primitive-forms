@@ -19,7 +19,7 @@ verifying them is the Relay's. So P3 resolves **what the document and the schema
 | the value of an absent field that has a default and may take it | allow / deny for a subject |
 | the `InheritanceMode` of every carrier and object, in the bound grammar | matching a CertPattern against an identity |
 | for each position and each operation (`access`, `modify`): the **effective rule** and the layer it comes from | the owner's trust, the system default as a decision |
-| the origin of every value: authored, default, or inherited | verifying an attestation |
+| the origin of every value (authored or default) and of every rule (its layer) | verifying an attestation |
 
 An **effective rule** is data, not a decision: `list<CertPattern>`, `open`, `owner`, `none` (a `reset` barrier with no local rule: the
 resolver will deny, `RESET_NO_LOCAL_RULE`), or `unknown` (a policy the walk must read is `unknown`: `POLICY_CONTEXT_UNKNOWN`). Each
@@ -98,7 +98,7 @@ adds the layer and the source path to its output. Where Forms and that reference
 | Notion | Answers | Lives in | Derived from |
 |---|---|---|---|
 | authored provenance | how was this position written (short/expanded)? | P2 `Provenance` | the authored document |
-| resolution origin | where did this value or rule come from (authored/default; field/surface/inherited/system)? | P3 `value_origin`, `effective.*.layer` | the document and the schema |
+| resolution origin | where did this value or rule come from (authored/default; field/surface/inherited/system)? | P3 `value_origin`, `policy_resolution.*.layer` | the document and the schema |
 | authenticated basis | is the capability the binding's own statement? | ADR 0010 `Context` | a trusted context |
 
 None is computed from another. In particular a `default` or an inherited rule is never evidence of a capability.
