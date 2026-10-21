@@ -159,7 +159,7 @@ be read as covering the rest.
 * the positions of those inputs: second key, mapping (first key in block style, opening brace in flow
   style), BOM, CRLF, lone CR, non-ASCII, leading line breaks.
 
-* the 502 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
+* the 531 inputs of `testdata/p1/parity.json` (the shared regression corpus of the parser parity work, below):
   the complete outcome of `parse` (the tree with the position of every node and key, or the contract
   violation, or the refusal) is pinned and read by both languages.
 
@@ -256,7 +256,7 @@ Run it: `python3 tools/parity/gen_inputs.py in.hex --upstream "$CIC_PRIMITIVES_R
 The `parity` job of `p1.yml` does exactly this. The allow list names each known divergence by its input *and*
 by a digest of both outcomes, so it is red on a new divergence and equally on a known one whose answer on either
 side has changed; `tools/parity/selftest.py` breaks the real outputs in those ways (and one that must stay
-green, a fix) and requires the right verdict, in the same job. `make_corpus.py` rebuilds `parity.json` from `HAND` and `EXTRA` of `gen_inputs.py`.
+green, a fix) and requires the right verdict, in the same job. `make_corpus.py` rebuilds `parity.json` from `HAND`, `EXTRA` and `REGRESSIONS` of `gen_inputs.py`; `REGRESSIONS` (an alias in the place of a mapping key, which once made the Rust parser panic, #31) is appended after the seeded random part, so adding to it leaves the fixed-seed run, and with it the allow list, as it was.
 
 ## Quality gates (docs/PHASES.md, "Quality gates")
 

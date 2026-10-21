@@ -10970,6 +10970,180 @@
    "expect": {
     "err": "YAML_SYNTAX"
    }
+  },
+  {
+   "input": "[[Alse2]:&2-/{a,{[Alse2]:*2-/{6{a,Pa,;~$=PP",
+   "expect": {
+    "err": "YAML_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : 1}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : 1, b: 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{x: &a 1, *a : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "*a : 1\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "*a : 1\nb: 2\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "a: &x 1\n*x : 2\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "&x a: 1\n*x : 2\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "? *a\n: 1\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "? *a\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{? *a : 1}",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a}",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : }",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a:1}",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "a: {*b : 1}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "a: [{*b : 1}]\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "- {*a : 1}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "[*a : 1]",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{a: 1, a: 2, *b : 3}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{<<: 1, *a : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{&a b: 1, *a : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : *a}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : &b 1, *b : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{a: &x [1], *x : 2}",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{{*a : 1} : 2}",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : 1, *a : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{*a : 1}\n{*a : 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "a:\n  {*b : 1}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
+  },
+  {
+   "input": "{a: {*b : 1}, c: 2}\n",
+   "expect": {
+    "err": "UNSUPPORTED_SYNTAX"
+   }
   }
  ],
  "known_divergences": [

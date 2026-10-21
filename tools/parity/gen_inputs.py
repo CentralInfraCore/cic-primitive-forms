@@ -122,6 +122,17 @@ EXTRA = [
 ]
 
 
+# Regression inputs that are NOT mutation seeds: adding one must not change the fixed-seed generated run the allow list
+# (testdata/p1/parity-known.txt) is keyed to, so they are appended after the random part (see main) and read by make_corpus.py.
+REGRESSIONS = [
+    # an alias in the place of a mapping key (the Rust parser panicked on it, #31; the answer must be a refusal, never a panic)
+    "[[Alse2]:&2-/{a,{[Alse2]:*2-/{6{a,Pa,;~$=PP", "{*a : 1}\n", "{*a : 1, b: 2}\n", "{x: &a 1, *a : 2}\n", "*a : 1\n", "*a : 1\nb: 2\n", "a: &x 1\n*x : 2\n",
+    "&x a: 1\n*x : 2\n", "? *a\n: 1\n", "? *a\n", "{? *a : 1}", "{*a}", "{*a : }", "{*a:1}", "a: {*b : 1}\n", "a: [{*b : 1}]\n", "- {*a : 1}\n", "[*a : 1]",
+    "{a: 1, a: 2, *b : 3}\n", "{<<: 1, *a : 2}\n", "{&a b: 1, *a : 2}\n", "{*a : *a}\n", "{*a : &b 1, *b : 2}\n", "{a: &x [1], *x : 2}", "{{*a : 1} : 2}",
+    "{*a : 1, *a : 2}\n", "{*a : 1}\n{*a : 2}\n", "a:\n  {*b : 1}\n", "{a: {*b : 1}, c: 2}\n",
+]
+
+
 def seeds(upstream):
     out = [t for t in HAND] + EXTRA
     # texts already in the repository
@@ -213,6 +224,7 @@ def main():
             i = rng.randrange(max(1, len(lines) - 30))
             t = "\n".join(lines[i:i + 30])
         items.append(mutate(rng, t).encode("utf-8", "surrogatepass"))
+    items += [t.encode("utf-8") for t in REGRESSIONS]  # after the random part: the seeded run above is unchanged by them
     # a few byte-level cases the text path cannot produce
     items += [b"\xff", b"a: \xc3\n", b"\xef\xbb", b"a: \xed\xa0\x80\n", b"\xfe\xff"]
     with open(a.out, "w") as fh:
