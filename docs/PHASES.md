@@ -36,7 +36,7 @@ fault or vector that demonstrably turns it red.
 | P1 | Semantic parse / emit / validate, resource limits, fuzzing | Stable on both languages with shared negative tests; validation changes no input byte | done: parse, recognize, emit, access-policy reading, schema-bound validation, list-element identity, path text |
 | P2 | Recursive expand / collapse, symbolic defaults | Short, mixed and expanded forms round-trip; explicit policy overrides survive. **Architecture review stop.** | done and reviewed; post-merge evidence complete |
 | P3 | Normalize: defaults, `inherit: true/false/0` | Same input and schema give the same fully resolved result in both languages | in progress: all four units are merged (#44, #45, #49, #53); the exit-criteria check `docs/P3-EXIT-CRITERIA.md` lists the open gaps, P3 is not closed until the owner decides on them |
-| P3b | Source-preserving editing (comments, style, anchors) | Edits keep untouched source bytes | not started |
+| P3b | Source-preserving editing (comments, style, anchors) | Edits keep untouched source bytes | design for review (`docs/P3B-SOURCE-PRESERVING-EDIT.md`: the first unit is replacing one existing scalar); no code, no ADR yet |
 | P4 | Diff and patch | `patch(A, diff(A, B))` equals B for every representable change; conflicts are explicit errors | not started |
 | P5 | Resolve (from supplied snapshot), materialize, receipt | Complete, validated object with provable input/output binding | not started |
 | P6 | Engine / Relay integration | `intent -> materialized -> observed -> diff -> conformance` runs, library stays Git-free | not started |
