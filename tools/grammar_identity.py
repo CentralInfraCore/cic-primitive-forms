@@ -24,18 +24,23 @@ import tempfile
 
 import yaml
 
-# The accepted file set (ADR 0002, owner decision, amended for D-018). Changing it changes the
-# identity and needs an ADR change; the README is part of it deliberately.
-# The three files after the seven are the amendment: the normative text of the access-policy/1
+# The accepted file set (ADR 0002, owner decision, amended for D-018 and again for the resolution reference).
+# Changing it changes the identity and needs an ADR change; the README is part of it deliberately.
+# The three files after the seven are the first amendment: the normative text of the access-policy/1
 # grammar and its migration rules (cic-primitives D-018, P0.4), which the schemas refer to, and the
 # upstream licence text (CC BY-NC-SA 4.0), so that the licence of the pinned bytes is part of the
-# verified identity. The reference model and the 187 golden vectors of P0.4 are contract evidence,
-# not part of the file set.
+# verified identity. The two files `access_policy.py` and `access-vectors/resolution.yaml` are the second
+# amendment (ADR 0002, P3 fourth unit): the reference model of the resolution and its golden vectors, which
+# PolicyResolution is cross-checked against. They are test data read at the pinned bytes; the Python is
+# never executed by the library and is not a runtime dependency. The other P0.4 vectors (reading,
+# expansion, migration) stay contract evidence outside the set.
 GRAMMAR_FILES = (
     "LICENSE.md",
     "proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md",
     "proposals/atom-grammar/P0-4-MIGRATION.md",
     "proposals/atom-grammar/README.md",
+    "proposals/atom-grammar/access-vectors/resolution.yaml",
+    "proposals/atom-grammar/access_policy.py",
     "proposals/atom-grammar/check_grammar.py",
     "proposals/atom-grammar/instance-grammar.schema.yaml",
     "schemas/aggregate/policy-surface.yaml",

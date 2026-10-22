@@ -6,7 +6,7 @@
 corpus_format: 2
 suite: lists
 status: provisional
-defaults: {adr: ADR-0007, grammar: cic-primitives-73ae469-71ee71ca}
+defaults: {adr: ADR-0007, grammar: cic-primitives-73ae469-6a188078}
 cases:
   - id: lists.identity-from-the-declared-key
     kind: validate

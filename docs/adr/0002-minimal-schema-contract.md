@@ -365,3 +365,22 @@ The identity decided above is kept; its inputs changed. `cic-primitives` D-018 (
   document and never defaulted (ADR 0004, adoption record).
 * The pinned schema list under "Corpus and licensing" above is historical; the current pin is
   `corpus/pins.yaml`.
+
+## Amendment 2: the resolution reference joins the file set (P3, fourth unit)
+
+The identity decided above is kept; its inputs changed again, at the **same commit**. The P3 `PolicyResolution` (design:
+`docs/P3-UNIT4-POLICY-RESOLUTION.md`) is cross-checked against the golden vectors of the resolution of `access-policy/1`, and a
+vector that is not digest-bound is not evidence. The pin is the new `cic-primitives-73ae469-6a188078`; the previous one,
+`cic-primitives-73ae469-71ee71ca`, is gone and every `grammar:` reference, the `grammar` manifest vectors, the profile keys of the
+two schema readers and the seeded faults were migrated on purpose.
+
+* **The accepted file set grows from ten to twelve** (`tools/grammar_identity.py: GRAMMAR_FILES`):
+  `proposals/atom-grammar/access_policy.py`, the reference model of the resolution, and
+  `proposals/atom-grammar/access-vectors/resolution.yaml`, its golden vectors. This reverses, for these two files only, the
+  statement of the first amendment that the reference model and the vectors are outside the set. The other P0.4 vectors (reading,
+  expansion, migration) stay contract evidence outside the set; they are not used as a cross-check by any unit.
+* **What the two files are for, and not.** They are test data, read at the pinned bytes after their SHA-256 matched the pin. The
+  library never executes the Python and has no runtime dependency on it. The vectors are request-bound (allow / deny / error); the
+  library decides nothing, so the test that uses them applies a test-only port of the reference decision to the effective rule the
+  library produced (the design, section 7).
+* The licence of the two files is the one of `LICENSE.md`, already in the set; nothing is vendored.

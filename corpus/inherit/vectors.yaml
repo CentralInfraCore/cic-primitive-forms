@@ -6,7 +6,7 @@
 corpus_format: 2
 suite: inherit
 status: provisional
-defaults: {adr: ADR-0004, grammar: cic-primitives-73ae469-71ee71ca}
+defaults: {adr: ADR-0004, grammar: cic-primitives-73ae469-6a188078}
 cases:
   - id: inherit.key-true-ok
     kind: validate

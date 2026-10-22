@@ -46,7 +46,7 @@ pub(crate) struct Profile {
 
 /// devel at 73ae469: the temporary P0 compatibility profile of ADR 0002, not a release contract.
 const PROFILES: &[(&str, Profile)] = &[(
-    "cic-primitives-73ae469-71ee71ca",
+    "cic-primitives-73ae469-6a188078",
     Profile {
         item_choice: true,
         access_grammar: 1,

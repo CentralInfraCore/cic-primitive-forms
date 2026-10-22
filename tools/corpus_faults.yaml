@@ -40,7 +40,7 @@ faults:
     ops: [{file: corpus/inherit/vectors.yaml, old: "adr: ADR-0004", new: "adr: ADR-0099"}]
   - id: grammar-pin-dangling
     rule: REF_DANGLING
-    ops: [{file: corpus/inherit/vectors.yaml, old: "grammar: cic-primitives-73ae469-71ee71ca", new: "grammar: nowhere"}]
+    ops: [{file: corpus/inherit/vectors.yaml, old: "grammar: cic-primitives-73ae469-6a188078", new: "grammar: nowhere"}]
   - id: schema-slot-unknown
     rule: SCHEMA_FIXTURE
     ops: [{file: corpus/inherit/vectors.yaml, old: "slot: inherit_key}}\n    input: true", new: "slot: inherit_keyy}}\n    input: true"}]
@@ -397,7 +397,7 @@ faults:
     ops: [{file: corpus/pins.yaml, old: "sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea7", new: "sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea8"}]
   - id: pin-manifest-digest-wrong
     rule: PIN_DIGEST
-    ops: [{file: corpus/pins.yaml, old: "manifest_sha256: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad", new: "manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f2"}]
+    ops: [{file: corpus/pins.yaml, old: "manifest_sha256: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3", new: "manifest_sha256: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f2"}]
   - id: pin-readme-removed
     rule: PIN_INVALID
     ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n", new: ""}]
@@ -406,7 +406,7 @@ faults:
     ops: [{file: corpus/pins.yaml, old: "    manifest_sha256:", new: "      - {path: schemas/atomic/extra.yaml, sha256: 1111111111111111111111111111111111111111111111111111111111111111}\n    manifest_sha256:"}]
   - id: pin-files-sorted-as-lines-not-paths
     rule: PIN_INVALID
-    ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n      - {path: proposals/atom-grammar/check_grammar.py, sha256: ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375}\n", new: "      - {path: proposals/atom-grammar/check_grammar.py, sha256: ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375}\n      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n"}]
+    ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/access_policy.py, sha256: 62978692ec2e4987f62c666c667a18a272b7f9b15078aa2451cda9114e821e72}\n      - {path: proposals/atom-grammar/check_grammar.py, sha256: ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375}\n", new: "      - {path: proposals/atom-grammar/check_grammar.py, sha256: ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375}\n      - {path: proposals/atom-grammar/access_policy.py, sha256: 62978692ec2e4987f62c666c667a18a272b7f9b15078aa2451cda9114e821e72}\n"}]
   - id: pin-duplicate-path
     rule: PIN_INVALID
     ops: [{file: corpus/pins.yaml, old: "      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n", new: "      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n      - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}\n"}]
@@ -415,19 +415,19 @@ faults:
     ops: [{file: corpus/pins.yaml, old: "sha256: 71fc185a0bf78b7ba57b30bdea7fabda370a63b5c73de1cc4444aeea4f679659", new: "sha256: 71fc185a"}]
   - id: pin-name-not-the-identity
     rule: PIN_INVALID
-    ops: [{file: corpus/pins.yaml, old: "  cic-primitives-73ae469-71ee71ca:\n", new: "  cic-primitives-devel:\n"}]
+    ops: [{file: corpus/pins.yaml, old: "  cic-primitives-73ae469-6a188078:\n", new: "  cic-primitives-devel:\n"}]
   - id: pin-commit-changed-without-renaming
     rule: PIN_INVALID
     ops: [{file: corpus/pins.yaml, old: "commit: 73ae4692f0680a316d367179ce057195a0031688", new: "commit: 63ae4692f0680a316d367179ce057195a0031688"}]
   - id: pin-without-the-manifest
     rule: PIN_INVALID
-    ops: [{file: corpus/pins.yaml, old: "    manifest_sha256: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad\n", new: ""}]
+    ops: [{file: corpus/pins.yaml, old: "    manifest_sha256: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3\n", new: ""}]
   - id: manifest-case-declared-digest-edited
     rule: MANIFEST_CONSISTENCY
-    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f0\n    expect: {valid: true}\n  - id: grammar.input-order"}]
+    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 76f1d664683ec9177bada778735e911a72815923b2304712700e271b602ec5f0\n    expect: {valid: true}\n  - id: grammar.input-order"}]
   - id: manifest-case-mismatch-expected-for-a-matching-digest
     rule: MANIFEST_CONSISTENCY
-    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad\n    expect: {errors: [{code: GRAMMAR_DIGEST_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}\n  - id: grammar.input-order"}]
+    ops: [{file: corpus/grammar/vectors.yaml, old: "    declared: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3\n    expect: {valid: true}\n  - id: grammar.input-order", new: "    declared: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3\n    expect: {errors: [{code: GRAMMAR_DIGEST_MISMATCH, phase: validate, source_location: {state: not_applicable}}]}\n  - id: grammar.input-order"}]
   - id: manifest-case-duplicate-path
     rule: MANIFEST_FIXTURE
     ops: [{file: corpus/grammar/vectors.yaml, old: "files: [{path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}", new: "files: [{path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}, {path: z.yaml, sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"}]

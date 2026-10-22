@@ -72,7 +72,7 @@ that is present with the value null.** They are different states with different 
 ## Access reading (corpus kind `validate`, `slot`; ADR 0004, cic-primitives D-018)
 
 The normative source is the pinned `proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md` and `schemas/atomic/access.yaml`
-(`corpus/pins.yaml`, `cic-primitives-73ae469-71ee71ca`). The module reads and checks values; it resolves
+(`corpus/pins.yaml`, `cic-primitives-73ae469-6a188078`). The module reads and checks values; it resolves
 nothing (P3), decides no permission and applies no default.
 
 * **Grammar version binding is fail-closed.** The version is not a document key and has no default. It is the
@@ -123,7 +123,7 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   `SURFACE_UNSUPPORTED` (anything but `config_surface`). All three are `ErrBinding`. `state_surface` is a processing
   target of ADR 0002 but is **refused here on purpose**: a missing mandatory field on it is a coverage fact, not an
   authoring error (ADR 0003, rule 8), and an observation validated with authoring semantics would be stated wrongly.
-* **Grammar profile and `item_choice`.** The one known pin (`cic-primitives-73ae469-71ee71ca`, `devel`) defines
+* **Grammar profile and `item_choice`.** The one known pin (`cic-primitives-73ae469-6a188078`, `devel`) defines
   `item_choice`; the primitives release v0.2.0 does not, and a schema such as the registry's `network-interface.yaml`
   already uses it while declaring `validatedBy: cic-primitives v0.2.0` (ADR 0002, finding 3). Under a profile without
   the feature the schema is refused with `SCHEMA_FEATURE_NOT_IN_GRAMMAR`; the profile is the pinned contract and
@@ -361,6 +361,8 @@ nesting limit and their own wording of a syntax error.
 ## Parser parity (Rust against Go)
 
 **Stability of the generated inputs (#39).** The fixed-seed run and its allow list depend on the seed list, because the random edits `choice` from it. The seeds are therefore the *pinned* suites named in `tools/parity/gen_inputs.py` (`PINNED_SUITES`); a corpus suite added later (`corpus/lists`) is not a seed of that run but is appended after it, with its own texts and 3 000 mutations from a generator of its own, so adding a suite cannot reshuffle the pinned inputs again. Checked: with `corpus/lists` present the first 30 000 inputs are byte for byte those of the head before it, and the 286 allowed divergences, `changed: 0`, `new: 0` hold on them. The appended inputs found 2 divergences, both the open flow-context class (a `?` inside a plain scalar of a flow mapping), now in the allow list with their minimal forms.
+
+**The pin rename shifted the samples (#52), and what that found.** The seeds are the texts of the pinned corpus suites, and the pin rename edited the `grammar:` lines of those texts, so the random edits of the fixed-seed run drew other texts. Checked, not assumed: the one allowed divergence whose input contained the old pin name is gone from the run, and its counterpart with the new pin name (a `?` inside a plain scalar of a flow mapping, the open class below) is the same divergence on a changed text, now in the allow list in its place. The run also found **one divergence of another open class**, a colon right before the closing brace of a flow mapping, ` {aa:}`: saphyr reads the colon as the value indicator (key `aa`, empty value, as YAML 1.2 does for a colon followed by a flow indicator), yaml.v3 keeps it in the plain scalar (key `aa:`). It is in the allow list with its input and both outcomes. Neither is a change of a parser: the 287 other allowed divergences hold, `changed: 0`, `new: 0` (289 allowed in all).
 
 `tools/parity` compares `parse` in the two languages on the same inputs: `gen_inputs.py` writes
 30 005 deterministic inputs (the texts the repository holds, the pinned `access.yaml`, 450 hand-written
