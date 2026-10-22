@@ -49,3 +49,9 @@ pub fn normalize_with_policy(
         schema_digest: c.digest.clone(),
     })
 }
+
+/// Probe of the diff gate (not to be merged): product code that no test covers, so its mutants survive.
+#[must_use]
+pub fn probe_len(x: &str) -> usize {
+    x.len()
+}

@@ -25,3 +25,11 @@ func NormalizeWithPolicy(doc *Node, c *CompiledSchema, a []string, g Grammar, ct
 	}
 	return &PolicyNormalization{Normalization: n, PolicyResolution: r, SchemaDigest: c.Digest}, nil
 }
+
+// ProbeLen is a probe of the diff gate (not to be merged): product code that no test covers, so its mutants survive.
+func ProbeLen(s string) int {
+	if len(s) > 0 {
+		return len(s)
+	}
+	return 0
+}
