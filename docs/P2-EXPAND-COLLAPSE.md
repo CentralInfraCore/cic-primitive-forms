@@ -71,7 +71,7 @@ binding attested. `expand` checks the same context (it creates no authority, so 
   does not allow (a non-record list element, an element without an identity, a non-mapping where a composite is declared) is
   `UNSUPPORTED_SYNTAX`, not a guess.
 - The root of a document is a composite, not a position: it is never wrapped.
-- Nothing is resolved, defaulted from a Role or normalized: that is P3. `default` of a field is not applied.
+- Nothing is resolved, defaulted from a Role or normalized here: that is P3, and it has since been added on top of this phase without changing it (`apply_defaults` and `normalize`, `docs/P3-UNIT3-COMPOSITION.md`). `expand` and `collapse` themselves do not apply a `default`.
 - The binding evidence itself (ADR 0010) is an input: not produced, not verified here.
 - A position whose logical path cannot be written (an empty name, a control character) is `UNSUPPORTED_SYNTAX`: its
   provenance would have no key.

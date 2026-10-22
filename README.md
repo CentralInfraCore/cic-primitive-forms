@@ -3,10 +3,14 @@
 Schema-driven processing of CIC primitive documents, with two independent
 implementations (Rust and Go) held to one shared conformance corpus.
 
-> **Status: P0 contract accepted, P1 first slice implemented.** The scope and the phase plan are
-> fixed in [`docs/PHASES.md`](docs/PHASES.md); the contract decisions are indexed in
-> [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and
-> Go (`go/`) and what is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md).
+> **Status: P0, P1 and P2 are done; P3 is under way.** The scope and the phase plan are fixed in
+> [`docs/PHASES.md`](docs/PHASES.md) (with the state of each phase); the contract decisions are indexed in
+> [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and Go (`go/`) and what
+> is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md). In short: parse, emit, recognize, schema-bound validation
+> (a pinned schema, list elements by identity, paths); `expand` / `collapse`; from P3 the schema's policy and `identity.base`, the
+> schema defaults (ADR 0011), and `normalize` / `denormalize` with the origin of every value kept. **Designed, not implemented:**
+> `PolicyResolution` (the design is `docs/P3-UNIT4-POLICY-RESOLUTION.md`, in review). **Not started:** source-preserving
+> editing, diff and patch, reference resolution and materialization.
 
 ## What it does
 
@@ -28,10 +32,12 @@ This library works on both, using the schema as the only authority on what a
 primitive is:
 
 - parse and emit YAML (`parse`, `emit`)
-- validate short, mixed and expanded documents, never modifying the input (`validate`)
-- convert between short and expanded form without losing authored meaning (`expand`, `collapse`)
-- normalize: defaults and inheritance (`normalize`)
-- structural and semantic diff, targeted patch (`diff`, `patch`)
+- validate short documents against a pinned schema, never modifying the input (`validate`, `compile_schema`) - **implemented**
+- convert between short and expanded form without losing authored meaning (`expand`, `collapse`) - **implemented**
+- normalize: the declared defaults of absent fields, with the origin (authored or default) of every value kept, and the way back
+  (`apply_defaults`, `normalize`, `renormalize`, `denormalize`) - **implemented**; the effective access and modify rule of every position
+  (`PolicyResolution`) - designed, next
+- structural and semantic diff, targeted patch (`diff`, `patch`) - later
 - later: resolve references from a supplied snapshot, and materialize for the engine
 
 ## Principles

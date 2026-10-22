@@ -1,7 +1,10 @@
 # P1: the implemented slices, their supported subset and their quality gates
 
-Status: **three slices** - parse/recognize/emit (PR #22), presence validation (PR #23) and the reading of the `access-policy/1` values (D-018) - in Rust (`rust/`) and Go (`go/`), one shared corpus. It is
-implementation, not a decision: it follows the accepted ADRs and re-opens none of them.
+Status: P1 (parse/recognize/emit, presence and schema-bound validation, list-element identity, the text of logical paths, the reading of the
+`access-policy/1` values) is done, and the later phases extend the same document: `expand` / `collapse` (P2), and from P3 the reading of
+`policy_surface` and the Role, the schema defaults (`ApplyDefaults`) and `normalize` / `denormalize`; see the bullets of "Schema-bound
+validation". In Rust (`rust/`) and Go (`go/`), one shared corpus. It is implementation, not a decision: it follows the accepted ADRs and
+re-opens none of them. `PolicyResolution` (P3, fourth unit) is a design, `docs/P3-UNIT4-POLICY-RESOLUTION.md`, not yet code.
 
 ## What exists
 
@@ -13,6 +16,9 @@ implementation, not a decision: it follows the accepted ADRs and re-opens none o
 | access-policy/1 reading | `read_mode`, `read_rule`, `bind_grammar`, `pinned_grammar_version`, `is_cert_pattern` | `ReadMode`, `ReadRule`, `BindGrammar`, `PinnedGrammarVersion`, `IsCertPattern` | `InheritanceMode` in grammar 1 or 2, an `access`/`modify` value, the grammar version binding derived from the verified pinned schema (see below) |
 | list element identity | `path_of` | `PathOf` | The canonical ADR 0006 path of an addressed node; a list element named by its declared key (see "List elements") |
 | schema compile | `compile_schema` | `CompileSchema` | A pinned CIC schema (bytes + SHA-256 + grammar pin + surface) to the Shape tree `validate` reads; every refusal named by schema path (see "Schema-bound validation") |
+| expand / collapse (P2) | `expand`, `collapse` | `Expand`, `Collapse` | Every primitive position wrapped with the symbolic policy and back, with the provenance of how each was written (`docs/P2-EXPAND-COLLAPSE.md`) |
+| defaults (P3) | `apply_defaults` | `ApplyDefaults` | The declared default of every absent optional field of a short document, with the origin of each position (see the bullets in "Schema-bound validation") |
+| normalize (P3) | `normalize`, `renormalize`, `denormalize` | `Normalize`, `Renormalize`, `Denormalize` | `expand`, then the defaults inserted into the expanded tree, the origin kept beside the object; `denormalize` gives the authored document back (`docs/P3-UNIT3-COMPOSITION.md`) |
 | presence validation | `validate` | `Validate` | Absent / null / value against a Shape: `mandatory`, `optional`, `nullable`, scalar type, `min_items`, composite fields; every error with `logical_path`; default *candidates* (see below) |
 
 The expanded key set `A` is an argument, never a constant of the library. The input is never
