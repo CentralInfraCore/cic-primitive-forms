@@ -122,8 +122,9 @@ fn is_modify(op: &str) -> bool {
 
 /// Layers 2 and 3 of one object: its declared surface rule for the surface, then its declared default.
 fn local_rule(o: &PolicyObject, surface: &str, op: &str) -> Option<EffectiveRule> {
-    let ObjectPolicy::Declared(p) = &o.policy else {
-        return None;
+    let p = match &o.policy {
+        ObjectPolicy::Declared(p) => p,
+        _ => return None,
     };
     for sr in &p.surface_rules {
         let r = if is_modify(op) {
@@ -164,8 +165,9 @@ pub fn resolve_rule(
     field_path: &str,
     op: &str,
 ) -> EffectiveRule {
-    let Some(cur) = graph.get(object) else {
-        return unknown_rule(REASON_CONTEXT_INCOMPLETE);
+    let cur = match graph.get(object) {
+        Some(cur) => cur,
+        None => return unknown_rule(REASON_CONTEXT_INCOMPLETE),
     };
     // layer 1: the explicit rule of the target field itself
     if let Some(f) = field {
@@ -188,7 +190,10 @@ pub fn resolve_rule(
             barrier = true; // an object-level reset cuts what the object takes from above, the carrier's rule included
             break;
         }
-        let Some(carrier) = &o.carrier else { break };
+        let carrier = match &o.carrier {
+            Some(carrier) => carrier,
+            None => break,
+        };
         if o.policy == ObjectPolicy::Unknown && o.id != cur.id {
             return unknown_rule(REASON_POLICY_CONTEXT_UNKNOWN);
         }
@@ -234,7 +239,10 @@ pub fn resolve_rule(
             barrier = true;
             break;
         }
-        let Some(pid) = &o.parent else { break };
+        let pid = match &o.parent {
+            Some(pid) => pid,
+            None => break,
+        };
         match graph.get(pid) {
             Some(next) if !seen.contains(next.id.as_str()) => {
                 seen.insert(next.id.as_str());
