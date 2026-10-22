@@ -163,6 +163,18 @@ expectation is `changes`, `representation` and `canonical` together, or `errors`
 events, their order and the canonical bytes are checked by the rules of ADR 0008. An
 error about one view carries `operand`.
 
+## Amendment for ADR 0012 (the edit kinds)
+
+Two kinds are added (the cases of P3b, `docs/P3B-SOURCE-PRESERVING-EDIT.md`). Both take the raw source text, which may hold a byte order mark, a lone CR or CRLF line breaks, or non-ASCII text: exactly one of `input_yaml` (text) and `input_hex` (the bytes, hex-encoded; for what a text field cannot spell, a lone CR, a BOM, invalid UTF-8).
+
+| Kind | Input fields | Expectation keys |
+|---|---|---|
+| `source_span` | `input_yaml` or `input_hex`, `schema`, `path` (canonical ADR 0006 text) | exactly one of `span` (`{start, end, style}`: byte offsets, half-open, of the value scalar of the position, and `plain`, `single_quoted` or `double_quoted`) and `errors` |
+| `edit` | `input_yaml` or `input_hex`, `schema`, `path`, `value` (`{string: s}`, `{integer: n}`, `{boolean: b}` or `{null: true}`) | exactly one of `output_yaml` or `output_hex` (the exact bytes of the edited text) and `errors` (one error, phase `edit` or the earlier phase that refused) |
+
+Outputs and spans are compared as **bytes** and offsets; an `edit` case also carries the `span_before` and `span_after` it expects. An error carries the code, the phase and the source position of its anchor (ADR 0007). A case with a text field that
+contains only what a text can spell may use `output_yaml`; the gate rejects a case whose expected bytes it cannot reproduce from the given field. The accounting stays exact.
+
 ## The gate and its proof
 
 ```

@@ -253,6 +253,12 @@ for each new phase in `corpus/lists/vectors.yaml`, in the `validate` kind with t
 - Warnings and a non-error channel.
 - That the two YAML libraries of P1 agree on the node start marks assumed above.
 
+## Amendment: the phase `edit` (ADR 0012, 2026-10-22)
+
+A ninth phase, `edit`, is added after `diff`. It runs after `parse`, `validate` and `path_resolve` have accepted the document and the path, and reports **one** error: the first failing condition of the fixed order of ADR 0012, section 4. Its anchors
+are `value` and `parent` as defined above. The sentence at the top of this ADR (and the entry of the *Not decided* list) that says it commits to no editing stands for what this ADR itself defines: the use of the positions
+retained by the parser to replace a scalar is the subject of ADR 0012. A position here is still the start of a node; the extent of a scalar is found by the scanner of ADR 0012, section 2, and is checked against the parser's value.
+
 ## Acceptance record
 
 Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
