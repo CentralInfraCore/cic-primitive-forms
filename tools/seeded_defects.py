@@ -118,6 +118,35 @@ DEFECTS = [
      [("if w.strip[logicalPath(append(slices.Clone(path), seg{field: e.Key}))] {", "if false {")]),
     ("go", "renormalize gives the inserted default a provenance entry", "normalize.go",
      [("\t\tif kept == ValueOriginDefault {\n\t\t\tcontinue // the author did not write it: no provenance\n\t\t}\n", "")]),
+    # P3 fourth unit: PolicyResolution (go/resolve.go, go/policyresolution.go, rust/src/resolve.rs, rust/src/policyresolution.rs).
+    ("rust", "the reset barrier is ignored: the system default follows a reset", "src/resolve.rs",
+     [("    if barrier {\n        return EffectiveRule {", "    if false {\n        return EffectiveRule {")]),
+    ("rust", "an unknown ancestor policy is treated as transparent", "src/resolve.rs",
+     [("        if o.policy == ObjectPolicy::Unknown {\n            return unknown_rule(REASON_POLICY_CONTEXT_UNKNOWN);\n        }\n        if let Some(mut hit)", "        if let Some(mut hit)")]),
+    ("rust", "a no-inherit carrier does not stop the field rules above it", "src/resolve.rs",
+     [("Mode::NoInherit => field_open = false,", "Mode::NoInherit => field_open = true,")]),
+    ("rust", "the modify system default is open", "src/resolve.rs",
+     [("            RuleKind::Owner\n        } else {", "            RuleKind::Open\n        } else {")]),
+    ("rust", "a policy-inherited rule keeps the layer of the ancestor's own rule", "src/resolve.rs",
+     [("            hit.layer = LAYER_POLICY_INHERITED;\n", "")]),
+    ("go", "the reset barrier is ignored: the system default follows a reset", "resolve.go",
+     [("\tif barrier {\n\t\treturn EffectiveRule{Kind: RuleNone", "\tif false {\n\t\treturn EffectiveRule{Kind: RuleNone")]),
+    ("go", "an unknown ancestor policy is treated as transparent", "resolve.go",
+     [("\t\to = next\n\t\tif o.Policy.State == PolicyUnknown {\n\t\t\treturn unknownRule(ReasonPolicyContextUnknown)\n\t\t}\n", "\t\to = next\n")]),
+    ("go", "a no-inherit carrier does not stop the field rules above it", "resolve.go",
+     [("\t\tcase ModeNoInherit:\n\t\t\tfieldOpen = false", "\t\tcase ModeNoInherit:\n\t\t\tfieldOpen = true")]),
+    ("go", "the modify system default is open", "resolve.go",
+     [("return EffectiveRule{Kind: RuleOwner, Layer: LayerSystem}", "return EffectiveRule{Kind: RuleOpen, Layer: LayerSystem}")]),
+    ("go", "a policy-inherited rule keeps the layer of the ancestor's own rule", "resolve.go",
+     [("\t\t\thit.Layer = LayerPolicyInherited\n", "")]),
+    ("go", "a surface rule of another surface applies", "resolve.go",
+     [("if sr.Surface == surface && r != nil {", "if r != nil {")]),
+    ("go", "an explicit empty field rule is read as no rule", "resolve.go",
+     [("\tif field != nil {\n\t\treturn fromRule(field, LayerField, fieldPath)", "\tif field != nil && (field.Symbol != \"\" || len(field.Patterns) > 0) {\n\t\treturn fromRule(field, LayerField, fieldPath)")]),
+    ("rust", "a list element does not take the rule of its list field", "src/policyresolution.rs",
+     [("self.child(&etext, parent, mode, &access, &modify, text);", "self.child(&etext, parent, mode, &None, &None, text);")]),
+    ("go", "a list element does not take the rule of its list field", "policyresolution.go",
+     [("w.child(etext, parent, mode, access, modify, text)", "w.child(etext, parent, mode, nil, nil, text)")]),
     ("rust", "a default is inserted at a position whose logical path cannot be written", "src/expand.rs",
      [("            if let Err(e) = path_text(path) {\n                path.pop();\n                return Err(e);\n            }\n", "")]),
     ("go", "a default is inserted at a position whose logical path cannot be written", "expand.go",
@@ -301,7 +330,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties"]
     return ["go", "test", "-count=1", "./..."]
 
 

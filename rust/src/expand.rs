@@ -118,7 +118,7 @@ fn defaults(g: Grammar) -> Vec<(&'static str, Node)> {
     ]
 }
 
-fn entry<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
+pub(crate) fn entry<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(es) => es.iter().find(|e| e.key == key).map(|e| &e.value),
         _ => None,
@@ -218,7 +218,7 @@ impl<'a> Walker<'a> {
     }
 }
 
-fn path_text(path: &Path) -> Result<String, Error> {
+pub(crate) fn path_text(path: &Path) -> Result<String, Error> {
     logical_path(path).ok_or_else(|| {
         Error::Unsupported("a primitive position whose logical path cannot be written".into())
     })

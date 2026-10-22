@@ -71,21 +71,30 @@ pub(crate) fn read_policy(
     grammar: Grammar,
     problems: &mut Vec<Problem>,
 ) -> PolicySurface {
+    match get(spec, "policy_surface") {
+        Some(n) => read_policy_node(n, POLICY_PATH, grammar, problems),
+        None => PolicySurface::undeclared(),
+    }
+}
+
+/// Reads one PolicySurface mapping, named `policy_path` in the problems; `grammar` is the one its `inherit_policy` is read under.
+pub(crate) fn read_policy_node(
+    n: &Node,
+    policy_path: &str,
+    grammar: Grammar,
+    problems: &mut Vec<Problem>,
+) -> PolicySurface {
     let mut out = PolicySurface::undeclared();
-    let n = match get(spec, "policy_surface") {
-        Some(n) => n,
-        None => return out,
-    };
     out.declared = true;
     let entries = match &n.value {
         Value::Map(entries) => entries,
         _ => {
-            problems.push(invalid(POLICY_PATH, "a mapping is required"));
+            problems.push(invalid(policy_path, "a mapping is required"));
             return out;
         }
     };
     for e in entries {
-        let path = format!("{POLICY_PATH}.{}", e.key);
+        let path = format!("{policy_path}.{}", e.key);
         match e.key.as_str() {
             "default_access" => {
                 out.default_access = default_rule(&e.value, "open", &path, problems)
@@ -105,6 +114,24 @@ pub(crate) fn read_policy(
         }
     }
     out
+}
+
+/// Reads one PolicySurface mapping (the value of a schema's `policy_surface`, or an object's policy in the golden vectors of the
+/// resolution) under the bound grammar. A policy that cannot be read is an error, never a more permissive policy.
+///
+/// # Errors
+/// [`Error::Schema`] with every problem of the mapping.
+pub fn read_policy_surface(
+    n: &Node,
+    grammar: Grammar,
+) -> Result<PolicySurface, crate::error::Error> {
+    let mut problems = Vec::new();
+    let out = read_policy_node(n, POLICY_PATH, grammar, &mut problems);
+    if problems.is_empty() {
+        Ok(out)
+    } else {
+        Err(crate::error::Error::Schema(problems))
+    }
 }
 
 /// `default_access` (symbol `open`) or `default_modify` (symbol `owner`): a list of CertPatterns or

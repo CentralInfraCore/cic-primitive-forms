@@ -41,15 +41,19 @@ type PolicySurface struct {
 
 const policyPath = "spec.policy_surface"
 
-// policy reads spec.policy_surface. Every refusal is recorded and the walk goes on, so one compile
-// names all of them.
+// policy reads spec.policy_surface. Every refusal is recorded and the walk goes on, so one compile names
+// all of them.
 func (c *compiler) policy(spec *Node) PolicySurface {
-	out := PolicySurface{InheritPolicy: ModeInherit}
 	n := lookup(spec, "policy_surface")
 	if n == nil {
-		return out
+		return PolicySurface{InheritPolicy: ModeInherit}
 	}
-	out.Declared = true
+	return c.policyNode(n, policyPath, Grammar{version: c.profile.AccessGrammar})
+}
+
+// policyNode reads one PolicySurface mapping, named path in the problems. g is the grammar its inherit_policy is read under.
+func (c *compiler) policyNode(n *Node, policyPath string, g Grammar) PolicySurface {
+	out := PolicySurface{InheritPolicy: ModeInherit, Declared: true}
 	if n.Kind != KindMap {
 		c.record(schemaErr(SchemaInvalid, policyPath, "a mapping is required"))
 		return out
@@ -64,7 +68,7 @@ func (c *compiler) policy(spec *Node) PolicySurface {
 		case "surface_rules":
 			out.SurfaceRules = c.surfaceRules(e.Value, path)
 		case "inherit_policy":
-			if mode, v := ReadMode(e.Value, Grammar{version: c.profile.AccessGrammar}); v != nil {
+			if mode, v := ReadMode(e.Value, g); v != nil {
 				c.record(schemaErr(SchemaInvalid, path, "%s", v.Code))
 			} else {
 				out.InheritPolicy, out.InheritPolicyDeclared = mode, true
@@ -74,6 +78,19 @@ func (c *compiler) policy(spec *Node) PolicySurface {
 		}
 	}
 	return out
+}
+
+// ReadPolicySurface reads one PolicySurface mapping (the value of a schema's policy_surface, or an object's policy in the
+// golden vectors of the resolution) under the bound grammar. A policy that cannot be read is an error, never a more permissive
+// policy.
+func ReadPolicySurface(n *Node, g Grammar) (PolicySurface, error) {
+	c := &compiler{}
+	out := c.policyNode(n, policyPath, g)
+	if len(c.problems) > 0 {
+		first := c.problems[0]
+		return PolicySurface{}, &Error{Kind: ErrSchema, SchemaCode: first.Code, Detail: first.Path + ": " + first.Detail, Problems: c.problems}
+	}
+	return out, nil
 }
 
 // defaultRule reads default_access (symbol open) or default_modify (symbol owner): a list of

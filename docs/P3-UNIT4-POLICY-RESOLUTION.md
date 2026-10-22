@@ -1,6 +1,6 @@
 # P3, fourth unit: PolicyResolution - the effective access and modify rule of every position
 
-Status: **design, no code.** It builds on the accepted ADR 0004 (access vocabulary), ADR 0010 and the pinned `access-policy/1`
+Status: **implemented in Rust and Go** (`resolve_rule`, `resolve_policy`; the shared cases are `testdata/p1/resolution.json`, the golden vectors are run against the pin). It builds on the accepted ADR 0004 (access vocabulary), ADR 0010 and the pinned `access-policy/1`
 grammar (cic-primitives D-018: `P0-4-ACCESS-GRAMMAR.md`, section 4, and the reference model `access_policy.py` with its golden
 vectors `access-vectors/resolution.yaml`), on `docs/P3-NORMALIZE-DESIGN.md` section 4 and on the merged `Normalize` (unit 3). It
 re-opens none of them and changes nothing of `normalize` / `denormalize`. The points that are the owner's are in section 9.
