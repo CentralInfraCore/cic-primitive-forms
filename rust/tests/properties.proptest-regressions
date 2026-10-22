@@ -1,0 +1,6 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# Issue #46: two UNKNOWN_FIELD errors, `$.<<` and one at an empty name under `d` (no logical_path).
+cc 2f1a94bc9a049bce6d2eb9edcd5dfbc87b37f43502a2b87ed08afa933c152903 # shrinks to the shape {d: composite with no fields} and the document {"<<": null, "d": {"": null}}

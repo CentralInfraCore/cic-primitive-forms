@@ -55,6 +55,9 @@ segment by segment, then by `code`:
 - `ListItem` segments compare by their components in the declared key order: strings
   by UTF-8 bytes, integers numerically;
 - equal paths compare by `code`, bytewise.
+- an error at a position whose path cannot be written as text (an empty name, or one with a control character: no
+  `logical_path`, see ADR 0006) is ordered by its segments like every other: the order never depends on the text of the path,
+  so `$.<<` comes before the error at `$.d.` and the empty name, because `<<` sorts before `d` (issue #46).
 
 The key deliberately contains no source offset: the order must be the same whether or
 not the input had source text, and the same for any traversal order of the two
