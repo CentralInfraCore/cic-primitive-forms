@@ -73,7 +73,9 @@ The replacement text is the new value written **in the style the scalar already 
   (`- ? : , [ ] { } # & * ! | > ' " % @` and the backtick), not empty, no control character, no line break, and it must not read as another type than the one the
   position has (for a string position: not `true`, `false`, `null`, `~`, an integer, ...). Integers are written in the canonical decimal form the parser accepts.
 * **single-quoted** stays single-quoted: `'` is written `''`; no line break.
-* **double-quoted** stays double-quoted: `\` and `"` are escaped, a control character is written as an escape; no line break.
+* **double-quoted** stays double-quoted: `\` and `"` are escaped; no line break and **no control character in the new value**. *Reading* is wider than *writing*: an existing double-quoted token that holds an escaped control
+  character (`\t`, `\x07`, ...) is read by the scanner and the read-back as the parser reads it, and such a scalar can be edited (the edit replaces the whole token); but this first unit never *writes* a control
+  character, in any style: a new value that holds one is `EDIT_VALUE_NOT_REPRESENTABLE` (section 6).
 * A new value that the existing style cannot carry is **not** requoted silently: `EDIT_STYLE_CONFLICT` (owner decision 1, section 10).
 
 Guarantees, each of them checked by the library on every successful edit and not only tested:
@@ -87,8 +89,9 @@ Guarantees, each of them checked by the library on every successful edit and not
    with those of the original except for the value. `Provenance` therefore needs no change: it is computed from the text, and the text's shape did not change.
 5. **Deterministic and identical in Rust and Go**, byte for byte (section 8).
 6. **A no-op is a no-op, and the spelling is not promised back.** Editing a position to the value it already has returns the original text byte for byte: the library does not rewrite a token whose
-   value does not change, so a non-canonical but accepted spelling (`True`, `+5`, `~`) is never normalized as a side effect of an edit that changes nothing. Two edits of different positions give the same text in
-   either order. **Editing a value and then back is not promised to restore the original bytes**: the edit writes the canonical spelling of the new value (decimal integers, lower-case booleans, `null`), and the
+   value does not change, so a non-canonical but accepted spelling (`True`, `+5`, `~`) is never normalized as a side effect of an edit that changes nothing. Two edits of **independent** positions give the same text in
+   either order. Independent means: the spans do not overlap, and neither edit changes the logical address of the other's position or makes the document invalid for the other (editing a key field that
+   identifies a list element changes the address of every position inside that element, so an edit of the key and an edit inside the same element are not independent, and no commutation is promised for them). **Editing a value and then back is not promised to restore the original bytes**: the edit writes the canonical spelling of the new value (decimal integers, lower-case booleans, `null`), and the
    original may have used another spelling the parser accepts. It is promised only when the original token already was the canonical spelling and the style is kept (the review of this note asked for exactly this limit;
    keeping the original token's spelling instead is owner decision 8).
 
@@ -149,7 +152,7 @@ result of the previous one (each is re-indexed), which is slower and obviously c
   a trailing comment kept; comments above, below and between; CRLF, LF and lone CR files; a BOM; non-ASCII (the span in bytes, a multi-byte character before and after, in the value);
   a file without a final newline; the same scalar text appearing twice (only the addressed one changes); a list element addressed by identity, then the list reordered; short and expanded forms; an
   expanded position's `value:`; a position whose value is a quoted number; and one case per code of section 6, with a position for the error. **Every refusal has a case.**
-* **Properties** (both languages): untouched bytes (guarantee 1) over generated documents and edits; edit to the same value is the identity (also for a non-canonical spelling); two edits of different positions commute; edit then edit back is the original
+* **Properties** (both languages): untouched bytes (guarantee 1) over generated documents and edits; edit to the same value is the identity (also for a non-canonical spelling); two edits of independent positions (section 5, guarantee 6) commute; edit then edit back is the original
   only when the original spelling is the canonical one and the style was kept (and a case where it is not, which must come back with the canonical spelling, as the limit of guarantee 6); the result always re-parses to the old tree with one value replaced; `recognize` is unchanged; no input is modified; an edit never turns a valid document into an invalid one without `EDIT_INVALID_RESULT`.
 * **A differential run** like P3's (`tools/parity`): generated documents and edits, Rust output against Go output byte for byte, fixed seed, in the required `parity` job, with a selftest that breaks the outputs
   six ways and requires red.
