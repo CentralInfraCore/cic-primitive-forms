@@ -59,6 +59,9 @@ func ApplyDefaults(doc *Node, root Shape, a []string) (*Defaulted, error) {
 	d := &defaulter{}
 	out := cloneTree(doc)
 	d.composite(out, root.Fields, nil)
+	if d.err != nil {
+		return nil, d.err
+	}
 	slices.SortStableFunc(d.found, func(x, y found) int { return slices.Compare(x.keys(), y.keys()) })
 	res := &Defaulted{Document: out, Origins: []ValueOrigin{}}
 	for _, f := range d.found {
@@ -67,7 +70,11 @@ func ApplyDefaults(doc *Node, root Shape, a []string) (*Defaulted, error) {
 	return res, nil
 }
 
-type defaulter struct{ found []found }
+type defaulter struct {
+	found []found
+	// err is set when a default would be inserted at a position whose logical path cannot be written: its origin would have no key.
+	err error
+}
 
 func (d *defaulter) record(path []seg, origin string) {
 	d.found = append(d.found, found{path: path, v: Violation{LogicalPath: logicalPath(path), Code: origin}})
@@ -81,6 +88,10 @@ func (d *defaulter) composite(n *Node, fields []NamedShape, path []seg) {
 			d.record(fp, ValueOriginAuthored)
 			d.visit(value, f.Shape, fp)
 		} else if f.Shape.Default != nil { // after the validation an absent field is an optional one
+			if _, err := pathText(fp); err != nil {
+				d.err = err
+				return
+			}
 			n.Entries = append(n.Entries, Entry{Key: f.Name, Value: cloneTree(f.Shape.Default)})
 			d.record(fp, ValueOriginDefault)
 		}

@@ -283,6 +283,9 @@ func (w *formWalker) insertDefaults(n, out *Node, fields []NamedShape, path []se
 			continue
 		}
 		fp := append(slices.Clone(path), seg{field: f.Name})
+		if _, err := pathText(fp); err != nil { // the origin of an inserted value is keyed by its path: no path, no insertion
+			return err
+		}
 		ep, _, err := ExpandPosition(cloneTree(f.Shape.Default), w.a, w.g)
 		if err != nil {
 			return withPath(err, fp)

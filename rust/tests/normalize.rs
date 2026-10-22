@@ -368,3 +368,41 @@ fn a_default_is_a_whole_value_nothing_below_it_is_defaulted_or_authored() {
     assert!(res.provenance.is_empty());
     assert!(!emit(&res.object).contains("in:"), "{}", emit(&res.object));
 }
+
+/// A field whose name cannot be written as an ADR 0006 path (a control character) has no key for its origin: a default must not
+/// be inserted there, and both operations say so the same way as `expand` does for a written one, instead of inserting a value
+/// that `denormalize` could not take out again. The Go peer is `TestAnUnwritableNameGetsNoDefault`.
+#[test]
+fn an_unwritable_name_gets_no_default() {
+    let name = format!("a{}b", char::from(7u8)); // built, not written: a control character in a source file is easy to lose
+    let leaf = Shape {
+        shape_type: ShapeType::Scalar(ScalarType::String),
+        presence: Presence::Optional,
+        nullable: false,
+        has_default: true,
+        default: Some(DefaultValue(Node::new(Value::Str("x".into())))),
+    };
+    let root = Shape {
+        shape_type: ShapeType::Composite(vec![(name, leaf)]),
+        presence: Presence::Mandatory,
+        nullable: false,
+        has_default: false,
+        default: None,
+    };
+    let a: Vec<String> = [
+        "value",
+        "access",
+        "modify",
+        "inherit",
+        "default_injection",
+        "conformance",
+    ]
+    .iter()
+    .map(|k| (*k).to_string())
+    .collect();
+    let doc = parse("{}\n").unwrap();
+    let r = normalize(&doc, &root, &a, bound(1), &Context::default());
+    assert!(matches!(r, Err(Error::Unsupported(_))), "{r:?}");
+    let d = cic_primitive_forms::apply_defaults(Some(&doc), &root, &a);
+    assert!(matches!(d, Err(Error::Unsupported(_))), "{d:?}");
+}

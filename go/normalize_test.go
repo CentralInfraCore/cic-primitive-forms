@@ -293,3 +293,28 @@ func TestADefaultIsAWholeValueNothingBelowItIsDefaultedOrAuthored(t *testing.T) 
 		t.Fatalf("a field inside an inserted default was defaulted:\n%s", text)
 	}
 }
+
+// A field whose name cannot be written as an ADR 0006 path (a control character) has no key for its origin: a default must not
+// be inserted there, and both operations say so the same way as Expand does for a written one, instead of inserting a value that
+// Denormalize could not take out again. The Rust peer is `an_unwritable_name_gets_no_default` in rust/tests/normalize.rs.
+func TestAnUnwritableNameGetsNoDefault(t *testing.T) {
+	name := "a" + string(rune(7)) + "b" // built, not written: a control character in a source file is easy to lose
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: []forms.NamedShape{{Name: name,
+		Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, HasDefault: true,
+			Default: &forms.Node{Kind: forms.KindStr, Str: "x"}}}}}
+	doc, _ := forms.Parse("{}\n")
+	var e *forms.Error
+	res, err := forms.Normalize(doc, root, keySet, bound(t, 1), forms.Context{})
+	if res != nil || !errors.As(err, &e) || e.Kind != forms.ErrUnsupported {
+		t.Fatalf("normalize: %v / %v", res, err)
+	}
+	applied, err := forms.ApplyDefaults(doc, root, keySet)
+	if applied != nil || !errors.As(err, &e) || e.Kind != forms.ErrUnsupported {
+		t.Fatalf("apply defaults: %v / %v", applied, err)
+	}
+	// when the field is there the position is the author's and Expand refuses it as before
+	present, _ := forms.Parse("\"" + `a\a` + "b\": y\n")
+	if r, err := forms.Normalize(present, root, keySet, bound(t, 1), forms.Context{}); r != nil || err == nil {
+		t.Fatalf("a written unwritable name was normalized: %v / %v", r, err)
+	}
+}

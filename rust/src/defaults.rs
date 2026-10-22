@@ -69,8 +69,21 @@ pub fn apply_defaults(doc: Option<&Node>, root: &Shape, a: &[String]) -> Result<
     };
     let mut out = doc.clone();
     let mut found: Vec<(Path, &'static str)> = Vec::new();
+    let mut unwritable = false;
     if let ShapeType::Composite(fields) = &root.shape_type {
-        composite(&mut out, fields, a, &mut Vec::new(), &mut found);
+        composite(
+            &mut out,
+            fields,
+            a,
+            &mut Vec::new(),
+            &mut found,
+            &mut unwritable,
+        );
+    }
+    if unwritable {
+        return Err(Error::Unsupported(
+            "a primitive position whose logical path cannot be written".into(),
+        ));
     }
     found.sort_by(|x, y| x.0.cmp(&y.0));
     let origins = found
@@ -94,6 +107,7 @@ fn composite(
     a: &[String],
     path: &mut Path,
     found: &mut Vec<(Path, &'static str)>,
+    unwritable: &mut bool,
 ) {
     let entries = match &mut n.value {
         Value::Map(entries) => entries,
@@ -104,11 +118,17 @@ fn composite(
         match entries.iter().position(|e| e.key == *name) {
             Some(i) => {
                 found.push((path.clone(), VALUE_AUTHORED));
-                visit(&mut entries[i].value, shape, a, path, found);
+                visit(&mut entries[i].value, shape, a, path, found, unwritable);
             }
             None => {
                 // After the validation an absent field is an optional one.
                 if let Some(d) = &shape.default {
+                    if logical_path(path).is_none() {
+                        // the origin of an inserted value is keyed by its path: no path, no insertion
+                        *unwritable = true;
+                        path.pop();
+                        return;
+                    }
                     entries.push(Entry {
                         key: name.clone(),
                         key_pos: None,
@@ -129,9 +149,10 @@ fn visit(
     a: &[String],
     path: &mut Path,
     found: &mut Vec<(Path, &'static str)>,
+    unwritable: &mut bool,
 ) {
     match (&shape.shape_type, &value.value) {
-        (ShapeType::Composite(fields), _) => composite(value, fields, a, path, found),
+        (ShapeType::Composite(fields), _) => composite(value, fields, a, path, found, unwritable),
         (ShapeType::DeclaredList { elements, .. }, _) => {
             let items = match &mut value.value {
                 Value::Seq(items) => items,
@@ -144,7 +165,7 @@ fn visit(
                     None => continue,
                 };
                 path.push(Seg::Item(id));
-                composite(rec, &case.fields, a, path, found);
+                composite(rec, &case.fields, a, path, found, unwritable);
                 path.pop();
             }
         }

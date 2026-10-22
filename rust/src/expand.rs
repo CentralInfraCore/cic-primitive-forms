@@ -363,6 +363,11 @@ impl Walker<'_> {
                 _ => continue,
             };
             path.push(Seg::Field(name.clone()));
+            // the origin of an inserted value is keyed by its path: no path, no insertion
+            if let Err(e) = path_text(path) {
+                path.pop();
+                return Err(e);
+            }
             let wrapped = expand_position(&default.0, self.a, self.g).map_err(|e| match e {
                 Error::Contract(mut vs) => {
                     for v in &mut vs {
