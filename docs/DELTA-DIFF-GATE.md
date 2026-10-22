@@ -7,7 +7,7 @@ amended where this one replaces it (see "What this replaces"). It does not chang
 ## 1. The model in one paragraph
 
 A pull request is gated on the mutants **in the code it touches** (the diff gate), not on a re-run of every mutant. The whole
-repository's mutation score is measured by a **FULL run on `main` every night**, only if `main` had development the day before. If
+repository's mutation score is measured by a **FULL run on `main` every night**, only if `main` had development in the last two days. If
 that run fails, a pull request is opened that carries the identifier of the failed run. DELTA is no longer a shadow mode: the diff
 gate is the PR gate. The nightly FULL is the safety net, and the place where the two can be compared.
 
@@ -51,7 +51,7 @@ optimisation, and only if the FULL case turns out to be frequent.
 
 * A scheduled workflow, every day at **02:00 Europe/Budapest**. GitHub cron is UTC only, so it is set to 01:00 UTC for winter time
   (CET) and needs one change at the start of summer time (CEST, 00:00 UTC), unless the workflow itself checks the local hour.
-* It first checks whether `main` has commits from the previous day; without development it ends green and says so.
+* It first checks whether `main` has commits in the last **48 hours** (two days, not one: a scheduled run can start late by an unknown amount, so the window must not depend on the hour it started); without development it ends green and says so. A manual run can force it.
 * It runs the full `p1` gate on `main` (every mutant, both languages), through a reusable workflow so that there is one definition of
   the gate.
 * **On failure it opens a pull request.** The minimum content of the description: the identifier and URL of the failed run, the commit

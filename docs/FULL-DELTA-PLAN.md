@@ -27,7 +27,7 @@ verified evidence they create stays valuable. Section 6.6 says how that is measu
 These come from the owner and are not up for redesign here.
 
 * ~~DELTA starts as a **shadow mode** next to the current full PR and `main` gates. It reports; it does not decide.~~ **Replaced on 2026-10-22** by the diff gate of `docs/DELTA-DIFF-GATE.md`: it is the PR gate, and the nightly FULL on `main` is the safety net.
-* `main` gets a **FULL measurement every day**. This is mandatory, not best effort. **Amended on 2026-10-22**: every night at 02:00 (Europe/Budapest), if `main` had development the day before; on failure a pull request carries the failed run's identifier (`docs/DELTA-DIFF-GATE.md`, section 4).
+* `main` gets a **FULL measurement every day**. This is mandatory, not best effort. **Amended on 2026-10-22**: every night at 02:00 (Europe/Budapest), if `main` had development in the last 48 hours; on failure a pull request carries the failed run's identifier (`docs/DELTA-DIFF-GATE.md`, section 4).
 * **No fallback to an older success** (section 5.7 says what that means for a failed or missed run).
 * The tooling lives under `tools/test-evidence/` of this repository.
 * FULL evidence is a **canonical, content-hashed JSON** record kept on a protected branch `ci-evidence`, with a **GitHub
