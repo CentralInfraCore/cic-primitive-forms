@@ -189,6 +189,11 @@ type formWalker struct {
 	g        Grammar
 	prov     Provenance
 	attested map[string]bool
+	// The P3 additions (normalize.go); all zero for a plain Expand or Collapse.
+	defaults  bool            // Expand: insert the declared default of an absent optional field
+	inDefault int             // > 0 while an inserted default is being expanded: nothing below it is authored or defaulted
+	origins   []found         // Expand: the origin (authored or default) of every declared position of the output
+	strip     map[string]bool // Collapse: the positions the normalization made, which are not part of the authored document
 }
 
 func pathText(path []seg) (string, error) {
@@ -243,6 +248,9 @@ func (w *formWalker) fields(n *Node, fields []NamedShape, path []seg, expand boo
 	}
 	out := &Node{Kind: KindMap, Pos: n.Pos, Entries: make([]Entry, 0, len(n.Entries))}
 	for _, e := range n.Entries {
+		if w.strip[logicalPath(append(slices.Clone(path), seg{field: e.Key}))] {
+			continue // a value the normalization inserted: the authored document never had it
+		}
 		i := slices.IndexFunc(fields, func(f NamedShape) bool { return f.Name == e.Key })
 		if i < 0 {
 			// An undeclared key is not an intent: nothing validated or normalized can be made of it. The raw document is
@@ -257,7 +265,41 @@ func (w *formWalker) fields(n *Node, fields []NamedShape, path []seg, expand boo
 		}
 		out.Entries = append(out.Entries, Entry{Key: e.Key, KeyPos: e.KeyPos, Value: v})
 	}
+	if w.defaults && w.inDefault == 0 { // defaults is set only by Normalize, which expands
+		if err := w.insertDefaults(n, out, fields, path); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
+}
+
+// insertDefaults adds, after the entries of out, the declared default of every optional field that n does not have, in
+// schema order. The value is expanded like any other position (so it is an Access atom with the symbolic policy of the bound
+// grammar, and its value is the default: default_injection stays null, ADR 0003 rule 6), but it gets no provenance entry,
+// because the author did not write it, and nothing below it is authored or defaulted again.
+func (w *formWalker) insertDefaults(n, out *Node, fields []NamedShape, path []seg) error {
+	for _, f := range fields {
+		if f.Shape.Presence != Optional || f.Shape.Default == nil || lookup(n, f.Name) != nil {
+			continue
+		}
+		fp := append(slices.Clone(path), seg{field: f.Name})
+		if _, err := pathText(fp); err != nil { // the origin of an inserted value is keyed by its path: no path, no insertion
+			return err
+		}
+		ep, _, err := ExpandPosition(cloneTree(f.Shape.Default), w.a, w.g)
+		if err != nil {
+			return withPath(err, fp)
+		}
+		w.inDefault++
+		v, err := w.rewrap(ep, f.Shape, fp, true)
+		w.inDefault--
+		if err != nil {
+			return err
+		}
+		out.Entries = append(out.Entries, Entry{Key: f.Name, Value: v})
+		w.origins = append(w.origins, found{path: fp, v: Violation{LogicalPath: logicalPath(fp), Code: ValueOriginDefault}})
+	}
+	return nil
 }
 
 // position expands or collapses one primitive position and what is below it.
@@ -271,7 +313,10 @@ func (w *formWalker) position(n *Node, shape Shape, path []seg, expand bool) (*N
 		if err != nil {
 			return nil, withPath(err, path)
 		}
-		w.prov[text] = Origin{AuthoredExpanded: authored}
+		if w.inDefault == 0 {
+			w.prov[text] = Origin{AuthoredExpanded: authored}
+			w.origins = append(w.origins, found{path: path, v: Violation{LogicalPath: text, Code: ValueOriginAuthored}})
+		}
 		return w.rewrap(ep, shape, path, true)
 	}
 	class, _ := classify(n, w.a)

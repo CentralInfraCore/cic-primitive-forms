@@ -1,6 +1,6 @@
 # P3, third unit: normalize = expand + defaults, with the origin carried
 
-Status: **design, no code.** It builds on `ApplyDefaults` of the second unit (PR 45, to be merged first), on the accepted
+Status: **implemented in Rust and Go** (the code follows this design; the four decisions of section 6 were taken as proposed). It builds on `ApplyDefaults` of the second unit (PR 45, to be merged first), on the accepted
 ADR 0001, 0003 (rule 6), 0010, 0011 and on `docs/P2-EXPAND-COLLAPSE.md`, and re-opens none of them. It decides the shape of
 the composition and what must be proved before any code is written; the points that are the owner's are in section 6.
 

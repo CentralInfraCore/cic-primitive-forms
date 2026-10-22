@@ -66,13 +66,13 @@ DEFECTS = [
      [("out.Base = strMember(id, \"base\")", "out.Base = \"\"")]),
     # P3 second unit: schema defaults (go/defaults.go, go/role.go, rust/src/defaults.rs, rust/src/role.rs).
     ("rust", "a present field is overwritten by its default", "src/defaults.rs",
-     [("visit(&mut entries[i].value, shape, a, path, found);", "if let Some(d) = &shape.default { entries[i].value = d.0.clone(); }\n                visit(&mut entries[i].value, shape, a, path, found);")]),
+     [("visit(&mut entries[i].value, shape, a, path, found, unwritable);", "if let Some(d) = &shape.default { entries[i].value = d.0.clone(); }\n                visit(&mut entries[i].value, shape, a, path, found, unwritable);")]),
     ("rust", "an inserted default is reported as authored", "src/defaults.rs",
      [("found.push((path.clone(), VALUE_DEFAULT));", "found.push((path.clone(), VALUE_AUTHORED));")]),
     ("rust", "the fields of a present composite are not defaulted", "src/defaults.rs",
-     [("(ShapeType::Composite(fields), _) => composite(value, fields, a, path, found),", "(ShapeType::Composite(_), _) => {}")]),
+     [("(ShapeType::Composite(fields), _) => composite(value, fields, a, path, found, unwritable),", "(ShapeType::Composite(_), _) => {}")]),
     ("rust", "the fields of a list element are not defaulted", "src/defaults.rs",
-     [("composite(rec, &case.fields, a, path, found);", "let _ = (&case, &rec);")]),
+     [("composite(rec, &case.fields, a, path, found, unwritable);", "let _ = (&case, &rec);")]),
     ("rust", "a document with violations is defaulted anyway", "src/defaults.rs",
      [("(Some(doc), true) => doc,", "(Some(doc), _) => doc,")]),
     ("rust", "a default on a node whose Role does not take one is accepted", "src/role.rs",
@@ -97,6 +97,31 @@ DEFECTS = [
      [("\t\treturn roleAxes{}, schemaErr(SchemaInvalid, path, \"%q is not a Role (reference has no short form and must be written out)\", r.Str)", "\t\treturn roleAxes{authority: \"config\"}, nil")]),
     ("go", "a default that is not a valid value of its node is accepted", "schema.go",
      [("!defaultFits(s, declared)", "false")]),
+    # P3 third unit: normalize and denormalize (go/normalize.go, go/expand.go, rust/src/normalize.rs, rust/src/expand.rs).
+    ("rust", "an inserted default is reported as authored", "src/expand.rs",
+     [("self.origins.push((origin_path, VALUE_DEFAULT));", "self.origins.push((origin_path, VALUE_AUTHORED));")]),
+    ("rust", "a default is inserted for a field that is not optional", "src/expand.rs",
+     [("(Presence::Optional, Some(d)) if entry(n, name).is_none() => d,", "(_, Some(d)) if entry(n, name).is_none() => d,")]),
+    ("rust", "a default is inserted over a value that is present", "src/expand.rs",
+     [("(Presence::Optional, Some(d)) if entry(n, name).is_none() => d,", "(Presence::Optional, Some(d)) => d,")]),
+    ("rust", "denormalize keeps the values the normalization made", "src/expand.rs",
+     [("if !self.strip.is_empty() {", "if false {")]),
+    ("rust", "renormalize gives the inserted default a provenance entry", "src/normalize.rs",
+     [("        if kept == VALUE_DEFAULT {\n            continue; // the author did not write it: no provenance\n        }\n", "")]),
+    ("go", "an inserted default is reported as authored", "expand.go",
+     [("Violation{LogicalPath: logicalPath(fp), Code: ValueOriginDefault}", "Violation{LogicalPath: logicalPath(fp), Code: ValueOriginAuthored}")]),
+    ("go", "a default is inserted for a field that is not optional", "expand.go",
+     [("if f.Shape.Presence != Optional || f.Shape.Default == nil || lookup(n, f.Name) != nil {", "if f.Shape.Default == nil || lookup(n, f.Name) != nil {")]),
+    ("go", "a default is inserted over a value that is present", "expand.go",
+     [("if f.Shape.Presence != Optional || f.Shape.Default == nil || lookup(n, f.Name) != nil {", "if f.Shape.Presence != Optional || f.Shape.Default == nil {")]),
+    ("go", "denormalize keeps the values the normalization made", "expand.go",
+     [("if w.strip[logicalPath(append(slices.Clone(path), seg{field: e.Key}))] {", "if false {")]),
+    ("go", "renormalize gives the inserted default a provenance entry", "normalize.go",
+     [("\t\tif kept == ValueOriginDefault {\n\t\t\tcontinue // the author did not write it: no provenance\n\t\t}\n", "")]),
+    ("rust", "a default is inserted at a position whose logical path cannot be written", "src/expand.rs",
+     [("            if let Err(e) = path_text(path) {\n                path.pop();\n                return Err(e);\n            }\n", "")]),
+    ("go", "a default is inserted at a position whose logical path cannot be written", "expand.go",
+     [("if _, err := pathText(fp); err != nil { // the origin of an inserted value", "if false { // the origin of an inserted value")]),
     ("go", "integer 0 is read as no-inherit (0 coerced to false)", "access.go",
      [("case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeReset, nil", "case n.Kind == KindInt && n.Int == 0:\n\t\t\treturn ModeNoInherit, nil")]),
     ("go", "a missing version silently falls back to grammar 1", "access.go",
@@ -227,7 +252,7 @@ DEFECTS = [
     ("rust", "an undeclared key passes through expand and collapse", "src/expand.rs",
      [("                None => {\n                    let mut p = path.clone();", "                None => {\n                    out.push(Entry { key: e.key.clone(), key_pos: e.key_pos, value: e.value.clone() });\n                    continue;\n                }\n                Some(_) if false => {\n                    let mut p = path.clone();")]),
     ("rust", "a contradictory context is collapsed anyway", "src/expand.rs",
-     [("    ctx.check(shape)?;\n    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),", "    let mut w = Walker {\n        a,\n        g,\n        prov: prov.clone(),")]),
+     [("    ctx.check(shape)?;\n    let mut w = Walker::plain(\n        a,\n        g,\n        prov.clone(),", "    let mut w = Walker::plain(\n        a,\n        g,\n        prov.clone(),")]),
     ("rust", "a position outside the attested set is treated as attested", "src/expand.rs",
      [("let basis = if self.attested.contains(&text) {", "let basis = if self.attested.is_empty() || self.attested.contains(&text) {")]),
     ("go", "an undeclared key passes through expand and collapse", "expand.go",
@@ -276,7 +301,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize"]
     return ["go", "test", "-count=1", "./..."]
 
 

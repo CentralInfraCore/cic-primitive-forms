@@ -42,6 +42,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "normalize"
+path = "fuzz_targets/normalize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "access"
 path = "fuzz_targets/access.rs"
 test = false

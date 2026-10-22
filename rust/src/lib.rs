@@ -16,6 +16,7 @@ pub mod error;
 pub mod expand;
 pub mod listitem;
 pub mod node;
+pub mod normalize;
 pub mod parse;
 pub mod pathtext;
 pub mod policy;
@@ -37,6 +38,7 @@ pub use expand::{
 };
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};
+pub use normalize::{denormalize, normalize, renormalize, NormalizationResult};
 pub use parse::{parse, parse_with, Limits};
 pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use policy::{PolicyRule, PolicySurface, SurfaceRule};

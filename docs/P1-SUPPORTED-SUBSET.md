@@ -161,6 +161,20 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   positions are exactly `DefaultCandidates` of the validation, and applying the defaults to the result changes nothing and finds
   every value authored. The input is never modified. Composing with `Expand` (the symbolic policy of the inserted position) and the
   effective rules (`PolicyResolution`) are the next units. The shared cases are `testdata/p1/defaults.json`.
+* **Normalize and denormalize (P3, third unit; `docs/P3-UNIT3-COMPOSITION.md`).** `Normalize` / `normalize` is `Expand`, then the
+  declared default of every absent optional field inserted into the **expanded** tree, as an Access atom like any position (the
+  symbolic policy of the bound grammar; `default_injection` stays null, the default is never written there; ADR 0003 rule 6). It
+  returns the object, the P2 `Provenance` (only for the positions the author wrote: an inserted one has none) and `ValueOrigins`, a
+  side map from the logical path of every declared position to `authored` or `default`. The origin is produced where the default is
+  inserted and travels with the object; it is never read back from the values. `Denormalize` removes the values whose origin is
+  `default`, then collapses with the provenance and the trusted context, so `denormalize(normalize(x)) == x` as a value for every
+  document `Expand` accepts: short, expanded or mixed, with explicit policy settings, `null`, and a value that equals its default
+  (which stays `authored`). `Renormalize` is the idempotence on the **pair** (object and origins); normalizing the bare object
+  reports every inserted default as `authored`, because from then on it is written in it. Like `Expand`, `Normalize` expects a
+  document that validates (it refuses an undeclared key and a structure the schema does not allow, but does not report a missing
+  mandatory field), and it never inserts a default for a mandatory field, into an absent composite or list, over a present value, or
+  below another default. The shared cases are `testdata/p1/normalize.json`; both languages also prove the round trip, the
+  provenance of the author's positions and the idempotence on the pair as properties, over random shapes and documents.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
