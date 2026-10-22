@@ -179,3 +179,56 @@ codes:
     phases: {validate: none}
     meaning: The grammar files supplied to the library do not reproduce the declared manifest digest.
     trigger: The digest of the manifest of the supplied (path, SHA-256) entries, sorted by the UTF-8 bytes of the path, differs from the declared digest; a missing, extra or changed file all change it (ADR 0002). A context error, so it has no source anchor.
+  # ---- phase edit (ADR 0012): the first unit of P3b replaces one existing single-line scalar. One error, the first failing condition in the fixed order of
+  # ADR 0012 section 4. The twelfth condition of the design note, EDIT_SPAN_MISMATCH (the read-back of the span disagrees with the parser), is an internal
+  # assertion that no input can cause on purpose: it has no conformance vector and is not registered; its proof is a seeded defect of each implementation.
+  EDIT_NO_SOURCE_TEXT:
+    status: stable
+    phases: {edit: value}
+    meaning: The document was supplied as an already parsed value, so there is no source text to edit.
+    trigger: edit_scalar called with a parsed document (source_location is the state unavailable, as in ADR 0007).
+  EDIT_NOT_A_SCALAR:
+    status: stable
+    phases: {edit: value}
+    meaning: The addressed position holds a composite, a list or a set; the first edit unit replaces one scalar.
+    trigger: The path resolves to a primitive position whose value is not a scalar.
+  EDIT_NO_SOURCE_VALUE:
+    status: stable
+    phases: {edit: parent}
+    meaning: The position has no value text of its own (absent, an empty value, or a value that normalization inserted as a default); replacing it would be an insertion.
+    trigger: The path resolves, and the document spells no scalar for that position.
+  EDIT_BLOCK_SCALAR:
+    status: stable
+    phases: {edit: value}
+    meaning: The scalar is a block scalar (literal or folded); its indentation and chomping make a safe replacement a later unit.
+    trigger: The addressed scalar starts with a block indicator.
+  EDIT_FLOW_CONTEXT:
+    status: stable
+    phases: {edit: value}
+    meaning: The scalar is inside a flow collection; the end of its text depends on the flow indicators.
+    trigger: The addressed scalar is inside braces or brackets.
+  EDIT_MULTILINE_SCALAR:
+    status: stable
+    phases: {edit: value}
+    meaning: The scalar continues on more than one line (a folded plain or quoted scalar).
+    trigger: The addressed scalar's text spans a line break.
+  EDIT_VALUE_NOT_REPRESENTABLE:
+    status: stable
+    phases: {edit: value}
+    meaning: The new value holds a line break or a control character, or is not valid UTF-8; the first unit writes none of them.
+    trigger: The new value contains such a character.
+  EDIT_TYPE_MISMATCH:
+    status: stable
+    phases: {edit: value}
+    meaning: The new value is not the kind of scalar the position has, or the schema does not allow it there.
+    trigger: The typed new value does not match the scalar type of the addressed position.
+  EDIT_STYLE_CONFLICT:
+    status: stable
+    phases: {edit: value}
+    meaning: The scalar's existing style cannot carry the new value, and the edit never changes a style.
+    trigger: A plain scalar and a value that is not plain-safe, or a quoted scalar and a value its quotes cannot carry.
+  EDIT_INVALID_RESULT:
+    status: stable
+    phases: {edit: value}
+    meaning: The edited document would not validate where the original did (for example a changed key makes two list elements share one identity).
+    trigger: The result of the replacement fails validation.

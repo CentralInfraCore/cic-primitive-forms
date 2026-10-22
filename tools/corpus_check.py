@@ -70,6 +70,8 @@ RULES = {
     "DIFF_EVENT": "malformed, empty or redundant diff event",
     "DIFF_ORDER": "diff events or representation entries not in the ADR 0008 order",
     "DIFF_CANONICAL": "canonical bytes malformed, not canonical or disagreeing with the events",
+    "EDIT_INPUT": "malformed input, path or value of a source_span or edit case",
+    "EDIT_BYTES": "an edit or source_span expectation whose spans or bytes disagree with the input (ADR 0012: untouched bytes, span bounds, boundaries, one line)",
 }
 
 
@@ -196,6 +198,8 @@ INPUT_FORMS = {
     "collapse": "input",
     "expand": "input",
     "equality": "ab",
+    "source_span": "input_yaml|input_hex, path",
+    "edit": "input_yaml|input_hex|input (only for EDIT_NO_SOURCE_TEXT), path, value",
 }
 KIND_FIELDS = {
     "grammar_manifest": {"files", "declared"},
@@ -213,6 +217,8 @@ KIND_FIELDS = {
     "collapse": {"input", "authored_expanded", "basis"},
     "expand": {"input"},
     "equality": {"a", "b"},
+    "source_span": {"input_yaml", "input_hex", "path"},
+    "edit": {"input_yaml", "input_hex", "input", "path", "value"},
 }
 COMMON_FIELDS = {"id", "kind", "polarity", "description", "adr", "grammar",
                  "schema", "codes_status", "expect"}
@@ -239,6 +245,8 @@ EXPECT_KEYS = {
     "expand": ({"fields"}, {"fields"}),
     "basis": ({"bases", "errors"}, None),
     "equality": ({"equal"}, {"equal"}),
+    "source_span": ({"span", "errors"}, None),
+    "edit": ({"output_yaml", "output_hex", "span_before", "span_after", "errors"}, None),
 }
 PRESENCE = ("mandatory", "optional")
 SHAPE_KEYS = {"type", "presence", "nullable", "default", "min_items", "fields", "elements"}
@@ -276,7 +284,7 @@ def collect_codes(expect):
     return [e["code"] for e in errs if isinstance(e, dict) and "code" in e]
 
 
-PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of", "diff")
+PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of", "diff", "edit")
 ANCHORS = ("second_key", "key", "value", "value_or_key", "mapping", "sequence", "parent", "path_text", "none")
 KIND_PHASES = {
     "recognize": {"parse", "recognize", "validate"},
@@ -290,9 +298,13 @@ KIND_PHASES = {
     "diff_stability": {"recognize", "validate", "path_parse", "path_resolve", "path_of", "diff"},
     "basis": {"recognize", "validate", "path_parse", "path_resolve"},
     "grammar_manifest": {"validate"},
+    # an earlier phase may refuse the document or the path; the phase edit is the last (ADR 0012, section 4)
+    "source_span": {"parse", "path_parse", "path_resolve", "edit"},
+    "edit": {"parse", "recognize", "validate", "path_parse", "path_resolve", "edit"},
 }
+EDIT_KINDS = ("source_span", "edit")
 DIFF_KINDS = ("diff", "diff_stability")
-SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of"}
+SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of", "edit"}
 ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset", "operand"}
 
 
@@ -431,6 +443,141 @@ def location_problem(text, loc):
     return None
 
 
+HEXBYTES = re.compile(r"^(?:[0-9a-f]{2})+$")
+SPAN_STYLES = ("plain", "single_quoted", "double_quoted")
+EDIT_VALUE_TYPES = {"string": str, "integer": int, "boolean": bool}
+
+
+def case_bytes(case):
+    """The source of a source_span or edit case as bytes (text or hex), or None."""
+    if isinstance(case.get("input_yaml"), str):
+        return case["input_yaml"].encode("utf-8")
+    if isinstance(case.get("input_hex"), str) and HEXBYTES.match(case["input_hex"]):
+        return bytes.fromhex(case["input_hex"])
+    return None
+
+
+def case_text(case):
+    """The source as text for the position check of an error location; None when it is not valid UTF-8."""
+    b = case_bytes(case)
+    try:
+        return None if b is None else b.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def boundary_problem(data, off, what):
+    """An offset is a boundary of the text: inside the bytes, not inside a multi-byte character, not between the CR and the LF of a CRLF."""
+    if not isinstance(off, int) or isinstance(off, bool) or off < 0 or off > len(data):
+        return "%s %r is not an offset inside the %d bytes" % (what, off, len(data))
+    if off < len(data) and (data[off] & 0xC0) == 0x80:
+        return "%s %d is inside a multi-byte character" % (what, off)
+    if off < len(data) and data[off:off + 1] == b"\n" and data[:off].endswith(b"\r"):
+        return "%s %d is inside a CRLF line break" % (what, off)
+    return None
+
+
+def span_problem(data, span, what):
+    """A span {start, end}: half-open byte offsets on boundaries, the text of one line (no line break inside)."""
+    if not isinstance(span, dict) or not {"start", "end"} <= set(span):
+        return "%s must hold start and end" % what
+    for k in ("start", "end"):
+        p = boundary_problem(data, span[k], "%s.%s" % (what, k))
+        if p:
+            return p
+    if span["start"] >= span["end"]:
+        return "%s is empty or reversed: a scalar span has at least one byte" % what
+    if re.search(rb"[\r\n]", data[span["start"]:span["end"]]):
+        return "%s holds a line break: this unit edits single-line scalars" % what
+    return None
+
+
+def check_edit_inputs(kind, case, where, vs):
+    forms = [f for f in ("input_yaml", "input_hex", "input") if f in case]
+    allowed = 3 if kind == "edit" else 2
+    if len(forms) != 1 or (forms[0] == "input" and kind != "edit"):
+        vs.append(Violation("EDIT_INPUT", where, "exactly one of input_yaml, input_hex%s" % (" and (edit only) input" if kind == "edit" else "")))
+    if "input_yaml" in case and not isinstance(case["input_yaml"], str):
+        vs.append(Violation("EDIT_INPUT", where, "input_yaml must be a string"))
+    if "input_hex" in case:
+        h = case["input_hex"]
+        if not isinstance(h, str) or not HEXBYTES.match(h):
+            vs.append(Violation("EDIT_INPUT", where, "input_hex is lower-case hex of whole bytes"))
+    if "input" in case:
+        check_typed(case["input"], where + ".input", vs)   # a parsed document: the case where there is no source text
+    p = case.get("path")
+    if not isinstance(p, str):
+        vs.append(Violation("EDIT_INPUT", where, "path must be a canonical logical path text"))
+    else:
+        try:
+            parse_logical_path(p)
+        except ValueError as exc:
+            vs.append(Violation("EDIT_INPUT", where, "path is not a canonical logical path: %s" % exc))
+    if kind == "edit":
+        v = case.get("value")
+        ok = isinstance(v, dict) and len(v) == 1
+        if ok:
+            (t, x), = v.items()
+            ok = (t == "null" and x is True) or (t in EDIT_VALUE_TYPES and type(x) is EDIT_VALUE_TYPES[t])
+        if not ok:
+            vs.append(Violation("EDIT_INPUT", where, "value is {string: s}, {integer: n}, {boolean: b} or {null: true}"))
+
+
+def check_edit_expect(kind, case, expect, where, vs):
+    if ("errors" in expect) == any(k in expect for k in ("span", "output_yaml", "output_hex", "span_before", "span_after")):
+        vs.append(Violation("EXPECT_FIELD", where, "exactly one of the success keys and errors"))
+        return
+    if "errors" in expect:
+        if kind == "edit" and "input" in case:
+            if [e.get("code") for e in expect["errors"] if isinstance(e, dict)] != ["EDIT_NO_SOURCE_TEXT"]:
+                vs.append(Violation("EDIT_INPUT", where, "a document without source text is refused with EDIT_NO_SOURCE_TEXT only"))
+        elif any(isinstance(e, dict) and e.get("code") == "EDIT_NO_SOURCE_TEXT" for e in expect["errors"]):
+            vs.append(Violation("EDIT_INPUT", where, "EDIT_NO_SOURCE_TEXT belongs to a case whose input is a parsed document"))
+        return
+    data = case_bytes(case)
+    if data is None:
+        vs.append(Violation("EDIT_BYTES", where, "a success needs the source text of the case"))
+        return
+    if kind == "source_span":
+        sp = expect["span"]
+        if not isinstance(sp, dict) or set(sp) != {"start", "end", "style"} or sp.get("style") not in SPAN_STYLES:
+            vs.append(Violation("EDIT_BYTES", where, "span is {start, end, style} with style one of %s" % (SPAN_STYLES,)))
+            return
+        p = span_problem(data, sp, where + ".span")
+        if p:
+            vs.append(Violation("EDIT_BYTES", where, p))
+        return
+    # edit: the edited bytes, and the two spans, must obey guarantee 1 of ADR 0012 (the untouched bytes) by arithmetic alone
+    if sum(k in expect for k in ("output_yaml", "output_hex")) != 1 or not {"span_before", "span_after"} <= set(expect):
+        vs.append(Violation("EDIT_BYTES", where, "an edit success holds exactly one of output_yaml/output_hex, and span_before and span_after"))
+        return
+    if "output_yaml" in expect:
+        if not isinstance(expect["output_yaml"], str):
+            vs.append(Violation("EDIT_BYTES", where, "output_yaml must be a string"))
+            return
+        out = expect["output_yaml"].encode("utf-8")
+    else:
+        h = expect["output_hex"]
+        if not isinstance(h, str) or not HEXBYTES.match(h):
+            vs.append(Violation("EDIT_BYTES", where, "output_hex is lower-case hex of whole bytes"))
+            return
+        out = bytes.fromhex(h)
+    before, after = expect["span_before"], expect["span_after"]
+    p = span_problem(data, before, where + ".span_before") or span_problem(out, after, where + ".span_after")
+    if p:
+        vs.append(Violation("EDIT_BYTES", where, p))
+        return
+    if before["start"] != after["start"]:
+        vs.append(Violation("EDIT_BYTES", where, "the span starts at the same byte before and after"))
+    tail = len(data) - before["end"]
+    if out[:before["start"]] != data[:before["start"]]:
+        vs.append(Violation("EDIT_BYTES", where, "the bytes before the span are not the original's"))
+    if out[len(out) - tail:] != data[before["end"]:] or after["end"] != len(out) - tail:
+        vs.append(Violation("EDIT_BYTES", where, "the bytes after the span are not the original's, or span_after does not end where they start"))
+    if "value" in case and (data == out) != (data[before["start"]:before["end"]] == out[after["start"]:after["end"]]):
+        vs.append(Violation("EDIT_BYTES", where, "inconsistent no-op"))
+
+
 def check_errors(kind, case, expect, codes, where, vs, used_pairs):
     errs = expect.get("errors")
     w = where + ".errors"
@@ -455,7 +602,8 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
         used_pairs.add((code, phase))
         # source location: exactly one of three states, fixed by the phase and the input form
         sl = e["source_location"]
-        has_text = "input_yaml" in case
+        src_text = case_text(case)
+        has_text = "input_yaml" in case or "input_hex" in case
         if phase in ("path_parse", "path_format", "path_resolve", "diff") or kind in ("path_stability", "diff_stability"):
             want = "not_applicable"
         elif phase == "path_of":
@@ -474,8 +622,8 @@ def check_errors(kind, case, expect, codes, where, vs, used_pairs):
                   and sl["line"] >= 1 and sl["column"] >= 1 and sl["offset"] >= 0)
             if not ok:
                 vs.append(Violation("ERROR_LOCATION", ew, "source_location must be {line>=1, column>=1, offset>=0}"))
-            elif has_text and isinstance(case["input_yaml"], str):
-                p = location_problem(case["input_yaml"], sl)
+            elif has_text and isinstance(src_text, str):
+                p = location_problem(src_text, sl)
                 if p:
                     vs.append(Violation("ERROR_LOCATION", ew, p))
         elif sl != {"state": want}:
@@ -890,7 +1038,7 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
     if kind in ("path_parse", "path_format", "grammar_manifest"):
         if syn != {"lexical": True}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "kinds without a schema take synthetic: {lexical: true}"))
-    elif kind.startswith("path_") or kind in DIFF_KINDS or kind == "basis":
+    elif kind.startswith("path_") or kind in DIFF_KINDS or kind in EDIT_KINDS or kind == "basis":
         if set(syn) != {"tree"}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
         elif isinstance(syn["tree"], str):
@@ -1036,6 +1184,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             check_path_expect(kind, case, expect, where + ".expect", vs)
         if kind in DIFF_KINDS:
             check_diff_expect(expect, where + ".expect", vs)
+        if kind in EDIT_KINDS:
+            check_edit_expect(kind, case, expect, where + ".expect", vs)
         if "errors" in expect:
             check_errors(kind, case, expect, codes, where + ".expect", vs, used_codes)
         found = [x for x in collect_codes(expect) if isinstance(x, str)]
@@ -1271,6 +1421,9 @@ def check_inputs(kind, case, where, vs):
         return
     if kind in DIFF_KINDS:
         check_diff_inputs(kind, case, where, vs)
+        return
+    if kind in EDIT_KINDS:
+        check_edit_inputs(kind, case, where, vs)
         return
     if kind == "grammar_manifest":
         check_manifest_input(case, where, vs)

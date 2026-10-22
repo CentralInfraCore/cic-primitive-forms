@@ -45,7 +45,7 @@ stops the edit). Like `parse`, it reports **one** error, the first failing condi
 
 | # | Code | Condition | Anchor |
 |---|---|---|---|
-| 1 | `EDIT_NO_SOURCE_TEXT` | the document was supplied as a parsed value, not as text (`source_location: unavailable`) | none |
+| 1 | `EDIT_NO_SOURCE_TEXT` | the document was supplied as a parsed value, not as text (`source_location: {state: unavailable}`) | `value` (the state `unavailable`: there is no text to point into) |
 | 2 | `EDIT_NOT_A_SCALAR` | the addressed position holds a composite, list or set | `value` |
 | 3 | `EDIT_NO_SOURCE_VALUE` | the position has no value text: absent, an empty value (`key:`), or a default-origin value | `parent` |
 | 4 | `EDIT_BLOCK_SCALAR` | the scalar is a block scalar (`\|`, `>`) | `value` |
@@ -55,11 +55,14 @@ stops the edit). Like `parse`, it reports **one** error, the first failing condi
 | 8 | `EDIT_TYPE_MISMATCH` | the new value is not the kind the position has, or the schema does not allow it | `value` |
 | 9 | `EDIT_STYLE_CONFLICT` | the scalar's style cannot carry the new value | `value` |
 | 10 | `EDIT_SPAN_MISMATCH` | the read-back of the span disagrees with the parser (a defect, reported and not repaired) | `value` |
-| 11 | `EDIT_INVALID_RESULT` | the result would not validate where the original did | `value` (+ the validation errors) |
+
+Check 10 is an **internal assertion**: no input can cause it on purpose, so it has no conformance vector, it is **not in the registry** `corpus/codes.yaml`, and its proof is a seeded defect of each implementation (step E4). The other ten codes are registered with their vectors (step E1, `corpus/edit/vectors.yaml`).
+
+| 11 | `EDIT_INVALID_RESULT` | the result would not validate where the original did | `value` |
 
 The anchor `value` is the value node of the addressed position; `parent` the enclosing structure (an absent field has no position of its own, ADR 0007). Message wording is not a conformance criterion.
-Every code needs at least one negative vector in the `edit` phase (the gate rules `CODE_UNUSED` and `PHASE_UNUSED` of ADR 0007 apply), so the registry `corpus/codes.yaml` gets these entries together with their
-vectors in step E1 and not before.
+Every registered code needs at least one negative vector in the `edit` phase (the gate rules `CODE_UNUSED` and `PHASE_UNUSED` of ADR 0007 apply); the registry got the entries together with their vectors in step E1. The validation errors that
+make a result invalid may be returned with `EDIT_INVALID_RESULT` as information; the conformance expectation is the one error.
 
 ### 5. Anchors, aliases, tags, merge keys
 

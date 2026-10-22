@@ -814,7 +814,7 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (240, 107),
+        (240, 179),
         "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability run"
     );
     assert_eq!(run.get("lists/validate"), Some(&8));

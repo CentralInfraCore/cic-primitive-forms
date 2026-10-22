@@ -720,8 +720,8 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 240 || skipped != 107 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 240 + 107", ran, skipped, total)
+	if ran+skipped != total || ran != 240 || skipped != 179 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 240 + 179", ran, skipped, total)
 	}
 	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 ||
 		run["paths/path_parse"] != 57 || run["paths/path_format"] != 9 || run["paths/path_resolve"] != 34 {

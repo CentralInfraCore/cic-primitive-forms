@@ -332,7 +332,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **240 run + 107 NOT RUN**.
+case of the corpus (419), assert that each is either run or listed here, and assert **240 run + 179 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -349,6 +349,7 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
 | paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
+| edit | `source_span` 28, `edit` 44 | 72 | NOT RUN (P3b, ADR 0012): the vectors of step E1, written by hand before any code; run by step E2 (`source_span`) and E3 (`edit`) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
 A runner asserts the number it ran (31, 29, 21), so a vector that stops being run is a failure, and a green run cannot
