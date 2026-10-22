@@ -194,6 +194,12 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   vectors of `access-vectors/resolution.yaml` against it, read from the pinned checkout after their SHA-256 matched the pin (the
   reference decision exists only in test code), the shared cases `testdata/p1/resolution.json`, and properties over generated
   object graphs. The pin now lists the twelve grammar files (ADR 0002, Amendment 2).
+* **NormalizeWithPolicy / normalize_with_policy (P3 closing round).** `Normalize` followed by `ResolvePolicy` on the normalized object,
+  both with the **one** compiled schema, in one operation: the result holds the normalization, the policy resolution and the digest
+  of the schema both were made from. The caller cannot pair the two with different schemas through this path; if either step fails
+  there is no result. It decides nothing and does not replace validation. `Normalize`, `Renormalize`, `Denormalize` and
+  `ResolvePolicy` stay as they are. Shared cases: the ones of `testdata/p1/resolution.json`, run through the composed call and compared
+  with the two separate calls.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),

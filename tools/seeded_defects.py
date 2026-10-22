@@ -147,6 +147,15 @@ DEFECTS = [
      [("self.child(&etext, parent, mode, &access, &modify, text);", "self.child(&etext, parent, mode, &None, &None, text);")]),
     ("go", "a list element does not take the rule of its list field", "policyresolution.go",
      [("w.child(etext, parent, mode, access, modify, text)", "w.child(etext, parent, mode, nil, nil, text)")]),
+    # P3 closing round: the composed operation (go/normalizewithpolicy.go, rust/src/composed.rs).
+    ("rust", "the composed result ignores the objects the caller marked unknown", "src/composed.rs",
+     [("        g,\n        unknown,\n    )?;", "        g,\n        &[],\n    )?;")]),
+    ("rust", "the composed result does not name its schema", "src/composed.rs",
+     [("schema_digest: c.digest.clone()", "schema_digest: String::new()")]),
+    ("go", "the composed result ignores the objects the caller marked unknown", "normalizewithpolicy.go",
+     [("c.Surface, a, g, unknown)", "c.Surface, a, g, nil)")]),
+    ("go", "the composed result does not name its schema", "normalizewithpolicy.go",
+     [("SchemaDigest: c.Digest}", "SchemaDigest: \"\"}")]),
     ("rust", "a default is inserted at a position whose logical path cannot be written", "src/expand.rs",
      [("            if let Err(e) = path_text(path) {\n                path.pop();\n                return Err(e);\n            }\n", "")]),
     ("go", "a default is inserted at a position whose logical path cannot be written", "expand.go",
@@ -330,7 +339,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed"]
     return ["go", "test", "-count=1", "./..."]
 
 
