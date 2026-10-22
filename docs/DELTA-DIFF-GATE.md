@@ -61,6 +61,21 @@ optimisation, and only if the FULL case turns out to be frequent.
 * The nightly result is also the **comparison**: a PR that passed the diff gate and a `main` that fails FULL the next night shows
   where the diff gate missed something, and that is a defect of the gate to be fixed, not a reason to relax it.
 
+### 4.1 No heavy post-merge on `main`
+
+Decided by the owner on 2026-10-22: once the diff gate is the PR gate (step S), a push to `main` no longer starts the full mutation
+run. The check of `main` is the nightly FULL above; running the whole gate again after every merge, when `main` is measured every
+night, is waste. What stays on a push, by default, is only what is cheap (the `corpus` job and the unit and property tests, a minute or
+two), as a smoke test that `main` still builds; the owner can drop it.
+
+The price is known and accepted: two pull requests that were each fine can break something together, and `main` shows it only the next
+night (or at the next smoke test, for the cheap kind of breakage). The 48-hour window and the pull request about the failed run are
+what make that visible.
+
+Consequences for the tools, done in step S: the post-merge profile (`tools/ci-required/<repo>.post-merge.txt` of cic-factory) lists
+only the light set, and `land-chain.sh` waits for that set, not for `quality` and the mutation shards. Until S the full `p1` still runs on
+every push, and the profile is the old one.
+
 ## 5. What this replaces in `FULL-DELTA-PLAN.md`
 
 * Section 2, first bullet (DELTA starts as shadow mode, "reports, does not decide"): replaced; the diff gate decides.
@@ -89,7 +104,7 @@ optimisation, and only if the FULL case turns out to be frequent.
 | N | The nightly workflow, the reusable gate, the failure PR (section 4). Small, and independent of the diff gate. |
 | R | The diff gate for Rust (`--in-diff`), the test-change classifier, the proofs of section 6 for Rust. |
 | G | The diff gate for Go (`offdiff` in the executor, `quality_gate.py`), the proofs for Go. |
-| S | The switch: the PR gate becomes the diff gate; FULL on a PR only in the cases of 2.1. A measurement window against the nightly run first, and the owner's decision to switch. |
+| S | The switch: the PR gate becomes the diff gate; FULL on a PR only in the cases of 2.1; no full run on a push to `main` (4.1) and the post-merge profile of cic-factory and `land-chain.sh` move to the light set. A measurement window against the nightly run first, and the owner's decision to switch. |
 
 ## 8. Open points
 
