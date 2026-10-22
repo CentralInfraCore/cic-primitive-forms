@@ -170,5 +170,49 @@ class SetupScriptTests(unittest.TestCase):
             self.assertNotRegex(code, r"variable set EVIDENCE_ENABLED")
 
 
+@unittest.skipIf(yaml is None, "no PyYAML")
+class NightlyWorkflowTests(unittest.TestCase):
+    """nightly.yml (docs/DELTA-DIFF-GATE.md, section 4): the whole gate on main every night, a pull request when it fails."""
+
+    def setUp(self):
+        if not os.path.exists(os.path.join(WF, "nightly.yml")):
+            self.skipTest("not inside the repository")
+        self.nt, self.text = load("nightly.yml")
+
+    def test_who_can_start_it(self):
+        triggers = self.nt["on"]
+        self.assertEqual(sorted(triggers), ["schedule", "workflow_dispatch"])
+        self.assertEqual([s["cron"] for s in triggers["schedule"]], ["0 1 * * *"])   # 02:00 CET; one change at summer time
+
+    def test_it_runs_the_same_gate_as_a_pull_request(self):
+        jobs = self.nt["jobs"]
+        self.assertEqual(jobs["p1"]["uses"], "./.github/workflows/p1.yml")
+        self.assertEqual(jobs["corpus"]["uses"], "./.github/workflows/corpus.yml")
+        for name in ("p1", "corpus"):
+            self.assertIn("workflow_call", load(name + ".yml")[0]["on"])
+            self.assertIn("needs.changed.outputs.run == 'true'", jobs[name]["if"])   # only after development
+
+    def test_the_default_is_no_permission_and_only_the_report_writes(self):
+        self.assertEqual(self.nt["permissions"], {})
+        for name, job in self.nt["jobs"].items():
+            wrote = {k for k, v in job.get("permissions", {}).items() if v == "write"}
+            self.assertEqual(wrote, {"contents", "pull-requests"} if name == "report" else set(), name)
+
+    def test_the_report_runs_when_the_gate_failed_and_carries_the_run_id(self):
+        report = self.nt["jobs"]["report"]
+        self.assertIn("always()", report["if"])
+        self.assertIn("needs.p1.result == 'failure'", report["if"])
+        self.assertIn("needs.corpus.result == 'failure'", report["if"])
+        self.assertIn("github.run_id", self.text)
+        self.assertIn("RUN_ID", self.text)
+        self.assertIn("gh pr create", self.text)
+
+    def test_no_event_text_reaches_a_shell_line(self):
+        for job in self.nt["jobs"].values():
+            for step in job.get("steps", []):
+                if "run" in step:
+                    self.assertNotIn("${{", step["run"])   # inputs go through env, not into the script text
+
+
 if __name__ == "__main__":
     unittest.main()
