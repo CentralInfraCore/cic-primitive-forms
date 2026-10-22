@@ -4,7 +4,8 @@
 
 use cic_primitive_forms::{
     resolve_rule, Carrier, Mode, ObjectPolicy, PolicyGraph, PolicyObject, PolicyRule,
-    PolicySurface, RuleKind, LAYER_FIELD, LAYER_NONE, LAYER_SYSTEM,
+    PolicySurface, RuleKind, LAYER_FIELD, LAYER_NONE, LAYER_POLICY_INHERITED, LAYER_SYSTEM,
+    REASON_CONTEXT_INCOMPLETE, REASON_RESET_NO_LOCAL_RULE,
 };
 use proptest::prelude::*;
 
@@ -133,4 +134,166 @@ proptest! {
             prop_assert!(r.kind == RuleKind::List && r.layer == LAYER_FIELD && r.source_path == path, "{op}: {r:?}");
         }
     }
+}
+
+fn object(
+    id: &str,
+    parent: Option<&str>,
+    policy: ObjectPolicy,
+    carrier: Option<Carrier>,
+) -> (String, PolicyObject) {
+    (
+        id.to_string(),
+        PolicyObject {
+            id: id.to_string(),
+            parent: parent.map(str::to_string),
+            policy,
+            carrier,
+            carrier_path: id.to_string(),
+        },
+    )
+}
+
+fn assert_incomplete(g: &PolicyGraph, target: &str) {
+    let r = resolve_rule(
+        g,
+        target,
+        "config_surface",
+        None,
+        &format!("{target}.f"),
+        "access",
+    );
+    assert!(
+        r.kind == RuleKind::Unknown
+            && r.reason == REASON_CONTEXT_INCOMPLETE
+            && r.layer == LAYER_NONE,
+        "want unknown / CONTEXT_INCOMPLETE, got {r:?}"
+    );
+}
+
+#[test]
+fn an_incomplete_or_cyclic_graph_is_unknown_never_permissive() {
+    let inherit = || {
+        Some(Carrier {
+            mode: Mode::Inherit,
+            access: None,
+            modify: None,
+        })
+    };
+    let graph = |objects: Vec<(String, PolicyObject)>| objects.into_iter().collect::<PolicyGraph>();
+    // a cycle through the carriers
+    assert_incomplete(
+        &graph(vec![
+            object("a", Some("b"), ObjectPolicy::Absent, inherit()),
+            object("b", Some("a"), ObjectPolicy::Absent, inherit()),
+        ]),
+        "a",
+    );
+    // a carrier whose parent is not in the graph, and a carrier with no parent at all
+    assert_incomplete(
+        &graph(vec![object(
+            "a",
+            Some("zz"),
+            ObjectPolicy::Absent,
+            inherit(),
+        )]),
+        "a",
+    );
+    assert_incomplete(
+        &graph(vec![object("a", None, ObjectPolicy::Absent, inherit())]),
+        "a",
+    );
+    // the object itself is not in the graph
+    assert_incomplete(&graph(vec![]), "a");
+    // the walk over the ancestors' policy: a missing parent and a cycle (no carrier, so the first walk ends at once)
+    assert_incomplete(
+        &graph(vec![object("a", Some("zz"), ObjectPolicy::Absent, None)]),
+        "a",
+    );
+    assert_incomplete(
+        &graph(vec![
+            object("a", Some("b"), ObjectPolicy::Absent, None),
+            object("b", Some("a"), ObjectPolicy::Absent, None),
+        ]),
+        "a",
+    );
+}
+
+#[test]
+fn an_undeclared_inherit_policy_is_ignored() {
+    let surface = |default_access, inherit_policy| {
+        ObjectPolicy::Declared(PolicySurface {
+            declared: true,
+            default_access,
+            default_modify: None,
+            surface_rules: Vec::new(),
+            inherit_policy,
+            inherit_policy_declared: false,
+        })
+    };
+    let list = Some(PolicyRule::Patterns(vec!["O=r".to_string()]));
+    let g: PolicyGraph = vec![
+        object("$", None, surface(list, Mode::Inherit), None),
+        object(
+            "$.a",
+            Some("$"),
+            surface(None, Mode::Reset),
+            Some(Carrier {
+                mode: Mode::Inherit,
+                access: None,
+                modify: None,
+            }),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let r = resolve_rule(&g, "$.a", "config_surface", None, "$.a.f", "access");
+    assert!(
+        r.layer == LAYER_POLICY_INHERITED && r.source_path == "$",
+        "an inherit_policy the schema did not declare changed the walk: {r:?}"
+    );
+}
+
+/// The scenario was run through the reference (`access_policy.py`, `resolve`): an object whose own policy stops the inheritance, under
+/// a carrier that resets, is still behind the reset barrier of the carrier walk: deny, `RESET_NO_LOCAL_RULE`.
+#[test]
+fn a_reset_carrier_above_an_object_that_does_not_inherit_still_sets_the_barrier() {
+    let no_inherit = ObjectPolicy::Declared(PolicySurface {
+        declared: true,
+        default_access: None,
+        default_modify: None,
+        surface_rules: Vec::new(),
+        inherit_policy: Mode::NoInherit,
+        inherit_policy_declared: true,
+    });
+    let g: PolicyGraph = vec![
+        object("$", None, ObjectPolicy::Absent, None),
+        object(
+            "a",
+            Some("$"),
+            ObjectPolicy::Absent,
+            Some(Carrier {
+                mode: Mode::Reset,
+                access: None,
+                modify: None,
+            }),
+        ),
+        object(
+            "o1",
+            Some("a"),
+            no_inherit,
+            Some(Carrier {
+                mode: Mode::Inherit,
+                access: None,
+                modify: None,
+            }),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let r = resolve_rule(&g, "o1", "config_surface", None, "o1.f", "access");
+    assert!(
+        r.kind == RuleKind::None && r.reason == REASON_RESET_NO_LOCAL_RULE,
+        "{r:?}"
+    );
 }

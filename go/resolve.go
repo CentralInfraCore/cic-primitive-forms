@@ -139,12 +139,12 @@ func localRule(o *PolicyObject, surface, op string) (EffectiveRule, bool) {
 	return EffectiveRule{}, false
 }
 
-// policyMode is the object's own inherit_policy when it declares one, and false otherwise.
-func policyMode(o *PolicyObject) (Mode, bool) {
+// policyMode is the object's own inherit_policy when it declares one, and ModeInherit otherwise.
+func policyMode(o *PolicyObject) Mode {
 	if o.Policy.State == PolicyDeclared && o.Policy.Surface.InheritPolicyDeclared {
-		return o.Policy.Surface.InheritPolicy, true
+		return o.Policy.Surface.InheritPolicy
 	}
-	return ModeInherit, false
+	return ModeInherit
 }
 
 // ResolveRule finds the effective rule of one operation ("access" or "modify") for a field of an object of the graph. field is the
@@ -171,14 +171,14 @@ func ResolveRule(g PolicyGraph, object, surface string, field *PolicyRule, field
 	barrier, fieldOpen := false, true
 	seen := map[string]bool{object: true}
 	for o := cur; ; {
-		if mode, declared := policyMode(o); declared && mode == ModeReset {
+		if policyMode(o) == ModeReset {
 			barrier = true // an object-level reset cuts what the object takes from above, the carrier's rule included
 			break
 		}
 		if o.Carrier == nil {
 			break
 		}
-		if o.Policy.State == PolicyUnknown && o != cur {
+		if o.Policy.State == PolicyUnknown {
 			return unknownRule(ReasonPolicyContextUnknown)
 		}
 		switch o.Carrier.Mode {
@@ -210,12 +210,12 @@ func ResolveRule(g PolicyGraph, object, surface string, field *PolicyRule, field
 	// layer 4b: the ancestors' PolicySurface, only where each step permits it
 	seen = map[string]bool{object: true}
 	for o := cur; ; {
-		mode, declared := policyMode(o)
-		if declared && mode == ModeReset {
+		mode := policyMode(o)
+		if mode == ModeReset {
 			barrier = true
 			break
 		}
-		if declared && mode == ModeNoInherit {
+		if mode == ModeNoInherit {
 			break
 		}
 		if o.Carrier != nil && o.Carrier.Mode == ModeReset {

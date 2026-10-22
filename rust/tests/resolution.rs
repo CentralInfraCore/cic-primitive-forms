@@ -5,7 +5,8 @@
 use cic_primitive_forms::access::sha256_hex;
 use cic_primitive_forms::{
     bind_grammar, compile_schema, denormalize, normalize, parse, resolve_policy, CompiledSchema,
-    Context, EffectiveRule, Grammar, RuleKind, SchemaInput, Value,
+    Context, EffectiveRule, Grammar, Mode, PolicySurface, Presence, RuleKind, ScalarType,
+    SchemaInput, Shape, ShapeType, Value,
 };
 use serde_json::Value as J;
 use std::path::PathBuf;
@@ -202,4 +203,127 @@ fn resolution_refuses_what_it_cannot_describe() {
     assert!(go(&res.object, &["$.nowhere".to_string()]).is_err());
     let bad = parse("bogus:\n  value: 1\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n").unwrap();
     assert!(go(&bad, &[]).is_err());
+}
+
+/// An expanded position around `v`, with the access, modify and inherit members given as text.
+fn wrapped(v: &str, access: &str, modify: &str, inherit: &str) -> String {
+    format!("{{value: {v}, access: {access}, modify: {modify}, inherit: {inherit}, default_injection: ~, conformance: implemented}}")
+}
+
+#[test]
+fn resolution_refuses_every_structure_it_cannot_walk() {
+    let f = load();
+    let c = &f.json["cases"][0];
+    let cs = compile(
+        c["schema"].as_str().unwrap(),
+        f.json["grammar_pin"].as_str().unwrap(),
+    );
+    let g = bound(1);
+    let ok = |v: &str| wrapped(v, "inherit", "inherit", "true");
+    let cases = [
+        (
+            "an access value that is not a rule",
+            format!("type: {}\n", wrapped("t", "bogus", "inherit", "true")),
+            "access of the position",
+        ),
+        (
+            "a modify value that is not a rule",
+            format!("type: {}\n", wrapped("t", "inherit", "bogus", "true")),
+            "modify of the position",
+        ),
+        (
+            "an inherit value that is not a mode",
+            format!("type: {}\n", wrapped("t", "inherit", "inherit", "maybe")),
+            "inherit of the position",
+        ),
+        (
+            "a list position that holds a scalar",
+            format!("routes: {}\n", ok("5")),
+            "a value that is not a list",
+        ),
+        (
+            "a list element that is not a record",
+            format!("routes: {}\n", ok("[1]")),
+            "not a record",
+        ),
+        (
+            "a list element without an identity",
+            format!("routes: {}\n", ok(&format!("[{{metric: {}}}]", ok("1")))),
+            "without an identity",
+        ),
+        (
+            "a short position inside a list element",
+            format!("routes: {}\n", ok("[{to: a}]")),
+            ".to is not an expanded",
+        ),
+        (
+            "an undeclared field in a list element",
+            format!(
+                "routes: {}\n",
+                ok(&format!("[{{to: {}, zzz: {}}}]", ok("a"), ok("1")))
+            ),
+            "is not a field the schema declares",
+        ),
+        (
+            "an undeclared field in a composite",
+            format!("ip: {}\n", ok(&format!("{{zzz: {}}}", ok("1")))),
+            "is not a field the schema declares",
+        ),
+        (
+            "a short position in a composite",
+            format!("ip: {}\n", ok("{gateway: g}")),
+            "$.ip.gateway is not an expanded",
+        ),
+        (
+            "a value that is not a mapping",
+            format!("ip: {}\n", ok("5")),
+            "where a mapping is declared",
+        ),
+    ];
+    for (name, y, text) in cases {
+        let doc = parse(&y).unwrap();
+        let err = resolve_policy(&doc, &cs.root, &cs.policy, "config_surface", &f.a, g, &[])
+            .expect_err(&format!("resolved what it cannot describe: {name}"));
+        assert!(
+            format!("{err:?}").contains(text),
+            "{name}: refused for another reason: {err:?}"
+        );
+    }
+}
+
+/// A field name that cannot be written as an ADR 0006 path (a control character) has no key in the resolution: it is refused. An identity is always writable (it is escaped).
+/// The Go peer is `TestPolicyResolutionRefusesAPositionItCannotName`.
+#[test]
+fn resolution_refuses_a_position_it_cannot_name() {
+    let f = load();
+    let g = bound(1);
+    let name = format!("a{}b", char::from(7u8)); // built, not written: a control character in a source file is easy to lose
+    let leaf = Shape {
+        shape_type: ShapeType::Scalar(ScalarType::String),
+        presence: Presence::Optional,
+        nullable: false,
+        has_default: false,
+        default: None,
+    };
+    let root = Shape {
+        shape_type: ShapeType::Composite(vec![(name, leaf)]),
+        presence: Presence::Mandatory,
+        nullable: false,
+        has_default: false,
+        default: None,
+    };
+    let doc = parse(&format!(
+        "\"a\\ab\": {}\n",
+        wrapped("y", "inherit", "inherit", "true")
+    ))
+    .unwrap();
+    let surface = PolicySurface {
+        declared: false,
+        default_access: None,
+        default_modify: None,
+        surface_rules: Vec::new(),
+        inherit_policy: Mode::Inherit,
+        inherit_policy_declared: false,
+    };
+    assert!(resolve_policy(&doc, &root, &surface, "config_surface", &f.a, g, &[]).is_err());
 }

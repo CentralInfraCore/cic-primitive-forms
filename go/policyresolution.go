@@ -121,7 +121,7 @@ func (w *resolveWalker) wrapper(x *Node, text string) (mode Mode, access, modify
 // below goes into what a position holds: the object of a composite, the elements of a declared list.
 func (w *resolveWalker) below(v *Node, shape Shape, path []seg, text string, parent *PolicyObject, mode Mode, access, modify *PolicyRule) error {
 	switch {
-	case v == nil || v.Kind == KindNull:
+	case v.Kind == KindNull:
 		return nil
 	case shape.Kind == ShapeComposite:
 		child := w.child(text, parent, mode, access, modify, text)
@@ -139,10 +139,7 @@ func (w *resolveWalker) below(v *Node, shape Shape, path []seg, text string, par
 				return unsupported("%s: a list element without an identity (%s): validate the document first", text, code)
 			}
 			ep := append(slices.Clone(path), seg{item: id, isItem: true})
-			etext, err := pathText(ep)
-			if err != nil {
-				return err
-			}
+			etext, _ := pathText(ep) // the path above it was written already, and an identity is always writable
 			// an element inherits from its list field and its object, never from a sibling
 			child := w.child(etext, parent, mode, access, modify, text)
 			if err := w.object(rec, c.Fields, ep, child); err != nil {

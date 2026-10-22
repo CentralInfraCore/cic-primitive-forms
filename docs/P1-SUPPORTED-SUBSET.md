@@ -4,7 +4,7 @@ Status: P1 (parse/recognize/emit, presence and schema-bound validation, list-ele
 `access-policy/1` values) is done, and the later phases extend the same document: `expand` / `collapse` (P2), and from P3 the reading of
 `policy_surface` and the Role, the schema defaults (`ApplyDefaults`) and `normalize` / `denormalize`; see the bullets of "Schema-bound
 validation". In Rust (`rust/`) and Go (`go/`), one shared corpus. It is implementation, not a decision: it follows the accepted ADRs and
-re-opens none of them. `PolicyResolution` (P3, fourth unit) is a design, `docs/P3-UNIT4-POLICY-RESOLUTION.md`, not yet code.
+re-opens none of them. `PolicyResolution` (P3, fourth unit, `docs/P3-UNIT4-POLICY-RESOLUTION.md`) is implemented: see its bullet below.
 
 ## What exists
 
@@ -181,6 +181,19 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   mandatory field), and it never inserts a default for a mandatory field, into an absent composite or list, over a present value, or
   below another default. The shared cases are `testdata/p1/normalize.json`; both languages also prove the round trip, the
   provenance of the author's positions and the idempotence on the pair as properties, over random shapes and documents.
+* **PolicyResolution (P3, fourth unit; `docs/P3-UNIT4-POLICY-RESOLUTION.md`).** `resolve_rule` finds the effective rule of one
+  operation (`access` or `modify`) for a field of an object graph, in the order of the reference (`access_policy.py`, D-018): the
+  field's own list, the object's `surface_rules` for the surface, its default, the rule a carrier passes down, the ancestors'
+  policy where each step permits it, then the system default (`open` for access, `owner` for modify). The result is data: the kind
+  (`list`, `open`, `owner`, `none`, `unknown`), the layer, the `source_path` of what declared it and, for none and unknown, the
+  reason. `none` and `unknown` are never permissive, and the empty list is an explicit "nobody". `resolve_policy` /
+  `ResolvePolicy` walks a **normalized** object with the compiled schema and resolves every position it holds (the root, the value
+  of a composite, every list element by identity); it creates nothing, does not read the origin map and leaves the object alone. A
+  position that is not expanded, a field the schema does not declare and an `unknown` path that names no object are refused as
+  unsupported. The library has no requestor, owner or certificate: the decision is the Relay's. Both languages run all 86 golden
+  vectors of `access-vectors/resolution.yaml` against it, read from the pinned checkout after their SHA-256 matched the pin (the
+  reference decision exists only in test code), the shared cases `testdata/p1/resolution.json`, and properties over generated
+  object graphs. The pin now lists the twelve grammar files (ADR 0002, Amendment 2).
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),

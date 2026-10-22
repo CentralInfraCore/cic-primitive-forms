@@ -194,7 +194,7 @@ pub fn resolve_rule(
             Some(carrier) => carrier,
             None => break,
         };
-        if o.policy == ObjectPolicy::Unknown && o.id != cur.id {
+        if o.policy == ObjectPolicy::Unknown {
             return unknown_rule(REASON_POLICY_CONTEXT_UNKNOWN);
         }
         match carrier.mode {

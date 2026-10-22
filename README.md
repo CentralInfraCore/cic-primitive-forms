@@ -8,8 +8,8 @@ implementations (Rust and Go) held to one shared conformance corpus.
 > [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and Go (`go/`) and what
 > is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md). In short: parse, emit, recognize, schema-bound validation
 > (a pinned schema, list elements by identity, paths); `expand` / `collapse`; from P3 the schema's policy and `identity.base`, the
-> schema defaults (ADR 0011), and `normalize` / `denormalize` with the origin of every value kept. **Designed, not implemented:**
-> `PolicyResolution` (the design is `docs/P3-UNIT4-POLICY-RESOLUTION.md`, in review). **Not started:** source-preserving
+> schema defaults (ADR 0011), `normalize` / `denormalize` with the origin of every value kept, and `PolicyResolution` (the effective
+> access and modify rule of every position, as data; `docs/P3-UNIT4-POLICY-RESOLUTION.md`). **Not started:** source-preserving
 > editing, diff and patch, reference resolution and materialization.
 
 ## What it does
@@ -36,7 +36,7 @@ primitive is:
 - convert between short and expanded form without losing authored meaning (`expand`, `collapse`) - **implemented**
 - normalize: the declared defaults of absent fields, with the origin (authored or default) of every value kept, and the way back
   (`apply_defaults`, `normalize`, `renormalize`, `denormalize`) - **implemented**; the effective access and modify rule of every position
-  (`PolicyResolution`) - designed, next
+  (`PolicyResolution`, `resolve_rule`) - **implemented**, cross-checked against the 86 pinned reference vectors
 - structural and semantic diff, targeted patch (`diff`, `patch`) - later
 - later: resolve references from a supplied snapshot, and materialize for the engine
 
