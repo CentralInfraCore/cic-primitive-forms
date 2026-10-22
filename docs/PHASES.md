@@ -30,17 +30,17 @@ fault or vector that demonstrably turns it red.
 
 ## Phases
 
-| Phase | Content | Exit criterion |
-|---|---|---|
-| P0 | Contract, minimal schema model, shared corpus, the open decisions | No basic YAML construct is interpreted differently by the two implementations |
-| P1 | Semantic parse / emit / validate, resource limits, fuzzing | Stable on both languages with shared negative tests; validation changes no input byte |
-| P2 | Recursive expand / collapse, symbolic defaults | Short, mixed and expanded forms round-trip; explicit policy overrides survive. **Architecture review stop.** |
-| P3 | Normalize: defaults, `inherit: true/false/0` | Same input and schema give the same fully resolved result in both languages |
-| P3b | Source-preserving editing (comments, style, anchors) | Edits keep untouched source bytes |
-| P4 | Diff and patch | `patch(A, diff(A, B))` equals B for every representable change; conflicts are explicit errors |
-| P5 | Resolve (from supplied snapshot), materialize, receipt | Complete, validated object with provable input/output binding |
-| P6 | Engine / Relay integration | `intent -> materialized -> observed -> diff -> conformance` runs, library stays Git-free |
-| P7 | Hardening and release | API and receipt versioning, final gates on the whole system |
+| Phase | Content | Exit criterion | State |
+|---|---|---|---|
+| P0 | Contract, minimal schema model, shared corpus, the open decisions | No basic YAML construct is interpreted differently by the two implementations | done (ADRs accepted) |
+| P1 | Semantic parse / emit / validate, resource limits, fuzzing | Stable on both languages with shared negative tests; validation changes no input byte | done: parse, recognize, emit, access-policy reading, schema-bound validation, list-element identity, path text |
+| P2 | Recursive expand / collapse, symbolic defaults | Short, mixed and expanded forms round-trip; explicit policy overrides survive. **Architecture review stop.** | done and reviewed; post-merge evidence complete |
+| P3 | Normalize: defaults, `inherit: true/false/0` | Same input and schema give the same fully resolved result in both languages | in progress: unit 1 `policy_surface` and `identity.base` (#44), unit 2 Role and defaults (#45), unit 3 `normalize` / `denormalize` (#49) are merged; unit 4 `PolicyResolution` is a design (#50), no code |
+| P3b | Source-preserving editing (comments, style, anchors) | Edits keep untouched source bytes | not started |
+| P4 | Diff and patch | `patch(A, diff(A, B))` equals B for every representable change; conflicts are explicit errors | not started |
+| P5 | Resolve (from supplied snapshot), materialize, receipt | Complete, validated object with provable input/output binding | not started |
+| P6 | Engine / Relay integration | `intent -> materialized -> observed -> diff -> conformance` runs, library stays Git-free | not started |
+| P7 | Hardening and release | API and receipt versioning, final gates on the whole system | not started |
 
 Decisions fixed so far:
 
