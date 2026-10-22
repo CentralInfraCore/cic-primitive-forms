@@ -4,6 +4,7 @@ name: p1
 # gobranch and rustbranch (coverage/tools.yaml).
 on:
   workflow_dispatch:
+  workflow_call:   # the nightly FULL on main (nightly.yml) runs this very gate
   push:
     branches: ["main"]
   pull_request:

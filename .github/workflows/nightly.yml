@@ -1,0 +1,111 @@
+name: nightly
+# The nightly FULL on main (docs/DELTA-DIFF-GATE.md, section 4): the whole gate (p1 and corpus, every mutant, both languages) on the
+# head of main, every night, only if main had development in the last 48 hours (two days, not one: a scheduled run can start late, by an unknown amount, so the window must not depend on the hour it started). If it fails, a pull request is opened that carries the
+# identifier of the failed run (ci-incidents/<date>-<run id>.md and the description).
+#
+# 02:00 Europe/Budapest. GitHub cron is UTC only: 01:00 UTC is 02:00 in winter time (CET); in summer time (CEST) it is 03:00 and the
+# cron wants "0 0 * * *". GitHub may start a scheduled run late.
+#
+# Opening the pull request needs "Allow GitHub Actions to create and approve pull requests" in the repository settings
+# (Settings > Actions > General), which only the owner can switch. Without it the report job fails and says so; the failed run itself
+# stays visible.
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "run the FULL even if main had no development in the last 48 hours"
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+jobs:
+  changed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      run: ${{ steps.c.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - id: c
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          n=$(git log --since='48 hours ago' --format=%H origin/main | wc -l)
+          echo "commits on main in the last 48 hours: $n"
+          if [ "$n" -gt 0 ] || [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; echo "no development: the nightly FULL is skipped"; fi
+  p1:
+    needs: changed
+    if: ${{ needs.changed.outputs.run == 'true' }}
+    uses: ./.github/workflows/p1.yml
+    permissions:
+      contents: read
+  corpus:
+    needs: changed
+    if: ${{ needs.changed.outputs.run == 'true' }}
+    uses: ./.github/workflows/corpus.yml
+    permissions:
+      contents: read
+  report:
+    needs: [changed, p1, corpus]
+    if: ${{ always() && needs.changed.outputs.run == 'true' && (needs.p1.result == 'failure' || needs.corpus.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+      - name: Open the pull request about the failed run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          P1: ${{ needs.p1.result }}
+          CORPUS: ${{ needs.corpus.result }}
+        run: |
+          set -e
+          day=$(date -u +%Y-%m-%d)
+          failed=$(gh run view "$RUN_ID" --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | join("\n- ")')
+          branch="ci-incident/nightly-$day-$RUN_ID"
+          mkdir -p ci-incidents
+          {
+            echo "# Nightly FULL failed on $day"
+            echo
+            echo "- run: $RUN_ID ($RUN_URL)"
+            echo "- commit: $SHA"
+            echo "- p1: $P1, corpus: $CORPUS"
+            echo "- failed jobs:"
+            echo "- $failed"
+          } > "ci-incidents/$day-$RUN_ID.md"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add ci-incidents
+          git commit -m "ci: record the failed nightly FULL $RUN_ID of $day"
+          git push origin "$branch"
+          gh label create ci-nightly-failure --color B60205 --description "the nightly FULL on main failed" 2>/dev/null || true
+          {
+            echo "The nightly FULL on main failed."
+            echo
+            echo "- failed run: **$RUN_ID** - $RUN_URL"
+            echo "- commit: \`$SHA\`"
+            echo "- p1: $P1, corpus: $CORPUS"
+            echo "- failed jobs:"
+            echo "- $failed"
+            echo
+            echo "This pull request only records the incident (\`ci-incidents/$day-$RUN_ID.md\`). The fix is a separate change; close this one when it is understood."
+          } > "$RUNNER_TEMP/body.md"
+          gh pr create --base main --head "$branch" --draft --label ci-nightly-failure \
+            --title "ci: nightly FULL failed ($day, run $RUN_ID)" --body-file "$RUNNER_TEMP/body.md"
