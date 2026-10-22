@@ -63,6 +63,38 @@ fn document_root(mut shape: Shape) -> Option<Shape> {
     matches!(shape.shape_type, ShapeType::Composite(_)).then_some(shape)
 }
 
+/// Gives every optional field that says it has a default a real one (a scalar, a list, a set or an opaque value); the other
+/// fields declare none. The strategy of shapes only sets the flag.
+fn with_default_values(mut shape: Shape) -> Shape {
+    shape.default = None;
+    if let ShapeType::Composite(fields) = shape.shape_type {
+        shape.shape_type = ShapeType::Composite(
+            fields
+                .into_iter()
+                .map(|(name, f)| (name, with_default_values(f)))
+                .collect(),
+        );
+        shape.has_default = false; // a composite takes no default here
+        return shape;
+    }
+    let value = match &shape.shape_type {
+        _ if !shape.has_default || shape.presence != Presence::Optional => None,
+        ShapeType::List { min_items } | ShapeType::Set { min_items, .. }
+            if min_items.is_some_and(|m| m > 0) =>
+        {
+            None
+        }
+        ShapeType::Scalar(ScalarType::String) => Some(Value::Str("dflt".into())),
+        ShapeType::Scalar(ScalarType::Integer) => Some(Value::Int(7)),
+        ShapeType::Scalar(ScalarType::Boolean) => Some(Value::Bool(true)),
+        ShapeType::List { .. } | ShapeType::Set { .. } => Some(Value::Seq(Vec::new())),
+        _ => Some(Value::Str("any".into())),
+    };
+    shape.has_default = value.is_some();
+    shape.default = value.map(|v| cic_primitive_forms::DefaultValue(Node::new(v)));
+    shape
+}
+
 /// True when `n` is an expanded node: a mapping with exactly the keys of `A`.
 fn is_wrapper(n: &Node) -> bool {
     match &n.value {
@@ -135,6 +167,33 @@ proptest! {
         prop_assert!(again.same(&expanded), "expand is not idempotent");
         prop_assert_eq!(prov2.len(), prov.len());
         prop_assert!(prov2.values().all(|o| o.authored_expanded));
+    }
+
+    // The composition of P2 and the defaults (docs/P3-UNIT3-COMPOSITION.md): the authored document comes back from the
+    // normalized one, nothing the author wrote is changed, and the origin travels with the object.
+    #[test]
+    fn denormalize_of_normalize_gives_back_the_authored_document(shape in shape_strategy(), seed in 1u64..u64::MAX, explicit in any::<bool>()) {
+        let Some(shape) = document_root(shape) else { return Ok(()) };
+        let shape = with_default_values(shape);
+        let g = grammar_1();
+        let mut doc = conforming(&shape, &mut Rng(seed), &mut Vec::new(), &[]);
+        if explicit {
+            let (mut ex, _) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
+            make_explicit(&mut ex, &mut Rng(seed ^ 0x9E37_79B9));
+            doc = ex; // mixed forms: some positions written out with an explicit policy
+        }
+        let before = doc.clone();
+        let res = cic_primitive_forms::normalize(&doc, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(doc.same(&before), "normalize changed its input");
+        let back = cic_primitive_forms::denormalize(&res, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(back.same(&doc), "denormalize(normalize(x)) != x");
+        let (_, prov) = cic_primitive_forms::expand(&doc, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert_eq!(&res.provenance, &prov, "the provenance of the author's positions changed");
+        for o in &res.value_origins {
+            prop_assert_eq!(res.provenance.contains_key(&o.path), o.origin == cic_primitive_forms::VALUE_AUTHORED);
+        }
+        let again = cic_primitive_forms::renormalize(&res, &shape, &a(), g, &Context::default()).unwrap();
+        prop_assert!(again.object.same(&res.object) && again.value_origins == res.value_origins && again.provenance == res.provenance, "not idempotent on the pair");
     }
 
     #[test]

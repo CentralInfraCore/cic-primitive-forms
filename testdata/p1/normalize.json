@@ -1,0 +1,366 @@
+{
+ "grammar_pin": "cic-primitives-73ae469-71ee71ca",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n            default: 10.0.0.1\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n            role: config\n            default: 24\n      - name: tags\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        role:\n          authority: config\n        default: [a]\n      - name: servers\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        default: []\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n            default: 10\n          - name: via\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n",
+ "surface": "config_surface",
+ "documents": [
+  {
+   "id": "minimal-short",
+   "grammar": 1,
+   "yaml": "type: t\n",
+   "origins": [
+    [
+     "$.enabled",
+     "default"
+    ],
+    [
+     "$.label",
+     "default"
+    ],
+    [
+     "$.maybe",
+     "default"
+    ],
+    [
+     "$.mtu",
+     "default"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {
+    "enabled": "enabled:\n  value: true\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n",
+    "mtu": "mtu:\n  value: 1500\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n",
+    "label": "label:\n  value: x\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n",
+    "servers": "servers:\n  value: []\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n"
+   }
+  },
+  {
+   "id": "minimal-short-grammar-2",
+   "grammar": 2,
+   "yaml": "type: t\n",
+   "origins": [
+    [
+     "$.enabled",
+     "default"
+    ],
+    [
+     "$.label",
+     "default"
+    ],
+    [
+     "$.maybe",
+     "default"
+    ],
+    [
+     "$.mtu",
+     "default"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {
+    "enabled": "enabled:\n  value: true\n  access: inherit\n  modify: inherit\n  inherit: inherit\n  default_injection: null\n  conformance: implemented\n"
+   }
+  },
+  {
+   "id": "explicit-policy-and-equal-to-default",
+   "grammar": 1,
+   "yaml": "type: t\nmtu:\n  value: 0\n  access: [OU=a]\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\nlabel: x\nenabled: false\n",
+   "origins": [
+    [
+     "$.enabled",
+     "authored"
+    ],
+    [
+     "$.label",
+     "authored"
+    ],
+    [
+     "$.maybe",
+     "default"
+    ],
+    [
+     "$.mtu",
+     "authored"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.enabled",
+     false
+    ],
+    [
+     "$.label",
+     false
+    ],
+    [
+     "$.mtu",
+     true
+    ],
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {}
+  },
+  {
+   "id": "present-composite-gets-defaults-inside",
+   "grammar": 1,
+   "yaml": "type: t\nip: {}\n",
+   "origins": [
+    [
+     "$.enabled",
+     "default"
+    ],
+    [
+     "$.ip",
+     "authored"
+    ],
+    [
+     "$.ip.gateway",
+     "default"
+    ],
+    [
+     "$.ip.prefix",
+     "default"
+    ],
+    [
+     "$.label",
+     "default"
+    ],
+    [
+     "$.maybe",
+     "default"
+    ],
+    [
+     "$.mtu",
+     "default"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.ip",
+     false
+    ],
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {}
+  },
+  {
+   "id": "null-composite-stays-null",
+   "grammar": 1,
+   "yaml": "type: t\nip: ~\nmaybe: ~\n",
+   "origins": [
+    [
+     "$.enabled",
+     "default"
+    ],
+    [
+     "$.ip",
+     "authored"
+    ],
+    [
+     "$.label",
+     "default"
+    ],
+    [
+     "$.maybe",
+     "authored"
+    ],
+    [
+     "$.mtu",
+     "default"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.ip",
+     false
+    ],
+    [
+     "$.maybe",
+     false
+    ],
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {}
+  },
+  {
+   "id": "list-elements-by-identity",
+   "grammar": 1,
+   "yaml": "type: t\nroutes:\n  - to: b\n    metric: 0\n  - to: a\n    via: g\n",
+   "origins": [
+    [
+     "$.enabled",
+     "default"
+    ],
+    [
+     "$.label",
+     "default"
+    ],
+    [
+     "$.maybe",
+     "default"
+    ],
+    [
+     "$.mtu",
+     "default"
+    ],
+    [
+     "$.routes",
+     "authored"
+    ],
+    [
+     "$.routes[{to=\"a\"}].metric",
+     "default"
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     "authored"
+    ],
+    [
+     "$.routes[{to=\"a\"}].via",
+     "authored"
+    ],
+    [
+     "$.routes[{to=\"b\"}].metric",
+     "authored"
+    ],
+    [
+     "$.routes[{to=\"b\"}].to",
+     "authored"
+    ],
+    [
+     "$.servers",
+     "default"
+    ],
+    [
+     "$.tags",
+     "default"
+    ],
+    [
+     "$.type",
+     "authored"
+    ]
+   ],
+   "provenance": [
+    [
+     "$.routes",
+     false
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     false
+    ],
+    [
+     "$.routes[{to=\"a\"}].via",
+     false
+    ],
+    [
+     "$.routes[{to=\"b\"}].metric",
+     false
+    ],
+    [
+     "$.routes[{to=\"b\"}].to",
+     false
+    ],
+    [
+     "$.type",
+     false
+    ]
+   ],
+   "inserted": {}
+  }
+ ],
+ "attested": {
+  "id": "materialized-attested-position",
+  "yaml": "type: t\n",
+  "attested": [
+   "$.type"
+  ],
+  "denormalized": "type:\n  value: t\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n"
+ }
+}

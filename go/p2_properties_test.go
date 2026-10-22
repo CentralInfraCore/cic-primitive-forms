@@ -4,6 +4,7 @@ package forms_test
 // composite shape, and an explicit policy setting is never lost.
 
 import (
+	"reflect"
 	"testing"
 
 	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
@@ -54,6 +55,91 @@ func TestPropertyCollapseOfExpandGivesBackTheAuthoredDocument(t *testing.T) {
 			if !o.AuthoredExpanded {
 				t.Fatalf("%s: an expanded node is authored expanded", p)
 			}
+		}
+	})
+}
+
+// withDefaultValues gives every optional field that says it has a default a real one (a scalar, a set or an opaque value);
+// the other fields declare none. The generator of shapes only sets the flag.
+func withDefaultValues(s forms.Shape) forms.Shape {
+	if s.Kind == forms.ShapeComposite {
+		fs := make([]forms.NamedShape, len(s.Fields))
+		for i, f := range s.Fields {
+			fs[i] = forms.NamedShape{Name: f.Name, Shape: withDefaultValues(f.Shape)}
+		}
+		s.Fields, s.HasDefault, s.Default = fs, false, nil // a composite takes no default here
+		return s
+	}
+	s.Default = nil
+	if !s.HasDefault || s.Presence != forms.Optional || (s.HasMinItems && s.MinItems > 0) {
+		s.HasDefault = false
+		return s
+	}
+	switch s.Kind {
+	case forms.ShapeScalar:
+		switch s.Scalar {
+		case forms.ScalarString:
+			s.Default = &forms.Node{Kind: forms.KindStr, Str: "dflt"}
+		case forms.ScalarInteger:
+			s.Default = &forms.Node{Kind: forms.KindInt, Int: 7}
+		default:
+			s.Default = &forms.Node{Kind: forms.KindBool, Bool: true}
+		}
+	case forms.ShapeList, forms.ShapeSet:
+		s.Default = &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{}}
+	default:
+		s.Default = &forms.Node{Kind: forms.KindStr, Str: "any"}
+	}
+	return s
+}
+
+// The composition of P2 and the defaults (docs/P3-UNIT3-COMPOSITION.md): the authored document comes back from the normalized one,
+// nothing the author wrote is changed, the origin travels with the object, and the result does not depend on how the author
+// spelled the policy of a position.
+func TestPropertyDenormalizeOfNormalizeGivesBackTheAuthoredDocument(t *testing.T) {
+	g := boundGrammar(&testing.T{})
+	rapid.Check(t, func(t *rapid.T) {
+		s := withDefaultValues(rootShape(t))
+		seed := xorshift(rapid.Uint64Min(1).Draw(t, "seed"))
+		doc := conforming(s, &seed, nil, nil)
+		if rapid.Bool().Draw(t, "explicit") {
+			ex, _, err := forms.Expand(doc, s, keySet, g, forms.Context{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			explicit(ex, &seed)
+			doc = ex // mixed forms: some positions written out with an explicit policy
+		}
+		before := forms.Emit(doc)
+		res, err := forms.Normalize(doc, s, keySet, g, forms.Context{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if forms.Emit(doc) != before {
+			t.Fatal("Normalize changed its input")
+		}
+		back, err := forms.Denormalize(res, s, keySet, g, forms.Context{})
+		if err != nil || !back.Same(doc) {
+			t.Fatalf("denormalize(normalize(x)) != x: %v\n%s\n%s", err, forms.Emit(back), before)
+		}
+		// nothing the author wrote is changed: the object minus the inserted values is the plain expansion
+		_, prov, err := forms.Expand(doc, s, keySet, g, forms.Context{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(res.Provenance, prov) {
+			t.Fatalf("the provenance of the author's positions changed:\n%v\n%v", res.Provenance, prov)
+		}
+		for _, o := range res.ValueOrigins {
+			if _, has := res.Provenance[o.Path]; has == (o.Origin == forms.ValueOriginDefault) {
+				t.Fatalf("%s: origin %s, provenance %v", o.Path, o.Origin, has)
+			}
+		}
+		// the origin travels with the object: normalizing the result again changes neither
+		again, err := forms.Renormalize(res, s, keySet, g, forms.Context{})
+		if err != nil || forms.Emit(again.Object) != forms.Emit(res.Object) ||
+			!reflect.DeepEqual(again.ValueOrigins, res.ValueOrigins) || !reflect.DeepEqual(again.Provenance, res.Provenance) {
+			t.Fatalf("not idempotent on the pair: %v", err)
 		}
 	})
 }

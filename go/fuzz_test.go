@@ -319,3 +319,47 @@ func FuzzApplyDefaults(f *testing.F) {
 		}
 	})
 }
+
+// FuzzNormalize checks, on every input that parses and that Normalize accepts: the input is left alone, denormalizing the
+// result gives the input back as a value, and normalizing the result again changes neither the object nor the origins.
+// CIC_FUZZ_CANARY works as in FuzzParse.
+func FuzzNormalize(f *testing.F) {
+	for _, seed := range []string{"", "a: x\n", "a: x\nb: ~\nc: ~\n", "a: x\nb: 0\nc: {d: false}\ng: []\n", "a: x\nc: {}\n", "a: x\nz: 1\n",
+		"a: {value: x, access: [OU=a], modify: inherit, inherit: 0, default_injection: ~, conformance: deprecated}\nb: 1\n",
+		"c: {value: {d: true}, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"} {
+		f.Add(seed)
+	}
+	shape := defaultsShape()
+	g, err := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: 1}, &forms.Node{Kind: forms.KindInt, Int: 1})
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(n)
+		res, err := forms.Normalize(n, shape, keySet, g, forms.Context{})
+		if forms.Emit(n) != before {
+			t.Fatalf("%q: the input changed", text)
+		}
+		if err != nil {
+			return
+		}
+		back, err := forms.Denormalize(res, shape, keySet, g, forms.Context{})
+		if err != nil || !back.Same(n) {
+			t.Fatalf("%q: denormalize(normalize(x)) != x (%v)", text, err)
+		}
+		again, err := forms.Renormalize(res, shape, keySet, g, forms.Context{})
+		if err != nil || forms.Emit(again.Object) != forms.Emit(res.Object) || !slices.Equal(again.ValueOrigins, res.ValueOrigins) {
+			t.Fatalf("%q: not idempotent on the pair (%v)", text, err)
+		}
+	})
+}

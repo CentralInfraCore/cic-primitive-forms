@@ -21,12 +21,13 @@
 use std::collections::BTreeMap;
 
 use crate::access::{write_mode, Grammar, Mode, INHERIT_SYMBOL};
+use crate::defaults::{VALUE_AUTHORED, VALUE_DEFAULT};
 use crate::error::{Error, Location, Phase, Violation};
 use crate::listitem::identify;
 use crate::node::{Entry, Node, Value};
 use crate::pathtext::{parse_path, resolve_path};
 use crate::recognize::{classify, location, logical_path, Class, Path, Seg};
-use crate::validate::{Shape, ShapeType};
+use crate::validate::{Presence, Shape, ShapeType};
 
 /// The conformance basis (ADR 0010) that is never shortened: the value is binding data.
 pub const BASIS_BINDING: &str = "binding_attested";
@@ -59,7 +60,7 @@ pub struct Context {
 }
 
 impl Context {
-    fn check(&self, root: &Shape) -> Result<(), Error> {
+    pub(crate) fn check(&self, root: &Shape) -> Result<(), Error> {
         let materialized = self.origin == DocOrigin::Materialized;
         let consistent = self.attestation.as_ref().is_some_and(|a| !a.is_empty()) == materialized
             && self.attested_positions.is_some() == materialized;
@@ -181,11 +182,40 @@ pub fn collapse_position(
     }
 }
 
-struct Walker<'a> {
+pub(crate) struct Walker<'a> {
     a: &'a [String],
     g: Grammar,
-    prov: Provenance,
+    pub(crate) prov: Provenance,
     attested: Vec<String>,
+    /// The P3 additions (`normalize.rs`); all empty for a plain expand or collapse.
+    /// Expand: insert the declared default of an absent optional field.
+    pub(crate) defaults: bool,
+    /// Above zero while an inserted default is being expanded: nothing below it is authored or defaulted.
+    in_default: usize,
+    /// Expand: the origin (authored or default) of every declared position of the output.
+    pub(crate) origins: Vec<(Path, &'static str)>,
+    /// Collapse: the positions the normalization made, which are not part of the authored document.
+    pub(crate) strip: std::collections::BTreeSet<String>,
+}
+
+impl<'a> Walker<'a> {
+    pub(crate) fn plain(
+        a: &'a [String],
+        g: Grammar,
+        prov: Provenance,
+        attested: Vec<String>,
+    ) -> Self {
+        Walker {
+            a,
+            g,
+            prov,
+            attested,
+            defaults: false,
+            in_default: 0,
+            origins: Vec::new(),
+            strip: std::collections::BTreeSet::new(),
+        }
+    }
 }
 
 fn path_text(path: &Path) -> Result<String, Error> {
@@ -209,12 +239,7 @@ pub fn expand(
     ctx: &Context,
 ) -> Result<(Node, Provenance), Error> {
     ctx.check(shape)?;
-    let mut w = Walker {
-        a,
-        g,
-        prov: Provenance::new(),
-        attested: Vec::new(),
-    };
+    let mut w = Walker::plain(a, g, Provenance::new(), Vec::new());
     let out = w.record(doc, shape, &mut Vec::new(), true)?;
     Ok((out, w.prov))
 }
@@ -235,17 +260,17 @@ pub fn collapse(
     ctx: &Context,
 ) -> Result<Node, Error> {
     ctx.check(shape)?;
-    let mut w = Walker {
+    let mut w = Walker::plain(
         a,
         g,
-        prov: prov.clone(),
-        attested: ctx.attested_positions.clone().unwrap_or_default(),
-    };
+        prov.clone(),
+        ctx.attested_positions.clone().unwrap_or_default(),
+    );
     w.record(doc, shape, &mut Vec::new(), false)
 }
 
 impl Walker<'_> {
-    fn record(
+    pub(crate) fn record(
         &mut self,
         n: &Node,
         shape: &Shape,
@@ -277,6 +302,13 @@ impl Walker<'_> {
         };
         let mut out = Vec::with_capacity(entries.len());
         for e in entries {
+            if !self.strip.is_empty() {
+                let mut p = path.clone();
+                p.push(Seg::Field(e.key.clone()));
+                if logical_path(&p).is_some_and(|t| self.strip.contains(&t)) {
+                    continue; // a value the normalization inserted: the authored document never had it
+                }
+            }
             let value = match fields.iter().find(|(name, _)| *name == e.key) {
                 // An undeclared key is not an intent: nothing validated or normalized can be made of it. The raw
                 // document stays the caller's own input; a lossless pass-through would be a different, explicitly
@@ -305,10 +337,57 @@ impl Walker<'_> {
                 value,
             });
         }
+        if self.defaults && self.in_default == 0 {
+            self.insert_defaults(n, &mut out, fields, path)?;
+        }
         Ok(Node {
             value: Value::Map(out),
             pos: n.pos,
         })
+    }
+
+    /// Adds, after the entries in `out`, the declared default of every optional field that `n` does not have, in schema
+    /// order. The value is expanded like any other position (an Access atom with the symbolic policy of the bound
+    /// grammar, whose value is the default: `default_injection` stays null, ADR 0003 rule 6), but it gets no provenance
+    /// entry, because the author did not write it, and nothing below it is authored or defaulted again.
+    fn insert_defaults(
+        &mut self,
+        n: &Node,
+        out: &mut Vec<Entry>,
+        fields: &[(String, Shape)],
+        path: &mut Path,
+    ) -> Result<(), Error> {
+        for (name, shape) in fields {
+            let default = match (&shape.presence, &shape.default) {
+                (Presence::Optional, Some(d)) if entry(n, name).is_none() => d,
+                _ => continue,
+            };
+            path.push(Seg::Field(name.clone()));
+            let wrapped = expand_position(&default.0, self.a, self.g).map_err(|e| match e {
+                Error::Contract(mut vs) => {
+                    for v in &mut vs {
+                        v.logical_path = logical_path(path);
+                    }
+                    Error::Contract(vs)
+                }
+                other => other,
+            });
+            let value = wrapped.and_then(|(wrapper, _)| {
+                self.in_default += 1;
+                let v = self.rewrap(wrapper, shape, path, true);
+                self.in_default -= 1;
+                v
+            });
+            let origin_path = path.clone();
+            path.pop();
+            out.push(Entry {
+                key: name.clone(),
+                key_pos: None,
+                value: value?,
+            });
+            self.origins.push((origin_path, VALUE_DEFAULT));
+        }
+        Ok(())
     }
 
     /// Expands or collapses one primitive position and what is below it.
@@ -330,12 +409,15 @@ impl Walker<'_> {
                 }
                 other => other,
             })?;
-            self.prov.insert(
-                text,
-                Origin {
-                    authored_expanded: authored,
-                },
-            );
+            if self.in_default == 0 {
+                self.prov.insert(
+                    text,
+                    Origin {
+                        authored_expanded: authored,
+                    },
+                );
+                self.origins.push((path.clone(), VALUE_AUTHORED));
+            }
             return self.rewrap(wrapper, shape, path, true);
         }
         if !matches!(classify(n, self.a), Ok(Class::Expanded)) {
