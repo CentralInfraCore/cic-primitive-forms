@@ -214,5 +214,38 @@ class NightlyWorkflowTests(unittest.TestCase):
                     self.assertNotIn("${{", step["run"])   # inputs go through env, not into the script text
 
 
+@unittest.skipIf(yaml is None, "no PyYAML")
+class LightPushTests(unittest.TestCase):
+    """p1.yml (docs/DELTA-DIFF-GATE.md, 4.1): a push to main runs only the cheap checks; the nightly FULL and the pull request run the rest."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.jobs = self.p1["jobs"]
+
+    def test_the_scope_job_calls_a_push_light_and_a_pull_request_by_its_diff(self):
+        self.assertIn('[ "$EVENT" = "push" ] && mode=light', self.text)
+        self.assertIn("diff_gate.py scope", self.text)
+        self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}"})
+
+    def test_the_heavy_jobs_do_not_run_on_a_light_push(self):
+        for name in ("fuzz", "seeded-defects", "evidence-selftest"):
+            self.assertIn("scope", _needs(self.jobs[name]), name)
+            self.assertEqual(self.jobs[name]["if"], "${{ needs.scope.outputs.mode != 'light' }}", name)
+        self.assertIn("mode != 'light'", self.jobs["quality"]["if"])
+        for name in ("quality-mutation-rust", "quality-mutation-go"):
+            self.assertIn("mode == 'full'", self.jobs[name]["if"], name)       # light is not full
+        for name in ("diff-mutation-rust", "diff-mutation-go"):
+            self.assertIn("mode == 'diff'", self.jobs[name]["if"], name)
+
+    def test_the_cheap_checks_run_whatever_the_mode_is(self):
+        for name in ("rust", "go", "branch-coverage", "quality-gate-selftest", "quality-lines", "parity"):
+            self.assertNotIn("if", self.jobs[name], name)
+
+
+def _needs(job):
+    n = job.get("needs", [])
+    return [n] if isinstance(n, str) else n
+
+
 if __name__ == "__main__":
     unittest.main()
