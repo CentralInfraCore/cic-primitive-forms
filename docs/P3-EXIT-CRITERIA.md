@@ -15,8 +15,9 @@ Exit criterion (`PHASES.md`): *the same input and schema give the same fully res
 | 3 | `normalize` / `renormalize` / `denormalize`, origin carried as a side map | #49 | `3b76ed4` | 25 checks, 23 passing, 0 failing, 0 missing |
 | 4 | `PolicyResolution` (`resolve_rule`, `resolve_policy`) | #53 | `30ceb18` | 25 checks, 23 passing, 0 failing, 0 missing |
 
-Each unit has Rust and Go code, shared cases under `testdata/p1/`, properties, a fuzz target with a canary, seeded defects, branch
-coverage and mutation gates (the same gates as P1/P2, no relaxation). The pin that makes the resolution reference digest-bound is #52.
+Each unit has Rust and Go code and shared cases under `testdata/p1/`, and is under the branch coverage and mutation gates (the same
+gates as P1/P2, no relaxation). Fuzz targets with a canary exist for defaults (unit 2), normalize (unit 3) and resolve (unit 4); unit 1
+(reading the schema) has none. The pin that makes the resolution reference digest-bound is #52.
 
 ## 2. Rust-Go parity
 
