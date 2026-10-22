@@ -26,9 +26,12 @@ The reference resolves over an object graph. A normalized document maps onto it 
 | `target.field` | the Access wrapper of the position being resolved |
 | `target.object` | the object that **contains** the position |
 
-The target of a resolution is every declared position of the object (`value_origins` lists them): the primitive fields, the
-composite and list positions themselves, and the fields of every list element. A position inside an inserted default value is not a
-declared position of its own (a default is a whole value, unit 2) and has no entry.
+The targets of a resolution are **found by walking the normalized value tree together with the compiled schema**: every declared
+position that exists in the object - the primitive fields, the composite and list positions themselves, and the fields of every list
+element. `ValueOrigins` is not the source of the list: the resolution does not read it, and it is at most a consistency check in a
+test (its paths are exactly the targets). So nothing is created to be resolved: an absent mandatory field gets no entry, and an
+absent optional one gets none either. A position inside an inserted default value is not a declared position of its own (a default is
+a whole value, unit 2) and has no entry.
 
 ## 3. The result
 
@@ -41,9 +44,18 @@ PolicyResolution            keyed by the canonical logical path of the position
 EffectiveRule
   rule         list<CertPattern> | open | owner | none | unknown
   layer        field | surface_rule | object_default | field_inherited | policy_inherited | system | none
-  source_path  logical path of what declared it: the position (field, field_inherited), the object (surface_rule, object_default,
-               policy_inherited), "" for system and none
+  source_path  the logical path of what declared the rule (the table below)
 ```
+
+`source_path` is part of the contract, because it is the auditable answer to "why does this rule apply":
+
+| layer | `source_path` |
+|---|---|
+| `field` | the path of the target position itself |
+| `field_inherited` | the path of the **carrier** that passed the rule down (not of the target) |
+| `surface_rule`, `object_default`, `policy_inherited` | the path of the **object** that declared the rule (`$` for the root) |
+| `system` | `""` (the documented system default belongs to no object) |
+| `none`, `unknown` | `""`, with `layer: none` - stated here on purpose: there is no rule and so no declaring place |
 
 `none` is a `reset` barrier with no local rule (the reference's `RESET_NO_LOCAL_RULE`); `unknown` is a policy or object the walk
 had to read and could not (`POLICY_CONTEXT_UNKNOWN`, `CONTEXT_INCOMPLETE`). Neither is ever turned into `open`, `owner` or a
@@ -111,6 +123,9 @@ neither a list nor `inherit`) cannot occur in a document that was validated and 
 2. **Shared cases for the Forms mapping** (`testdata/p1/`): nested composites, list elements by identity (reordered), `inherit` /
    `no-inherit` / `reset` on a carrier and on the root policy, grammar 1 and 2, an inserted default resolving by inheritance, a
    schema with no `policy_surface`, one with `{}`, `[]` at each layer.
+   Two cases are named: a rule found at an earlier layer **before** an `unknown` ancestor is reached stays valid (the reference: an
+   unknown ancestor that a decided rule never reaches does not matter), and the same walk that has to read it is `unknown`. And the
+   targets are checked against the value tree: an absent mandatory field has no entry.
 3. **Properties:** order-freedom, termination, `none` / `unknown` never permissive, the local layers never cut, and that
    `normalize` / `denormalize` of the same document are unchanged by running the resolution.
 4. The same gates as the other units: seeded defects (a swapped layer order, `reset` read as `no-inherit`, a barrier ignored, an empty
@@ -124,9 +139,13 @@ resolution (P5); it does not change the schema compiler's PolicySurface reading,
 ## 9. Decisions that are the owner's
 
 1. **The vectors are not in the grammar pin.** `access_policy.py` and `access-vectors/*.yaml` are at the pinned commit
-   (`73ae469`) but not in the pin's file set (`corpus/pins.yaml`), so they are not digest-bound. Using them as the cross-check means
-   adding them to the pin: the manifest hash, hence the pin name (`cic-primitives-73ae469-<new 8>`), changes, and every `grammar:`
-   reference is migrated on purpose (the documented procedure). Proposed: yes, in the first PR of the unit, as a pin-only change.
+   (`73ae469`) but not in the pin's file set (`corpus/pins.yaml`), so they are not digest-bound. Using them as the cross-check means a
+   **pin-only PR before any code of this unit**, and it is more than editing `pins.yaml`: `tools/grammar_identity.py` has a fixed
+   `GRAMMAR_FILES` set and ADR 0002 ties a change of that set to an ADR. That PR carries together: the itemised file list of the model
+   and of exactly the vectors used, each bound by SHA-256; the `GRAMMAR_FILES` change, its ADR (an amendment) and the new
+   pin manifest (so the pin name becomes `cic-primitives-73ae469-<new 8>`); every `grammar:` reference migrated on purpose; and a full
+   run of the corpus check and the pin verification against the upstream commit. The Python reference model never becomes a runtime
+   dependency of the library: it is test data, read at the pinned bytes.
 2. **Carrier of a list element** = the list field's wrapper (section 2). The reference does not say; the P3 design says "along the
    element's logical path, from its list field and its object". Proposed as written.
 3. **Which positions are targets:** all declared positions, composites and lists included (section 2), or only primitive
