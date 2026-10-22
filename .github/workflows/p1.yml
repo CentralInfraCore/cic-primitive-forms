@@ -7,7 +7,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "tools/diff_gate.py", "tools/test_diff_gate.py", "tools/mutation_diff_exec.sh", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -21,6 +21,7 @@ jobs:
       - run: python3 tools/quality_gate.py selftest
       - run: python3 -W error::ResourceWarning -m unittest tools/test_shard_plan.py
       - run: python3 -W error::ResourceWarning -m unittest tools/test_cached_tool.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_diff_gate.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -141,6 +142,47 @@ jobs:
   # shards (the same mutants, split; the gate checks that every mutant was tested by exactly one shard
   # and that no shard is missing), and the job named `quality` decides. It is followed by a seeded proof
   # that the same gate turns red when the tests are weakened.
+  # The scope of the mutation measurement (docs/DELTA-DIFF-GATE.md). On a pull request: `diff`, the mutants of the lines the change
+  # touches, or `full`, when the change could weaken what the unchanged code is protected by (a modified or removed test line, a
+  # change of how the gate measures: tools/diff_gate.py says which and why). On every other event (push, the nightly FULL, by hand):
+  # `full`.
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.s.outputs.mode }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - id: s
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -e
+          S="$RUNNER_TEMP/scope"
+          mkdir -p "$S"
+          if [ "$EVENT" = "pull_request" ]; then
+            # the merge candidate: its first parent is the target branch, the difference is exactly what the pull request changes
+            python3 tools/diff_gate.py scope --base HEAD^1 --head HEAD --out "$S" --root . | tee "$S/report.txt"
+            mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$S/scope.json")
+          else
+            mode=full
+            printf '{"mode": "full", "reasons": ["not a pull request (%s)"], "notes": []}\n' "$EVENT" > "$S/scope.json"
+            : > "$S/rust.patch"
+            echo '{}' > "$S/diff-lines.json"
+            echo "mode=full (event: $EVENT)" > "$S/report.txt"
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          { echo "### Mutation scope: $mode"; echo; echo '```'; cat "$S/report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: diff-scope
+          path: ${{ runner.temp }}/scope
+          if-no-files-found: error
+
   quality-lines:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -185,6 +227,8 @@ jobs:
           if-no-files-found: warn
 
   quality-mutation-rust:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -239,6 +283,8 @@ jobs:
           if-no-files-found: warn
 
   quality-mutation-go:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -282,8 +328,95 @@ jobs:
           path: ${{ runner.temp }}/env/env.json
           if-no-files-found: warn
 
+  # The diff gate (docs/DELTA-DIFF-GATE.md): only the mutants in the lines of the pull request. One job per language, no shards (a diff
+  # is small). The timeout per mutant is the same as in the full run, the threshold is the same one; `quality` judges.
+  diff-mutation-rust:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Tool, cargo-mutants (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-mutants
+          spec: cargo-mutants@27.1.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: diff-scope
+          path: ${{ runner.temp }}/scope
+      - name: Mutation, Rust (cargo-mutants), the mutants in the diff
+        run: |
+          set -e
+          Q="$RUNNER_TEMP/q"
+          mkdir -p "$Q/out"
+          (cd rust && cargo +stable mutants --list --json --in-diff "$RUNNER_TEMP/scope/rust.patch") > "$Q/out/rust-listed.json" || true
+          n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$Q/out/rust-listed.json" 2>/dev/null || echo 0)
+          echo "mutants in the diff: $n"
+          if [ "$n" = 0 ]; then
+            echo '[]' > "$Q/out/rust-listed.json"
+            echo '{"caught": 0, "missed": 0, "timeout": 0, "unviable": 0, "total_mutants": 0, "outcomes": []}' > "$Q/out/outcomes.json"
+          else
+            # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
+            (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable mutants --in-diff "$RUNNER_TEMP/scope/rust.patch" --output "$Q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+            cp "$Q/mut-rust/mutants.out/outcomes.json" "$Q/out/outcomes.json"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rust-diff-mutants
+          path: ${{ runner.temp }}/q/out
+          if-no-files-found: error
+
+  diff-mutation-go:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+      - name: Tool, go-mutesting (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: go
+          name: go-mutesting
+          spec: github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: diff-scope
+          path: ${{ runner.temp }}/scope
+      - name: Mutation, Go (go-mutesting), the mutants in the diff
+        run: |
+          set -e
+          Q="$RUNNER_TEMP/q"
+          mkdir -p "$Q/out"
+          : > "$Q/out/ledger"
+          # the product files the diff touches (the keys of diff-lines.json, relative to go/); none means no Go mutants: an empty ledger
+          files=$(python3 -c 'import json,sys; print(" ".join(p[len("go/"):] for p in json.load(open(sys.argv[1]))))' "$RUNNER_TEMP/scope/diff-lines.json")
+          echo "Go files in the diff: ${files:-none}"
+          if [ -n "$files" ]; then
+            export CIC_MUTATION_SHARD="0/1" CIC_MUTATION_LEDGER="$Q/out/ledger" CIC_DIFF_LINES="$RUNNER_TEMP/scope/diff-lines.json" CIC_REPO_ROOT="$GITHUB_WORKSPACE"
+            (cd go && go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_diff_exec.sh" $files > "$Q/mut-go.txt") || true
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: go-diff-ledger
+          path: ${{ runner.temp }}/q/out
+          if-no-files-found: error
+
   quality:
-    needs: [quality-lines, quality-mutation-rust, quality-mutation-go]
+    needs: [scope, quality-lines, quality-mutation-rust, quality-mutation-go, diff-mutation-rust, diff-mutation-go]
     # Also when a shard job failed: the gate then finds its report missing and is red. A skipped job would
     # count as passed.
     if: ${{ always() }}
@@ -291,10 +424,24 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: The measurements ran
+        env:
+          MODE: ${{ needs.scope.outputs.mode }}
+          SCOPE: ${{ needs.scope.result }}
+          LINES: ${{ needs.quality-lines.result }}
+          FULL_RUST: ${{ needs.quality-mutation-rust.result }}
+          FULL_GO: ${{ needs.quality-mutation-go.result }}
+          DIFF_RUST: ${{ needs.diff-mutation-rust.result }}
+          DIFF_GO: ${{ needs.diff-mutation-go.result }}
         run: |
-          test "${{ needs.quality-lines.result }}" = success
-          test "${{ needs.quality-mutation-rust.result }}" = success
-          test "${{ needs.quality-mutation-go.result }}" = success
+          # a job that was skipped counts as passed in a plain `needs`: only the jobs of the mode that was chosen may be skipped, the
+          # ones of the mode that was chosen must have succeeded, and the other mode's must not have run at all
+          test "$SCOPE" = success
+          test "$LINES" = success
+          case "$MODE" in
+            full) test "$FULL_RUST" = success && test "$FULL_GO" = success && test "$DIFF_RUST" = skipped && test "$DIFF_GO" = skipped ;;
+            diff) test "$DIFF_RUST" = success && test "$DIFF_GO" = success && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped ;;
+            *) echo "unknown mode '$MODE'"; false ;;
+          esac
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -327,17 +474,27 @@ jobs:
         with:
           path: ${{ runner.temp }}/q/in
       - name: The mutants there are
+        if: ${{ needs.scope.outputs.mode == 'full' }}
         run: |
           mkdir -p "$RUNNER_TEMP/q"
           (cd rust && cargo +stable mutants --list --json > "$RUNNER_TEMP/q/rust-listed.json")
       # The evidence builder works the numbers out again from the raw reports; it needs the list the shards are checked against.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ needs.scope.outputs.mode == 'full' }}
         continue-on-error: true
         with:
           name: quality-listed
           path: ${{ runner.temp }}/q/rust-listed.json
           if-no-files-found: warn
+      - name: Gate, the diff (docs/DELTA-DIFF-GATE.md, section 2)
+        if: ${{ needs.scope.outputs.mode == 'diff' }}
+        run: |
+          Q="$RUNNER_TEMP/q"
+          python3 tools/quality_gate.py check --diff --rust-lines "$Q/in/lines/rust-lines.json" --go-lines "$Q/in/lines/go-lines.out" \
+            --rust-mutants "$Q/in/rust-diff-mutants/outcomes.json" --rust-listed "$Q/in/rust-diff-mutants/rust-listed.json" \
+            --go-ledgers "$Q/in/go-diff-ledger/ledger"
       - name: Gate
+        if: ${{ needs.scope.outputs.mode == 'full' }}
         run: |
           Q="$RUNNER_TEMP/q"
           python3 tools/quality_gate.py check --rust-lines "$Q/in/lines/rust-lines.json" --go-lines "$Q/in/lines/go-lines.out" \
@@ -345,6 +502,7 @@ jobs:
             --go-ledgers "$Q"/in/go-ledger-*/ledger
       # A gate that cannot fail proves nothing. With the tests weakened, the same gate is red.
       - name: Seeded proof, weakened tests turn the line coverage red
+        if: ${{ needs.scope.outputs.mode == 'full' }}
         run: |
           Q="$RUNNER_TEMP/q"
           (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +stable llvm-cov --locked --json --summary-only --output-path "$Q/rust-lines-weak.json" --test subset)
@@ -359,6 +517,7 @@ jobs:
           echo "$OUT" | grep -q "FAIL rust line coverage .*BELOW_THRESHOLD"
           echo "$OUT" | grep -q "FAIL go statement coverage .*BELOW_THRESHOLD"
       - name: Seeded proof, weakened tests turn the mutation score red
+        if: ${{ needs.scope.outputs.mode == 'full' }}
         run: |
           Q="$RUNNER_TEMP/q"
           # Mutate only recognize.* and run only tests that do not exercise it: every mutant survives.
