@@ -72,7 +72,7 @@ that is present with the value null.** They are different states with different 
 ## Access reading (corpus kind `validate`, `slot`; ADR 0004, cic-primitives D-018)
 
 The normative source is the pinned `proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md` and `schemas/atomic/access.yaml`
-(`corpus/pins.yaml`, `cic-primitives-73ae469-71ee71ca`). The module reads and checks values; it resolves
+(`corpus/pins.yaml`, `cic-primitives-73ae469-6a188078`). The module reads and checks values; it resolves
 nothing (P3), decides no permission and applies no default.
 
 * **Grammar version binding is fail-closed.** The version is not a document key and has no default. It is the
@@ -123,7 +123,7 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   `SURFACE_UNSUPPORTED` (anything but `config_surface`). All three are `ErrBinding`. `state_surface` is a processing
   target of ADR 0002 but is **refused here on purpose**: a missing mandatory field on it is a coverage fact, not an
   authoring error (ADR 0003, rule 8), and an observation validated with authoring semantics would be stated wrongly.
-* **Grammar profile and `item_choice`.** The one known pin (`cic-primitives-73ae469-71ee71ca`, `devel`) defines
+* **Grammar profile and `item_choice`.** The one known pin (`cic-primitives-73ae469-6a188078`, `devel`) defines
   `item_choice`; the primitives release v0.2.0 does not, and a schema such as the registry's `network-interface.yaml`
   already uses it while declaring `validatedBy: cic-primitives v0.2.0` (ADR 0002, finding 3). Under a profile without
   the feature the schema is refused with `SCHEMA_FEATURE_NOT_IN_GRAMMAR`; the profile is the pinned contract and

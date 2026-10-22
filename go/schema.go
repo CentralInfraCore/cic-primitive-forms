@@ -59,7 +59,7 @@ type grammarProfile struct {
 
 var grammarProfiles = map[string]grammarProfile{
 	// devel at 73ae469: the temporary P0 compatibility profile of ADR 0002, not a release contract.
-	"cic-primitives-73ae469-71ee71ca": {ItemChoice: true, AccessGrammar: 1},
+	"cic-primitives-73ae469-6a188078": {ItemChoice: true, AccessGrammar: 1},
 }
 
 // SchemaInput is the preprocessed, version-pinned schema the caller supplies.

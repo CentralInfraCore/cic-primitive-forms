@@ -41,7 +41,7 @@ Any other YAML file under `corpus/` is an error (`UNEXPECTED_FILE`).
 corpus_format: 1
 suite: inherit                 # equals the directory name
 status: provisional            # provisional | stable
-defaults: {adr: ADR-0004, grammar: cic-primitives-73ae469-71ee71ca}
+defaults: {adr: ADR-0004, grammar: cic-primitives-73ae469-6a188078}
 cases: [ ... ]
 ```
 

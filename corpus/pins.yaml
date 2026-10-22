@@ -6,6 +6,10 @@
 # History: cic-primitives-5a26bd8-76f1d664 (the seven-file set at devel 5a26bd8) was replaced by this pin
 # when D-018 (access-policy/1, cic-primitives PR #19 and #20) was adopted; every `grammar:` reference was
 # migrated on purpose, see docs/adr/0004 (adoption record).
+# Then cic-primitives-73ae469-71ee71ca (ten files) was replaced by this pin, at the same commit, when the
+# reference model of the resolution (`access_policy.py`) and its golden vectors (`access-vectors/resolution.yaml`)
+# were added to the file set for the P3 PolicyResolution cross-check (ADR 0002, amendment); every `grammar:`
+# reference was migrated on purpose.
 #
 # A grammar pin is an identity (ADR 0002): the immutable commit plus a manifest of exactly the
 # accepted file set (tools/grammar_identity.py: GRAMMAR_FILES). `files` lists each path with the
@@ -16,7 +20,7 @@
 # The offline gate checks the structure; CI reproduces every hash from the upstream commit.
 corpus_format: 2
 grammar:
-  cic-primitives-73ae469-71ee71ca:
+  cic-primitives-73ae469-6a188078:
     repo: CentralInfraCore/cic-primitives
     ref: devel
     commit: 73ae4692f0680a316d367179ce057195a0031688
@@ -25,13 +29,15 @@ grammar:
       - {path: proposals/atom-grammar/P0-4-ACCESS-GRAMMAR.md, sha256: bc90c0ee03b418485d3e5d8ebbe2db52b60f8181dd57d0762973eef053d33279}
       - {path: proposals/atom-grammar/P0-4-MIGRATION.md, sha256: b2a95bbee08c84aa4a2a88814617b630bb6dae0082ee4b1bbc258c0a27f76622}
       - {path: proposals/atom-grammar/README.md, sha256: 3e5e335199815e1035511584bc610f0034bacdfe2ec9fdd7189b2af47f48a92b}
+      - {path: proposals/atom-grammar/access-vectors/resolution.yaml, sha256: 2d5c485d85fe0fa25011b7b49136deb9f396596b63046ea8e2bb28a733961be0}
+      - {path: proposals/atom-grammar/access_policy.py, sha256: 62978692ec2e4987f62c666c667a18a272b7f9b15078aa2451cda9114e821e72}
       - {path: proposals/atom-grammar/check_grammar.py, sha256: ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375}
       - {path: proposals/atom-grammar/instance-grammar.schema.yaml, sha256: 3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657}
       - {path: schemas/aggregate/policy-surface.yaml, sha256: 96e6f21d2752ac76332fc8ec092626fdbf56c91103875383ffee7a0ed8a3b8f0}
       - {path: schemas/atomic/access.yaml, sha256: 281a0a5ec91c6e068bd50263cd4070ee8e2a5f8fdd559965e4c4da2818667df5}
       - {path: schemas/atomic/role.yaml, sha256: 71fc185a0bf78b7ba57b30bdea7fabda370a63b5c73de1cc4444aeea4f679659}
       - {path: schemas/atomic/shape.yaml, sha256: 3faf92f5dd57aaf384052e86fe2a06ac7cac545c26dbd1359d8c74fdb097bea7}
-    manifest_sha256: 71ee71cae0ffe358355f5ab6ecca7790d4942ff3691de8030bbfc8032060d5ad
+    manifest_sha256: 6a188078cce5dcbd14576d1ae4391602cd6720d22c6c482c1d78e5a4d9eefca3
 schemas:
   registry-network-interface:
     repo: CentralInfraCore/cic-schema-registry

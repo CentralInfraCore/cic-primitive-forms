@@ -7,7 +7,7 @@
 corpus_format: 2
 suite: recognition
 status: provisional
-defaults: {adr: ADR-0001, grammar: cic-primitives-73ae469-71ee71ca}
+defaults: {adr: ADR-0001, grammar: cic-primitives-73ae469-6a188078}
 cases:
   - id: recognition.scalar-short
     kind: recognize
