@@ -480,3 +480,15 @@ jobs:
           python3 tools/parity/compare.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" --show 5 --allow testdata/p1/parity-known.txt
           # A gate that cannot fail proves nothing: break the outputs in the ways that must turn it red.
           python3 tools/parity/selftest.py "$P/in.hex" "$P/rust.jsonl" "$P/go.jsonl" testdata/p1/parity-known.txt
+      # The same for P3 (normalize and the policy resolution): 3000 generated schema/document/unknown combinations, fixed seed. Not only
+      # that both pass the same written expectations, but that they answer alike for the same input.
+      - name: P3 differential, generate, dump with both languages, compare
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-p3"
+          mkdir -p "$P"
+          python3 tools/parity/gen_p3.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_P3_IN="$P/in.jsonl" PARITY_P3_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_p3_dump)
+          (cd go && PARITY_P3_IN="$P/in.jsonl" PARITY_P3_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpP3Outcomes$' .)
+          python3 tools/parity/compare_p3.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_p3.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
