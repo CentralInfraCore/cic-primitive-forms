@@ -72,6 +72,8 @@ The price is known and accepted: two pull requests that were each fine can break
 night (or at the next smoke test, for the cheap kind of breakage). The 48-hour window and the pull request about the failed run are
 what make that visible.
 
+**Implemented** in `p1.yml`: the `scope` job answers `light` to a push; `fuzz`, `seeded-defects`, `evidence-selftest`, the mutation jobs and `quality` do not run then; the unit tests, the corpus, the coverage and the parity do. The nightly FULL (`nightly.yml`, `workflow_call`) and by-hand runs stay `full`. The evidence workflow (`evidence.yml`, off) collects the `p1` runs of a commit of main as its FULL record; with a light push there is none, so it has to be pointed at the nightly run before it is switched on.
+
 Consequences for the tools, done in step S: the post-merge profile (`tools/ci-required/<repo>.post-merge.txt` of cic-factory) lists
 only the light set, and `land-chain.sh` waits for that set, not for `quality` and the mutation shards. Until S the full `p1` still runs on
 every push, and the profile is the old one.
