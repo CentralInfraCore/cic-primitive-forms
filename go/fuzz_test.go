@@ -234,3 +234,88 @@ func FuzzExpandCollapse(f *testing.F) {
 		}
 	})
 }
+
+// defaultsShape is a fixed shape with defaults at the top level and inside an optional composite.
+func defaultsShape() forms.Shape {
+	opt := func(s forms.Shape) forms.Shape { s.Presence = forms.Optional; return s }
+	withDefault := func(s forms.Shape, d *forms.Node) forms.Shape { s.HasDefault, s.Default = true, d; return s }
+	inner := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Nullable: true, Fields: []forms.NamedShape{
+		{Name: "d", Shape: withDefault(opt(forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean}), &forms.Node{Kind: forms.KindBool, Bool: true})},
+		{Name: "e", Shape: withDefault(opt(forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString}), &forms.Node{Kind: forms.KindStr, Str: "x"})},
+	}}
+	return forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "a", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}},
+		{Name: "b", Shape: withDefault(opt(forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Nullable: true}), &forms.Node{Kind: forms.KindInt, Int: 7})},
+		{Name: "c", Shape: inner},
+		{Name: "g", Shape: withDefault(opt(forms.Shape{Kind: forms.ShapeSet, Scalar: forms.ScalarString}), &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{}})},
+	}}
+}
+
+// FuzzApplyDefaults checks, on every input that parses: ApplyDefaults does not panic and leaves its input alone; the
+// result validates; taking out the values that came from a default gives the input back (no authored value is
+// changed or dropped); and applying the defaults again changes nothing and finds every value authored.
+// CIC_FUZZ_CANARY works as in FuzzParse.
+func FuzzApplyDefaults(f *testing.F) {
+	for _, seed := range []string{"", "a: x\n", "a: x\nb: ~\nc: ~\n", "a: x\nb: 0\nc: {d: false}\ng: []\n", "a: x\nc: {}\n", "a: x\nz: 1\n",
+		"a: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"} {
+		f.Add(seed)
+	}
+	shape := defaultsShape()
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(n)
+		res, err := forms.ApplyDefaults(n, shape, keySet)
+		if forms.Emit(n) != before {
+			t.Fatalf("%q: the input changed", text)
+		}
+		if err != nil || res.Document == nil {
+			return
+		}
+		if v, err := forms.Validate(res.Document, shape, keySet); err != nil || len(v.Violations) != 0 {
+			t.Fatalf("%q: the result does not validate (%v)", text, err)
+		}
+		again, err := forms.ApplyDefaults(res.Document, shape, keySet)
+		if err != nil || again.Document == nil || !again.Document.Same(res.Document) {
+			t.Fatalf("%q: applying the defaults again changed the result (%v)", text, err)
+		}
+		for _, o := range again.Origins {
+			if o.Origin != forms.ValueOriginAuthored {
+				t.Fatalf("%q: %s is not authored after the defaults were applied", text, o.Path)
+			}
+		}
+		for _, o := range res.Origins {
+			if o.Origin != forms.ValueOriginDefault {
+				continue
+			}
+			parts := strings.Split(strings.TrimPrefix(o.Path, "$."), ".")
+			holder := res.Document
+			for _, p := range parts[:len(parts)-1] {
+				for _, e := range holder.Entries {
+					if e.Key == p {
+						holder = e.Value
+					}
+				}
+			}
+			last := parts[len(parts)-1]
+			kept := holder.Entries[:0:0]
+			for _, e := range holder.Entries {
+				if e.Key != last {
+					kept = append(kept, e)
+				}
+			}
+			holder.Entries = kept
+		}
+		if !res.Document.Same(n) {
+			t.Fatalf("%q: an authored value was changed or dropped", text)
+		}
+	})
+}

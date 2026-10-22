@@ -1,0 +1,686 @@
+{
+ "grammar": "cic-primitives-73ae469-71ee71ca",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "cases": [
+  {
+   "id": "defaults.demo",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n            default: 10.0.0.1\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n            role: config\n            default: 24\n      - name: tags\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        role:\n          authority: config\n        default: [a]\n      - name: servers\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        default: []\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n            default: 10\n          - name: via\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n",
+   "surface": "config_surface",
+   "documents": [
+    {
+     "id": "minimal",
+     "yaml": "type: t\n",
+     "expect": {
+      "document": "type: t\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "explicit-false-zero-empty-never-defaulted",
+     "yaml": "type: t\nenabled: false\nmtu: 0\nlabel: \"\"\ntags: []\nservers:\n  - s\n",
+     "expect": {
+      "document": "type: t\nenabled: false\nmtu: 0\nlabel: \"\"\ntags: []\nservers:\n  - s\nmaybe: d\n",
+      "origins": [
+       [
+        "$.enabled",
+        "authored"
+       ],
+       [
+        "$.label",
+        "authored"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "authored"
+       ],
+       [
+        "$.servers",
+        "authored"
+       ],
+       [
+        "$.tags",
+        "authored"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "explicit-null-is-not-absent",
+     "yaml": "type: t\nmaybe: ~\n",
+     "expect": {
+      "document": "type: t\nmaybe: null\nenabled: true\nmtu: 1500\nlabel: x\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "authored"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "equal-to-default-is-still-authored",
+     "yaml": "type: t\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags: [a]\nservers: []\n",
+     "expect": {
+      "document": "type: t\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "authored"
+       ],
+       [
+        "$.label",
+        "authored"
+       ],
+       [
+        "$.maybe",
+        "authored"
+       ],
+       [
+        "$.mtu",
+        "authored"
+       ],
+       [
+        "$.servers",
+        "authored"
+       ],
+       [
+        "$.tags",
+        "authored"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "explicit-null-composite-stays-null",
+     "yaml": "type: t\nip: ~\n",
+     "expect": {
+      "document": "type: t\nip: null\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.ip",
+        "authored"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "present-composite-gets-its-defaults",
+     "yaml": "type: t\nip: {}\n",
+     "expect": {
+      "document": "type: t\nip:\n  gateway: 10.0.0.1\n  prefix: 24\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.ip",
+        "authored"
+       ],
+       [
+        "$.ip.gateway",
+        "default"
+       ],
+       [
+        "$.ip.prefix",
+        "default"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "composite-partly-written",
+     "yaml": "type: t\nip:\n  prefix: 0\n",
+     "expect": {
+      "document": "type: t\nip:\n  prefix: 0\n  gateway: 10.0.0.1\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.ip",
+        "authored"
+       ],
+       [
+        "$.ip.gateway",
+        "default"
+       ],
+       [
+        "$.ip.prefix",
+        "authored"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "list-elements-by-identity",
+     "yaml": "type: t\nroutes:\n  - to: b\n    metric: 0\n  - to: a\n    via: g\n",
+     "expect": {
+      "document": "type: t\nroutes:\n  -\n    to: b\n    metric: 0\n  -\n    to: a\n    via: g\n    metric: 10\nenabled: true\nmtu: 1500\nlabel: x\nmaybe: d\ntags:\n  - a\nservers: []\n",
+      "origins": [
+       [
+        "$.enabled",
+        "default"
+       ],
+       [
+        "$.label",
+        "default"
+       ],
+       [
+        "$.maybe",
+        "default"
+       ],
+       [
+        "$.mtu",
+        "default"
+       ],
+       [
+        "$.routes",
+        "authored"
+       ],
+       [
+        "$.routes[{to=\"a\"}].metric",
+        "default"
+       ],
+       [
+        "$.routes[{to=\"a\"}].to",
+        "authored"
+       ],
+       [
+        "$.routes[{to=\"a\"}].via",
+        "authored"
+       ],
+       [
+        "$.routes[{to=\"b\"}].metric",
+        "authored"
+       ],
+       [
+        "$.routes[{to=\"b\"}].to",
+        "authored"
+       ],
+       [
+        "$.servers",
+        "default"
+       ],
+       [
+        "$.tags",
+        "default"
+       ],
+       [
+        "$.type",
+        "authored"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "invalid-document-is-not-defaulted",
+     "yaml": "enabled: true\nbogus: 1\n",
+     "expect": {
+      "violations": [
+       [
+        "UNKNOWN_FIELD",
+        "$.bogus"
+       ],
+       [
+        "MISSING_MANDATORY",
+        "$.type"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "one-violation-is-enough",
+     "yaml": "type: t\nbogus: 1\n",
+     "expect": {
+      "violations": [
+       [
+        "UNKNOWN_FIELD",
+        "$.bogus"
+       ]
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "refusals": [
+  {
+   "id": "refuse.role-state-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: state\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-operational-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: operational\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-derived-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: derived\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-volatile-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: volatile\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-reference-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: [reference]\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-key-optional-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: [key]\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-state-long-with-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: state\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-unknown-value",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: banana\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-reference-has-no-short-form",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: reference\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-wrong-kind",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: 3\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-unknown-axis",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          owner: me\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.owner"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-bad-authority",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: derived\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.authority"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-bad-structural",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: [key, key]\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.structural"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-structural-not-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: key\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.structural"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-bad-lifecycle",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          lifecycle: ephemeral\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.lifecycle"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-derived-excludes-config",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          lifecycle: derived\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-key-excludes-lifecycle",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: state\n          structural: [key]\n          lifecycle: volatile\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.default-of-the-wrong-type",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: 5\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.default"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.default-below-min-items",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        min_items: 2\n        default: [a]\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.default"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.default-with-an-unknown-role-and-more",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: banana\n        default: x\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role"
+    ]
+   ]
+  },
+  {
+   "id": "refuse.role-structural-unknown-value",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: [banana]\n",
+   "surface": "config_surface",
+   "problems": [
+    [
+     "SCHEMA_INVALID",
+     "$.f.role.structural"
+    ]
+   ]
+  }
+ ],
+ "accepted": [
+  {
+   "id": "accept.short-forms-state",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: state\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-state-derived",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: state\n          lifecycle: derived\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-operational-volatile",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: operational\n          lifecycle: volatile\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-reference-volatile",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: state\n          structural: [reference]\n          lifecycle: volatile\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-key-and-reference",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          structural: [key, reference]\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-empty",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: {}\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.short-derived",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: derived\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.short-volatile",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: volatile\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.short-operational",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: operational\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.short-config",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role: config\n",
+   "surface": "config_surface"
+  },
+  {
+   "id": "accept.long-authority-config-default-taken",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: f\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        role:\n          authority: config\n        default: x\n",
+   "surface": "config_surface"
+  }
+ ]
+}

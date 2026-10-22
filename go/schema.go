@@ -318,12 +318,20 @@ func (c *compiler) node(n *Node, path string) (Shape, *Error) {
 	if s.Nullable, _, err = boolMember(n, "nullable", path); err != nil {
 		return s, err
 	}
-	if d := lookup(n, "default"); d != nil {
+	role, err := readRole(n, path)
+	if err != nil {
+		return s, err
+	}
+	declared := lookup(n, "default")
+	if declared != nil {
 		if s.Presence == Mandatory {
 			return s, schemaErr(SchemaInvalid, path, "a default is not allowed on a mandatory field (the field does not say optional)")
 		}
-		if d.Kind == KindNull {
+		if declared.Kind == KindNull {
 			return s, schemaErr(SchemaInvalid, path, "default: null is invalid")
+		}
+		if !role.takesDefault() {
+			return s, schemaErr(SchemaInvalid, path, "a default is not allowed on a node whose Role does not take one (ADR 0011)")
 		}
 		s.HasDefault = true
 	}
@@ -363,7 +371,26 @@ func (c *compiler) node(n *Node, path string) (Shape, *Error) {
 	default:
 		return s, schemaErr(SchemaInvalid, path+".shape_type", "unknown shape_type %q", st.Str)
 	}
+	if err == nil && declared != nil && !defaultFits(s, declared) {
+		return s, schemaErr(SchemaInvalid, path+".default", "the default is not a valid value of its own node")
+	}
+	if err == nil && declared != nil {
+		s.Default = cloneTree(declared)
+	}
 	return s, err
+}
+
+// accessAtomKeys is the key set A of the Access atom (access.yaml): what recognition needs to tell an expanded node.
+var accessAtomKeys = []string{"value", "access", "modify", "inherit", "default_injection", "conformance"}
+
+// defaultFits says whether d is a valid value of the node s itself: the schema's own check of a default, so that
+// applying it can never produce a document that does not validate.
+func defaultFits(s Shape, d *Node) bool {
+	s.Presence, s.HasDefault, s.Default = Mandatory, false, nil
+	probe := Shape{Kind: ShapeComposite, Presence: Mandatory, Fields: []NamedShape{{Name: "default", Shape: s}}}
+	doc := &Node{Kind: KindMap, Entries: []Entry{{Key: "default", Value: d}}}
+	v, err := Validate(doc, probe, accessAtomKeys)
+	return err == nil && len(v.Violations) == 0
 }
 
 func (c *compiler) collection(n *Node, path string, s *Shape) *Error {

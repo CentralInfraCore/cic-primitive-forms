@@ -10,7 +10,7 @@ use cic_primitive_forms::{parse, validate, Presence, ScalarType, Shape, ShapeTyp
 use libfuzzer_sys::fuzz_target;
 
 fn shape(shape_type: ShapeType, presence: Presence) -> Shape {
-    Shape { shape_type, presence, nullable: false, has_default: false }
+    Shape { shape_type, presence, nullable: false, has_default: false, default: None }
 }
 
 fn fuzz_shape() -> Shape {
@@ -27,7 +27,7 @@ fn fuzz_shape() -> Shape {
                 "b".into(),
                 Shape {
                     nullable: true,
-                    has_default: true,
+                    has_default: true, default: None,
                     ..shape(ShapeType::Scalar(ScalarType::Integer), Presence::Optional)
                 },
             ),

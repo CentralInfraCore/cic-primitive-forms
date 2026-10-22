@@ -190,6 +190,26 @@ func TestRealRegistrySchemas(t *testing.T) {
 			if !slices.EqualFunc(got, d.Violations, slices.Equal) || !slices.Equal(append([]string{}, v.DefaultCandidates...), append([]string{}, d.Candidates...)) {
 				t.Fatalf("%s: %v / %v, want %v / %v", d.ID, got, v.DefaultCandidates, d.Violations, d.Candidates)
 			}
+			// The defaults of a valid document are applied exactly at the candidates, and applying them again changes nothing.
+			if len(d.Violations) == 0 {
+				res, err := forms.ApplyDefaults(node, c.Root, accessKeys)
+				if err != nil || res.Document == nil {
+					t.Fatalf("%s: apply defaults: %v / %+v", d.ID, err, res)
+				}
+				defaulted := []string{}
+				for _, o := range res.Origins {
+					if o.Origin == forms.ValueOriginDefault {
+						defaulted = append(defaulted, o.Path)
+					}
+				}
+				if !slices.Equal(defaulted, append([]string{}, d.Candidates...)) {
+					t.Fatalf("%s: defaulted %v, want the candidates %v", d.ID, defaulted, d.Candidates)
+				}
+				again, err := forms.ApplyDefaults(res.Document, c.Root, accessKeys)
+				if err != nil || forms.Emit(again.Document) != forms.Emit(res.Document) {
+					t.Fatalf("%s: not idempotent: %v", d.ID, err)
+				}
+			}
 		}
 	})
 

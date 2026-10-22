@@ -142,6 +142,25 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   (surface, operation) (`SURFACE_RULE_CONFLICT` in the detail). Nothing is evaluated: no requestor, certificate, owner or
   snapshot is looked at, and the Forms library takes no access decision. The shared cases are `testdata/p1/policy.json` (both
   languages), the real `network-space` schema is pinned structurally in `testdata/p1/real-schemas.json`.
+* **Role and defaults (P3, second unit; ADR 0011).** The `role` of every node is read: the short forms `config`, `state`,
+  `operational`, `key`, `derived`, `volatile` (`reference` has no short form) or the long form, a mapping of the three axes
+  (`authority`, `structural`, `lifecycle`). An unknown value or member, a wrong kind, or a combination the atom grammar
+  forbids (`derived` or `volatile` with the authority `config`, a key that is derived or volatile) is `SCHEMA_INVALID` at
+  `<node>.role...`; an unknown Role is never read as `config`. A `default` is allowed only on a node that takes one: the
+  authority is `config` (written, or by its default), there is no structural value, and the node is optional; on any other
+  node it is `SCHEMA_INVALID` at the node. The default must also be a valid value of its own node (type, `min_items`, record
+  structure), else `SCHEMA_INVALID` at `<node>.default`: applying it can never make a document invalid. The declared value is kept
+  in the `Shape` (`Default` / `default`).
+* **Applying the defaults (`ApplyDefaults` / `apply_defaults`).** The authored document is validated first; with any violation,
+  or with an input this slice does not support, nothing is defaulted (the violations are returned and there is no document). Then
+  the declared default of every **absent** optional field is inserted as a copy, in the short form, after the entries of its
+  mapping, in schema order. Never replaced: an explicit `null`, `""`, `0`, `false`, `[]` or `{}`, nor any authored value. The walk
+  goes through present composites and the records of declared lists (named by their identity); it never goes into an absent
+  composite or list, so a default does not invent structure. A default is a whole value, defaulted nowhere inside. The result
+  lists every declared position with its origin, `authored` or `default`, in path order, relative to the input: the defaulted
+  positions are exactly `DefaultCandidates` of the validation, and applying the defaults to the result changes nothing and finds
+  every value authored. The input is never modified. Composing with `Expand` (the symbolic policy of the inserted position) and the
+  effective rules (`PolicyResolution`) are the next units. The shared cases are `testdata/p1/defaults.json`.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),

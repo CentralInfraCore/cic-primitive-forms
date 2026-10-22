@@ -35,6 +35,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "defaults"
+path = "fuzz_targets/defaults.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "access"
 path = "fuzz_targets/access.rs"
 test = false

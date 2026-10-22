@@ -26,6 +26,7 @@ fn shape(shape_type: ShapeType, presence: Presence) -> Shape {
         presence,
         nullable: false,
         has_default: false,
+        default: None,
     }
 }
 
@@ -95,6 +96,7 @@ fn absent_and_null_are_different_states() {
 fn a_default_is_a_candidate_only_for_an_absent_optional_field() {
     let with_default = |presence, nullable| Shape {
         has_default: true,
+        default: None,
         nullable,
         ..scalar(ScalarType::Integer, presence)
     };
@@ -115,6 +117,7 @@ fn a_default_is_a_candidate_only_for_an_absent_optional_field() {
             "zz",
             Shape {
                 has_default: true,
+                default: None,
                 ..scalar(ScalarType::String, Presence::Optional)
             },
         ),
@@ -122,6 +125,7 @@ fn a_default_is_a_candidate_only_for_an_absent_optional_field() {
             "aa",
             Shape {
                 has_default: true,
+                default: None,
                 ..scalar(ScalarType::String, Presence::Optional)
             },
         ),
@@ -129,6 +133,7 @@ fn a_default_is_a_candidate_only_for_an_absent_optional_field() {
             "a.b",
             Shape {
                 has_default: true,
+                default: None,
                 ..scalar(ScalarType::String, Presence::Optional)
             },
         ),
@@ -136,6 +141,7 @@ fn a_default_is_a_candidate_only_for_an_absent_optional_field() {
             "",
             Shape {
                 has_default: true,
+                default: None,
                 ..scalar(ScalarType::String, Presence::Optional)
             },
         ),

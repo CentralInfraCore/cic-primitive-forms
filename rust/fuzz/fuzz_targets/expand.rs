@@ -11,7 +11,7 @@ use cic_primitive_forms::{
 use libfuzzer_sys::fuzz_target;
 
 fn shape(shape_type: ShapeType, presence: Presence) -> Shape {
-    Shape { shape_type, presence, nullable: false, has_default: false }
+    Shape { shape_type, presence, nullable: false, has_default: false, default: None }
 }
 
 fn fuzz_shape() -> Shape {
