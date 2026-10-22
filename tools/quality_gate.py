@@ -105,17 +105,17 @@ def _rust_outcome(path, need_names):
     return killed, survived, names
 
 
-def _rust_listed(path):
+def _rust_listed(path, allow_empty=False):
     try:
         listed = [m["name"] for m in json.loads(read(path))]
-        if not listed or not all(isinstance(n, str) for n in listed):
+        if (not listed and not allow_empty) or not all(isinstance(n, str) for n in listed):
             raise TypeError
     except (ValueError, KeyError, TypeError):
         raise Refused("REPORT_FORMAT", "%s: not a `cargo mutants --list --json` list" % path)
     return listed
 
 
-def rust_mutants(paths, listed=None):
+def rust_mutants(paths, listed=None, allow_empty=False):
     killed = survived = 0
     names = []
     for path in paths:
@@ -126,7 +126,7 @@ def rust_mutants(paths, listed=None):
     if len(paths) > 1 and not listed:
         raise Refused("INCOMPLETE_SHARDS", "%d shard reports and no list of the mutants to check them against" % len(paths))
     if listed:
-        want = _rust_listed(listed)
+        want = _rust_listed(listed, allow_empty)
         seen = {}
         for n in names:
             seen[n] = seen.get(n, 0) + 1
@@ -139,10 +139,10 @@ def rust_mutants(paths, listed=None):
     return killed, killed + survived
 
 
-LEDGER_VERDICTS = {"killed", "survived", "uncompilable", "offshard"}
+LEDGER_VERDICTS = {"killed", "survived", "uncompilable", "offshard", "offdiff"}
 
 
-def go_ledgers(paths):
+def go_ledgers(paths, allow_empty=False):
     """One ledger per shard, lines `<mutant>\t<shard>\t<shards>\t<verdict>`: every shard sees every mutant and tests
     the ones it owns; each mutant must be owned by exactly one shard."""
     shard_of, ids_of, count = {}, {}, None
@@ -160,6 +160,8 @@ def go_ledgers(paths):
                 raise Refused("INCOMPLETE_SHARDS", "%s: mutant %s twice in one ledger" % (path, f[0]))
             mine.setdefault("ids", {})[f[0]] = f[3]
         if "shard" not in mine:
+            if allow_empty and len(paths) == 1:   # a diff with no Go product code: no mutant was listed, nothing to judge
+                return 0, 0
             raise Refused("MEASUREMENT_EMPTY", "%s: empty ledger" % path)
         k, n = mine["shard"]
         if count not in (None, n) or k >= n or k in shard_of:
@@ -202,17 +204,34 @@ def judge(name, measure, path):
     return ok, "%-22s %d/%d = %.2f%%" % (name, covered, total, float(pct))
 
 
+DIFF_SMALL = 10  # a diff with fewer mutants than this has to have every one of them killed (docs/DELTA-DIFF-GATE.md, section 2)
+
+
+def judge_diff(name, measure, path):
+    """The mutation gate of a pull request that was measured on the mutants of its diff only: more than 90% killed, all of them when
+    there are fewer than DIFF_SMALL, and no mutants in the diff is green and says so. The threshold is the same one."""
+    killed, total = measure()
+    if total == 0:
+        return True, "%-22s no mutants in the diff" % name
+    if total < DIFF_SMALL:
+        ok = killed == total
+        return ok, "%-22s %d/%d (fewer than %d in the diff: all must be killed)" % (name, killed, total, DIFF_SMALL)
+    pct = Fraction(100 * killed, total)
+    return pct > THRESHOLD, "%-22s %d/%d = %.2f%% (in the diff)" % (name, killed, total, float(pct))
+
+
 def check(args):
+    diff = getattr(args, "diff", False)
     rust_m = args.rust_mutants if isinstance(args.rust_mutants, list) else [args.rust_mutants]
-    go_m = (lambda: go_ledgers(args.go_ledgers)) if args.go_ledgers else (lambda: go_mutants(args.go_mutants))
+    go_m = (lambda: go_ledgers(args.go_ledgers, allow_empty=diff)) if args.go_ledgers else (lambda: go_mutants(args.go_mutants))
     gates = [("rust line coverage", lambda: rust_lines(args.rust_lines), args.rust_lines),
              ("go statement coverage", lambda: go_lines(args.go_lines), args.go_lines),
-             ("rust mutation score", lambda: rust_mutants(rust_m, args.rust_listed), " ".join(rust_m)),
+             ("rust mutation score", lambda: rust_mutants(rust_m, args.rust_listed, allow_empty=diff), " ".join(rust_m)),
              ("go mutation score", go_m, " ".join(args.go_ledgers) if args.go_ledgers else args.go_mutants)]
     failed = 0
     for name, measure, path in gates:
         try:
-            ok, line = judge(name, measure, path)
+            ok, line = (judge_diff if diff and "mutation" in name else judge)(name, measure, path)
         except Refused as r:
             print("FAIL %-22s %s: %s" % (name, r.reason, r.detail))
             failed += 1
@@ -351,11 +370,46 @@ def selftest():
     sharded("sharded: an empty go ledger", "MEASUREMENT_EMPTY", ledgers=[""] + [ledger(k, 3, parts[k], gm) for k in (1, 2)])
     sharded("sharded: the merged go score is below 90%", "BELOW_THRESHOLD",
             ledgers=[ledger(k, 3, parts[k], gm, verdict="survived") for k in range(3)])
+    # the diff gate (docs/DELTA-DIFF-GATE.md): the same threshold on the mutants of the diff, a rule for few of them, and green for none
+    def diffcase(title, want, rm=None, gm=None, rl=None, ledgers=None, rust_listed=None):
+        nonlocal bad
+        with tempfile.TemporaryDirectory() as d:
+            gfiles = [_w(d, "g%d" % i, t) for i, t in enumerate(ledgers)] if ledgers is not None else None
+            ns = argparse.Namespace(rust_lines=_w(d, "rl", rl or _rust_cov(95, 100)), go_lines=_w(d, "gl", _go_cov(95, 100)),
+                                    rust_mutants=[_w(d, "rm", rm or _mut(0, 0))], rust_listed=_w(d, "list", rust_listed) if rust_listed else None,
+                                    go_mutants=None if gfiles else _w(d, "gm", gm or _gomut(0, 0)), go_ledgers=gfiles, diff=True)
+            rc, text = _capture(check, ns)
+        got = None if rc == 0 else next((r for r in REASONS if r in text), "?")
+        seen.add(got)
+        ok = got == want
+        bad += 0 if ok else 1
+        print("  %s %-48s -> %s" % ("ok " if ok else "BAD", title, got or "pass"))
+
+    def dledger(killed, survived, off):
+        rows = ["k%02d\t0\t1\tkilled" % i for i in range(killed)] + ["s%02d\t0\t1\tsurvived" % i for i in range(survived)]
+        rows += ["o%02d\t0\t1\toffdiff" % i for i in range(off)]
+        return ["\n".join(rows) + "\n"]
+
+    diffcase("diff: no mutants in the diff is green", None)
+    diffcase("diff: fewer than 10, all killed", None, rm=_mut(7, 0), gm=_gomut(3, 0))
+    diffcase("diff: fewer than 10, one survives (rust)", "BELOW_THRESHOLD", rm=_mut(7, 1))
+    diffcase("diff: fewer than 10, one survives (go)", "BELOW_THRESHOLD", gm=_gomut(8, 1))
+    diffcase("diff: 11 mutants, 10 killed is 90.9%", None, rm=_mut(10, 1))
+    diffcase("diff: 20 mutants, 18 killed is exactly 90%", "BELOW_THRESHOLD", rm=_mut(18, 2))
+    diffcase("diff: the line coverage is not relaxed", "BELOW_THRESHOLD", rl=_rust_cov(50, 100))
+    diffcase("diff: go ledger, 5 in the diff all killed, 25 outside", None, ledgers=dledger(5, 0, 25))
+    diffcase("diff: go ledger, one of 5 in the diff survives", "BELOW_THRESHOLD", ledgers=dledger(4, 1, 25))
+    diffcase("diff: go ledger, every mutant outside the diff", None, ledgers=dledger(0, 0, 30))
+    diffcase("diff: go ledger is empty (no Go product code in the diff)", None, ledgers=[""])
+    diffcase("diff: go ledger, a mutant twice", "INCOMPLETE_SHARDS", ledgers=["a\t0\t1\tkilled\na\t0\t1\toffdiff\n"])
+    diffcase("diff: rust list is empty and nothing ran", None, rm=rshard([]), rust_listed="[]")
+    diffcase("diff: rust ran a mutant that is not listed", "INCOMPLETE_SHARDS",
+             rm=rshard(["m00"]), rust_listed="[]")
     missing = set(REASONS) - seen
     if missing:
         print("  BAD reasons without a fault: %s" % sorted(missing))
         bad += 1
-    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 14, len(set(REASONS) & seen), len(REASONS))
+    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 14 + 14, len(set(REASONS) & seen), len(REASONS))
           if bad == 0 else "self-test FAILED (%d)" % bad)
     return 0 if bad == 0 else 1
 
@@ -377,6 +431,7 @@ def main():
         c.add_argument("--" + flag, required=True)
     c.add_argument("--rust-mutants", required=True, nargs="+")
     c.add_argument("--rust-listed")
+    c.add_argument("--diff", action="store_true", help="the mutation scores are those of the mutants in the diff of a pull request")
     group = c.add_mutually_exclusive_group(required=True)
     group.add_argument("--go-mutants")
     group.add_argument("--go-ledgers", nargs="+")
