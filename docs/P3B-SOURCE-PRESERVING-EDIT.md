@@ -86,7 +86,11 @@ Guarantees, each of them checked by the library on every successful edit and not
 4. **Same form.** `recognize` of the result says the same as before for every position (a short position is still short), so `collapse` and `expand` of the result agree
    with those of the original except for the value. `Provenance` therefore needs no change: it is computed from the text, and the text's shape did not change.
 5. **Deterministic and identical in Rust and Go**, byte for byte (section 8).
-6. **Idempotent.** Editing a position to the value it already has returns the original text byte for byte. Two edits of different positions give the same text in either order.
+6. **A no-op is a no-op, and the spelling is not promised back.** Editing a position to the value it already has returns the original text byte for byte: the library does not rewrite a token whose
+   value does not change, so a non-canonical but accepted spelling (`True`, `+5`, `~`) is never normalized as a side effect of an edit that changes nothing. Two edits of different positions give the same text in
+   either order. **Editing a value and then back is not promised to restore the original bytes**: the edit writes the canonical spelling of the new value (decimal integers, lower-case booleans, `null`), and the
+   original may have used another spelling the parser accepts. It is promised only when the original token already was the canonical spelling and the style is kept (the review of this note asked for exactly this limit;
+   keeping the original token's spelling instead is owner decision 8).
 
 The returned text is a new string; the input is not modified (as `validate` never modifies its input).
 
@@ -145,8 +149,8 @@ result of the previous one (each is re-indexed), which is slower and obviously c
   a trailing comment kept; comments above, below and between; CRLF, LF and lone CR files; a BOM; non-ASCII (the span in bytes, a multi-byte character before and after, in the value);
   a file without a final newline; the same scalar text appearing twice (only the addressed one changes); a list element addressed by identity, then the list reordered; short and expanded forms; an
   expanded position's `value:`; a position whose value is a quoted number; and one case per code of section 6, with a position for the error. **Every refusal has a case.**
-* **Properties** (both languages): untouched bytes (guarantee 1) over generated documents and edits; edit to the same value is the identity; two edits of different positions commute; edit then edit back is the original
-  when the style was kept; the result always re-parses to the old tree with one value replaced; `recognize` is unchanged; no input is modified; an edit never turns a valid document into an invalid one without `EDIT_INVALID_RESULT`.
+* **Properties** (both languages): untouched bytes (guarantee 1) over generated documents and edits; edit to the same value is the identity (also for a non-canonical spelling); two edits of different positions commute; edit then edit back is the original
+  only when the original spelling is the canonical one and the style was kept (and a case where it is not, which must come back with the canonical spelling, as the limit of guarantee 6); the result always re-parses to the old tree with one value replaced; `recognize` is unchanged; no input is modified; an edit never turns a valid document into an invalid one without `EDIT_INVALID_RESULT`.
 * **A differential run** like P3's (`tools/parity`): generated documents and edits, Rust output against Go output byte for byte, fixed seed, in the required `parity` job, with a selftest that breaks the outputs
   six ways and requires red.
 * **A fuzz target** (`edit`) with a canary: on any input that parses and any path/value, the call returns an error or text for which guarantees 1-4 hold; it never panics.
@@ -174,3 +178,4 @@ result of the previous one (each is re-indexed), which is slower and obviously c
 5. **Editing `null`**: a position written `~` or `null` is a scalar with text and is editable; a position written as nothing (`key:`) is not (an insertion). Proposed as written.
 6. **The refusal of everything with an anchor, alias or tag** stays tied to the parser's refusal; extending the parser is a separate decision and not part of P3b's first unit.
 7. **Where the tool lives and who may call it**: the library only; no command line, no file writing. Writing the result to disk, atomically, is the caller's.
+8. **The spelling of a token**: proposed that an edit writes the canonical spelling of the new value and a no-op keeps the original token (guarantee 6). The alternative is to keep the original token's spelling family (`True` stays a `True`-style boolean, `+5` stays signed) when the kind is unchanged; it makes edit-and-back exact in more cases, but needs a spelling table per kind and the two parsers do not read every spelling alike.
