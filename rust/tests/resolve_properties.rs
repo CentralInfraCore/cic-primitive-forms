@@ -3,9 +3,10 @@
 //! like. The Go peer is `go/resolve_properties_test.go`.
 
 use cic_primitive_forms::{
-    resolve_rule, Carrier, Mode, ObjectPolicy, PolicyGraph, PolicyObject, PolicyRule,
-    PolicySurface, RuleKind, LAYER_FIELD, LAYER_NONE, LAYER_POLICY_INHERITED, LAYER_SYSTEM,
-    REASON_CONTEXT_INCOMPLETE, REASON_RESET_NO_LOCAL_RULE,
+    bind_grammar, compile_schema, normalize, parse, resolve_policy, resolve_rule, Carrier, Context,
+    Entry, Mode, Node, ObjectPolicy, PolicyGraph, PolicyObject, PolicyRule, PolicySurface,
+    RuleKind, SchemaInput, Value, LAYER_FIELD, LAYER_NONE, LAYER_OBJECT_DEFAULT,
+    LAYER_POLICY_INHERITED, LAYER_SYSTEM, REASON_CONTEXT_INCOMPLETE, REASON_RESET_NO_LOCAL_RULE,
 };
 use proptest::prelude::*;
 
@@ -296,4 +297,141 @@ fn a_reset_carrier_above_an_object_that_does_not_inherit_still_sets_the_barrier(
         r.kind == RuleKind::None && r.reason == REASON_RESET_NO_LOCAL_RULE,
         "{r:?}"
     );
+}
+
+// ---- G2 and G5 of the P3 exit-criteria check ---------------------------------------------------------------------------------
+
+struct Xs(u64);
+impl Xs {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+}
+
+/// A copy of `n` whose mapping entries, at every depth, are in an order drawn from `rng`. The values are untouched.
+fn shuffled(n: &Node, rng: &mut Xs) -> Node {
+    let value = match &n.value {
+        Value::Map(es) => {
+            let mut es: Vec<Entry> = es
+                .iter()
+                .map(|e| Entry {
+                    key: e.key.clone(),
+                    key_pos: e.key_pos,
+                    value: shuffled(&e.value, rng),
+                })
+                .collect();
+            for i in (1..es.len()).rev() {
+                let j = (rng.next() % (i as u64 + 1)) as usize;
+                es.swap(i, j);
+            }
+            Value::Map(es)
+        }
+        Value::Seq(items) => Value::Seq(items.iter().map(|it| shuffled(it, rng)).collect()),
+        other => other.clone(),
+    };
+    Node { value, pos: n.pos }
+}
+
+/// Reordering the entries of a mapping, at any depth, changes neither the normalization (as a value, with its origins) nor the
+/// resolution, whole (rule, layer, source path and reason of every position). The Go peer is `TestPropertyMappingOrderChangesNoResult`.
+#[test]
+fn mapping_order_changes_no_result() {
+    let root = std::env::var_os("CIC_FORMS_ROOT").map_or_else(
+        || std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."),
+        std::path::PathBuf::from,
+    );
+    let f: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(root.join("testdata/p1/resolution.json")).unwrap(),
+    )
+    .unwrap();
+    let a: Vec<String> = f["access_keys"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s.as_str().unwrap().to_string())
+        .collect();
+    for c in f["cases"].as_array().unwrap() {
+        let id = c["id"].as_str().unwrap();
+        let schema = c["schema"].as_str().unwrap();
+        let cs = compile_schema(&SchemaInput {
+            bytes: schema.as_bytes(),
+            sha256: &cic_primitive_forms::access::sha256_hex(schema.as_bytes()),
+            grammar: f["grammar_pin"].as_str().unwrap(),
+            surface: "config_surface",
+        })
+        .unwrap();
+        let one = Value::Int(c["grammar"].as_i64().unwrap());
+        let g = bind_grammar(Some(&one), Some(&one)).unwrap();
+        let unknown: Vec<String> = c["unknown"]
+            .as_array()
+            .map(|u| u.iter().map(|s| s.as_str().unwrap().to_string()).collect())
+            .unwrap_or_default();
+        let run = |d: &Node| {
+            let n = normalize(d, &cs.root, &a, g, &Context::default()).unwrap();
+            let r = resolve_policy(
+                &n.object,
+                &cs.root,
+                &cs.policy,
+                &cs.surface,
+                &a,
+                g,
+                &unknown,
+            )
+            .unwrap();
+            (n, r)
+        };
+        let doc = parse(c["yaml"].as_str().unwrap()).unwrap();
+        let (base_n, base_r) = run(&doc);
+        for seed in 1..=60u64 {
+            let (n, r) = run(&shuffled(
+                &doc,
+                &mut Xs(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1),
+            ));
+            assert!(
+                n.object.same(&base_n.object) && n.value_origins == base_n.value_origins,
+                "{id}: seed {seed}: the normalization changed"
+            );
+            assert_eq!(r, base_r, "{id}: seed {seed}: the resolution changed");
+        }
+    }
+}
+
+proptest! {
+    /// The local layers are never cut. A position's own list wins over everything above it, whatever the chain looks like; and the
+    /// containing object's own rule applies even when its carrier or its own policy resets or stops the inheritance.
+    #[test]
+    fn local_rules_are_never_cut(
+        policy in proptest::collection::vec(any_policy(), 1..8),
+        carriers in proptest::collection::vec(carrier(), 8),
+        field in rule(),
+        own_mode in mode(),
+    ) {
+        let mut policy = policy;
+        let own = PolicyRule::Patterns(vec!["O=own".to_string()]);
+        let last = policy.len() - 1;
+        policy[last] = ObjectPolicy::Declared(PolicySurface {
+            declared: true,
+            default_access: Some(own.clone()),
+            default_modify: Some(own),
+            surface_rules: Vec::new(),
+            inherit_policy: own_mode,
+            inherit_policy_declared: true,
+        });
+        let (g, target) = chain(&policy, &carriers);
+        let path = format!("{target}.f");
+        for op in ["access", "modify"] {
+            let r = resolve_rule(&g, &target, "config_surface", field.as_ref(), &path, op);
+            if field.is_some() {
+                prop_assert!(r.layer == LAYER_FIELD && r.source_path == path, "{op}: the position's own rule was cut: {r:?}");
+            } else {
+                prop_assert!(
+                    r.kind == RuleKind::List && r.layer == LAYER_OBJECT_DEFAULT && r.source_path == target,
+                    "{op}: the object's own default was cut: {r:?}"
+                );
+            }
+        }
+    }
 }
