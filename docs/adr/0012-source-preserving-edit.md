@@ -1,6 +1,6 @@
 # ADR 0012: source-preserving edit of one scalar
 
-Status: **proposed** (2026-10-22). Not accepted: nothing below binds an implementation until the owner accepts it (see "Acceptance record"). It is step E0 of
+Status: **accepted** (2026-10-22, the day the owner merged this change; see "Acceptance record"). It is step E0 of
 `docs/P3B-SOURCE-PRESERVING-EDIT.md`, which holds the reasoning, the design and the questions that are the owner's; this ADR holds only what has to be fixed as a
 contract so that Rust and Go can implement and test the same thing. It changes no existing behaviour: `parse`, `recognize`, `validate`, `expand`, `collapse`,
 `normalize`, `denormalize`, the policy resolution, the `Node` type, `Provenance` and the value origins stay as they are.
@@ -68,7 +68,7 @@ that writes into an anchored node, a node reached through an alias, or a merge k
 
 ### 6. The suite
 
-ADR 0005 gets a case kind `edit`: `input_yaml`, the schema, `path`, a typed `value`, and either `expect.output_yaml` (the exact bytes, compared as bytes) or `expect.error` (`code`, `phase: edit`, the source position of the
+ADR 0005 gets two case kinds. `source_span` (input `input_yaml` or `input_hex`, `schema`, `path`; expectation: the span `{start, end}` in bytes and the `style`, or one error) is the vector of the scanner and the index (step E2). `edit` is the vector of the operation (step E3) and has: `input_yaml`, the schema, `path`, a typed `value`, and either `expect.output_yaml` (the exact bytes, compared as bytes) or `expect.error` (`code`, `phase: edit`, the source position of the
 anchor). Expected outputs are written by hand from these rules before either language implements the operation. The accounting stays exact.
 
 ## Not decided here
@@ -86,4 +86,19 @@ value, editing `null`) are taken at acceptance and recorded below.
 
 ## Acceptance record
 
-Pending. At acceptance: the date, the decisions on the points of section 10 of the design note, and the two amendments applied to ADR 0005 and ADR 0007.
+Accepted on 2026-10-22 by the owner's decision to merge this change. The reviewer's professional GO of the same day (on the design note, on this ADR and on each of the points below) is the review, not the acceptance: the acceptance is the owner's.
+
+The decisions of section 10 of `docs/P3B-SOURCE-PRESERVING-EDIT.md` are taken as proposed there:
+
+1. A new value the scalar's style cannot carry is refused (`EDIT_STYLE_CONFLICT`); there is no automatic requoting.
+2. A scalar in a flow collection is refused in the first unit (`EDIT_FLOW_CONTEXT`); a later unit may allow it.
+3. A ninth phase `edit` and this ADR, with the error contract of section 4.
+4. The input value is a typed scalar (string, integer, boolean, null).
+5. An explicit `null` or `~` is a scalar with text and can be edited; an empty value (`key:`) cannot (it is an insertion).
+6. Anchors, aliases, tags and merge keys stay refused, tied to the parser's refusal; extending the parser is a separate decision.
+7. The tool is the Forms library only: no command line, no file writing.
+8. The spelling of a token: an edit writes the canonical spelling of the new value; a no-op keeps the original token; an edit and its reverse restore the bytes only when the original already was the canonical spelling and the style is kept.
+
+Two clarifications of the review are part of the contract (section 3): reading is wider than writing (an existing token with an escaped control character is read and can be replaced; a new value is never written with a control character), and two edits commute only when the positions are independent.
+
+Applied with this acceptance: the amendment of ADR 0005 (the kinds `source_span` and `edit`) and the amendment of ADR 0007 (the phase `edit`). Not applied, and not part of the acceptance: the registry `corpus/codes.yaml` (the 11 codes come with their vectors in step E1), and any code.
