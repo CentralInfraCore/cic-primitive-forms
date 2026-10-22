@@ -49,6 +49,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "resolve"
+path = "fuzz_targets/resolve.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "access"
 path = "fuzz_targets/access.rs"
 test = false

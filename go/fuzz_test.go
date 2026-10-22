@@ -363,3 +363,58 @@ func FuzzNormalize(f *testing.F) {
 		}
 	})
 }
+
+func FuzzResolvePolicy(f *testing.F) {
+	for _, seed := range []string{"", "a: x\n", "a: x\nb: ~\nc: ~\n", "a: x\nb: 0\nc: {d: false}\ng: []\n", "a: x\nc: {}\n",
+		"a: {value: x, access: [OU=a], modify: inherit, inherit: 0, default_injection: ~, conformance: deprecated}\nb: 1\n",
+		"c: {value: {d: true}, access: inherit, modify: [], inherit: false, default_injection: ~, conformance: implemented}\na: x\n"} {
+		f.Add(seed)
+	}
+	shape := defaultsShape()
+	g, err := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: 1}, &forms.Node{Kind: forms.KindInt, Int: 1})
+	if err != nil {
+		f.Fatal(err)
+	}
+	policy := forms.PolicySurface{Declared: true, DefaultAccess: &forms.PolicyRule{Patterns: []string{"O=r"}}}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		n, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		res, err := forms.Normalize(n, shape, keySet, g, forms.Context{})
+		if err != nil {
+			return
+		}
+		before := forms.Emit(res.Object)
+		known, err := forms.ResolvePolicy(res.Object, shape, policy, "config_surface", keySet, g, nil)
+		if forms.Emit(res.Object) != before {
+			t.Fatalf("%q: the resolution changed the object", text)
+		}
+		if err != nil {
+			return
+		}
+		unknown, err := forms.ResolvePolicy(res.Object, shape, policy, "config_surface", keySet, g, []string{"$"})
+		if err != nil {
+			t.Fatalf("%q: the same document does not resolve with an unknown root: %v", text, err)
+		}
+		if len(known) != len(unknown) {
+			t.Fatalf("%q: the policy state of the root changed the positions", text)
+		}
+		for p, e := range unknown {
+			if _, ok := known[p]; !ok {
+				t.Fatalf("%q: position %s only exists with an unknown root", text, p)
+			}
+			for _, r := range []forms.EffectiveRule{e.Access, e.Modify} {
+				if r.Kind == forms.RuleOpen || r.Kind == forms.RuleOwner {
+					t.Fatalf("%q: an unknown root gave a permissive system rule at %s", text, p)
+				}
+			}
+		}
+	})
+}
