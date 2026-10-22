@@ -1,6 +1,6 @@
 # FULL and DELTA test evidence: the plan
 
-Status: **proposal, revised after review (PR #27: accepted with changes)**. Nothing here is implemented. It re-opens no decision
+Status: **proposal, revised after review (PR #27: accepted with changes); amended 2026-10-22**: the owner replaced the DELTA model (no shadow mode, a diff gate on pull requests, a nightly FULL), see `docs/DELTA-DIFF-GATE.md`, which wins where the two differ. Nothing here is implemented. It re-opens no decision
 of the accepted ADRs and does not change a quality threshold or switch off a gate of workflow `p1`. It is the plan that was agreed
 to be written after the parser parity work (PR #25, merged as `ace0740`) and the sharded `quality` job
 (`docs/QUALITY-SHARDING.md`).
@@ -26,8 +26,8 @@ verified evidence they create stays valuable. Section 6.6 says how that is measu
 
 These come from the owner and are not up for redesign here.
 
-* DELTA starts as a **shadow mode** next to the current full PR and `main` gates. It reports; it does not decide.
-* `main` gets a **FULL measurement every day**. This is mandatory, not best effort.
+* ~~DELTA starts as a **shadow mode** next to the current full PR and `main` gates. It reports; it does not decide.~~ **Replaced on 2026-10-22** by the diff gate of `docs/DELTA-DIFF-GATE.md`: it is the PR gate, and the nightly FULL on `main` is the safety net.
+* `main` gets a **FULL measurement every day**. This is mandatory, not best effort. **Amended on 2026-10-22**: every night at 02:00 (Europe/Budapest), if `main` had development the day before; on failure a pull request carries the failed run's identifier (`docs/DELTA-DIFF-GATE.md`, section 4).
 * **No fallback to an older success** (section 5.7 says what that means for a failed or missed run).
 * The tooling lives under `tools/test-evidence/` of this repository.
 * FULL evidence is a **canonical, content-hashed JSON** record kept on a protected branch `ci-evidence`, with a **GitHub
@@ -250,6 +250,8 @@ tree and an earlier result does not apply to it.
 
 ## 6. DELTA
 
+> **Superseded on 2026-10-22** by `docs/DELTA-DIFF-GATE.md` (the diff gate). The text below is the baseline-record model that was not chosen; it is kept as the record of the alternative and is not built.
+
 ### 6.1 Principle
 
 For a target T and a baseline B (5.7, an ancestor of T), DELTA runs only the mutants that the change `B..T` can have affected,
@@ -359,6 +361,8 @@ A selector or a verifier that passes all its probes is a candidate; one that has
 
 ## 8. Shadow mode
 
+> **Superseded on 2026-10-22**: there is no shadow mode; see `docs/DELTA-DIFF-GATE.md`.
+
 A job `delta-shadow` on pull requests (not required for merge), after the existing FULL, on the merge candidate (5.8):
 
 1. find a usable baseline (5.7); none means "no baseline" with the reason, and the job ends green (this is information, not failure);
@@ -376,6 +380,8 @@ request, but it is the signal that stops the work from going on.
 The existing FULL gates are untouched.
 
 ## 9. Order of work, each its own PR
+
+> **Amended on 2026-10-22**: steps C, D, E and F are not done (the diff gate does not need stable mutant ids, a coverage map or a selector); the new order is in `docs/DELTA-DIFF-GATE.md`, section 7. S, A, B and C0 stand as they were.
 
 | Step | Content | Wiring into CI |
 |---|---|---|
@@ -406,4 +412,4 @@ The six decisions asked for in the first version are made (section 2). What rema
 ## 11. What does not change
 
 The thresholds (strictly above 90%), the full PR gates and the FULL gate on `main`, the per-mutant timeout, the engine, Relay, the
-registry, the ADRs. DELTA in shadow mode decides nothing. Until the owner says otherwise a merge needs a green FULL, as today.
+registry, the ADRs. DELTA in shadow mode decides nothing. Until the owner says otherwise a merge needs a green FULL, as today. **Amended on 2026-10-22**: once the diff gate is switched on (step S of `docs/DELTA-DIFF-GATE.md`), a merge needs a green diff gate, and the FULL gate on `main` is the nightly run.
