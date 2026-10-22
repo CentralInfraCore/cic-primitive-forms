@@ -97,3 +97,10 @@ func TestNormalizeWithPolicyCarriesTheSchemaItWasMadeFrom(t *testing.T) {
 		t.Fatal("two different schemas gave results with the same digest")
 	}
 }
+
+// Probe of the diff gate (not to be merged): a pure addition of a test.
+func TestProbeAPureTestAddition(t *testing.T) {
+	if 1+1 != 2 {
+		t.Fatal("arithmetic")
+	}
+}

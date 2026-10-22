@@ -126,3 +126,9 @@ fn normalize_with_policy_carries_the_schema_it_was_made_from() {
         assert_ne!(ra.schema_digest, rb.schema_digest);
     }
 }
+
+/// Probe of the diff gate (not to be merged): a pure addition of a test.
+#[test]
+fn probe_a_pure_test_addition() {
+    assert_eq!(1 + 1, 2);
+}
