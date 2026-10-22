@@ -20,7 +20,9 @@ pub mod normalize;
 pub mod parse;
 pub mod pathtext;
 pub mod policy;
+pub mod policyresolution;
 pub mod recognize;
+pub mod resolve;
 pub(crate) mod role;
 pub mod schema;
 pub mod validate;
@@ -41,7 +43,14 @@ pub use node::{Entry, Node, Pos, Value};
 pub use normalize::{denormalize, normalize, renormalize, NormalizationResult};
 pub use parse::{parse, parse_with, Limits};
 pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
-pub use policy::{PolicyRule, PolicySurface, SurfaceRule};
+pub use policy::{read_policy_surface, PolicyRule, PolicySurface, SurfaceRule};
+pub use policyresolution::{resolve_policy, PolicyEntry, PolicyResolution};
 pub use recognize::{recognize, Class, Outcome, Position};
+pub use resolve::{
+    resolve_rule, Carrier, EffectiveRule, ObjectPolicy, PolicyGraph, PolicyObject, RuleKind,
+    LAYER_FIELD, LAYER_FIELD_INHERITED, LAYER_NONE, LAYER_OBJECT_DEFAULT, LAYER_POLICY_INHERITED,
+    LAYER_SURFACE_RULE, LAYER_SYSTEM, REASON_CONTEXT_INCOMPLETE, REASON_POLICY_CONTEXT_UNKNOWN,
+    REASON_RESET_NO_LOCAL_RULE,
+};
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
 pub use validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType, Validation};

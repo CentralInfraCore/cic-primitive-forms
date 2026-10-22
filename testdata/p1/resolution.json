@@ -1,0 +1,1283 @@
+{
+ "grammar_pin": "cic-primitives-73ae469-6a188078",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "cases": [
+  {
+   "id": "no-policy-everything-is-system",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\nroutes:\n  - to: a\n    metric: 1\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].metric",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].metric",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.routes",
+    "$.routes[{to=\"a\"}].metric",
+    "$.routes[{to=\"a\"}].to",
+    "$.type"
+   ]
+  },
+  {
+   "id": "root-defaults-and-children-inherit-them",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n    default_modify: [O=w]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=w"
+     ],
+     ""
+    ],
+    [
+     "$.label",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=w"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=w"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=w"
+     ],
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-carrier-list-is-passed-down",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway: g\n  access: [O=x]\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip",
+     "access",
+     "list",
+     "field",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "field_inherited",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-no-inherit-carrier-stops-its-rule-but-not-the-chain",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway: g\n  access: [O=x]\n  modify: inherit\n  inherit: false\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip",
+     "access",
+     "list",
+     "field",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-reset-carrier-cuts-the-rule-the-chain-and-the-system-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n    default_modify: [O=w]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway: g\n  access: [O=x]\n  modify: inherit\n  inherit: 0\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip",
+     "access",
+     "list",
+     "field",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=w"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "the-own-rule-of-a-position-is-never-cut-by-a-reset",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n    default_modify: [O=w]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway:\n      value: g\n      access: [O=g]\n      modify: inherit\n      inherit: true\n      default_injection: ~\n      conformance: implemented\n  access: [O=x]\n  modify: inherit\n  inherit: 0\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "field",
+     "$.ip.gateway",
+     [
+      "O=g"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-root-reset-without-a-rule-is-none",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: 0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.type",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.label",
+     "access",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.label",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip",
+     "access",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-root-reset-keeps-the-local-rule-for-the-children",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n    inherit_policy: 0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "none",
+     "none",
+     "",
+     null,
+     "RESET_NO_LOCAL_RULE"
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-root-no-inherit-keeps-the-system-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    inherit_policy: false\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-surface-rule-is-found-for-the-surface-and-the-other-surface-is-ignored",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    surface_rules:\n      - surface: config_surface\n        access: [O=s]\n      - surface: state_surface\n        modify: [O=n]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "list",
+     "surface_rule",
+     "$",
+     [
+      "O=s"
+     ],
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=s"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-surface-rule-comes-before-the-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=d]\n    surface_rules:\n      - surface: config_surface\n        access: [O=s]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "list",
+     "surface_rule",
+     "$",
+     [
+      "O=s"
+     ],
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "an-explicit-empty-list-is-a-rule-and-terminal",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: open\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nlabel:\n  value: x\n  access: []\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.label",
+     "access",
+     "list",
+     "field",
+     "$.label",
+     [],
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.type",
+     "access",
+     "open",
+     "object_default",
+     "$",
+     null,
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "list-elements-inherit-from-their-list-field-and-never-from-a-sibling",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nroutes:\n  value:\n    - to: b\n      metric:\n        value: 0\n        access: [O=m]\n        modify: inherit\n        inherit: true\n        default_injection: ~\n        conformance: implemented\n    - to: a\n  access: [O=r]\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.routes",
+     "access",
+     "list",
+     "field",
+     "$.routes",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.routes",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     "access",
+     "list",
+     "field_inherited",
+     "$.routes",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.routes[{to=\"a\"}].to",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"b\"}].to",
+     "access",
+     "list",
+     "field_inherited",
+     "$.routes",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.routes[{to=\"b\"}].to",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.routes[{to=\"b\"}].metric",
+     "access",
+     "list",
+     "field",
+     "$.routes[{to=\"b\"}].metric",
+     [
+      "O=m"
+     ],
+     ""
+    ],
+    [
+     "$.routes[{to=\"b\"}].metric",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.label",
+    "$.routes",
+    "$.routes[{to=\"a\"}].to",
+    "$.routes[{to=\"b\"}].metric",
+    "$.routes[{to=\"b\"}].to",
+    "$.type"
+   ]
+  },
+  {
+   "id": "an-object-the-caller-does-not-know-is-unknown-unless-a-rule-comes-first",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway:\n      value: g\n      access: [O=g]\n      modify: inherit\n      inherit: true\n      default_injection: ~\n      conformance: implemented\n    prefix: 24\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [
+    "$.ip"
+   ],
+   "expect": [
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "field",
+     "$.ip.gateway",
+     [
+      "O=g"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.ip.prefix",
+     "access",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.ip.prefix",
+     "modify",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.ip",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.ip.prefix",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "an-unknown-ancestor-that-is-not-reached-does-not-matter",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip:\n  value:\n    gateway: g\n  access: [O=x]\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [
+    "$"
+   ],
+   "expect": [
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "field_inherited",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.ip",
+     "access",
+     "list",
+     "field",
+     "$.ip",
+     [
+      "O=x"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.type",
+     "access",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ],
+    [
+     "$.type",
+     "modify",
+     "unknown",
+     "none",
+     "",
+     null,
+     "POLICY_CONTEXT_UNKNOWN"
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "a-null-composite-has-no-children",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: ~\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "an-absent-field-gets-no-entry-and-an-inserted-default-does",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "ip: {}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.label",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.label"
+   ]
+  },
+  {
+   "id": "grammar-2-reads-the-enum-spelling",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 2,
+   "yaml": "type: t\nip:\n  value:\n    gateway: g\n  access: [O=x]\n  modify: inherit\n  inherit: no-inherit\n  default_injection: ~\n  conformance: implemented\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.ip.gateway",
+     "access",
+     "list",
+     "policy_inherited",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  },
+  {
+   "id": "an-empty-policy-surface-is-transparent",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface: {}\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
+   "grammar": 1,
+   "yaml": "type: t\nip: {gateway: g}\n",
+   "unknown": [],
+   "expect": [
+    [
+     "$.type",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.label",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "access",
+     "open",
+     "system",
+     "",
+     null,
+     ""
+    ],
+    [
+     "$.ip.gateway",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ]
+   ],
+   "positions": [
+    "$.ip",
+    "$.ip.gateway",
+    "$.label",
+    "$.type"
+   ]
+  }
+ ]
+}
