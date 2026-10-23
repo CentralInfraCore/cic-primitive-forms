@@ -80,4 +80,4 @@ differences in documented classes (`docs/P1-SUPPORTED-SUBSET.md`, Parser parity)
 
 ## 7. Proposal
 
-Close P3. P3b has its design (`P3B-SOURCE-PRESERVING-EDIT.md`), its accepted ADR (0012) and its first vectors (E1, #68); the P3b implementation is E2 onwards.
+Close P3. P3b has its design (`P3B-SOURCE-PRESERVING-EDIT.md`, #65), its accepted ADR (0012, #67) and its first 72 vectors (step E1, in #68: written by hand, run by neither language, counted NOT RUN); the P3b implementation is E2 onwards. P3 does not depend on any of it.

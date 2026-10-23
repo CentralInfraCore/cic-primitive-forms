@@ -3,7 +3,7 @@
 Schema-driven processing of CIC primitive documents, with two independent
 implementations (Rust and Go) held to one shared conformance corpus.
 
-> **Status: P0, P1, P2 and P3 are done; P3b (source-preserving editing) has its design, its accepted ADR 0012 and its first vectors, and no code yet.** The scope and the phase plan are fixed in
+> **Status: P0, P1, P2 and P3 are done; P3b (source-preserving editing) has its design, its accepted ADR 0012 and the first 72 vectors (step E1, in #68; run by neither language yet), and no editor yet.** The scope and the phase plan are fixed in
 > [`docs/PHASES.md`](docs/PHASES.md) (with the state of each phase); the contract decisions are indexed in
 > [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and Go (`go/`) and what
 > is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md). In short: parse, emit, recognize, schema-bound validation
