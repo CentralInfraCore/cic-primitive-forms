@@ -530,3 +530,15 @@ faults:
   - id: edit-path-after-is-the-same-as-path
     rule: EDIT_INPUT
     ops: [{file: corpus/edit/vectors.yaml, old: "    path_after: \"$.routes[{to=\\\"c\\\"}].to\"\n", new: "    path_after: \"$.routes[{to=\\\"b\\\"}].to\"\n"}]
+  - id: accounting-counts-one-case-too-few
+    rule: ACCOUNTING
+    ops: [{file: corpus/accounting.yaml, old: "  edit/edit: {run: 44}\n", new: "  edit/edit: {run: 43}\n"}]
+  - id: accounting-lists-a-kind-the-corpus-lacks
+    rule: ACCOUNTING
+    ops: [{file: corpus/accounting.yaml, old: "  edit/edit: {run: 44}\n", new: "  edit/edit: {run: 44}\n  edit/phantom: {run: 1}\n"}]
+  - id: accounting-misses-a-kind
+    rule: ACCOUNTING
+    ops: [{file: corpus/accounting.yaml, old: "  grammar/grammar_manifest: {not_run: 9}\n", new: ""}]
+  - id: accounting-has-a-count-that-is-not-an-integer
+    rule: ACCOUNTING
+    ops: [{file: corpus/accounting.yaml, old: "  paths/path_of: {run: 18}\n", new: "  paths/path_of: {run: \"18\"}\n"}]

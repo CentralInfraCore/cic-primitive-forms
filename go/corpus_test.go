@@ -697,7 +697,7 @@ func TestInheritValidateCasesMatchTheCorpus(t *testing.T) {
 }
 
 // The accounting is exact: every case of the corpus is either run by one of the runners of this file or
-// counted as NOT RUN, and the numbers are the ones in docs/P1-SUPPORTED-SUBSET.md.
+// counted as NOT RUN, and the numbers are the ones in corpus/accounting.yaml (written in advance, never computed from a run).
 func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	total, ran, skipped := 0, 0, 0
 	run, notRun := map[string]int{}, map[string]int{}
@@ -722,19 +722,56 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 312 || skipped != 107 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 312 + 107", ran, skipped, total)
+	want := readAccounting(t)
+	wantRun, wantNotRun := 0, 0
+	for _, k := range want.Kinds {
+		wantRun, wantNotRun = wantRun+k.Run, wantNotRun+k.NotRun
 	}
-	if run["edit/source_span"] != 28 || run["edit/edit"] != 44 || notRun["edit/edit"] != 0 {
-		t.Fatalf("the source_span (28) and the edit (44) cases of corpus/edit run: %v %v", run, notRun)
+	if ran+skipped != total || wantRun != ran || wantNotRun != skipped {
+		t.Fatalf("accounting: %d run + %d not run of %d, corpus/accounting.yaml says %d + %d", ran, skipped, total, wantRun, wantNotRun)
 	}
-	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 ||
-		run["paths/path_parse"] != 57 || run["paths/path_format"] != 9 || run["paths/path_resolve"] != 34 {
-		t.Fatalf("%v", run)
+	keys := map[string]bool{}
+	for k := range run {
+		keys[k] = true
 	}
-	if run["inherit/validate"] != 21 || run["presence/validate"] != 29 || run["recognition/recognize"]+run["presence/recognize"] != 31 {
-		t.Fatalf("%v", run)
+	for k := range notRun {
+		keys[k] = true
 	}
+	for k := range want.Kinds {
+		keys[k] = true
+	}
+	for k := range keys {
+		if got, exp := (counts{run[k], notRun[k]}), (counts{want.Kinds[k].Run, want.Kinds[k].NotRun}); got != exp {
+			t.Errorf("%s: %d run and %d not run, corpus/accounting.yaml says %d and %d", k, got.run, got.notRun, exp.run, exp.notRun)
+		}
+	}
+}
+
+type counts struct{ run, notRun int }
+
+// accounting is corpus/accounting.yaml: the numbers the runners are expected to reach. It is written by hand, in advance, and never computed from a run.
+type accounting struct {
+	Format string `yaml:"format"`
+	Kinds  map[string]struct {
+		Run    int `yaml:"run"`
+		NotRun int `yaml:"not_run"`
+	} `yaml:"kinds"`
+}
+
+func readAccounting(t *testing.T) accounting {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "corpus", "accounting.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var a accounting
+	if err := yaml.Unmarshal(b, &a); err != nil {
+		t.Fatal(err)
+	}
+	if a.Format != "cic-accounting/1" {
+		t.Fatalf("corpus/accounting.yaml: format %q", a.Format)
+	}
+	return a
 }
 
 // ---------------------------------------------------------------------------

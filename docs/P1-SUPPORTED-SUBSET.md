@@ -360,7 +360,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (419), assert that each is either run or listed here, and assert **312 run + 107 NOT RUN**.
+case of the corpus (419), assert that each is either run or listed here, and compare the counts with `corpus/accounting.yaml`: for every kind of every suite how many cases are **run** and how many are **NOT RUN** (now 312 run + 107 NOT RUN of 419). That file is written by hand, in advance, and never computed from a run; the runners fail on any difference in either direction (a kind that is missing or not listed included), and `tools/corpus_check.py` (rule `ACCOUNTING`) checks that it lists exactly the kinds of the corpus with their number of cases. A new suite or kind is a line appended to it.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
