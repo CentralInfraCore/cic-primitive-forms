@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # The diff gate on your own machine (docs/DELTA-DIFF-GATE.md): exactly what the pull request runs, so a survivor shows up before the push.
 #
-#   tools/diff-mutation-local.sh [BASE]        BASE defaults to origin/main (the merge base with HEAD is used)
+#   [FORCE_DIFF=1] tools/diff-mutation-local.sh [BASE]    BASE defaults to origin/main (the merge base with HEAD is used)
 #
 # 1. tools/diff_gate.py scope: the mode (diff or full) and the changed lines; in `full` it says why and stops - the pull request would run everything.
 # 2. Rust: cargo mutants --in-diff; Go: go-mutesting with tools/mutation_diff_exec.sh (a mutant outside the diff is `offdiff`).
@@ -15,7 +15,7 @@ T=$(mktemp -d "${TMPDIR:-/tmp}/diff-mutation.XXXXXX")
 echo "scope against $BASE"
 python3 "$ROOT/tools/diff_gate.py" scope --base "$BASE" --head HEAD --out "$T" --root "$ROOT" || exit 2
 mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$T/scope.json")
-if [ "$mode" != diff ]; then echo "mode is $mode: the pull request would run the full mutation; nothing to run here"; exit 0; fi
+if [ "$mode" != diff ] && [ -z "${FORCE_DIFF:-}" ]; then echo "mode is $mode: the pull request would run the full mutation; set FORCE_DIFF=1 to measure only the mutants in the changed lines anyway"; exit 0; fi
 
 mkdir -p "$T/rust" "$T/go"
 (cd "$ROOT/rust" && cargo mutants --list --json --in-diff "$T/rust.patch") > "$T/rust-listed.json" 2>/dev/null
