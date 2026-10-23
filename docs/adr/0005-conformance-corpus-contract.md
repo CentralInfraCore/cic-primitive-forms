@@ -175,6 +175,23 @@ Two kinds are added (the cases of P3b, `docs/P3B-SOURCE-PRESERVING-EDIT.md`). Bo
 Outputs and spans are compared as **bytes** and offsets; an `edit` case also carries the `span_before` and `span_after` it expects. An error carries the code, the phase and the source position of its anchor (ADR 0007). A case with a text field that
 contains only what a text can spell may use `output_yaml`; the gate rejects a case whose expected bytes it cannot reproduce from the given field. The accounting stays exact.
 
+An `edit` case whose edit changes the address of its own scalar (the key of a list element) carries the optional field `path_after`: the canonical ADR 0006 path at which the scalar is addressed in the result, where the runners read the span after the edit. It is present only where it differs from `path`; the gate checks that it is a canonical logical path text and differs from `path` (rule `EDIT_INPUT`).
+
+## Amendment for ADR 0013 (the patch kind)
+
+A kind `patch` is added (the cases of P4, `docs/P4-DIFF-PATCH.md`). Like the edit kinds it takes the raw source text, exactly one of `input_yaml` and `input_hex`.
+
+| Kind | Input fields | Expectation keys |
+|---|---|---|
+| `patch` | `input_yaml` or `input_hex`, `schema`, `context` (the `SchemaContext` the caller passes), `diff` (the events of ADR 0008, structured; a case may also carry the canonical string of the diff, which must read back to the same events) | see below: a success case has `output_yaml` or `output_hex` **and** `replaced`; a failure case has `errors` and none of those |
+
+The expectation of a `patch` case is **one of two shapes, never both**:
+
+* *success:* exactly one of `output_yaml` or `output_hex` (the exact bytes of the patched text) **and** `replaced` (the paths of the replaced scalars, in the canonical order of ADR 0008; an empty diff has `replaced: []` and an output equal to the input);
+* *failure:* `errors` (exactly one error: the earlier phase that refused, or phase `edit` or `patch`), and neither an output nor `replaced`. A failure returns no text.
+
+Outputs are compared as **bytes**. A case that is the round trip of ADR 0013, section 4 (the result of the patch against a B) names its B and its scope and expects an empty `changes` of `diff(result, B)`; a case of replay rejection applies a diff to its own result. The gate rules of the kind are defined with the vectors (step P4-1); the accounting stays exact, and its numbers are expectations written down in advance, never computed from a run.
+
 ## The gate and its proof
 
 ```
