@@ -513,6 +513,18 @@ def check_edit_inputs(kind, case, where, vs):
             parse_logical_path(p)
         except ValueError as exc:
             vs.append(Violation("EDIT_INPUT", where, "path is not a canonical logical path: %s" % exc))
+    if "path_after" in case:   # where the scalar is addressed after an edit that changes its address (the key of a list element): the address the runners read back at
+        pa = case["path_after"]
+        if not isinstance(pa, str):
+            vs.append(Violation("EDIT_INPUT", where, "path_after must be a canonical logical path text"))
+        else:
+            try:
+                parse_logical_path(pa)
+            except ValueError as exc:
+                vs.append(Violation("EDIT_INPUT", where, "path_after is not a canonical logical path: %s" % exc))
+            else:
+                if pa == p:
+                    vs.append(Violation("EDIT_INPUT", where, "path_after is present only where the edit changes the address (it differs from path)"))
     if kind == "edit":
         v = case.get("value")
         ok = isinstance(v, dict) and len(v) == 1
