@@ -508,3 +508,58 @@ impl Walker<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::access::bind_grammar;
+    use crate::validate::DefaultValue;
+
+    /// The walk never defaults a mandatory field. `normalize` refuses a document without one before the walk (#88), so this
+    /// reaches the guard without the validation; the Go peer is `TestTheWalkNeverDefaultsAMandatoryField` in go/internal_test.go.
+    #[test]
+    fn the_walk_never_defaults_a_mandatory_field() {
+        let one = Value::Int(1);
+        let g = bind_grammar(Some(&one), Some(&one)).unwrap();
+        let a: Vec<String> = [
+            "value",
+            "access",
+            "modify",
+            "inherit",
+            "default_injection",
+            "conformance",
+        ]
+        .iter()
+        .map(|k| (*k).to_string())
+        .collect();
+        let must = Shape {
+            shape_type: ShapeType::Scalar(crate::validate::ScalarType::String),
+            presence: Presence::Mandatory,
+            nullable: false,
+            has_default: true,
+            default: Some(DefaultValue(Node::new(Value::Str("x".into())))),
+        };
+        let root = Shape {
+            shape_type: ShapeType::Composite(vec![("must".to_string(), must)]),
+            presence: Presence::Mandatory,
+            nullable: false,
+            has_default: false,
+            default: None,
+        };
+        let mut w = Walker::plain(&a, g, Provenance::new(), Vec::new());
+        w.defaults = true;
+        let out = w
+            .record(
+                &Node::new(Value::Map(Vec::new())),
+                &root,
+                &mut Vec::new(),
+                true,
+            )
+            .unwrap();
+        assert!(
+            matches!(&out.value, Value::Map(e) if e.is_empty()),
+            "{out:?}"
+        );
+        assert!(w.origins.is_empty());
+    }
+}

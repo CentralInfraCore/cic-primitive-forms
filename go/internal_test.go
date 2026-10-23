@@ -157,3 +157,18 @@ func TestItemChoiceNeedsTheGrammarToDefineIt(t *testing.T) {
 		t.Fatalf("with the feature the structure is checked instead: %v", err)
 	}
 }
+
+// The walk never defaults a mandatory field. Normalize refuses a document without one before the walk (#88), so this reaches the
+// guard without the validation; the Rust peer is `the_walk_never_defaults_a_mandatory_field` in rust/src/expand.rs.
+func TestTheWalkNeverDefaultsAMandatoryField(t *testing.T) {
+	x := &Node{Kind: KindStr, Str: "x"}
+	root := Shape{Kind: ShapeComposite, Presence: Mandatory, Fields: []NamedShape{
+		{Name: "must", Shape: Shape{Kind: ShapeScalar, Scalar: ScalarString, Presence: Mandatory, HasDefault: true, Default: x}},
+	}}
+	a := []string{"value", "access", "modify", "inherit", "default_injection", "conformance"}
+	w := &formWalker{a: a, g: Grammar{version: 1}, prov: Provenance{}, defaults: true}
+	out, err := w.record(&Node{Kind: KindMap}, root, nil, true)
+	if err != nil || len(out.Entries) != 0 || len(w.origins) != 0 {
+		t.Fatalf("got %v / %+v / %v", err, out, w.origins)
+	}
+}
