@@ -12,6 +12,7 @@
 pub mod access;
 pub mod composed;
 pub mod defaults;
+pub mod editscalar;
 pub mod emit;
 pub mod error;
 pub mod expand;
@@ -35,6 +36,7 @@ pub use access::{
 };
 pub use composed::{normalize_with_policy, PolicyNormalization};
 pub use defaults::{apply_defaults, Defaulted, ValueOrigin, VALUE_AUTHORED, VALUE_DEFAULT};
+pub use editscalar::{edit_parsed, edit_scalar, EditResult};
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
 pub use expand::{

@@ -56,6 +56,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "edit_scalar"
+path = "fuzz_targets/edit_scalar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "resolve"
 path = "fuzz_targets/resolve.rs"
 test = false

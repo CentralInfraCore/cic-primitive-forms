@@ -682,7 +682,7 @@ fn an_error_at_an_unwritable_name_is_ordered_by_its_segments() {
 
 // ---- source_span (P3b, step E2): the span of every scalar of a document reads back to its value -------------------------------------------
 
-use cic_primitive_forms::{format_path, source_span, Error, PathSeg};
+use cic_primitive_forms::{edit_scalar, format_path, source_span, Error, PathSeg};
 
 /// The scalar leaves below composites: their field names from the root, the scalars the generator wrote as text.
 fn scalar_leaves(shape: &Shape, prefix: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
@@ -744,6 +744,145 @@ proptest! {
                     prop_assert!(!simple, "{path}: a plain scalar was refused with {:?} in {text:?}", vs[0]);
                 }
                 Err(other) => prop_assert!(false, "{path}: {other:?} in {text:?}"),
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// edit_scalar (P3b, step E3): the guarantees of ADR 0012, section 3, over generated documents written by the emitter. The Go peer is
+// `TestPropertyTheEditOfEveryScalarKeepsTheGuarantees`.
+
+fn leaf_type(root: &Shape, names: &[String]) -> Option<ScalarType> {
+    let mut cur = root;
+    for n in names {
+        match &cur.shape_type {
+            ShapeType::Composite(fields) => cur = &fields.iter().find(|(f, _)| f == n)?.1,
+            _ => return None,
+        }
+    }
+    match &cur.shape_type {
+        ShapeType::Scalar(t) => Some(*t),
+        _ => None,
+    }
+}
+
+const EDIT_STRINGS: [&str; 16] = [
+    "x",
+    "s7",
+    "alpha beta",
+    "it's",
+    "say \"hi\"",
+    "a: b",
+    "#c",
+    " lead",
+    "trail ",
+    "true",
+    "12",
+    "",
+    "é",
+    "tab\there",
+    "back\\slash",
+    "-dash",
+];
+
+fn draw_value(rng: &mut Rng, typ: ScalarType) -> Node {
+    match typ {
+        ScalarType::Integer => Node::new(Value::Int((rng.next() % 2_000_001) as i64 - 1_000_000)),
+        ScalarType::Boolean => Node::new(Value::Bool(rng.coin())),
+        ScalarType::String => Node::new(Value::Str(
+            EDIT_STRINGS[(rng.next() % 16) as usize].to_string(),
+        )),
+    }
+}
+
+/// The spelling an edit writes for the value in a style, written here once more as the oracle of "edit and back".
+fn canonical_token(style: cic_primitive_forms::SpanStyle, v: &Node) -> Option<String> {
+    use cic_primitive_forms::SpanStyle;
+    match (style, &v.value) {
+        (SpanStyle::SingleQuoted, Value::Str(s)) => Some(format!("'{}'", s.replace('\'', "''"))),
+        (SpanStyle::DoubleQuoted, Value::Str(s)) => Some(format!(
+            "\"{}\"",
+            s.replace('\\', "\\\\").replace('"', "\\\"")
+        )),
+        (SpanStyle::Plain, Value::Int(i)) => Some(i.to_string()),
+        (SpanStyle::Plain, Value::Bool(b)) => Some(b.to_string()),
+        (SpanStyle::Plain, Value::Str(s)) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+fn edit_twice(
+    text: &str,
+    root: &Shape,
+    p1: &str,
+    v1: &Node,
+    p2: &str,
+    v2: &Node,
+) -> Option<String> {
+    let r1 = edit_scalar(text, root, p1, &a(), v1).ok()?;
+    edit_scalar(&r1.text, root, p2, &a(), v2)
+        .ok()
+        .map(|r| r.text)
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+
+    /// For every scalar and a value of the kind the position has: the bytes outside the span are the original's; the result parses to the old tree
+    /// with that one scalar replaced; the edit to the value the position holds returns the text byte for byte; two edits of independent positions
+    /// give the same text in either order; editing back restores the bytes when the original token already was the canonical spelling. The only
+    /// refusals are the ones a value can earn; EDIT_SPAN_MISMATCH and EDIT_INVALID_RESULT never happen here.
+    #[test]
+    fn the_edit_of_every_scalar_keeps_the_guarantees(shape in shape_strategy(), seed in 1u64..u64::MAX, vseed in 1u64..u64::MAX) {
+        let Some(root) = document_root(shape) else { return Ok(()) };
+        let text = emit(&conforming(&root, &mut Rng(seed), &mut Vec::new(), &[]));
+        let doc = parse(&text).expect("the emitter writes what the parser reads");
+        let mut leaves = Vec::new();
+        scalar_leaves(&root, &mut Vec::new(), &mut leaves);
+        let mut rng = Rng(vseed);
+        let mut sites: Vec<(String, ScalarType)> = Vec::new();
+        for names in leaves {
+            let segs: Vec<PathSeg> = names.iter().map(|n| PathSeg::Field(n.clone())).collect();
+            let Ok(path) = format_path(&segs) else { continue };
+            let Some(typ) = leaf_type(&root, &names) else { continue };
+            let (Ok(span), Some(old)) = (source_span(&text, &root, &path, &a()), node_at(&doc, &names)) else { continue };
+            sites.push((path.clone(), typ));
+            let v = draw_value(&mut rng, typ);
+            match edit_scalar(&text, &root, &path, &a(), &v) {
+                Err(Error::Contract(vs)) => {
+                    prop_assert!(matches!(vs[0].code, "EDIT_VALUE_NOT_REPRESENTABLE" | "EDIT_STYLE_CONFLICT"), "{path}: {:?} for {v:?} in {text:?}", vs[0]);
+                    // not vacuous: a short word, a number or a boolean is always written
+                    prop_assert!(matches!(&v.value, Value::Str(s) if s != "x" && s != "s7"), "{path}: {v:?} was refused with {:?} in {text:?}", vs[0]);
+                }
+                Err(other) => prop_assert!(false, "{path}: {other:?}"),
+                Ok(res) => {
+                    let out = res.text;
+                    prop_assert!(out.starts_with(&text[..span.start]) && out.ends_with(&text[span.end..]), "{path}: the untouched bytes changed: {text:?} -> {out:?}");
+                    let parsed = parse(&out).expect("the result parses");
+                    prop_assert!(node_at(&parsed, &names).is_some_and(|g| g.same(&v)), "{path}: the result holds another value in {out:?}");
+                    prop_assert_eq!(res.changed, !old.same(&v), "{}", path);
+                    // edit and back: the original bytes exactly when the original token already was the canonical spelling
+                    let back = edit_scalar(&out, &root, &path, &a(), old).expect("the edit back is accepted");
+                    if canonical_token(span.style, old).is_some_and(|c| c == text[span.start..span.end]) {
+                        prop_assert_eq!(&back.text, &text, "{}: edit and back", path);
+                    }
+                    prop_assert!(parse(&back.text).expect("parses").same(&doc), "{path}: edit and back is not the original tree");
+                }
+            }
+            // the no-op: the value the position holds is the text, byte for byte
+            let same = edit_scalar(&text, &root, &path, &a(), old).expect("the no-op is accepted");
+            prop_assert!(same.text == text && !same.changed, "{path}: the edit to the same value changed {text:?}");
+        }
+        if sites.len() >= 2 {
+            let i = (rng.next() % sites.len() as u64) as usize;
+            let j = (rng.next() % sites.len() as u64) as usize;
+            if i != j {
+                let (vi, vj) = (draw_value(&mut rng, sites[i].1), draw_value(&mut rng, sites[j].1));
+                let ab = edit_twice(&text, &root, &sites[i].0, &vi, &sites[j].0, &vj);
+                let ba = edit_twice(&text, &root, &sites[j].0, &vj, &sites[i].0, &vi);
+                prop_assert_eq!(ab.is_some(), ba.is_some(), "one order was refused and the other was not");
+                prop_assert_eq!(ab, ba, "the edits of {} and {} do not commute", sites[i].0, sites[j].0);
             }
         }
     }

@@ -11,9 +11,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use cic_primitive_forms::{
-    collapse_position, emit, expand_position, format_path, parse, parse_path, path_of, recognize,
-    resolve_path, source_span, Case, Class, Elements, Error, KeyComp, KeyValue, Location, Node,
-    PathSeg, Phase, Position, Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
+    collapse_position, edit_parsed, edit_scalar, emit, expand_position, format_path, parse,
+    parse_path, path_of, recognize, resolve_path, source_span, Case, Class, Elements, Error,
+    KeyComp, KeyValue, Location, Node, PathSeg, Phase, Position, Presence, ScalarType, Shape,
+    ShapeType, Step, Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -798,6 +799,7 @@ fn the_run_and_not_run_accounting_is_exact() {
                 || is_path_run(kind)
                 || is_p2_run(kind)
                 || kind == "source_span"
+                || kind == "edit"
             {
                 *run.entry(key).or_default() += 1;
             } else {
@@ -816,15 +818,12 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (268, 151),
-        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability + 28 source_span run"
+        (312, 107),
+        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability + 28 source_span + 44 edit run"
     );
     assert_eq!(run.get("edit/source_span"), Some(&28));
-    assert_eq!(
-        not_run.get("edit/edit"),
-        Some(&44),
-        "the edit cases wait for step E3"
-    );
+    assert_eq!(run.get("edit/edit"), Some(&44));
+    assert_eq!(not_run.get("edit/edit"), None);
     assert_eq!(run.get("lists/validate"), Some(&8));
     assert_eq!(run.get("paths/path_parse"), Some(&57));
     assert_eq!(run.get("paths/path_format"), Some(&9));
@@ -1652,4 +1651,149 @@ fn source_span_an_empty_value_is_not_a_scalar_target() {
         span_of("ip:\ncount: 3\n", "$.ip"),
         Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
     );
+}
+
+// ---------------------------------------------------------------------------
+// kind `edit` (ADR 0012, step E3): replace one scalar of a document in its original text.
+
+/// The new value of an edit case: `{string: s}`, `{integer: n}`, `{boolean: b}` or `{null: true}`.
+fn typed_value(v: &YamlOwned) -> Node {
+    if let Some(s) = get(v, "string") {
+        return Node::new(Value::Str(text(s, "string").to_string()));
+    }
+    if let Some(i) = get(v, "integer") {
+        return Node::new(Value::Int(i.as_integer().expect("integer")));
+    }
+    if let Some(b) = get(v, "boolean") {
+        return Node::new(Value::Bool(b.as_bool().expect("boolean")));
+    }
+    assert!(get(v, "null").is_some(), "a typed value");
+    Node::new(Value::Null)
+}
+
+/// The document of a case that was given as a parsed value (a map of scalars), not as text.
+fn parsed_input(case: &YamlOwned) -> Node {
+    let input = get(case, "input").expect("input");
+    assert_eq!(text(get(input, "type").expect("type"), "type"), "map");
+    let entries = get(input, "value")
+        .and_then(YamlOwned::as_mapping)
+        .expect("value");
+    Node::map(
+        entries
+            .iter()
+            .map(|(k, v)| {
+                let value = match v {
+                    YamlOwned::Value(ScalarOwned::Integer(i)) => Value::Int(*i),
+                    YamlOwned::Value(ScalarOwned::Boolean(b)) => Value::Bool(*b),
+                    other => Value::Str(text(other, "value").to_string()),
+                };
+                (text(k, "key"), Node::new(value))
+            })
+            .collect(),
+    )
+}
+
+fn hex_text(hex: &str) -> String {
+    let bytes: Vec<u8> = (0..hex.len() / 2)
+        .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("hex"))
+        .collect();
+    String::from_utf8(bytes).expect("the output of an edit case is UTF-8")
+}
+
+fn span_tuple(s: &cic_primitive_forms::SourceSpan) -> (usize, usize) {
+    (s.start, s.end)
+}
+
+fn span_pair(v: &YamlOwned) -> (usize, usize) {
+    let n = |k: &str| {
+        usize::try_from(get(v, k).and_then(YamlOwned::as_integer).expect("integer"))
+            .expect("offset")
+    };
+    (n("start"), n("end"))
+}
+
+#[test]
+fn edit_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "edit" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            if text(get(case, "kind").expect("kind"), "kind") != "edit" {
+                continue;
+            }
+            ran += 1;
+            let id = text(get(case, "id").expect("id"), "id");
+            let tree = text(
+                get(
+                    get(case, "schema")
+                        .and_then(|s| get(s, "synthetic"))
+                        .unwrap(),
+                    "tree",
+                )
+                .unwrap(),
+                "tree",
+            );
+            let root = path_shape(
+                ShapeType::Composite(tree_fields(
+                    get(get(&suite, "trees").expect("trees"), tree).expect("tree"),
+                    &[],
+                )),
+                true,
+            );
+            let value = typed_value(get(case, "value").expect("value"));
+            let path = text(get(case, "path").expect("path"), "path");
+            let expect = get(case, "expect").expect("expect");
+            let got: Result<_, Error> = if get(case, "input").is_some() {
+                Err(edit_parsed(&parsed_input(case), &root, path, &a(), &value))
+            } else {
+                edit_scalar(&source_of(case), &root, path, &a(), &value)
+            };
+            if get(expect, "errors").is_some() {
+                match got {
+                    Err(Error::Contract(vs)) => assert_eq!(
+                        vs.iter().map(wire).collect::<Vec<_>>(),
+                        expected_edit_wires(expect),
+                        "{id}"
+                    ),
+                    other => panic!("{id}: an error of the contract was expected, got {other:?}"),
+                }
+                continue;
+            }
+            let res = got.unwrap_or_else(|e| panic!("{id}: an edit was expected, got {e:?}"));
+            let want = get(expect, "output_yaml").map_or_else(
+                || {
+                    hex_text(text(
+                        get(expect, "output_hex").expect("output"),
+                        "output_hex",
+                    ))
+                },
+                |y| text(y, "output_yaml").to_string(),
+            );
+            assert_eq!(res.text.as_bytes(), want.as_bytes(), "{id}"); // compared as bytes
+            let src = source_of(case);
+            let before =
+                source_span(&src, &root, path, &a()).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+            assert_eq!(
+                span_tuple(&before),
+                span_pair(get(expect, "span_before").expect("span_before")),
+                "{id}: the span before"
+            );
+            // an edit of the key of a list element changes the address of the scalar
+            let path_after = get(case, "path_after").map_or(path, |p| text(p, "path_after"));
+            let after = source_span(&res.text, &root, path_after, &a())
+                .unwrap_or_else(|e| panic!("{id}: {e:?}"));
+            assert_eq!(
+                span_tuple(&after),
+                span_pair(get(expect, "span_after").expect("span_after")),
+                "{id}: the span after"
+            );
+            assert_eq!(after, res.span, "{id}: the span of the result");
+        }
+    }
+    assert_eq!(ran, 44, "the 44 edit cases of corpus/edit");
 }

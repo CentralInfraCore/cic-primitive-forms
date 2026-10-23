@@ -211,6 +211,21 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   document; the edit of step E3 validates its result). Proved by the 28 `source_span` vectors in both languages (written before the code), the edge cases a vector cannot
   reach (an unspelled value, a node of the wrong kind, a wrapper in a flow collection, the path errors, the scanner's edges), a property over generated documents (the span
   of every scalar reads back to its value; a plain word, a number or a boolean is never refused), a fuzz target with a canary in each language, and 22 seeded defects.
+* **EditScalar / edit_scalar (P3b step E3; ADR 0012, `docs/P3B-SOURCE-PRESERVING-EDIT.md`).** `edit_scalar(text, root, path, a, value)` replaces the one scalar of a
+  position by a typed value (a string, an integer, a boolean or null; a scalar `Node`) and leaves every other byte alone; it returns the text, the new span and whether
+  anything changed, or a refusal and no text. The order is parse, validate (an expanded Access wrapper is read as its `value`; the violations are returned as they are),
+  the path operations, then the `edit` phase in the fixed order of ADR 0012: the refusals of the span (`EDIT_NOT_A_SCALAR`, `EDIT_NO_SOURCE_VALUE`,
+  `EDIT_BLOCK_SCALAR`, `EDIT_FLOW_CONTEXT`, `EDIT_MULTILINE_SCALAR`), `EDIT_VALUE_NOT_REPRESENTABLE` (a string with a control character, a line or paragraph separator;
+  reading is wider than writing), `EDIT_TYPE_MISMATCH` (the kind of the value is not the scalar type of the position; null only where it is nullable; a collection is no scalar),
+  `EDIT_STYLE_CONFLICT` (the style of the token cannot carry the value; there is no requoting). The value is written in the **canonical spelling** in the style the scalar
+  has (decimal integers, `true`/`false`, `null`; a single-quoted `'` is doubled, a double-quoted `\` and `"` are escaped; a plain string must be plain-safe: not empty, no
+  leading or trailing space, no leading indicator, no `: ` or ` #`, no final colon, and read back by the parser as the same string); a position that already holds the value keeps
+  its token byte for byte. On every call, after the text is built: the bytes outside the span are the original's, the result parses and validates (`EDIT_INVALID_RESULT`
+  otherwise, for example two list elements that now share one identity), and it is the old tree with that one scalar replaced (`EDIT_SPAN_MISMATCH`, an internal assertion).
+  `edit_parsed` is the case of a document supplied as a parsed value: after the document and the path are accepted, `EDIT_NO_SOURCE_TEXT`. No `Node`, `Provenance` or earlier
+  result changes. Proved by the 44 `edit` vectors in both languages (written before the code, compared as bytes), the edge cases a vector cannot reach (null, the styles at their
+  edges, the plain-safe rule, the earlier phases, the parsed value), a property over generated documents (the untouched bytes, the re-parse, the no-op, the commutation of
+  independent edits, edit and back), a fuzz target with a canary in each language, and 24 seeded defects.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
@@ -343,7 +358,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (419), assert that each is either run or listed here, and assert **268 run + 151 NOT RUN**.
+case of the corpus (419), assert that each is either run or listed here, and assert **312 run + 107 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -361,7 +376,7 @@ case of the corpus (419), assert that each is either run or listed here, and ass
 | paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
 | edit | `source_span` | 28 | **run**, both languages (P3b step E2, ADR 0012): the byte span and the style of a position's scalar, or the refusal with its code, phase, position and logical path; the vectors were written by hand in step E1, before the code |
-| edit | `edit` | 44 | NOT RUN (P3b step E3): the vectors exist, the editor does not |
+| edit | `edit` | 44 | **run**, both languages (P3b step E3, ADR 0012): the edited text compared as bytes (or the refusal with its code, phase, position and logical path), and the span of the scalar before and after (`span_before`, `span_after`; `path_after` where the edit changes the address of the scalar) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
 A runner asserts the number it ran (31, 29, 21), so a vector that stops being run is a failure, and a green run cannot

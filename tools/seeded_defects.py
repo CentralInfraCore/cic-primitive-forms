@@ -379,6 +379,55 @@ DEFECTS = [
      [("\tif e.Phase == PhasePathParse {", "\tif false {")]),
     ("go", "a path_offset is invented for another phase", "pathtext.go",
      [("\tif e.Phase == PhasePathParse {", "\tif true {")]),
+    # P3b, step E3: edit_scalar (go/editscalar.go, rust/src/editscalar.rs). Each of the vectors, the properties or the edge tests must turn red on it.
+    ("rust", "a no-op rewrites the token", "src/editscalar.rs",
+     [("    if node.same(value) {", "    if false {")]),
+    ("rust", "the single quote is not doubled in a single-quoted scalar", "src/editscalar.rs",
+     [("format!(\"'{}'\", s.replace('\\'', \"''\"))", "format!(\"'{}'\", s)")]),
+    ("rust", "the backslash and the quote are not escaped in a double-quoted scalar", "src/editscalar.rs",
+     [("format!(\"\\\"{}\\\"\", s.replace('\\\\', \"\\\\\\\\\").replace('\"', \"\\\\\\\"\"))", "format!(\"\\\"{}\\\"\", s)")]),
+    ("rust", "the kind of the new value is not checked", "src/editscalar.rs",
+     [("    if !carries(found.shape, value) {", "    if false {")]),
+    ("rust", "a control character is written", "src/editscalar.rs",
+     [("    if !representable(value) {", "    if false {")]),
+    ("rust", "a string that needs quotes is written plain", "src/editscalar.rs",
+     [("            _ => s.filter(|s| plain_safe(s)).cloned(),", "            _ => s.cloned(),")]),
+    ("rust", "the result is not validated", "src/editscalar.rs",
+     [("        Ok(parsed) if refuse_invalid(&parsed, root, a).is_ok() => {", "        Ok(parsed) => {")]),
+    ("rust", "the document is not validated before the edit", "src/editscalar.rs",
+     [("    let doc = parse(text)?;\n    refuse_invalid(&doc, root, a)?;\n", "    let doc = parse(text)?;\n")]),
+    ("rust", "null is written in another spelling", "src/editscalar.rs",
+     [("Value::Null => Some(\"null\".to_string()),", "Value::Null => Some(\"~\".to_string()),")]),
+    ("rust", "null is accepted by a position that is not nullable", "src/editscalar.rs",
+     [("        (Value::Null, _) => shape.nullable,", "        (Value::Null, _) => true,")]),
+    ("rust", "the booleans are written capitalised", "src/editscalar.rs",
+     [("            Value::Bool(b) => Some(b.to_string()),", "            Value::Bool(b) => Some(if *b { \"True\" } else { \"False\" }.to_string()),")]),
+    ("rust", "an edit of a parsed value is not refused for its missing text", "src/editscalar.rs",
+     [("        Ok(_) => failure(\"EDIT_NO_SOURCE_TEXT\", None, path),", "        Ok(_) => failure(\"EDIT_NOT_A_SCALAR\", None, path),")]),
+    ("go", "a no-op rewrites the token", "editscalar.go",
+     [("\tif n.Same(value) {", "\tif false {")]),
+    ("go", "the single quote is not doubled in a single-quoted scalar", "editscalar.go",
+     [("return \"'\" + strings.ReplaceAll(v.Str, \"'\", \"''\") + \"'\", v.Kind == KindStr", "return \"'\" + v.Str + \"'\", v.Kind == KindStr")]),
+    ("go", "the backslash and the quote are not escaped in a double-quoted scalar", "editscalar.go",
+     [("return `\"` + strings.NewReplacer(`\\`, `\\\\`, `\"`, `\\\"`).Replace(v.Str) + `\"`, v.Kind == KindStr", "return `\"` + v.Str + `\"`, v.Kind == KindStr")]),
+    ("go", "the kind of the new value is not checked", "editscalar.go",
+     [("\tif !carries(f.shape, value) {", "\tif false {")]),
+    ("go", "a control character is written", "editscalar.go",
+     [("\tif value == nil || !representable(value) {", "\tif value == nil {")]),
+    ("go", "a string that needs quotes is written plain", "editscalar.go",
+     [("\treturn v.Str, editPlainSafe(v.Str)", "\treturn v.Str, true")]),
+    ("go", "the result is not validated", "editscalar.go",
+     [("\tif err != nil || refuseInvalid(parsed, root, a) != nil {", "\tif err != nil {")]),
+    ("go", "the document is not validated before the edit", "editscalar.go",
+     [("\tdoc, err := Parse(text)\n\tif err != nil {\n\t\treturn EditResult{}, err\n\t}\n\tif err := refuseInvalid(doc, root, a); err != nil {\n\t\treturn EditResult{}, err\n\t}\n", "\tdoc, err := Parse(text)\n\tif err != nil {\n\t\treturn EditResult{}, err\n\t}\n")]),
+    ("go", "null is written in another spelling", "editscalar.go",
+     [("\t\treturn \"null\", true", "\t\treturn \"~\", true")]),
+    ("go", "null is accepted by a position that is not nullable", "editscalar.go",
+     [("\tcase KindNull:\n\t\treturn shape.Nullable", "\tcase KindNull:\n\t\treturn true")]),
+    ("go", "the booleans are written capitalised", "editscalar.go",
+     [("\t\treturn strconv.FormatBool(v.Bool), true", "\t\treturn strings.ToUpper(strconv.FormatBool(v.Bool)[:1]) + strconv.FormatBool(v.Bool)[1:], true")]),
+    ("go", "an edit of a parsed value is not refused for its missing text", "editscalar.go",
+     [("\treturn editFailure(\"EDIT_NO_SOURCE_TEXT\", nil, path)", "\treturn editFailure(\"EDIT_NOT_A_SCALAR\", nil, path)")]),
 ]
 
 
@@ -404,7 +453,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar"]
     return ["go", "test", "-count=1", "./..."]
 
 

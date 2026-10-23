@@ -468,3 +468,71 @@ func FuzzSourceSpan(f *testing.F) {
 		}
 	})
 }
+
+// FuzzEditScalar (P3b, step E3): on every text that parses, for each scalar position of a fixed shape and a value of the kind the position has
+// (a string from the second input, a number and a boolean from its length), the call returns an edit or a refusal of the contract and never
+// panics; a refusal is never EDIT_SPAN_MISMATCH or EDIT_INVALID_RESULT (here a defect); an edit keeps the bytes outside the span, parses to
+// the old tree with that one scalar replaced, and an unchanged edit is the input byte for byte.
+func FuzzEditScalar(f *testing.F) {
+	for _, seed := range []struct{ text, val string }{
+		{"", ""}, {"a: x\n", "y"}, {"a: 'x'\nb: 3\n", "it's"}, {"a: \"x\"\nc:\n  d: y\n  e: true\n", "say \"hi\""}, {"a: x # c\n", "z"},
+		{"a: |\n  x\n", "y"}, {"a: x\n  y\n", "z"}, {"c: {d: y}\n", "w"}, {"a: ~\n", "q"}, {"b: +5\n", "123"}, {"a: x\r\nb: 1\r\n", "yes"},
+		{"a:\n  value: x\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n", "v"},
+	} {
+		f.Add(seed.text, seed.val)
+	}
+	str := func() forms.Shape {
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, Nullable: true}
+	}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "a", Shape: str()},
+		{Name: "b", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}},
+		{Name: "c", Shape: forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+			{Name: "d", Shape: str()},
+			{Name: "e", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean, Presence: forms.Optional}},
+		}}},
+	}}
+	f.Fuzz(func(t *testing.T, text, val string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) || !utf8.ValidString(val) {
+			return
+		}
+		if _, err := forms.Parse(text); err != nil {
+			return
+		}
+		values := map[string]*forms.Node{
+			"$.a":   {Kind: forms.KindStr, Str: val},
+			"$.b":   {Kind: forms.KindInt, Int: int64(len(val)) - 3},
+			"$.c.d": {Kind: forms.KindStr, Str: val},
+			"$.c.e": {Kind: forms.KindBool, Bool: len(val)%2 == 0},
+		}
+		for _, path := range []string{"$.a", "$.b", "$.c.d", "$.c.e"} {
+			span, serr := forms.SourceSpan(text, root, path, keySet)
+			res, eerr := forms.EditScalar(text, root, path, keySet, values[path])
+			if eerr != nil {
+				var fe *forms.Error
+				if errors.As(eerr, &fe) && fe.Kind == forms.ErrContract {
+					switch fe.Violations[0].Code {
+					case "EDIT_SPAN_MISMATCH", "EDIT_INVALID_RESULT":
+						t.Fatalf("%s: %s for %q <- %q", path, fe.Violations[0].Code, text, val)
+					}
+				}
+				continue
+			}
+			if serr != nil {
+				t.Fatalf("%s: an edit where the span was refused: %v in %q", path, serr, text)
+			}
+			if !strings.HasPrefix(res.Text, text[:span.Start]) || !strings.HasSuffix(res.Text, text[span.End:]) {
+				t.Fatalf("%s: the untouched bytes changed: %q -> %q", path, text, res.Text)
+			}
+			if !res.Changed && res.Text != text {
+				t.Fatalf("%s: an unchanged edit rewrote %q to %q", path, text, res.Text)
+			}
+			if _, perr := forms.Parse(res.Text); perr != nil {
+				t.Fatalf("%s: the result does not parse: %v in %q", path, perr, res.Text)
+			}
+		}
+	})
+}

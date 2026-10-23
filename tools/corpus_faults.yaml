@@ -521,3 +521,12 @@ faults:
   - id: span-with-an-unknown-style
     rule: EDIT_BYTES
     ops: [{file: corpus/edit/vectors.yaml, old: "  - id: edit.span-single-quoted\n    kind: source_span\n    polarity: positive\n    description: \"a single-quoted scalar: both quotes are in the span\"\n    schema: {synthetic: {tree: doc}}\n    path: \"$.name\"\n    input_yaml: \"name: 'alpha'\\ncount: 3\\n\"\n    expect: {span: {start: 6, end: 13, style: single_quoted}}\n", new: "  - id: edit.span-single-quoted\n    kind: source_span\n    polarity: positive\n    description: \"a single-quoted scalar: both quotes are in the span\"\n    schema: {synthetic: {tree: doc}}\n    path: \"$.name\"\n    input_yaml: \"name: 'alpha'\\ncount: 3\\n\"\n    expect: {span: {start: 6, end: 13, style: folded}}\n"}]
+  - id: edit-path-after-is-not-canonical
+    rule: EDIT_INPUT
+    ops: [{file: corpus/edit/vectors.yaml, old: "    path_after: \"$.routes[{to=\\\"c\\\"}].to\"\n", new: "    path_after: \"$.routes[{to=c}].to\"\n"}]
+  - id: edit-path-after-is-not-a-string
+    rule: EDIT_INPUT
+    ops: [{file: corpus/edit/vectors.yaml, old: "    path_after: \"$.routes[{to=\\\"c\\\"}].to\"\n", new: "    path_after: 5\n"}]
+  - id: edit-path-after-is-the-same-as-path
+    rule: EDIT_INPUT
+    ops: [{file: corpus/edit/vectors.yaml, old: "    path_after: \"$.routes[{to=\\\"c\\\"}].to\"\n", new: "    path_after: \"$.routes[{to=\\\"b\\\"}].to\"\n"}]
