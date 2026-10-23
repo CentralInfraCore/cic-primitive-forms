@@ -122,8 +122,8 @@ fn read(body: &str, bom_len: usize, limits: Limits) -> Result<Node, Error> {
 }
 
 /// The tree under construction, for one event. The first error that is not a syntax error is
-/// kept in `deferred` and the tree goes on being built (with a null in place of what failed), so
-/// the scan still reaches a syntax error further on, which wins.
+/// kept in `deferred` and the scan goes on, so it still reaches a syntax error further on, which
+/// wins; from then on the frames are kept but no node is (`place`).
 struct State<'a, 'b> {
     stack: &'a mut Vec<Frame>,
     root: &'a mut Option<Node>,
@@ -303,21 +303,35 @@ impl State<'_, '_> {
         });
     }
 
-    /// Hands a finished node to its parent, or makes it the root.
+    /// Hands a finished node to its parent, or makes it the root. Once an error is deferred the
+    /// tree can only be thrown away, so the node is dropped: the frames stay (a mapping still
+    /// takes its key, for the empty-key check of the scan), the nodes are not kept, and a limit
+    /// bounds the work and not only the answer (#85).
     fn place(&mut self, node: Node) {
+        let keep = self.deferred.is_none();
         match self.stack.last_mut() {
-            Some(Frame::Seq { items, .. }) => items.push(node),
+            Some(Frame::Seq { items, .. }) => {
+                if keep {
+                    items.push(node);
+                }
+            }
             Some(Frame::Map { entries, key, .. }) => {
                 let (k, key_pos) = key
                     .take()
                     .expect("a value always follows a key in a mapping");
-                entries.push(Entry {
-                    key: k,
-                    key_pos: Some(key_pos),
-                    value: node,
-                });
+                if keep {
+                    entries.push(Entry {
+                        key: k,
+                        key_pos: Some(key_pos),
+                        value: node,
+                    });
+                }
             }
-            None => *self.root = Some(node),
+            None => {
+                if keep {
+                    *self.root = Some(node);
+                }
+            }
         }
     }
 }
@@ -818,13 +832,64 @@ mod tests {
         assert!(state.deferred.is_none() && state.root.is_none());
         state.step(Event::Alias(1), at).unwrap();
         assert!(matches!(deferred, Some(Error::Unsupported(m)) if m == "alias"));
-        assert!(matches!(
-            root,
-            Some(Node {
-                value: Value::Null,
-                ..
-            })
-        ));
+        // the alias is refused, so nothing is kept in its place (#85)
+        assert!(root.is_none());
+    }
+
+    #[test]
+    fn after_a_deferred_error_the_frames_go_on_but_no_node_is_kept() {
+        let table = Table::new("[x]", 0);
+        let (mut stack, mut root, mut nodes, mut deferred) = (Vec::new(), None, 0, None);
+        let at = Pos {
+            line: 1,
+            column: 1,
+            offset: 0,
+        };
+        let scalar = || Event::Scalar("x".into(), ScalarStyle::DoubleQuoted, 0, None);
+        {
+            let mut state = State {
+                stack: &mut stack,
+                root: &mut root,
+                nodes: &mut nodes,
+                deferred: &mut deferred,
+                limits: Limits::default(),
+                ends_with_break: true,
+                table: &table,
+            };
+            // before any error, a node is kept
+            state.step(Event::SequenceStart(0, None), at).unwrap();
+            state.step(scalar(), at).unwrap();
+            assert!(
+                matches!(state.stack.last(), Some(Frame::Seq { items, .. }) if items.len() == 1)
+            );
+            state.defer(Error::Limit("seeded".into()));
+            // a sequence item, a mapping value and a finished collection: none is kept
+            state.step(scalar(), at).unwrap();
+            assert!(
+                matches!(state.stack.last(), Some(Frame::Seq { items, .. }) if items.len() == 1)
+            );
+            state.step(Event::MappingStart(0, None), at).unwrap();
+            state.step(scalar(), at).unwrap();
+            state.step(scalar(), at).unwrap();
+            match state.stack.last() {
+                Some(Frame::Map { entries, key, .. }) => {
+                    assert!(entries.is_empty(), "a value was kept");
+                    assert!(
+                        key.is_none(),
+                        "the key was not taken: the next key would be read as a value"
+                    );
+                }
+                _ => panic!("the mapping frame is gone"),
+            }
+            state.step(Event::MappingEnd, at).unwrap();
+            assert!(
+                matches!(state.stack.last(), Some(Frame::Seq { items, .. }) if items.len() == 1)
+            );
+            state.step(Event::SequenceEnd, at).unwrap();
+            assert!(state.stack.is_empty());
+        }
+        assert!(root.is_none(), "the root was kept after a deferred error");
+        assert!(matches!(deferred, Some(Error::Limit(m)) if m == "seeded"));
     }
 
     // The three fallbacks of the position helpers, for a position that is not where the parser

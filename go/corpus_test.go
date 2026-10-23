@@ -1320,6 +1320,10 @@ func TestSourceSpanEdgeCases(t *testing.T) {
 	span("name: 'a' # c\n", "$.name", 6, 9, forms.SpanSingleQuoted)
 	span("name: a#b\n", "$.name", 6, 9, forms.SpanPlain) // a # that does not follow a space is part of the scalar
 	span("name: alpha  \ncount: 3\n", "$.name", 6, 11, forms.SpanPlain)
+	// a value that alone would be a document marker is a plain scalar like any other (#87; the fuzz input of #86)
+	span("name: --- ](e-+.(-f\n", "$.name", 6, 19, forms.SpanPlain)
+	span("name: ---\n", "$.name", 6, 9, forms.SpanPlain)
+	span("name: ... x\n", "$.name", 6, 11, forms.SpanPlain)
 }
 
 // The offset of a path_parse error is present there and nowhere else; and a list below a composite is found by its identity.

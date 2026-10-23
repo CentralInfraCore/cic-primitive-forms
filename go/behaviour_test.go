@@ -354,6 +354,31 @@ func TestASyntaxErrorAfterADuplicateKeyWinsInBothLanguages(t *testing.T) {
 	}
 }
 
+// Go reads the whole text before it walks the tree, so a syntax error anywhere beats a limit; the Rust peer, which stops keeping a
+// tree at the limit and scans on, must give the same answers (#85). The Rust peer is `a_syntax_error_after_a_limit_still_wins` in
+// rust/tests/behaviour.rs.
+func TestASyntaxErrorAfterALimitStillWins(t *testing.T) {
+	few := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 3}
+	shallow := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 2, MaxNodes: 100_000}
+	for _, c := range []struct {
+		text   string
+		limits forms.Limits
+		want   forms.ErrorKind
+	}{
+		{"a: [1, 2, 3]\nb: 1\n", few, forms.ErrLimit},
+		{"a: [1, 2, 3]\nb: [\n", few, forms.ErrSyntax},
+		{"a: [1, 2, 3]\n: b\n", few, forms.ErrSyntax},
+		{"a: {b: {c: 1}}\nd: 1\n", shallow, forms.ErrLimit},
+		{"a: {b: {c: 1}}\nd: [\n", shallow, forms.ErrSyntax},
+	} {
+		_, err := forms.ParseWith(c.text, c.limits)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != c.want {
+			t.Fatalf("%q: want kind %v, got %v", c.text, c.want, err)
+		}
+	}
+}
+
 func TestTheDefaultLimitsAreThePublishedOnes(t *testing.T) {
 	if got := forms.DefaultLimits(); got != (forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 100_000}) {
 		t.Errorf("%+v", got)
@@ -405,6 +430,36 @@ func TestSameComparesEveryPartOfTheValue(t *testing.T) {
 	}
 	if !dup(1, 1).Same(dup(1, 2)) {
 		t.Error("the first entry with the key decides")
+	}
+}
+
+// Same reads the other mapping once (#85): a lookup per key in order takes minutes on a large mapping in reverse order, where every
+// key is at the far end; the bound is generous so a slow machine does not fail it, a quadratic implementation does. The Rust peer
+// is `same_of_many_keys_does_not_cost_quadratic_time` in rust/tests/behaviour.rs.
+func TestSameOfManyKeysDoesNotCostQuadraticTime(t *testing.T) {
+	limits := forms.Limits{MaxBytes: 16 << 20, MaxDepth: 64, MaxNodes: 1_000_000}
+	n := 100_000
+	a, err := forms.ParseWith(manyKeys(n), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := forms.ParseWith(manyKeys(n), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+		b.Entries[i], b.Entries[j] = b.Entries[j], b.Entries[i]
+	}
+	start := time.Now()
+	if !a.Same(b) || !b.Same(a) {
+		t.Fatal("the same keys and values in another order are the same value")
+	}
+	b.Entries[0].Value = &forms.Node{Kind: forms.KindInt, Int: 2}
+	if a.Same(b) || b.Same(a) {
+		t.Fatal("a changed value was not seen")
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("took %v", d)
 	}
 }
 
