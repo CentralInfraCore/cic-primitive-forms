@@ -558,6 +558,7 @@ jobs:
           go test -run '^$' -fuzz '^FuzzApplyDefaults$' -fuzztime 60s ./...
           go test -run '^$' -fuzz '^FuzzNormalize$' -fuzztime 60s ./...
           go test -run '^$' -fuzz '^FuzzResolvePolicy$' -fuzztime 60s ./...
+          go test -run '^$' -fuzz '^FuzzSourceSpan$' -fuzztime 60s ./...
       - name: Rust nightly
         run: rustup toolchain install nightly-2026-10-17 --profile minimal
       - name: Tool, cargo-fuzz (pinned)
@@ -587,15 +588,16 @@ jobs:
           cargo +nightly-2026-10-17 fuzz run defaults -- -max_total_time=60
           cargo +nightly-2026-10-17 fuzz run normalize -- -max_total_time=60
           cargo +nightly-2026-10-17 fuzz run resolve -- -max_total_time=60
+          cargo +nightly-2026-10-17 fuzz run source_span -- -max_total_time=60
       # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
       - name: Seeded proof, the canary turns both fuzz targets red
         run: |
           set +e
-          for target in Parse Validate Access ExpandCollapse ApplyDefaults Normalize ResolvePolicy; do
+          for target in Parse Validate Access ExpandCollapse ApplyDefaults Normalize ResolvePolicy SourceSpan; do
             (cd go && CIC_FUZZ_CANARY=1 go test -run "^Fuzz${target}\$" ./...)
             test $? -ne 0 || { echo "Go canary did not fail for $target"; exit 1; }
           done
-          for target in parse validate access expand defaults normalize resolve; do
+          for target in parse validate access expand defaults normalize resolve source_span; do
             (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
             test $? -ne 0 || { echo "Rust canary did not fail for $target"; exit 1; }
             (cd rust && cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
