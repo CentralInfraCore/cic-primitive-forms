@@ -229,12 +229,13 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   section 12): a Rust-against-Go differential of the six guarantees on 3000 generated inputs (`tools/parity/gen_edit.py`, the `parity_edit_dump` tests, `compare_edit.py`) with a
   self-test that breaks it in 22 ways, planted defects that turn it red (`edit_proof.py`), and ten seeded defects of the internal guarantee check.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
-  `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
+  `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`, and a well-formed `max_items`: ADR 0003 specifies `min_items` and no
+  other count, so a maximum the validator would not check is refused rather than dropped, #88), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
   `SCHEMA_FEATURE_NOT_IN_GRAMMAR`. The error lists **every** refused node of the schema in schema order (the first
   problem of each node), so a schema is judged in one pass.
 * **Numbers in the schema (`min_items`, `max_items`).** A non-negative integer is valid; a negative number or a non-integer is
-  `SCHEMA_INVALID`. There is **no upper bound**: nothing in ADR 0002 or ADR 0003 limits the number, and a very large minimum is not a
+  `SCHEMA_INVALID` (and a valid `max_items` is then `SCHEMA_SHAPE_UNSUPPORTED`, above). There is **no upper bound**: nothing in ADR 0002 or ADR 0003 limits the number, and a very large minimum is not a
   malformed schema, only a requirement no realistic list meets (`MIN_ITEMS_NOT_MET`). Before the P2 work an upper bound of 2^31 was
   enforced; it was removed on purpose (a semantic decision, recorded in #40), not as a side effect of a measurement. The
   implementation limit is `i64::MAX` (Rust: `i64` to `usize`, Go: `int64` to `int`, both lossless on the supported 64-bit

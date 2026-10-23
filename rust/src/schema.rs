@@ -608,7 +608,15 @@ impl Compiler {
     fn collection(&mut self, n: &Node, path: &str) -> Result<ShapeType, Problem> {
         forbid(n, path, &["scalar_type", "fields", "cases"])?;
         let min_items = int_member(n, "min_items", path)?;
-        int_member(n, "max_items", path)?;
+        // ADR 0003 specifies min_items and no other count: a maximum the validator would not
+        // check is refused, not dropped (#88)
+        if int_member(n, "max_items", path)?.is_some() {
+            return Err(problem(
+                SCHEMA_SHAPE_UNSUPPORTED,
+                &format!("{path}.max_items"),
+                "max_items is not processed by this slice (only min_items is specified)",
+            ));
+        }
         let variant = match get(n, "collection_variant").map(|v| &v.value) {
             Some(Value::Str(s)) if s == "list" || s == "set" => s.as_str(),
             _ => {

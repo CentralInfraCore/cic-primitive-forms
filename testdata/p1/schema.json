@@ -957,6 +957,20 @@
    }
   },
   {
+   "id": "compile.max-items-unsupported",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        max_items: 3\n",
+   "surface": "config_surface",
+   "compile": {
+    "error": "SCHEMA_SHAPE_UNSUPPORTED",
+    "problems": [
+     [
+      "SCHEMA_SHAPE_UNSUPPORTED",
+      "$.a.max_items"
+     ]
+    ]
+   }
+  },
+  {
    "id": "compile.set-with-item-fields",
    "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: a\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        item_fields: []\n",
    "surface": "config_surface",
