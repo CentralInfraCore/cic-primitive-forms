@@ -3,14 +3,14 @@
 Schema-driven processing of CIC primitive documents, with two independent
 implementations (Rust and Go) held to one shared conformance corpus.
 
-> **Status: P0, P1, P2 and P3 are done; P3b (source-preserving editing) has its design, its accepted ADR 0012 and the first 72 vectors (step E1); `source_span`, the read-only span of a scalar (step E2), is implemented in Rust and Go, and there is no editor yet.** The scope and the phase plan are fixed in
+> **Status: P0, P1, P2 and P3 are done; P3b (source-preserving editing) has its design, its accepted ADR 0012 and 72 vectors (step E1); `source_span`, the read-only span of a scalar (step E2), and `edit_scalar`, the replacement of one scalar that leaves every other byte alone (step E3), are implemented in Rust and Go.** The scope and the phase plan are fixed in
 > [`docs/PHASES.md`](docs/PHASES.md) (with the state of each phase); the contract decisions are indexed in
 > [`docs/adr/0000-p0-contract.md`](docs/adr/0000-p0-contract.md). What is implemented in Rust (`rust/`) and Go (`go/`) and what
 > is not: [`docs/P1-SUPPORTED-SUBSET.md`](docs/P1-SUPPORTED-SUBSET.md). In short: parse, emit, recognize, schema-bound validation
 > (a pinned schema, list elements by identity, paths); `expand` / `collapse`; from P3 the schema's policy and `identity.base`, the
 > schema defaults (ADR 0011), `normalize` / `denormalize` with the origin of every value kept, and `PolicyResolution` (the effective
 > access and modify rule of every position, as data; `docs/P3-UNIT4-POLICY-RESOLUTION.md`), also in one bound call (`normalize_with_policy`). The evidence of P3
-> is `docs/P3-EXIT-CRITERIA.md`. **Not started:** the editor of P3b (`docs/P3B-SOURCE-PRESERVING-EDIT.md`), diff and patch, reference resolution and materialization.
+> is `docs/P3-EXIT-CRITERIA.md`. **Not started:** the later units of P3b (insertion, deletion, block and flow scalars, a batch of edits), diff and patch, reference resolution and materialization.
 
 ## What it does
 

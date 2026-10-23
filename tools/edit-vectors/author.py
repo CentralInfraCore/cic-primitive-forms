@@ -114,14 +114,16 @@ def error(cid, kind, desc, path, src, code, phase, at, logical_path=None, value=
     add(cid, kind, "negative", desc, path, src if input_doc is None else None, extra, "{errors: [%s]}" % e, status="stable")
 
 
-def edit(cid, desc, path, src, prefix, token, value, new_token, nth=1):
+def edit(cid, desc, path, src, prefix, token, value, new_token, nth=1, path_after=None):
+    """path_after: where the scalar is addressed after the edit, when the edit changes its address (the key of a list element)."""
     b = as_bytes(src)
     s = start_of(src, prefix, token, nth)
     e = s + len(token.encode("utf-8"))
     nt = new_token.encode("utf-8")
     out = b[:s] + nt + b[e:]
     expect = "{%s, span_before: {start: %d, end: %d}, span_after: {start: %d, end: %d}}" % (out_field(out), s, e, s, s + len(nt))
-    add(cid, "edit", "positive", desc, path, src, ["value: %s" % value], expect)
+    extra = ["value: %s" % value] + (["path_after: %s" % q(path_after)] if path_after else [])
+    add(cid, "edit", "positive", desc, path, src, extra, expect)
 
 
 D1 = "name: alpha\ncount: 3\nenabled: true\n"
@@ -196,7 +198,8 @@ edit("list-element-by-identity", "the metric of the element whose key is b", LEL
 edit("list-element-after-reorder", "the same edit when the elements changed places", LEL_B_METRIC, LIST_REVERSED, "metric: ", "2", "{integer: 9}", "9")
 edit("equal-text-elsewhere-untouched", "the same text appears twice; only the addressed one changes", "$.ip.gateway", "name: abc\nip:\n  gateway: abc\n", "gateway: ", "abc", "{string: xyz}", "xyz")
 edit("no-final-newline", "a text without a final line break stays without one", "$.name", "name: alpha", "name: ", "alpha", "{string: beta}", "beta")
-edit("key-of-a-list-element", "changing a key to an unused value is an edit like any other", LEL_B_TO, LIST, "to: ", "b", "{string: c}", "c")
+edit("key-of-a-list-element", "changing a key to an unused value is an edit like any other (the element is addressed by its new key afterwards)", LEL_B_TO, LIST, "to: ", "b", "{string: c}", "c",
+     path_after='$.routes[{to="c"}].to')
 edit("noop-canonical", "the value does not change: the text is returned as it was", "$.enabled", D1, "enabled: ", "true", "{boolean: true}", "true")
 edit("noop-keeps-a-noncanonical-spelling", "True is the same value as true: nothing is rewritten, the spelling stays", "$.enabled", "enabled: True\n", "enabled: ", "True", "{boolean: true}", "True")
 edit("changed-writes-the-canonical-spelling", "a real change writes the canonical spelling of the new value", "$.enabled", "enabled: True\n", "enabled: ", "True", "{boolean: false}", "false")

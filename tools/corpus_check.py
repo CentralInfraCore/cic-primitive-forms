@@ -199,7 +199,7 @@ INPUT_FORMS = {
     "expand": "input",
     "equality": "ab",
     "source_span": "input_yaml|input_hex, path",
-    "edit": "input_yaml|input_hex|input (only for EDIT_NO_SOURCE_TEXT), path, value",
+    "edit": "input_yaml|input_hex|input (only for EDIT_NO_SOURCE_TEXT), path, value, path_after (optional: the address after an edit that changes it)",
 }
 KIND_FIELDS = {
     "grammar_manifest": {"files", "declared"},
@@ -218,7 +218,7 @@ KIND_FIELDS = {
     "expand": {"input"},
     "equality": {"a", "b"},
     "source_span": {"input_yaml", "input_hex", "path"},
-    "edit": {"input_yaml", "input_hex", "input", "path", "value"},
+    "edit": {"input_yaml", "input_hex", "input", "path", "value", "path_after"},
 }
 COMMON_FIELDS = {"id", "kind", "polarity", "description", "adr", "grammar",
                  "schema", "codes_status", "expect"}

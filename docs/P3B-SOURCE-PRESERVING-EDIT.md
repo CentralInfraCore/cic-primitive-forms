@@ -1,6 +1,6 @@
 # P3b: source-preserving editing - the first unit, replacing one existing scalar
 
-Status: **design, no code.** It follows the accepted ADR 0001, 0003, 0006, 0007 and 0010 and the merged P1-P3 behaviour; it re-opens none of them and changes
+Status: **design; steps E2 (`source_span`) and E3 (`edit_scalar`) are implemented in Rust and Go (section 11).** It follows the accepted ADR 0001, 0003, 0006, 0007 and 0010 and the merged P1-P3 behaviour; it re-opens none of them and changes
 **no** existing API: `parse`, `recognize`, `validate`, `expand`, `collapse`, `normalize`, `denormalize`, the policy resolution, the `Node` type, the
 `Provenance` and the origins stay exactly as they are. It adds a new, separate thing. There is no editor and no patch engine here (P4 is later). The points
 that are the owner's are in section 10.
@@ -182,3 +182,24 @@ result of the previous one (each is re-indexed), which is slower and obviously c
 6. **The refusal of everything with an anchor, alias or tag** stays tied to the parser's refusal; extending the parser is a separate decision and not part of P3b's first unit.
 7. **Where the tool lives and who may call it**: the library only; no command line, no file writing. Writing the result to disk, atomically, is the caller's.
 8. **The spelling of a token**: proposed that an edit writes the canonical spelling of the new value and a no-op keeps the original token (guarantee 6). The alternative is to keep the original token's spelling family (`True` stays a `True`-style boolean, `+5` stays signed) when the kind is unchanged; it makes edit-and-back exact in more cases, but needs a spelling table per kind and the two parsers do not read every spelling alike.
+
+## 11. Implementation notes of step E3 (for the owner's review; none of them changes the ADR)
+
+Things the implementation had to decide that the ADR leaves open or reads two ways. Each is stated so that it can be changed in a later step.
+
+1. **The original must validate.** `edit_scalar` validates the original first and returns its violations as they are (phase `validate`) when it does not: the reading of
+   section 4 ("runs after parse, validate and path_resolve have accepted"), which is stricter than the sentence of guarantee 3 ("without errors the original did not have").
+   P1 `validate` does not read an expanded Access wrapper (it is P2's), so the validator reads the document through a **short view** in which an expanded wrapper is replaced
+   by its `value`; the other members of a wrapper (`access`, `modify`, ...) are the recognition's, and an edit of the value cannot change them.
+2. **The surface.** `EditScalar` / `edit_scalar` (text, schema root, path, key set, a scalar `Node`) returns the text, the new span and `changed`. `EditParsed` / `edit_parsed` is
+   the case of a document supplied as a parsed value: after the document and the path are accepted it is always `EDIT_NO_SOURCE_TEXT` (anchor unavailable).
+3. **Spellings.** Integers in decimal, booleans `true`/`false`, null as `null`. A plain string is written plain only if it is plain-safe by the closed rule of section 5 *and*
+   the parser reads the token back as the same string (so `true`, `123`, `null`, `~`, `1.5`, `False` are `EDIT_STYLE_CONFLICT` in a plain scalar). `yes`/`no`/`on`/`off` are
+   plain-safe: the rule of section 5 does not list them, and the parser reads them as strings.
+4. **The value.** `EDIT_VALUE_NOT_REPRESENTABLE` is a control character (Unicode category Cc, which includes tab, DEL and the C1 controls), U+2028, U+2029, or (Go) invalid UTF-8; a Rust
+   `&str` cannot be invalid. A value that is not a scalar (a collection) is `EDIT_TYPE_MISMATCH`, as is null for a position that is not nullable; a quoted scalar that is given null or a
+   number is `EDIT_STYLE_CONFLICT` (the style is never changed).
+5. **A change to the E1 vectors.** The edit of the key of a list element changes the address of the scalar: the old path no longer resolves in the result, so the `span_after` of
+   `edit.key-of-a-list-element` could not be checked. The `edit` kind got an optional `path_after` (the author tool, the checker and both runners know it); no other case has it.
+6. **Not proved here.** The internal assertion `EDIT_SPAN_MISMATCH` (and its twin check of the re-parse) has no vector by design; its seeded defect is step E4. The 24 seeded
+   defects of E3 prove the tests, not that assertion.

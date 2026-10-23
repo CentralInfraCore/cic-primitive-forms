@@ -62,6 +62,8 @@ func throughWrapper(n *Node, a []string) (v *Node, wrapped bool) {
 // anchored at (the enclosing structure), and the mapping that directly holds the scalar (to tell a flow context).
 type spanFound struct {
 	value, parent, container *Node
+	// shape is the shape of the addressed field (nil for a list element), for the kind and the nullability of a new value.
+	shape *Shape
 }
 
 func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
@@ -79,6 +81,7 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 		f.parent = here
 		if !s.IsItem {
 			shape := fieldShape(fields, s.Field)
+			f.shape = shape
 			f.container = here
 			position := lookup(here, s.Field)
 			var wrapped bool
@@ -99,6 +102,7 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 			}
 			continue
 		}
+		f.shape = nil
 		rec, c := findElement(here, elements, s.Item, a)
 		f.value = rec
 		if c != nil {
@@ -203,13 +207,19 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	if err != nil {
 		return Span{}, err
 	}
+	sp, _, err := spanOf(text, doc, root, path, a)
+	return sp, err
+}
+
+// spanOf is SourceSpan after the parse: doc is Parse(text). It also returns what the walk found, for the edit that follows.
+func spanOf(text string, doc *Node, root Shape, path string, a []string) (Span, spanFound, error) {
 	segs, perr := ParsePath(path)
 	if perr != nil {
-		return Span{}, pathFailure(perr)
+		return Span{}, spanFound{}, pathFailure(perr)
 	}
 	resolved, perr := ResolvePath(root, segs)
 	if perr != nil {
-		return Span{}, pathFailure(perr)
+		return Span{}, spanFound{}, pathFailure(perr)
 	}
 	canonical := path // the path text is strict (ADR 0006): what parsed is canonical, and it is the logical path of the position
 	f := locate(doc, root, segs, a)
@@ -218,25 +228,25 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 		if f.value != nil && f.value.Pos != nil { // an empty value (`ip:`) has no position
 			at = f.value.Pos
 		}
-		return Span{}, editFailure("EDIT_NOT_A_SCALAR", at, canonical)
+		return Span{}, spanFound{}, editFailure("EDIT_NOT_A_SCALAR", at, canonical)
 	}
 	n := f.value
 	if n == nil || n.Pos == nil {
-		return Span{}, editFailure("EDIT_NO_SOURCE_VALUE", f.parent.Pos, canonical)
+		return Span{}, spanFound{}, editFailure("EDIT_NO_SOURCE_VALUE", f.parent.Pos, canonical)
 	}
 	if n.Kind == KindMap || n.Kind == KindSeq {
-		return Span{}, editFailure("EDIT_NOT_A_SCALAR", n.Pos, canonical)
+		return Span{}, spanFound{}, editFailure("EDIT_NOT_A_SCALAR", n.Pos, canonical)
 	}
 	if strings.IndexAny(text[f.container.Pos.Offset:], "{[") == 0 {
-		return Span{}, editFailure("EDIT_FLOW_CONTEXT", n.Pos, canonical)
+		return Span{}, spanFound{}, editFailure("EDIT_FLOW_CONTEXT", n.Pos, canonical)
 	}
 	start := n.Pos.Offset
 	end, style, code := scanSpan(text, start)
 	if code != "" {
-		return Span{}, editFailure(code, n.Pos, canonical)
+		return Span{}, spanFound{}, editFailure(code, n.Pos, canonical)
 	}
 	if code := readBack(text[start:end], n, style); code != "" {
-		return Span{}, editFailure(code, n.Pos, canonical)
+		return Span{}, spanFound{}, editFailure(code, n.Pos, canonical)
 	}
-	return Span{Start: start, End: end, Style: style}, nil
+	return Span{Start: start, End: end, Style: style}, f, nil
 }

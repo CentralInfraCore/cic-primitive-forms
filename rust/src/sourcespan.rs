@@ -45,7 +45,7 @@ pub struct SourceSpan {
     pub style: SpanStyle,
 }
 
-fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error {
+pub(crate) fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error {
     Error::Contract(vec![Violation {
         code,
         phase: Phase::Edit,
@@ -55,7 +55,7 @@ fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error {
     }])
 }
 
-fn path_failure(e: PathError) -> Error {
+pub(crate) fn path_failure(e: PathError) -> Error {
     // (outside the macro: the branch tool does not enumerate an `if` inside a macro invocation)
     let path_offset = if e.phase == Phase::PathParse {
         Some(e.offset)
@@ -81,18 +81,21 @@ fn through<'a>(n: &'a Node, a: &[String]) -> (Option<&'a Node>, bool) {
 
 /// What the walk along the path found: the value node of the position (if the document spells one), the node whose position an "absent"
 /// error is anchored at (the enclosing structure), and the mapping or sequence that directly holds the scalar (to tell a flow context).
-struct Found<'n> {
-    value: Option<&'n Node>,
-    parent: &'n Node,
+/// `shape` is the shape of the addressed field (`None` for a list element): the kind and the nullability of a new value.
+pub(crate) struct Found<'n, 'r> {
+    pub(crate) value: Option<&'n Node>,
+    pub(crate) parent: &'n Node,
     container: &'n Node,
+    pub(crate) shape: Option<&'r Shape>,
 }
 
-fn locate<'n>(doc: &'n Node, root: &Shape, segs: &[PathSeg], a: &[String]) -> Found<'n> {
-    let mut fields: &[(String, Shape)] = match &root.shape_type {
+fn locate<'n, 'r>(doc: &'n Node, root: &'r Shape, segs: &[PathSeg], a: &[String]) -> Found<'n, 'r> {
+    let mut fields: &'r [(String, Shape)] = match &root.shape_type {
         ShapeType::Composite(f) => f,
         _ => &[],
     };
-    let mut elements: Option<&Elements> = None;
+    let mut elements: Option<&'r Elements> = None;
+    let mut shape_found: Option<&'r Shape> = None;
     let mut parent = doc;
     let mut container = doc;
     let mut value = Some(doc);
@@ -105,6 +108,7 @@ fn locate<'n>(doc: &'n Node, root: &Shape, segs: &[PathSeg], a: &[String]) -> Fo
         match seg {
             PathSeg::Field(name) => {
                 let shape = fields.iter().find(|(n, _)| n == name).map(|(_, s)| s);
+                shape_found = shape;
                 container = here;
                 let position = entry(here, name);
                 let (v, wrapped) = match position {
@@ -133,6 +137,7 @@ fn locate<'n>(doc: &'n Node, root: &Shape, segs: &[PathSeg], a: &[String]) -> Fo
                     }),
                     _ => None,
                 };
+                shape_found = None;
                 container = here;
                 match found {
                     Some((rec, case)) => {
@@ -148,6 +153,7 @@ fn locate<'n>(doc: &'n Node, root: &Shape, segs: &[PathSeg], a: &[String]) -> Fo
         value,
         parent,
         container,
+        shape: shape_found,
     }
 }
 
@@ -225,11 +231,22 @@ pub fn source_span(
     a: &[String],
 ) -> Result<SourceSpan, Error> {
     let doc = parse(text)?;
+    span_of(text, &doc, root, path, a).map(|(span, _)| span)
+}
+
+/// `source_span` after the parse: `doc` is `parse(text)`. It also returns what the walk found, for the edit that follows.
+pub(crate) fn span_of<'n, 'r>(
+    text: &str,
+    doc: &'n Node,
+    root: &'r Shape,
+    path: &str,
+    a: &[String],
+) -> Result<(SourceSpan, Found<'n, 'r>), Error> {
     let segs = parse_path(path).map_err(path_failure)?;
     let resolved = resolve_path(root, &segs).map_err(path_failure)?;
     // the path text is strict (ADR 0006): what parsed is canonical, and it is the logical path of the position
     let canonical = path;
-    let found = locate(&doc, root, &segs, a);
+    let found = locate(doc, root, &segs, a);
     let anchor_parent = found.parent.pos;
     if resolved.target != "scalar" {
         return Err(failure(
@@ -259,7 +276,7 @@ pub fn source_span(
         .get(start..end)
         .ok_or_else(|| failure("EDIT_SPAN_MISMATCH", node.pos, canonical))?;
     read_back(token, node, style).map_err(|code| failure(code, node.pos, canonical))?;
-    Ok(SourceSpan { start, end, style })
+    Ok((SourceSpan { start, end, style }, found))
 }
 
 #[cfg(test)]

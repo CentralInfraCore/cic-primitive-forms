@@ -413,11 +413,12 @@ cases:
   - id: edit.key-of-a-list-element
     kind: edit
     polarity: positive
-    description: "changing a key to an unused value is an edit like any other"
+    description: "changing a key to an unused value is an edit like any other (the element is addressed by its new key afterwards)"
     schema: {synthetic: {tree: doc}}
     path: "$.routes[{to=\"b\"}].to"
     input_yaml: "routes:\n  - to: a\n    metric: 1\n  - to: b\n    metric: 2\n"
     value: {string: c}
+    path_after: "$.routes[{to=\"c\"}].to"
     expect: {output_yaml: "routes:\n  - to: a\n    metric: 1\n  - to: c\n    metric: 2\n", span_before: {start: 40, end: 41}, span_after: {start: 40, end: 41}}
   - id: edit.noop-canonical
     kind: edit

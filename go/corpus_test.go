@@ -707,7 +707,7 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 			total++
 			kind := c["kind"].(string)
 			key := suite["suite"].(string) + "/" + kind
-			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) || kind == "source_span" {
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) || kind == "source_span" || kind == "edit" {
 				run[key]++
 				ran++
 			} else {
@@ -722,11 +722,11 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 268 || skipped != 151 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 268 + 151", ran, skipped, total)
+	if ran+skipped != total || ran != 312 || skipped != 107 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 312 + 107", ran, skipped, total)
 	}
-	if run["edit/source_span"] != 28 || notRun["edit/edit"] != 44 {
-		t.Fatalf("the source_span cases run (28) and the edit cases wait for step E3 (44): %v %v", run, notRun)
+	if run["edit/source_span"] != 28 || run["edit/edit"] != 44 || notRun["edit/edit"] != 0 {
+		t.Fatalf("the source_span (28) and the edit (44) cases of corpus/edit run: %v %v", run, notRun)
 	}
 	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 ||
 		run["paths/path_parse"] != 57 || run["paths/path_format"] != 9 || run["paths/path_resolve"] != 34 {
@@ -1317,5 +1317,141 @@ func TestSourceSpanAnEmptyValueIsNotAScalarTarget(t *testing.T) {
 	_, ws := spanOf(t, "ip:\ncount: 3\n", "$.ip")
 	if want := []wire{{"EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"}}; !reflect.DeepEqual(ws, want) {
 		t.Errorf("got %v, want %v", ws, want)
+	}
+}
+
+// typedValue is the new value of an edit case: {string: s}, {integer: n}, {boolean: b} or {null: true}.
+func typedValue(t *testing.T, v obj) *forms.Node {
+	t.Helper()
+	switch {
+	case v["string"] != nil:
+		return &forms.Node{Kind: forms.KindStr, Str: v["string"].(string)}
+	case v["integer"] != nil:
+		switch n := v["integer"].(type) {
+		case int:
+			return &forms.Node{Kind: forms.KindInt, Int: int64(n)}
+		case int64:
+			return &forms.Node{Kind: forms.KindInt, Int: n}
+		}
+		t.Fatalf("integer %T", v["integer"])
+	case v["boolean"] != nil:
+		return &forms.Node{Kind: forms.KindBool, Bool: v["boolean"].(bool)}
+	case v["null"] != nil:
+		return &forms.Node{Kind: forms.KindNull}
+	}
+	t.Fatalf("a typed value: %v", v)
+	return nil
+}
+
+// parsedInput is the document of a case that was given as a parsed value (a map of scalars), not as text.
+func parsedInput(t *testing.T, c obj) *forms.Node {
+	t.Helper()
+	in := c["input"].(obj)
+	if in["type"] != "map" {
+		t.Fatalf("a parsed input: %v", in)
+	}
+	doc := &forms.Node{Kind: forms.KindMap}
+	vals := in["value"].(obj)
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		n := &forms.Node{}
+		switch v := vals[k].(type) {
+		case string:
+			n.Kind, n.Str = forms.KindStr, v
+		case int:
+			n.Kind, n.Int = forms.KindInt, int64(v)
+		case int64:
+			n.Kind, n.Int = forms.KindInt, v
+		case bool:
+			n.Kind, n.Bool = forms.KindBool, v
+		default:
+			t.Fatalf("a parsed input value: %T", v)
+		}
+		doc.Entries = append(doc.Entries, forms.Entry{Key: k, Value: n})
+	}
+	return doc
+}
+
+func TestEditCasesMatchTheCorpus(t *testing.T) {
+	ran := 0
+	for _, suite := range suites(t) {
+		if suite["suite"] != "edit" {
+			continue
+		}
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			if c["kind"] != "edit" {
+				continue
+			}
+			ran++
+			id := c["id"].(string)
+			root := rootOf(t, suite, c["schema"].(obj)["synthetic"].(obj)["tree"].(string))
+			value := typedValue(t, c["value"].(obj))
+			path := c["path"].(string)
+			expect := c["expect"].(obj)
+			var res forms.EditResult
+			var err error
+			var text string
+			if _, parsed := c["input"]; parsed {
+				err = forms.EditParsed(parsedInput(t, c), root, path, accessKeys, value)
+			} else {
+				text = sourceOf(t, c)
+				res, err = forms.EditScalar(text, root, path, accessKeys, value)
+			}
+			if _, ok := expect["errors"]; ok {
+				var fe *forms.Error
+				if !errors.As(err, &fe) || fe.Kind != forms.ErrContract {
+					t.Errorf("%s: an error of the contract was expected, got %v", id, err)
+					continue
+				}
+				if res.Text != "" {
+					t.Errorf("%s: no text with an error", id)
+				}
+				var ws []wire
+				for _, v := range fe.Violations {
+					ws = append(ws, wireOf(v))
+				}
+				if !reflect.DeepEqual(ws, expectedEditWires(t, expect)) {
+					t.Errorf("%s: got %v, want %v", id, ws, expectedEditWires(t, expect))
+				}
+				continue
+			}
+			if err != nil {
+				t.Errorf("%s: an edit was expected, got %v", id, err)
+				continue
+			}
+			var want string
+			if y, ok := expect["output_yaml"]; ok {
+				want = y.(string)
+			} else {
+				b, derr := hex.DecodeString(expect["output_hex"].(string))
+				if derr != nil {
+					t.Fatalf("%s: output_hex: %v", id, derr)
+				}
+				want = string(b)
+			}
+			if res.Text != want { // compared as bytes
+				t.Errorf("%s: got %q, want %q", id, res.Text, want)
+				continue
+			}
+			before, after := expect["span_before"].(obj), expect["span_after"].(obj)
+			if sp, serr := forms.SourceSpan(text, root, path, accessKeys); serr != nil || sp.Start != before["start"] || sp.End != before["end"] {
+				t.Errorf("%s: the span before: got %v %v, want %v", id, sp, serr, before)
+			}
+			pathAfter := path
+			if pa, ok := c["path_after"].(string); ok { // an edit of the key of a list element changes the address of the scalar
+				pathAfter = pa
+			}
+			if sp, serr := forms.SourceSpan(res.Text, root, pathAfter, accessKeys); serr != nil || sp.Start != after["start"] || sp.End != after["end"] || sp != res.Span {
+				t.Errorf("%s: the span after: got %v %v (result %v), want %v", id, sp, serr, res.Span, after)
+			}
+		}
+	}
+	if ran != 44 {
+		t.Fatalf("the 44 edit cases of corpus/edit, ran %d", ran)
 	}
 }
