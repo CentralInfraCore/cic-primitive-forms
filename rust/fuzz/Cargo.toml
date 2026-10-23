@@ -49,6 +49,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "source_span"
+path = "fuzz_targets/source_span.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "resolve"
 path = "fuzz_targets/resolve.rs"
 test = false

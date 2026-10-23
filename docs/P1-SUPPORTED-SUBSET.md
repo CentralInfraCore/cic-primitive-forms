@@ -200,6 +200,17 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   there is no result. It decides nothing and does not replace validation. `Normalize`, `Renormalize`, `Denormalize` and
   `ResolvePolicy` stay as they are. Shared cases: the ones of `testdata/p1/resolution.json`, run through the composed call and compared
   with the two separate calls.
+* **SourceSpan / source_span (P3b step E2; ADR 0012, `docs/P3B-SOURCE-PRESERVING-EDIT.md`).** Read only: `source_span(text, root, path, a)` parses the
+  text, finds the position by its logical path (a list element by its declared identity, an expanded Access wrapper looked through to its `value:`), and
+  returns the half-open **byte** span of the scalar (a leading BOM counted, the offset of ADR 0007) and its style (`plain`, `single_quoted`,
+  `double_quoted`), or a refusal. The refusals of the earlier phases are returned as they are (`parse`, `path_parse`, `path_resolve`); the new
+  ones are of the phase `edit`: `EDIT_NOT_A_SCALAR`, `EDIT_NO_SOURCE_VALUE` (anchored at the enclosing structure), `EDIT_BLOCK_SCALAR`,
+  `EDIT_FLOW_CONTEXT`, `EDIT_MULTILINE_SCALAR`, and `EDIT_SPAN_MISMATCH`, an internal assertion that is never meant to be reached. The extent is found by a small scanner
+  over the supported subset and **verified by reading it back**: the span, parsed alone, must be the value the parser gave for that node, so a scanner defect refuses
+  instead of pointing at the wrong bytes. `Node`, `Provenance` and every P1-P3 result are unchanged. It does not call `validate` (P1 `validate` does not read an expanded
+  document; the edit of step E3 validates its result). Proved by the 28 `source_span` vectors in both languages (written before the code), the edge cases a vector cannot
+  reach (an unspelled value, a node of the wrong kind, a wrapper in a flow collection, the path errors, the scanner's edges), a property over generated documents (the span
+  of every scalar reads back to its value; a plain word, a number or a boolean is never refused), a fuzz target with a canary in each language, and 22 seeded defects.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),
@@ -332,7 +343,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (419), assert that each is either run or listed here, and assert **240 run + 179 NOT RUN**.
+case of the corpus (419), assert that each is either run or listed here, and assert **268 run + 151 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -349,7 +360,8 @@ case of the corpus (419), assert that each is either run or listed here, and ass
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
 | paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
-| edit | `source_span` 28, `edit` 44 | 72 | NOT RUN (P3b, ADR 0012): the vectors of step E1, written by hand before any code; run by step E2 (`source_span`) and E3 (`edit`) |
+| edit | `source_span` | 28 | **run**, both languages (P3b step E2, ADR 0012): the byte span and the style of a position's scalar, or the refusal with its code, phase, position and logical path; the vectors were written by hand in step E1, before the code |
+| edit | `edit` | 44 | NOT RUN (P3b step E3): the vectors exist, the editor does not |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
 A runner asserts the number it ran (31, 29, 21), so a vector that stops being run is a failure, and a green run cannot

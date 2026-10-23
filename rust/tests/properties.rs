@@ -679,3 +679,72 @@ fn an_error_at_an_unwritable_name_is_ordered_by_its_segments() {
         ]
     );
 }
+
+// ---- source_span (P3b, step E2): the span of every scalar of a document reads back to its value -------------------------------------------
+
+use cic_primitive_forms::{format_path, source_span, Error, PathSeg};
+
+/// The scalar leaves below composites: their field names from the root, the scalars the generator wrote as text.
+fn scalar_leaves(shape: &Shape, prefix: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
+    if let ShapeType::Composite(fields) = &shape.shape_type {
+        for (name, sh) in fields {
+            prefix.push(name.clone());
+            match &sh.shape_type {
+                ShapeType::Scalar(_) => out.push(prefix.clone()),
+                ShapeType::Composite(_) => scalar_leaves(sh, prefix, out),
+                _ => {}
+            }
+            prefix.pop();
+        }
+    }
+}
+
+fn node_at<'a>(n: &'a Node, names: &[String]) -> Option<&'a Node> {
+    names.iter().try_fold(n, |cur, name| match &cur.value {
+        Value::Map(es) => es.iter().find(|e| &e.key == name).map(|e| &e.value),
+        _ => None,
+    })
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(256))]
+
+    /// For every scalar of a generated document, written by the emitter: the span is one line of the text, the span parsed alone is the value the
+    /// parser gave for that node, and the only refusals are the ones a document can earn (a position the text does not spell, a block or multi-line
+    /// scalar); the read-back never has to refuse (EDIT_SPAN_MISMATCH is a defect), and nothing panics.
+    #[test]
+    fn the_span_of_every_scalar_reads_back_to_its_value(shape in shape_strategy(), seed in 1u64..u64::MAX) {
+        let Some(root) = document_root(shape) else { return Ok(()) };
+        let generated = conforming(&root, &mut Rng(seed), &mut Vec::new(), &[]);
+        let text = emit(&generated);
+        let doc = parse(&text).expect("the emitter writes what the parser reads");
+        let mut leaves = Vec::new();
+        scalar_leaves(&root, &mut Vec::new(), &mut leaves);
+        for names in leaves {
+            let segs: Vec<PathSeg> = names.iter().map(|n| PathSeg::Field(n.clone())).collect();
+            let Ok(path) = format_path(&segs) else { continue };
+            match source_span(&text, &root, &path, &a()) {
+                Ok(span) => {
+                    let token = &text[span.start..span.end];
+                    prop_assert!(!token.contains('\n') && !token.contains('\r') && !token.is_empty(), "{path}: {token:?}");
+                    let want = node_at(&doc, &names).expect("a span means the node exists");
+                    prop_assert!(parse(token).expect("the token parses").same(want), "{path}: {token:?} is not {want:?}");
+                }
+                Err(Error::Contract(vs)) => {
+                    prop_assert!(
+                        matches!(vs[0].code, "EDIT_NO_SOURCE_VALUE" | "EDIT_BLOCK_SCALAR" | "EDIT_MULTILINE_SCALAR" | "EDIT_FLOW_CONTEXT"),
+                        "{path}: {:?} in {text:?}", vs[0]
+                    );
+                    // not vacuous: a scalar the generator wrote as a short plain word, a number or a boolean is always found
+                    let simple = node_at(&doc, &names).is_some_and(|n| match &n.value {
+                        Value::Int(_) | Value::Bool(_) => true,
+                        Value::Str(s) => s.len() > 1 && s.starts_with('s') && s[1..].bytes().all(|b| b.is_ascii_digit()),
+                        _ => false,
+                    });
+                    prop_assert!(!simple, "{path}: a plain scalar was refused with {:?} in {text:?}", vs[0]);
+                }
+                Err(other) => prop_assert!(false, "{path}: {other:?} in {text:?}"),
+            }
+        }
+    }
+}

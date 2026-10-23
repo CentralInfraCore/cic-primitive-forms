@@ -16,6 +16,8 @@ const (
 	PhasePathParse   Phase = "path_parse"
 	PhasePathFormat  Phase = "path_format"
 	PhasePathResolve Phase = "path_resolve"
+	// PhaseEdit is the phase of a source-preserving edit and of the span it works on (ADR 0012).
+	PhaseEdit Phase = "edit"
 )
 
 // Location is the source_location of ADR 0007: coordinates, or unavailable for a document

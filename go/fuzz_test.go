@@ -11,6 +11,7 @@ package forms_test
 // requires the run to be red. It is test code; the product has no such switch.
 
 import (
+	"errors"
 	"os"
 	"slices"
 	"strings"
@@ -414,6 +415,55 @@ func FuzzResolvePolicy(f *testing.F) {
 				if r.Kind == forms.RuleOpen || r.Kind == forms.RuleOwner {
 					t.Fatalf("%q: an unknown root gave a permissive system rule at %s", text, p)
 				}
+			}
+		}
+	})
+}
+
+func FuzzSourceSpan(f *testing.F) {
+	for _, seed := range []string{"", "a: x\n", "a: 'x'\nb: 3\n", "a: \"x\"\nc:\n  d: y\n  e: true\n", "a: x # c\n", "a: |\n  x\n", "a: x\n  y\n", "c: {d: y}\n",
+		"a:\n  value: x\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n"} {
+		f.Add(seed)
+	}
+	str := func() forms.Shape {
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional}
+	}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "a", Shape: str()},
+		{Name: "b", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}},
+		{Name: "c", Shape: forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+			{Name: "d", Shape: str()},
+			{Name: "e", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean, Presence: forms.Optional}},
+		}}},
+	}}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		if _, err := forms.Parse(text); err != nil {
+			return
+		}
+		for _, path := range []string{"$.a", "$.b", "$.c", "$.c.d", "$.c.e"} {
+			span, err := forms.SourceSpan(text, root, path, keySet)
+			if err == nil {
+				if span.Start >= span.End || span.End > len(text) {
+					t.Fatalf("%s: a span outside the text in %q", path, text)
+				}
+				token := text[span.Start:span.End]
+				if !utf8.ValidString(token) || strings.ContainsAny(token, "\r\n") {
+					t.Fatalf("%s: the span %q is not a whole single line in %q", path, token, text)
+				}
+				if _, err := forms.Parse(token); err != nil {
+					t.Fatalf("%s: the span %q does not parse", path, token)
+				}
+				continue
+			}
+			var fe *forms.Error
+			if errors.As(err, &fe) && fe.Kind == forms.ErrContract && fe.Violations[0].Code == "EDIT_SPAN_MISMATCH" {
+				t.Fatalf("%s: the read-back refused in %q", path, text)
 			}
 		}
 	})

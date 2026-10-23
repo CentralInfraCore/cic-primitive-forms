@@ -26,6 +26,7 @@ pub mod recognize;
 pub mod resolve;
 pub(crate) mod role;
 pub mod schema;
+pub mod sourcespan;
 pub mod validate;
 
 pub use access::{
@@ -55,4 +56,5 @@ pub use resolve::{
     REASON_RESET_NO_LOCAL_RULE,
 };
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
+pub use sourcespan::{source_span, SourceSpan, SpanStyle};
 pub use validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType, Validation};
