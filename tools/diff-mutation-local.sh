@@ -9,6 +9,7 @@
 # 3. The score of the mutants in the diff, by the rule of the gate (more than 90% killed, all of them when fewer than 10), and the survivors.
 # Needs cargo-mutants and go-mutesting on the PATH, and CIC_PRIMITIVES_ROOT / CIC_REGISTRY_ROOT set as for the tests. Takes minutes, not an hour.
 set -u
+JOBS=${JOBS:-3}   # cargo-mutants jobs, each with its own copy of the tree; Go runs one process per changed file, also in its own copy
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BASE=$(git -C "$ROOT" merge-base "${1:-origin/main}" HEAD) || exit 2
 T=$(mktemp -d "${TMPDIR:-/tmp}/diff-mutation.XXXXXX")
@@ -22,19 +23,26 @@ mkdir -p "$T/rust" "$T/go"
 n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$T/rust-listed.json" 2>/dev/null || echo 0)
 echo "rust: $n mutants in the diff"
 if [ "$n" -gt 0 ]; then
-  (cd "$ROOT/rust" && CIC_FORMS_ROOT="$ROOT" cargo mutants --in-diff "$T/rust.patch" --output "$T/rust" --jobs 1 --timeout 120 -- --tests) > "$T/rust.log" 2>&1
-  tail -n 1 "$T/rust.log"
+  (cd "$ROOT/rust" && CIC_FORMS_ROOT="$ROOT" cargo mutants --in-diff "$T/rust.patch" --output "$T/rust" --jobs "$JOBS" --timeout 120 -- --tests) > "$T/rust.log" 2>&1 &
+  rust_pid=$!
 else
   echo '{"caught": 0, "missed": 0, "timeout": 0, "unviable": 0, "total_mutants": 0, "outcomes": []}' > "$T/rust/mutants.out.json"
 fi
 
+command -v go-mutesting >/dev/null || { echo "go-mutesting is not on PATH (go install github.com/avito-tech/go-mutesting/cmd/go-mutesting; add GOPATH/bin to PATH)" >&2; exit 2; }
+
 files=$(python3 -c 'import json,sys; print(" ".join(p[len("go/"):] for p in json.load(open(sys.argv[1]))))' "$T/diff-lines.json")
 : > "$T/ledger"
 echo "go files in the diff: ${files:-none}"
-if [ -n "$files" ]; then
-  (cd "$ROOT/go" && CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER="$T/ledger" CIC_DIFF_LINES="$T/diff-lines.json" CIC_REPO_ROOT="$ROOT" \
-     go-mutesting --exec "$ROOT/tools/mutation_diff_exec.sh" $files) > "$T/go.log" 2>&1
-fi
+for f in $files; do
+  # go-mutesting rewrites the file under test in place, so each file gets a copy of the module and they run side by side
+  c="$T/gocopy/${f//\//_}"; mkdir -p "$c"; cp -a "$ROOT/go" "$c/go"
+  (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER="$T/ledger" CIC_DIFF_LINES="$T/diff-lines.json" CIC_REPO_ROOT="$c" \
+     go-mutesting --exec "$ROOT/tools/mutation_diff_exec.sh" "$f") > "$T/go-${f//\//_}.log" 2>&1 &
+done
+wait
+[ -n "${rust_pid:-}" ] && tail -n 1 "$T/rust.log"
+cat "$T"/go-*.log > "$T/go.log" 2>/dev/null
 
 python3 - "$T" "$ROOT" <<'PY'
 import json, os, re, sys

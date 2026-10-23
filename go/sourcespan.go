@@ -79,11 +79,8 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 		f.parent = here
 		if !s.IsItem {
 			var shape *Shape
-			for i := range fields {
-				if fields[i].Name == s.Field {
-					shape = &fields[i].Shape
-					break
-				}
+			if i := slices.IndexFunc(fields, func(nf NamedShape) bool { return nf.Name == s.Field }); i >= 0 {
+				shape = &fields[i].Shape
 			}
 			f.container = here
 			position := lookup(here, s.Field)
@@ -106,19 +103,26 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 			continue
 		}
 		f.container = here
-		f.value = nil
-		if here.Kind != KindSeq || elements == nil {
-			continue
-		}
-		for _, rec := range here.Items {
-			c, id, code, _ := identify(rec, elements, a)
-			if code == "" && slices.Equal(id, s.Item) {
-				f.value, fields = rec, c.Fields
-				break
-			}
+		rec, c := findElement(here, elements, s.Item, a)
+		f.value = rec
+		if c != nil {
+			fields = c.Fields
 		}
 	}
 	return f
+}
+
+// findElement is the element of a list whose identity is id, with its case; nil, nil when the list has none (or is not a list).
+func findElement(list *Node, elements *Elements, id []KeyComp, a []string) (*Node, *Case) {
+	i := slices.IndexFunc(list.Items, func(rec *Node) bool {
+		_, got, code, _ := identify(rec, elements, a)
+		return code == "" && slices.Equal(got, id)
+	})
+	if i < 0 {
+		return nil, nil
+	}
+	c, _, _, _ := identify(list.Items[i], elements, a)
+	return list.Items[i], c
 }
 
 // scanSpan scans the text of the scalar that starts at start; code is the code of the refusal, "" when there is none.
@@ -139,7 +143,7 @@ func scanSpan(text string, start int) (end int, style SpanStyle, code string) {
 				i += 2
 			case c == '\'':
 				return i + 1, SpanSingleQuoted, ""
-			case c == '\n' || c == '\r' || i >= len(text):
+			case c == 0 || c == '\n' || c == '\r': // 0 is the end of the text (the parser refuses U+0000)
 				return 0, "", "EDIT_MULTILINE_SCALAR"
 			default:
 				i++
@@ -155,7 +159,7 @@ func scanSpan(text string, start int) (end int, style SpanStyle, code string) {
 				i += 2
 			case c == '"':
 				return i + 1, SpanDoubleQuoted, ""
-			case c == '\n' || c == '\r' || i >= len(text):
+			case c == 0 || c == '\n' || c == '\r':
 				return 0, "", "EDIT_MULTILINE_SCALAR"
 			default:
 				i++
@@ -164,13 +168,10 @@ func scanSpan(text string, start int) (end int, style SpanStyle, code string) {
 	}
 	// a plain scalar ends at the end of its line, before a comment (a # that follows a space; the parser refuses a tab anywhere) and before the
 	// spaces in front of it
+	// (the appended sentinels make both searches find something, so no case is left to test for "not found")
 	line := text[start:]
-	if i := strings.IndexAny(line, "\r\n"); i >= 0 {
-		line = line[:i]
-	}
-	if i := strings.Index(line, " #"); i >= 0 {
-		line = line[:i]
-	}
+	line = line[:strings.IndexAny(line+"\n", "\r\n")]
+	line = line[:strings.Index(line+" #", " #")]
 	return start + len(strings.TrimRight(line, " ")), SpanPlain, ""
 }
 
@@ -181,7 +182,7 @@ func readBack(token string, n *Node, style SpanStyle) (code string) {
 	if parsed, err := Parse(token); err == nil && parsed.Same(n) {
 		return ""
 	}
-	if style == SpanPlain && n.Kind == KindStr && len(n.Str) > len(token) && strings.HasPrefix(n.Str, token) {
+	if rest, ok := strings.CutPrefix(n.Str, token); style == SpanPlain && n.Kind == KindStr && ok && rest != "" {
 		return "EDIT_MULTILINE_SCALAR"
 	}
 	return "EDIT_SPAN_MISMATCH"
@@ -221,7 +222,7 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	if n.Kind == KindMap || n.Kind == KindSeq {
 		return Span{}, editFailure("EDIT_NOT_A_SCALAR", n.Pos, canonical)
 	}
-	if p := f.container.Pos; p != nil && p.Offset < len(text) && (text[p.Offset] == '{' || text[p.Offset] == '[') {
+	if p := f.container.Pos; p != nil && strings.IndexAny(text[p.Offset:], "{[") == 0 {
 		return Span{}, editFailure("EDIT_FLOW_CONTEXT", n.Pos, canonical)
 	}
 	start := n.Pos.Offset
