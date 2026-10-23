@@ -13,7 +13,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "tools/diff_gate.py", "tools/test_diff_gate.py", "tools/mutation_diff_exec.sh", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
+    paths: [".github/actions/**", "tools/seeded_defects.py", "tools/diff_gate.py", "tools/test_diff_gate.py", "tools/mutation_diff_exec.sh", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/shard_count.py", "tools/shard_budget.json", "tools/test_shard_count.py", "tools/fuzz_matrix.py", "tools/test_fuzz_matrix.py", "tools/test_seeded_select.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
 permissions:
   contents: read
 jobs:
@@ -28,6 +28,9 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/test_shard_plan.py
       - run: python3 -W error::ResourceWarning -m unittest tools/test_cached_tool.py
       - run: python3 -W error::ResourceWarning -m unittest tools/test_diff_gate.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_shard_count.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_fuzz_matrix.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/test_seeded_select.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -159,6 +162,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.s.outputs.mode }}
+      fuzz_matrix: ${{ steps.s.outputs.fuzz_matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -174,10 +178,14 @@ jobs:
           set -e
           S="$RUNNER_TEMP/scope"
           mkdir -p "$S"
+          rr=0; gr=0; changed=""
           if [ "$EVENT" = "pull_request" ]; then
             # the merge candidate: its first parent is the target branch, the difference is exactly what the pull request changes
             python3 tools/diff_gate.py scope --base HEAD^1 --head HEAD --out "$S" --root . | tee "$S/report.txt"
             mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$S/scope.json")
+            rr=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["rust_ranges"])' "$S/scope.json")
+            gr=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["go_ranges"])' "$S/scope.json")
+            changed=$(git diff --name-only HEAD^1 HEAD)
           else
             mode=full
             [ "$EVENT" = "push" ] && [ "$FORCE_FULL" != "true" ] && mode=light
@@ -187,6 +195,8 @@ jobs:
             echo "mode=$mode (event: $EVENT)" > "$S/report.txt"
           fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          # the fuzz targets this run needs (tools/fuzz_matrix.py): all of them in full, none on a push, in a diff those of the language the diff touches
+          python3 tools/fuzz_matrix.py --mode "$mode" --rust-ranges "$rr" --go-ranges "$gr" --changed $changed --github-output "$GITHUB_OUTPUT" | tee -a "$S/report.txt"
           { echo "### Mutation scope: $mode"; echo; echo '```'; cat "$S/report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -237,17 +247,64 @@ jobs:
           path: ${{ runner.temp }}/env/env.json
           if-no-files-found: warn
 
-  quality-mutation-rust:
+  # How many shards the full mutation is cut into (docs/DELTA-DIFF-GATE.md, 9.2): at most about 100 mutants and about ten minutes per shard,
+  # whichever bound is reached first (tools/shard_count.py, tools/shard_budget.json). Computed from the mutants listed now, so the count is
+  # one value that the matrix, the Rust dealing and the Go `k/n` all read; the gate still requires every mutant in exactly one shard.
+  plan:
     needs: scope
+    if: ${{ needs.scope.outputs.mode == 'full' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      rust_n: ${{ steps.c.outputs.rust_n }}
+      rust_shards: ${{ steps.c.outputs.rust_shards }}
+      go_n: ${{ steps.c.outputs.go_n }}
+      go_shards: ${{ steps.c.outputs.go_shards }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Tool, cargo-mutants (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-mutants
+          spec: cargo-mutants@27.1.0
+      - name: Tool, go-mutesting (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: go
+          name: go-mutesting
+          spec: github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
+      - id: c
+        run: |
+          set -e
+          rust=$(cd rust && cargo +stable mutants --list --json | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
+          # every Go mutant, listed by running the executor that kills nothing and costs nothing: `true` answers every mutant at once
+          go=$(cd go && go-mutesting --exec /bin/true ./... 2>/dev/null | grep -c '^PASS ' || true)
+          echo "listed: rust $rust, go $go"
+          test "$rust" -gt 0 && test "$go" -gt 0   # a listing that found nothing must not turn into one empty shard
+          python3 tools/shard_count.py --lang rust --mutants "$rust" --github-output "$GITHUB_OUTPUT"
+          python3 tools/shard_count.py --lang go --mutants "$go" --github-output "$GITHUB_OUTPUT"
+
+  quality-mutation-rust:
+    needs: [scope, plan]
     if: ${{ needs.scope.outputs.mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]  # the 6 in RUST_SHARDS below; if they disagree some mutants are in no shard and the gate is red
+        shard: ${{ fromJSON(needs.plan.outputs.rust_shards) }}
     env:
-      RUST_SHARDS: 6
+      RUST_SHARDS: ${{ needs.plan.outputs.rust_n }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/upstream-pinned
@@ -294,14 +351,14 @@ jobs:
           if-no-files-found: warn
 
   quality-mutation-go:
-    needs: scope
+    needs: [scope, plan]
     if: ${{ needs.scope.outputs.mode == 'full' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]  # the 6 in CIC_MUTATION_SHARD below; the gate fails if they disagree
+        shard: ${{ fromJSON(needs.plan.outputs.go_shards) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/upstream-pinned
@@ -315,9 +372,11 @@ jobs:
           name: go-mutesting
           spec: github.com/avito-tech/go-mutesting/cmd/go-mutesting@v0.0.0-20261002081621-9ce5f731e321
       - name: Mutation, Go (go-mutesting), one shard
+        env:
+          GO_N: ${{ needs.plan.outputs.go_n }}
         run: |
           mkdir -p "$RUNNER_TEMP/q"
-          export CIC_MUTATION_SHARD="${{ matrix.shard }}/6" CIC_MUTATION_LEDGER="$RUNNER_TEMP/q/ledger"
+          export CIC_MUTATION_SHARD="${{ matrix.shard }}/$GO_N" CIC_MUTATION_LEDGER="$RUNNER_TEMP/q/ledger"
           : > "$CIC_MUTATION_LEDGER"
           (cd go && go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_shard_exec.sh" ./... > "$RUNNER_TEMP/q/mut-go.txt") || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -427,7 +486,7 @@ jobs:
           if-no-files-found: error
 
   quality:
-    needs: [scope, quality-lines, quality-mutation-rust, quality-mutation-go, diff-mutation-rust, diff-mutation-go]
+    needs: [scope, plan, quality-lines, quality-mutation-rust, quality-mutation-go, diff-mutation-rust, diff-mutation-go]
     # Also when a shard job failed: the gate then finds its report missing and is red. A skipped job would
     # count as passed. Not on a push to main (`light`): the mutation is measured by the nightly FULL.
     if: ${{ always() && needs.scope.outputs.mode != 'light' }}
@@ -439,6 +498,7 @@ jobs:
           MODE: ${{ needs.scope.outputs.mode }}
           SCOPE: ${{ needs.scope.result }}
           LINES: ${{ needs.quality-lines.result }}
+          PLAN: ${{ needs.plan.result }}
           FULL_RUST: ${{ needs.quality-mutation-rust.result }}
           FULL_GO: ${{ needs.quality-mutation-go.result }}
           DIFF_RUST: ${{ needs.diff-mutation-rust.result }}
@@ -449,8 +509,8 @@ jobs:
           test "$SCOPE" = success
           test "$LINES" = success
           case "$MODE" in
-            full) test "$FULL_RUST" = success && test "$FULL_GO" = success && test "$DIFF_RUST" = skipped && test "$DIFF_GO" = skipped ;;
-            diff) test "$DIFF_RUST" = success && test "$DIFF_GO" = success && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped ;;
+            full) test "$PLAN" = success && test "$FULL_RUST" = success && test "$FULL_GO" = success && test "$DIFF_RUST" = skipped && test "$DIFF_GO" = skipped ;;
+            diff) test "$PLAN" = skipped && test "$DIFF_RUST" = success && test "$DIFF_GO" = success && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped ;;
             *) echo "unknown mode '$MODE'"; false ;;
           esac
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -543,72 +603,94 @@ jobs:
           echo "$OUT" | grep -q "FAIL rust mutation score .*BELOW_THRESHOLD"
           echo "$OUT" | grep -q "FAIL go mutation score .*BELOW_THRESHOLD"
 
-  # Parser fuzzing (PHASES.md: from P1). Go: native fuzzing. Rust: cargo-fuzz on the pinned nightly.
-  fuzz:
+  # Parser fuzzing (PHASES.md: from P1). Go: native fuzzing. Rust: cargo-fuzz on the pinned nightly. One job per target (docs/DELTA-DIFF-GATE.md, 9.2):
+  # the matrix comes from tools/fuzz_matrix.py through `scope` - every target in a full run, none on a push to main, and in a diff the targets of the
+  # language whose product code, fuzz targets or seed inputs the diff touches (or all, if the shared corpus changes). The job named `fuzz` joins them
+  # and says "not run" when no target was needed: a language that did not run is never reported as passed.
+  fuzz-target:
     needs: scope
-    if: ${{ needs.scope.outputs.mode != 'light' }}
+    if: ${{ needs.scope.outputs.mode != 'light' && needs.scope.outputs.fuzz_matrix != '[]' }}
+    name: fuzz-target (${{ matrix.target.lang }} ${{ matrix.target.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.scope.outputs.fuzz_matrix) }}
+    env:
+      TARGET: ${{ matrix.target.name }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: ${{ matrix.target.lang == 'go' }}
         with:
           go-version: "1.27.2"
-      - name: Go, 60 seconds per target
+      - name: Go, 60 seconds
+        if: ${{ matrix.target.lang == 'go' }}
         run: |
           cd go
-          go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzValidate$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzAccess$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzExpandCollapse$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzApplyDefaults$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzNormalize$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzResolvePolicy$' -fuzztime 60s ./...
-          go test -run '^$' -fuzz '^FuzzSourceSpan$' -fuzztime 60s ./...
+          go test -run '^$' -fuzz "^Fuzz${TARGET}\$" -fuzztime 60s ./...
+      # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
+      - name: Seeded proof, the canary turns this Go target red
+        if: ${{ matrix.target.lang == 'go' }}
+        run: |
+          set +e
+          (cd go && CIC_FUZZ_CANARY=1 go test -run "^Fuzz${TARGET}\$" ./...)
+          test $? -ne 0 || { echo "Go canary did not fail for $TARGET"; exit 1; }
       - name: Rust nightly
+        if: ${{ matrix.target.lang == 'rust' }}
         run: rustup toolchain install nightly-2026-10-17 --profile minimal
       - name: Tool, cargo-fuzz (pinned)
+        if: ${{ matrix.target.lang == 'rust' }}
         uses: ./.github/actions/cached-tool
         with:
           kind: cargo
           name: cargo-fuzz
           spec: cargo-fuzz@0.13.2
       - name: Environment for the evidence record
+        if: ${{ matrix.target.lang == 'rust' }}
         continue-on-error: true
         run: |
           mkdir -p "$RUNNER_TEMP/env"
           python3 tools/test-evidence/evidence.py env --fields tool:cargo-fuzz,runner --toolchain nightly-2026-10-17 --out "$RUNNER_TEMP/env/env.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ matrix.target.lang == 'rust' }}
         continue-on-error: true
         with:
-          name: env-fuzz
+          name: env-fuzz-${{ matrix.target.name }}
           path: ${{ runner.temp }}/env/env.json
           if-no-files-found: warn
-      - name: Rust, 60 seconds per target
+      - name: Rust, 60 seconds
+        if: ${{ matrix.target.lang == 'rust' }}
         working-directory: rust
-        run: |
-          cargo +nightly-2026-10-17 fuzz run parse -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run validate -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run access -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run expand -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run defaults -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run normalize -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run resolve -- -max_total_time=60
-          cargo +nightly-2026-10-17 fuzz run source_span -- -max_total_time=60
-      # The fuzz jobs can fail: a committed canary input is a failure when CIC_FUZZ_CANARY is set.
-      - name: Seeded proof, the canary turns both fuzz targets red
+        run: cargo +nightly-2026-10-17 fuzz run "$TARGET" -- -max_total_time=60
+      - name: Seeded proof, the canary turns this Rust target red
+        if: ${{ matrix.target.lang == 'rust' }}
         run: |
           set +e
-          for target in Parse Validate Access ExpandCollapse ApplyDefaults Normalize ResolvePolicy SourceSpan; do
-            (cd go && CIC_FUZZ_CANARY=1 go test -run "^Fuzz${target}\$" ./...)
-            test $? -ne 0 || { echo "Go canary did not fail for $target"; exit 1; }
-          done
-          for target in parse validate access expand defaults normalize resolve source_span; do
-            (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
-            test $? -ne 0 || { echo "Rust canary did not fail for $target"; exit 1; }
-            (cd rust && cargo +nightly-2026-10-17 fuzz run $target fuzz/canary/CANARY)
-            test $? -eq 0 || { echo "the canary input must pass when the switch is off ($target)"; exit 1; }
-          done
+          (cd rust && CIC_FUZZ_CANARY=1 cargo +nightly-2026-10-17 fuzz run "$TARGET" fuzz/canary/CANARY)
+          test $? -ne 0 || { echo "Rust canary did not fail for $TARGET"; exit 1; }
+          (cd rust && cargo +nightly-2026-10-17 fuzz run "$TARGET" fuzz/canary/CANARY)
+          test $? -eq 0 || { echo "the canary input must pass when the switch is off ($TARGET)"; exit 1; }
+
+  fuzz:
+    needs: [scope, fuzz-target]
+    # Also when a target job failed or was skipped: this job is the one name that the required checks list.
+    if: ${{ always() && needs.scope.outputs.mode != 'light' }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          MATRIX: ${{ needs.scope.outputs.fuzz_matrix }}
+          RESULT: ${{ needs.fuzz-target.result }}
+          SCOPE: ${{ needs.scope.result }}
+        run: |
+          test "$SCOPE" = success
+          case "$RESULT" in
+            success) echo "fuzz: every target of the matrix passed: $MATRIX" ;;
+            skipped) test "$MATRIX" = '[]' || { echo "the fuzz targets were needed ($MATRIX) and did not run"; exit 1; }
+                     echo "fuzz: not run - no target is needed for this diff" ;;
+            *) echo "a fuzz target failed ($RESULT)"; exit 1 ;;
+          esac
 
   # Tests must be shown to fail on a wrong implementation, not only to pass on a right one: each
   # deliberate defect (a coerced 0, a silent default version, an unverified pin, a loose CertPattern, ...)
@@ -625,7 +707,20 @@ jobs:
         with:
           go-version: "1.27.2"
       - run: rustup toolchain install stable --profile minimal
-      - run: python3 tools/seeded_defects.py all
+      # in a diff only the defects of the product files the diff changes (the others are reported "not run"); in a full run all of them
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: ${{ needs.scope.outputs.mode == 'diff' }}
+        with:
+          name: diff-scope
+          path: ${{ runner.temp }}/scope
+      - env:
+          MODE: ${{ needs.scope.outputs.mode }}
+        run: |
+          if [ "$MODE" = diff ]; then
+            python3 tools/seeded_defects.py all --changed-from "$RUNNER_TEMP/scope/scope.json"
+          else
+            python3 tools/seeded_defects.py all
+          fi
 
   # Rust against Go on the same 30 005 generated inputs (tools/parity): the complete outcome of `parse`
   # (tree and positions, contract violations, refusal) is compared. A divergence that is not in the

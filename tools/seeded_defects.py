@@ -7,13 +7,14 @@ temporary directory, applies one textual change (it must match exactly once, so 
 silently), runs the tests that cover the code and requires them to FAIL. It first requires the unmodified
 copy to pass. Nothing in the repository is modified.
 
-    seeded_defects.py rust|go|all
+    seeded_defects.py rust|go|all [--changed-from DIFF_LINES_JSON]
 
 The first defects are about the grammar-1 spelling of `inherit`, the version binding, the pin verification and
 the CertPattern reading (cic-primitives D-018, ADR 0004): the places where a wrong implementation looks
 right on the happy path. The last ones are about the parser parity of the two languages (error priority,
 positions, the pre-parse refusals): the shared regression corpus must turn red on each.
 """
+import json
 import os
 import shutil
 import subprocess
@@ -372,6 +373,12 @@ DEFECTS = [
 ]
 
 
+def in_diff(defects, changed):
+    """The defects of the product files in `changed` (the keys of tools/diff_gate.py's diff-lines.json: `go/x.go`, `rust/src/x.rs`).
+    A defect says what the test suites must catch in one file; a change of another file cannot unprotect it (a weakened test is `full`)."""
+    return [d for d in defects if "%s/%s" % (d[0], d[2]) in changed]
+
+
 def run(cmd, cwd, env):
     return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
 
@@ -393,8 +400,20 @@ def command(lang):
 
 
 def main():
-    which = sys.argv[1] if len(sys.argv) > 1 else "all"
+    args = sys.argv[1:]
+    changed = None
+    if "--changed-from" in args:
+        i = args.index("--changed-from")
+        with open(args[i + 1], encoding="utf-8") as fh:
+            data = json.load(fh)
+        # tools/diff_gate.py's scope.json (the product files of both languages) or a plain list / object keyed by path
+        changed = set(data.get("rust_files", [])) | set(data.get("go_files", [])) if "go_files" in data else set(data)
+        del args[i:i + 2]
+    which = args[0] if args else "all"
     langs = ("rust", "go") if which == "all" else (which,)
+    defects = DEFECTS if changed is None else in_diff(DEFECTS, changed)
+    if changed is not None:
+        print("diff mode: %d of %d defects are in changed files; the other %d are not run" % (len(defects), len(DEFECTS), len(DEFECTS) - len(defects)))
     bad = 0
     env = dict(os.environ, CIC_FORMS_ROOT=ROOT)
     for name in ("CIC_PRIMITIVES_ROOT", "CIC_REGISTRY_ROOT"):
@@ -402,6 +421,9 @@ def main():
             print("%s is not set: the runners need the pinned checkout" % name)
             return 2
     for lang in langs:
+        if not [d for d in defects if d[0] == lang]:
+            print("%-4s no defect of a changed file: not run" % lang)
+            continue
         with tempfile.TemporaryDirectory() as tmp:
             env["CARGO_TARGET_DIR"] = os.path.join(tmp, "target")
             base = prepare(lang, tmp)
@@ -411,7 +433,7 @@ def main():
                 print(first.stdout[-2000:], first.stderr[-2000:])
                 bad += 1
                 continue
-            for _, name, rel, ops in [d for d in DEFECTS if d[0] == lang]:
+            for _, name, rel, ops in [d for d in defects if d[0] == lang]:
                 path = os.path.join(base, rel)
                 original = open(path, encoding="utf-8").read()
                 text = original

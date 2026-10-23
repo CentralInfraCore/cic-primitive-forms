@@ -1,0 +1,10 @@
+{
+  "schema": "shard-budget/1",
+  "note": "The measured state on the head of #72 (full mode): Rust 1059 mutants in 6 shards of 166-187, 16-25 minutes per shard (about 6 s per mutant and about 3 minutes of fixed cost: checkout, toolchain, build, baseline); Go 2045 mutants, about 330 tested per shard in 6 shards, 10-17 minutes (about 2 s per tested mutant, the same fixed cost). A stale number makes the balance worse, never the measurement different.",
+  "max_mutants_per_shard": 100,
+  "budget_seconds": 600,
+  "fixed_seconds": 180,
+  "max_shards": 24,
+  "rust": {"seconds_per_mutant": 6},
+  "go": {"seconds_per_mutant": 2}
+}
