@@ -780,7 +780,7 @@ fn inherit_validate_cases_match_the_corpus() {
 }
 
 /// The accounting is exact: every case of the corpus is either run by one of the runners of this file or
-/// counted as NOT RUN, and the numbers are the ones in `docs/P1-SUPPORTED-SUBSET.md`.
+/// counted as NOT RUN, and the numbers are the ones in `corpus/accounting.yaml` (written in advance, never computed from a run).
 #[test]
 fn the_run_and_not_run_accounting_is_exact() {
     let mut total = 0;
