@@ -165,7 +165,7 @@ code states the same thing twice. They cost more to remove than to avoid. In thi
   handler where the parser refuses tabs); remove it, or test the parser's refusal.
 * Keep one fact in one place, so that a mutation of it changes the result.
 
-### 9.2 Plan, not implemented: bounded units for mutation and for fuzzing
+### 9.2 Bounded units for mutation and for fuzzing (shard count, fuzz and seeded defects implemented, see 9.4; the rest of the group is still a plan)
 
 Observation (owner, 2026-10-23): the bites the tests work on keep growing. A unit of work for a mutation run or a fuzz run is bounded
 twice: **about 100 mutants (or inputs) at most, and about 10 minutes of wall time at most, whichever is reached first**, so that a run is
@@ -240,3 +240,21 @@ candidates and what is done for each:
 A shard never changes what is measured: the same set, cut into parts, and the sum of the parts is the whole. A local shard count is
 bounded by memory more than by cores (each process holds its own copy of the tree and its own target directory); the defaults are chosen
 for a 12-core, 32 GB machine that is also in use.
+
+### 9.4 What is implemented of 9.2 and 9.3
+
+* **Shard count (`plan` job, `tools/shard_count.py`, `tools/shard_budget.json`).** `max(ceil(mutants / 100), ceil(mutants * seconds_per_mutant / (600 - 180)))`,
+  at least 1 and at most 24. The mutants are listed in the run (Rust: `cargo mutants --list`; Go: the executor `true` answers every mutant, the `PASS` lines
+  are counted), the matrices read `fromJSON(plan outputs)`, the Rust dealing and the Go `k/n` read the same count, and `quality` requires the `plan` job to have
+  succeeded in `full` and to be skipped in `diff`. On the numbers of #72 (Rust 1059 mutants, Go 2045) this is 16 and 21 shards: the time bound is the stricter
+  one for Rust, the size bound for Go. `max_shards` and `max_mutants_per_shard` are the two numbers to change if that is too many parallel jobs (a larger shard
+  costs time, not correctness: the gate still requires every mutant in exactly one shard).
+* **Fuzz (`fuzz-target` matrix, `tools/fuzz_matrix.py`).** One job per target; the matrix is all 16 targets in `full`, none on a push, and in a diff the targets of a
+  language whose product code (ranges of `diff_gate.py`), fuzz targets or seed inputs the diff touches, or both languages when `corpus/` or `testdata/` change.
+  The job named `fuzz` joins them (it stays the required name) and reports `not run - no target is needed for this diff`; a matrix that was expected and did not
+  run fails it. The table is checked against the code by `tools/test_fuzz_matrix.py`.
+* **Seeded defects in a diff.** `seeded_defects.py --changed-from scope.json` runs the defects of the product files the diff changes; the others are reported
+  `not run`. A full run runs them all.
+* **Not yet:** a finer cut inside a shard by function boundaries, the cost table refreshed from the shard outcomes (`shard_plan.py costs`), the same cut for
+  coverage, parity and property tests (9.2), the one line of the diff executor for `TESTS=` on the Go side (#74), and the accepting of the previous run by the
+  post-merge check when the merge changes nothing (cic-factory, `ci-gate.py`).
