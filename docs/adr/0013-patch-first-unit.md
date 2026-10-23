@@ -27,23 +27,36 @@ There is no application of the supported part of a diff that also holds an unsup
 
 ### 3. The checks, in a fixed order; one error per response
 
-1. The earlier phases on A, as they are today: `parse`, `validate`, and the path operations. A document that does not validate is refused with its violations.
-2. `PATCH_CONTEXT_MISMATCH`: **only what the patch can check** (section 5).
-3. The diff as a whole: an event that section 2 does not apply is `PATCH_UNSUPPORTED_EVENT` (the first in the canonical order of ADR 0008).
-4. For each event in the canonical order of ADR 0008: the path must resolve against the schema and A must hold the position (`PATCH_TARGET_ABSENT`), and the value A holds must equal `previous`, type-strict (`0` is not `false`, `null` is not absent) (`PATCH_CONFLICT`).
-5. The replacements, in the canonical order, each by `edit_scalar` on the result of the one before. Positions that are independent commute (ADR 0012, guarantee 6); a change to the key field of a list element is not among the applied events, so no application changes the address of another.
+Each condition belongs to **exactly one** phase and one code; a failure is reported where it belongs and nowhere else.
 
-All of 1-4 happen before the first byte is changed. If any check or replacement fails, the response is the error and **no text is returned**, also when a working copy was edited on the way.
+| # | Condition | Reported as |
+|---|---|---|
+| 1 | A does not parse, or does not validate against the schema | the error of the earlier phase (`parse`, `validate`) with its own code and violations; **never** `PATCH_CONTEXT_MISMATCH` |
+| 2 | the `context` the caller passed does not match the `schema` it passed (the schema identity or digest, the grammar commit or digest, or the surface), or the version of the diff is not `1` | `PATCH_CONTEXT_MISMATCH` |
+| 3 | an event or a target that section 2 does not apply (the first in the canonical order of ADR 0008) | `PATCH_UNSUPPORTED_EVENT` |
+| 4 | the path of an event does not resolve against the **schema** (an unknown field, a component that names no declared key) | the error of the path operations (`path_resolve`), as it is today; **not** `PATCH_TARGET_ABSENT` |
+| 5 | the path resolves against the schema, but **A does not hold** that position (the field is absent, or the list has no element of that identity) | `PATCH_TARGET_ABSENT` |
+| 6 | A holds the position and its value is not `previous`, type-strict (`0` is not `false`, `null` is not absent) | `PATCH_CONFLICT` |
+| 7 | a replacement is refused by `edit_scalar` | the code and phase `edit` of ADR 0012 |
 
-### 4. What a success guarantees (normative, and checked on every call)
+Rows 4-6 are taken per event in the canonical order of ADR 0008, and a row for an earlier event comes before the rows of a later one. Rows 1-6 are all decided **before the first byte is changed**; row 7 happens during the replacements, on a working copy, and if it (or anything else) fails the response is the error and **no text is returned**. The replacements are applied in the canonical order, each by `edit_scalar` on the result of the one before. Positions that are independent commute (ADR 0012, guarantee 6); a change to the key field of a list element is not among the applied events, so no application changes the address of another.
 
-For `d = diff(A, B)` made under one context and one scope:
+### 4. What a success guarantees: checked on every call, and proved from outside
 
-1. *Round trip, within the scope.* `diff(patch(A, d), B).changes` is empty under the same context and the same scope as `d`. With the complete scope that is logical equality; with a partial scope it is equality of the **observed region only** (ADR 0008: what was not observed is not absent). The patch claims nothing about the region outside the scope.
-2. *Minimality.* The result differs from A only in the replaced scalars: the bytes before the first and after the last replaced span, and between them, are A's (ADR 0012, guarantee 1), in every style, comment and line ending.
-3. *Replay rejection.* A diff with at least one effective change, applied to its own result, is `PATCH_CONFLICT` (the `previous` no longer matches). A diff with **no** changes is not a conflict: `patch(A, empty diff)` is A byte for byte.
-4. *Nothing partial.* As in section 3.
-5. Rust and Go give the same bytes, the same list and the same error for the same input.
+A single call does not receive B, the other language, or its own earlier calls. So the guarantees are of **two kinds**, and the ADR does not claim of the one what only the other can show.
+
+**Checked by the patch on every call** (and part of its result):
+
+1. *Preconditions.* Every `previous` equals the value A holds (section 3, row 6): this is what makes a replay a conflict (a diff with at least one effective change, applied to its own result, is `PATCH_CONFLICT`), and a diff with **no** changes is not a conflict: `patch(A, empty diff)` is A byte for byte.
+2. *Minimality.* The bytes outside the replaced scalars are A's, in every style, comment and line ending (ADR 0012, guarantee 1, which `edit_scalar` checks).
+3. *Nothing partial.* On any error no text is returned, also when a working copy was edited internally.
+4. *Each replaced scalar* holds `next`, in the style it had (the guarantees 2-4 of ADR 0012).
+
+**Proved from outside, by the proof pass (P4-3), and not claimed per call:**
+
+5. *Round trip, within the scope.* For `d = diff(A, B)` made under one context and one scope, `diff(patch(A, d), B).changes` is empty under the same context and scope. With the complete scope that is logical equality; with a partial scope it is equality of the **observed region only** (ADR 0008: what was not observed is not absent), and the patch claims nothing about the region outside it. This needs B, so it is a property over generated A and B and a vector set, not a check inside `patch`.
+6. *Rust and Go give the same bytes, the same list of replaced scalars and the same error* for the same input: a differential, with a self-test that breaks it.
+7. *Replay and the empty diff* as properties over generated diffs (a second application is a conflict; an empty diff is the identity), alongside the per-call precondition of 1.
 
 **Byte equality with the text of B is not promised and cannot be**: the diff ignores order, style, quoting, comments and short versus expanded writing, so the text of B is not a function of A and the diff.
 
@@ -51,10 +64,10 @@ For `d = diff(A, B)` made under one context and one scope:
 
 A diff's canonical bytes carry no schema context, and this ADR does not add one. The patch therefore **cannot verify under which context a diff was made**.
 
-* *The patch verifies itself:* A parses and validates under the `schema` and the `context` the caller passes; the version of the diff is known (`1`); every path resolves against the schema; `previous` and `next` are of the kind the position has; the value A holds equals `previous`.
+* *The patch verifies itself:* A parses and validates under the `schema` the caller passes; that `context` matches that `schema` and the version of the diff is known (`1`); every path resolves against the schema; `previous` and `next` are of the kind the position has; the value A holds equals `previous`.
 * *The patch takes from the caller, as a trusted binding:* that the diff was computed under that same context. `Context supplied` is not `Context verified`, and `previous matches` is not `diff provenance verified`.
 
-`PATCH_CONTEXT_MISMATCH` is therefore raised only for what can be checked: A is not readable under the given context, or the version of the diff is not `1`. It never claims that the diff was made under another context. A binding of a diff to its context, if wanted, is the work of a separate trusted envelope (an integration contract), not of this ADR.
+`PATCH_CONTEXT_MISMATCH` is therefore raised only for what can be checked (section 3, row 2): the context does not match the schema the caller passed, or the version of the diff is not `1`. It is **not** the code of a document that does not validate (that is the earlier phase, row 1), and it never claims that the diff was made under another context. A binding of a diff to its context, if wanted, is the work of a separate trusted envelope (an integration contract), not of this ADR.
 
 ### 6. Errors: the phase `patch` and its codes
 
@@ -62,9 +75,9 @@ ADR 0007's phase list gets a tenth phase, `patch`, which runs after the earlier 
 
 | Code | Condition | Anchor |
 |---|---|---|
-| `PATCH_CONTEXT_MISMATCH` | A is not readable under the context given, or the version of the diff is unknown | `not_applicable` |
+| `PATCH_CONTEXT_MISMATCH` | the context does not match the schema given, or the version of the diff is unknown (section 3, row 2) | `not_applicable` |
 | `PATCH_UNSUPPORTED_EVENT` | an event or a target that section 2 does not apply | `not_applicable`, the path of the event |
-| `PATCH_TARGET_ABSENT` | the path does not address a position that A holds | `parent` of the position |
+| `PATCH_TARGET_ABSENT` | the path resolves against the schema but A does not hold the position (section 3, row 5) | `parent` of the position |
 | `PATCH_CONFLICT` | the value A holds at the path is not `previous` | `value` of the position |
 
 The logical path of the error is the path of the event. The refusals of `edit_scalar` come with the code and the phase of ADR 0012; those of A with their own. Message wording is not a conformance criterion. Every code needs at least one negative vector (the gate rules `CODE_UNUSED` and `PHASE_UNUSED` of ADR 0007 apply).
