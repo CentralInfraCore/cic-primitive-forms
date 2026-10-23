@@ -1615,3 +1615,31 @@ fn source_span_edge_cases() {
         "trailing spaces are not in the span"
     );
 }
+
+/// The offset of a path_parse error is present there and nowhere else; and a list below a composite is found by its identity.
+#[test]
+fn source_span_path_errors_and_a_list_below_a_composite() {
+    let offset = |path: &str| match source_span("name: a\n", &edit_root(), path, &a()) {
+        Err(Error::Contract(vs)) => vs[0].path_offset,
+        other => panic!("{path}: {other:?}"),
+    };
+    assert_eq!(
+        offset("name"),
+        Some(0),
+        "a path_parse error carries the offset in the path text"
+    );
+    assert_eq!(offset("$.nope"), None, "a path_resolve error carries none");
+    let tree = YamlOwned::load_from_str(
+        "box: {composite: {routes: {list: {key: [to], fields: {to: {scalar: string}, metric: {scalar: integer}}}}}}",
+    )
+    .expect("tree")
+    .remove(0);
+    let root = path_shape(ShapeType::Composite(tree_fields(&tree, &[])), true);
+    let text = "box:\n  routes:\n    - to: a\n      metric: 1\n    - to: b\n      metric: 2\n";
+    let span = source_span(text, &root, "$.box.routes[{to=\"b\"}].metric", &a()).expect("a span");
+    assert_eq!(
+        (span.start, span.end, span.style.as_str()),
+        (69, 70, "plain")
+    );
+    assert_eq!(&text[span.start..span.end], "2");
+}

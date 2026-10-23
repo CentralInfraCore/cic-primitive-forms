@@ -122,10 +122,10 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 }
 
 // scanSpan scans the text of the scalar that starts at start; code is the code of the refusal, "" when there is none.
-func scanSpan(b []byte, start int) (end int, style SpanStyle, code string) {
+func scanSpan(text string, start int) (end int, style SpanStyle, code string) {
 	at := func(i int) byte {
-		if i < len(b) {
-			return b[i]
+		if i < len(text) {
+			return text[i]
 		}
 		return 0
 	}
@@ -139,7 +139,7 @@ func scanSpan(b []byte, start int) (end int, style SpanStyle, code string) {
 				i += 2
 			case c == '\'':
 				return i + 1, SpanSingleQuoted, ""
-			case c == '\n' || c == '\r' || i >= len(b):
+			case c == '\n' || c == '\r' || i >= len(text):
 				return 0, "", "EDIT_MULTILINE_SCALAR"
 			default:
 				i++
@@ -148,35 +148,30 @@ func scanSpan(b []byte, start int) (end int, style SpanStyle, code string) {
 	case '"':
 		for i := start + 1; ; {
 			switch c := at(i); {
-			case c == '\\' && (at(i+1) == '\n' || at(i+1) == '\r' || i+1 >= len(b)):
+			// a backslash escapes the next byte; one at the very end leaves nothing, and the next turn finds the end of the text
+			case c == '\\' && (at(i+1) == '\n' || at(i+1) == '\r'):
 				return 0, "", "EDIT_MULTILINE_SCALAR"
 			case c == '\\':
 				i += 2
 			case c == '"':
 				return i + 1, SpanDoubleQuoted, ""
-			case c == '\n' || c == '\r' || i >= len(b):
+			case c == '\n' || c == '\r' || i >= len(text):
 				return 0, "", "EDIT_MULTILINE_SCALAR"
 			default:
 				i++
 			}
 		}
 	}
-	lineEnd := start
-	for lineEnd < len(b) && b[lineEnd] != '\n' && b[lineEnd] != '\r' {
-		lineEnd++
+	// a plain scalar ends at the end of its line, before a comment (a # that follows a space; the parser refuses a tab anywhere) and before the
+	// spaces in front of it
+	line := text[start:]
+	if i := strings.IndexAny(line, "\r\n"); i >= 0 {
+		line = line[:i]
 	}
-	end = lineEnd
-	// a comment starts at a # that follows a space (the parser refuses a tab anywhere, so there is none to handle)
-	for i := start + 1; i < lineEnd; i++ {
-		if b[i] == '#' && b[i-1] == ' ' {
-			end = i
-			break
-		}
+	if i := strings.Index(line, " #"); i >= 0 {
+		line = line[:i]
 	}
-	for end > start && b[end-1] == ' ' {
-		end--
-	}
-	return end, SpanPlain, ""
+	return start + len(strings.TrimRight(line, " ")), SpanPlain, ""
 }
 
 // readBack is the check that the span is the scalar: the span, parsed alone as a document, must be the value the parser gave for the node.
@@ -210,10 +205,7 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	if perr != nil {
 		return Span{}, pathFailure(perr)
 	}
-	canonical, perr := FormatPath(segs)
-	if perr != nil {
-		return Span{}, pathFailure(perr)
-	}
+	canonical := path // the path text is strict (ADR 0006): what parsed is canonical, and it is the logical path of the position
 	f := locate(doc, root, segs, a)
 	if resolved.Target != "scalar" {
 		at := f.parent.Pos
@@ -229,12 +221,11 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	if n.Kind == KindMap || n.Kind == KindSeq {
 		return Span{}, editFailure("EDIT_NOT_A_SCALAR", n.Pos, canonical)
 	}
-	b := []byte(text)
-	if p := f.container.Pos; p != nil && p.Offset < len(b) && (b[p.Offset] == '{' || b[p.Offset] == '[') {
+	if p := f.container.Pos; p != nil && p.Offset < len(text) && (text[p.Offset] == '{' || text[p.Offset] == '[') {
 		return Span{}, editFailure("EDIT_FLOW_CONTEXT", n.Pos, canonical)
 	}
 	start := n.Pos.Offset
-	end, style, code := scanSpan(b, start)
+	end, style, code := scanSpan(text, start)
 	if code != "" {
 		return Span{}, editFailure(code, n.Pos, canonical)
 	}

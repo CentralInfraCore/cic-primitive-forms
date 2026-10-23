@@ -14,7 +14,7 @@ use crate::expand::entry;
 use crate::listitem::{identify, Elements};
 use crate::node::{Node, Pos, Value};
 use crate::parse::parse;
-use crate::pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg};
+use crate::pathtext::{parse_path, resolve_path, PathError, PathSeg};
 use crate::recognize::{classify, Class};
 use crate::validate::{Shape, ShapeType};
 
@@ -152,7 +152,8 @@ fn locate<'n>(doc: &'n Node, root: &Shape, segs: &[PathSeg], a: &[String]) -> Fo
 }
 
 /// Scans the text of the scalar that starts at `start`; `Err` is the code of the refusal.
-fn scan(bytes: &[u8], start: usize) -> Result<(usize, SpanStyle), &'static str> {
+fn scan(text: &str, start: usize) -> Result<(usize, SpanStyle), &'static str> {
+    let bytes = text.as_bytes();
     let at = |i: usize| bytes.get(i).copied();
     match at(start) {
         Some(b'|' | b'>') => Err("EDIT_BLOCK_SCALAR"),
@@ -171,7 +172,8 @@ fn scan(bytes: &[u8], start: usize) -> Result<(usize, SpanStyle), &'static str> 
             let mut i = start + 1;
             loop {
                 match at(i) {
-                    Some(b'\\') if matches!(at(i + 1), Some(b'\n' | b'\r') | None) => {
+                    // a backslash escapes the next byte; one at the very end leaves nothing, and the next turn finds the end of the text
+                    Some(b'\\') if matches!(at(i + 1), Some(b'\n' | b'\r')) => {
                         return Err("EDIT_MULTILINE_SCALAR")
                     }
                     Some(b'\\') => i += 2,
@@ -182,22 +184,14 @@ fn scan(bytes: &[u8], start: usize) -> Result<(usize, SpanStyle), &'static str> 
             }
         }
         _ => {
-            let mut line_end = start;
-            while line_end < bytes.len() && !matches!(bytes[line_end], b'\n' | b'\r') {
-                line_end += 1;
-            }
-            let mut end = line_end;
-            // a comment starts at a `#` that follows a space (the parser refuses a tab anywhere, so there is none to handle)
-            for i in start + 1..line_end {
-                if bytes[i] == b'#' && bytes[i - 1] == b' ' {
-                    end = i;
-                    break;
-                }
-            }
-            while end > start && bytes[end - 1] == b' ' {
-                end -= 1;
-            }
-            Ok((end, SpanStyle::Plain))
+            // a plain scalar ends at the end of its line, before a comment (a `#` that follows a space; the parser refuses a tab anywhere) and
+            // before the spaces in front of it
+            let line = text[start..].split(['\n', '\r']).next().unwrap_or_default();
+            let cut = line.find(" #").unwrap_or(line.len());
+            Ok((
+                start + line[..cut].trim_end_matches(' ').len(),
+                SpanStyle::Plain,
+            ))
         }
     }
 }
@@ -209,7 +203,9 @@ fn read_back(token: &str, node: &Node, style: SpanStyle) -> Result<(), &'static 
         return Ok(());
     }
     match (&node.value, style) {
-        (Value::Str(s), SpanStyle::Plain) if s.len() > token.len() && s.starts_with(token) => {
+        (Value::Str(s), SpanStyle::Plain)
+            if s.strip_prefix(token).is_some_and(|rest| !rest.is_empty()) =>
+        {
             Err("EDIT_MULTILINE_SCALAR")
         }
         _ => Err("EDIT_SPAN_MISMATCH"),
@@ -231,22 +227,23 @@ pub fn source_span(
     let doc = parse(text)?;
     let segs = parse_path(path).map_err(path_failure)?;
     let resolved = resolve_path(root, &segs).map_err(path_failure)?;
-    let canonical = format_path(&segs).map_err(path_failure)?;
+    // the path text is strict (ADR 0006): what parsed is canonical, and it is the logical path of the position
+    let canonical = path;
     let found = locate(&doc, root, &segs, a);
     let anchor_parent = found.parent.pos;
     if resolved.target != "scalar" {
         return Err(failure(
             "EDIT_NOT_A_SCALAR",
             found.value.and_then(|v| v.pos).or(anchor_parent),
-            &canonical,
+            canonical,
         ));
     }
     let node = match found.value {
         Some(n) if n.pos.is_some() => n,
-        _ => return Err(failure("EDIT_NO_SOURCE_VALUE", anchor_parent, &canonical)),
+        _ => return Err(failure("EDIT_NO_SOURCE_VALUE", anchor_parent, canonical)),
     };
     if matches!(node.value, Value::Map(_) | Value::Seq(_)) {
-        return Err(failure("EDIT_NOT_A_SCALAR", node.pos, &canonical));
+        return Err(failure("EDIT_NOT_A_SCALAR", node.pos, canonical));
     }
     let bytes = text.as_bytes();
     let start = node.pos.map_or(0, |p| p.offset);
@@ -255,13 +252,13 @@ pub fn source_span(
         .pos
         .is_some_and(|p| matches!(bytes.get(p.offset), Some(b'{' | b'[')))
     {
-        return Err(failure("EDIT_FLOW_CONTEXT", node.pos, &canonical));
+        return Err(failure("EDIT_FLOW_CONTEXT", node.pos, canonical));
     }
-    let (end, style) = scan(bytes, start).map_err(|code| failure(code, node.pos, &canonical))?;
+    let (end, style) = scan(text, start).map_err(|code| failure(code, node.pos, canonical))?;
     let token = text
         .get(start..end)
-        .ok_or_else(|| failure("EDIT_SPAN_MISMATCH", node.pos, &canonical))?;
-    read_back(token, node, style).map_err(|code| failure(code, node.pos, &canonical))?;
+        .ok_or_else(|| failure("EDIT_SPAN_MISMATCH", node.pos, canonical))?;
+    read_back(token, node, style).map_err(|code| failure(code, node.pos, canonical))?;
     Ok(SourceSpan { start, end, style })
 }
 
@@ -319,7 +316,7 @@ mod tests {
 
     #[test]
     fn the_scanner_stops_where_the_rules_say() {
-        let s = |t: &str, start: usize| scan(t.as_bytes(), start);
+        let s = |t: &str, start: usize| scan(t, start);
         assert_eq!(s("name: alpha\n", 6), Ok((11, SpanStyle::Plain)));
         assert_eq!(s("name: alpha   # c\n", 6), Ok((11, SpanStyle::Plain)));
         assert_eq!(

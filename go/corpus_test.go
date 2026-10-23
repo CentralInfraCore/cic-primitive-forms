@@ -1284,3 +1284,29 @@ func TestSourceSpanEdgeCases(t *testing.T) {
 	span("name: a#b\n", "$.name", 6, 9, forms.SpanPlain) // a # that does not follow a space is part of the scalar
 	span("name: alpha  \ncount: 3\n", "$.name", 6, 11, forms.SpanPlain)
 }
+
+// The offset of a path_parse error is present there and nowhere else; and a list below a composite is found by its identity.
+func TestSourceSpanPathErrorsAndAListBelowAComposite(t *testing.T) {
+	offset := func(path string) *int {
+		_, err := forms.SourceSpan("name: a\n", editRoot(t), path, accessKeys)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != forms.ErrContract {
+			t.Fatalf("%s: %v", path, err)
+		}
+		return fe.Violations[0].PathOffset
+	}
+	if o := offset("name"); o == nil || *o != 0 {
+		t.Errorf("a path_parse error carries the offset in the path text: %v", o)
+	}
+	if o := offset("$.nope"); o != nil {
+		t.Errorf("a path_resolve error carries none: %v", *o)
+	}
+	tree := obj{"box": obj{"composite": obj{"routes": obj{"list": obj{"key": []any{"to"},
+		"fields": obj{"to": obj{"scalar": "string"}, "metric": obj{"scalar": "integer"}}}}}}}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: treeFields(t, tree, nil)}
+	text := "box:\n  routes:\n    - to: a\n      metric: 1\n    - to: b\n      metric: 2\n"
+	sp, err := forms.SourceSpan(text, root, `$.box.routes[{to="b"}].metric`, accessKeys)
+	if err != nil || sp != (forms.Span{Start: 69, End: 70, Style: forms.SpanPlain}) || text[sp.Start:sp.End] != "2" {
+		t.Errorf("a list below a composite: %v %v", sp, err)
+	}
+}

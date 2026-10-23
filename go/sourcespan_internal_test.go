@@ -32,7 +32,7 @@ func TestTheScannerStopsWhereTheRulesSay(t *testing.T) {
 		{"a: b\r\nc: d\r\n", 3, want{4, SpanPlain, ""}}, // the span stops before the CR
 		{"a: b\rc: d\r", 3, want{4, SpanPlain, ""}},     // and before a lone CR
 	} {
-		end, style, code := scanSpan([]byte(c.text), c.start)
+		end, style, code := scanSpan(c.text, c.start)
 		if (want{end, style, code}) != c.want {
 			t.Errorf("%q from %d: got %d %q %q, want %v", c.text, c.start, end, style, code, c.want)
 		}
