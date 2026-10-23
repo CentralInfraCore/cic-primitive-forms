@@ -56,16 +56,18 @@ fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error {
 }
 
 fn path_failure(e: PathError) -> Error {
+    // (outside the macro: the branch tool does not enumerate an `if` inside a macro invocation)
+    let path_offset = if e.phase == Phase::PathParse {
+        Some(e.offset)
+    } else {
+        None
+    };
     Error::Contract(vec![Violation {
         code: e.code,
         phase: e.phase,
         location: Location::NotApplicable,
         logical_path: e.logical_path,
-        path_offset: if e.phase == Phase::PathParse {
-            Some(e.offset)
-        } else {
-            None
-        },
+        path_offset,
     }])
 }
 
