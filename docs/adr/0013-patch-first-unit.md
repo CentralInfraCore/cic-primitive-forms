@@ -1,7 +1,7 @@
 # ADR 0013: Patch - the first unit
 
-Status: **proposed** (2026-10-24). It is step P4-0 of `docs/P4-DIFF-PATCH.md`, which holds the reasoning, the order of work and the questions that are the owner's; this ADR holds only what has to be
-fixed as a contract so that Rust and Go can implement and test the same thing. It is **not accepted** until the owner merges it, and the reviewer's professional GO is not the acceptance. It re-opens none of ADR 0001-0012: the diff
+Status: **accepted** (2026-10-24, the day the owner merged this ADR; see "Acceptance record"). It is step P4-0 of `docs/P4-DIFF-PATCH.md`, which holds the reasoning, the order of work and the questions that are the owner's; this ADR holds only what has to be
+fixed as a contract so that Rust and Go can implement and test the same thing. The reviewer's professional GO was the review, not the acceptance: the acceptance is the owner's merge. It re-opens none of ADR 0001-0012: the diff
 stays exactly as ADR 0008 defines it (its bytes, its events, its order, its errors), and the replacement of one scalar stays exactly as ADR 0012 defines it. Nothing here is evidence that a Rust or Go implementation exists.
 
 ## Context
@@ -99,4 +99,16 @@ Applying `added` and `removed` (insertion and deletion), `set_change`, `policy_d
 
 ## Acceptance record
 
-Not yet accepted. The owner's decisions of section 9 of `docs/P4-DIFF-PATCH.md` (the invariant, the context, atomicity, the reach of the first unit, the order of work, the accounting, the closing of P3b) are taken when this ADR is merged, and are recorded here then.
+Accepted on 2026-10-24 by the owner's decision to merge this ADR (#81, merge commit `c73c5a23`), together with the design note (#80, `22c8c7d6`), the closing record of the first unit of P3b (#82, `bcf3b34d`) and the nightly profile of cic-factory (cic-factory #44, `fc91d6e2`). *Accepted* means this is the normative contract of the first unit of patch and we know what must be built; it is **not** evidence that an implementation exists or conforms. Nothing of it is implemented, and no patch vector exists yet.
+
+The decisions of section 9 of `docs/P4-DIFF-PATCH.md` are taken as proposed there, with the two clarifications of the review that are in sections 3 to 5 above:
+
+1. The invariant is S+: the diff against B is empty **within the context and the scope of the diff**, with the replay rejection and the nothing-partial rule; byte equality with the text of B is not promised.
+2. The context is passed by the caller; the patch verifies what it can and takes the rest, that the diff was made under that context, as the caller's trusted binding. ADR 0008 is not changed.
+3. The patch is atomic, and a diff with any event the first unit does not apply is refused as a whole.
+4. The first unit applies only `value_change` on existing primitive scalars, through `edit_scalar`, text in and text out.
+5. The order of work is the one of section 5 of the note: the patch vectors by hand first, the diff by vector group, the patch, the proof pass.
+6. The numbers of the accounting move out of the tests into a data file, as expectations written in advance and never computed from a run; this is a separate small pull request that comes before the patch vectors.
+7. The first unit of P3b is closed and its later units are open (#82); P4 starts before them because the first unit of patch needs only the scalar replacement.
+
+Applied with this acceptance: the amendment of ADR 0005 (the kind `patch`, and the optional `path_after` of the kind `edit`, which the amendment of ADR 0012 had not named) and the amendment of ADR 0007 (the phase `patch`). Not applied, and not part of the acceptance: the registry `corpus/codes.yaml` (the four codes come with their vectors in step P4-1), and any code.

@@ -259,6 +259,12 @@ A ninth phase, `edit`, is added after `diff`. It runs after `parse`, `validate` 
 are `value` and `parent` as defined above. The sentence at the top of this ADR (and the entry of the *Not decided* list) that says it commits to no editing stands for what this ADR itself defines: the use of the positions
 retained by the parser to replace a scalar is the subject of ADR 0012. A position here is still the start of a node; the extent of a scalar is found by the scanner of ADR 0012, section 2, and is checked against the parser's value.
 
+## Amendment: the phase `patch` (ADR 0013, 2026-10-24)
+
+A tenth phase, `patch`, is added after `edit`. It runs after the earlier phases have accepted the document (`parse`, `validate`) and reports **one** error: the first failing condition of the fixed order of ADR 0013, section 3. It has four codes, `PATCH_CONTEXT_MISMATCH`, `PATCH_UNSUPPORTED_EVENT`, `PATCH_TARGET_ABSENT` and `PATCH_CONFLICT`
+(the anchors are in ADR 0013, section 6: `not_applicable`, `parent` and `value`). A document that does not validate, a path that does not resolve against the schema and a refusal of the replacement itself are **not** patch errors: they are reported with the code and the phase of the phase that refuses them (`validate`, `path_resolve`, `edit`).
+`PATCH_CONTEXT_MISMATCH` is raised only for what the patch can check, and does not say under which context a diff was made.
+
 ## Acceptance record
 
 Accepted on 2026-10-18 by the owner's decision in the P0 acceptance review (`docs/reviews/p0-acceptance-review.md`). *Accepted* means this is the normative contract of the P0 scope and we know what must be built; it is **not** evidence that an implementation exists or conforms. All corpus expectations still have one author and are cross-checked only against throwaway models; the Rust and Go runners of P1 are the independent check.
