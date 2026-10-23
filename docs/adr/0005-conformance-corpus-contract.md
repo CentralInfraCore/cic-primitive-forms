@@ -183,7 +183,12 @@ A kind `patch` is added (the cases of P4, `docs/P4-DIFF-PATCH.md`). Like the edi
 
 | Kind | Input fields | Expectation keys |
 |---|---|---|
-| `patch` | `input_yaml` or `input_hex`, `schema`, `context` (the `SchemaContext` the caller passes), `diff` (the events of ADR 0008, structured; a case may also carry the canonical string of the diff, which must read back to the same events) | exactly one of `output_yaml` or `output_hex` (the exact bytes of the patched text) together with `replaced` (the paths of the replaced scalars, in the canonical order), and `errors` (one error: the earlier phase that refused, or phase `edit` or `patch`) |
+| `patch` | `input_yaml` or `input_hex`, `schema`, `context` (the `SchemaContext` the caller passes), `diff` (the events of ADR 0008, structured; a case may also carry the canonical string of the diff, which must read back to the same events) | see below: a success case has `output_yaml` or `output_hex` **and** `replaced`; a failure case has `errors` and none of those |
+
+The expectation of a `patch` case is **one of two shapes, never both**:
+
+* *success:* exactly one of `output_yaml` or `output_hex` (the exact bytes of the patched text) **and** `replaced` (the paths of the replaced scalars, in the canonical order of ADR 0008; an empty diff has `replaced: []` and an output equal to the input);
+* *failure:* `errors` (exactly one error: the earlier phase that refused, or phase `edit` or `patch`), and neither an output nor `replaced`. A failure returns no text.
 
 Outputs are compared as **bytes**. A case that is the round trip of ADR 0013, section 4 (the result of the patch against a B) names its B and its scope and expects an empty `changes` of `diff(result, B)`; a case of replay rejection applies a diff to its own result. The gate rules of the kind are defined with the vectors (step P4-1); the accounting stays exact, and its numbers are expectations written down in advance, never computed from a run.
 

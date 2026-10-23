@@ -1,6 +1,6 @@
 # ADR 0013: Patch - the first unit
 
-Status: **accepted** (2026-10-24, the day the owner merged this ADR; see "Acceptance record"). It is step P4-0 of `docs/P4-DIFF-PATCH.md`, which holds the reasoning, the order of work and the questions that are the owner's; this ADR holds only what has to be
+Status: **accepted** (2026-10-23, the day the owner merged this ADR; see "Acceptance record"). It is step P4-0 of `docs/P4-DIFF-PATCH.md`, which holds the reasoning, the order of work and the questions that are the owner's; this ADR holds only what has to be
 fixed as a contract so that Rust and Go can implement and test the same thing. The reviewer's professional GO was the review, not the acceptance: the acceptance is the owner's merge. It re-opens none of ADR 0001-0012: the diff
 stays exactly as ADR 0008 defines it (its bytes, its events, its order, its errors), and the replacement of one scalar stays exactly as ADR 0012 defines it. Nothing here is evidence that a Rust or Go implementation exists.
 
@@ -99,7 +99,7 @@ Applying `added` and `removed` (insertion and deletion), `set_change`, `policy_d
 
 ## Acceptance record
 
-Accepted on 2026-10-24 by the owner's decision to merge this ADR (#81, merge commit `c73c5a23`), together with the design note (#80, `22c8c7d6`), the closing record of the first unit of P3b (#82, `bcf3b34d`) and the nightly profile of cic-factory (cic-factory #44, `fc91d6e2`). *Accepted* means this is the normative contract of the first unit of patch and we know what must be built; it is **not** evidence that an implementation exists or conforms. Nothing of it is implemented, and no patch vector exists yet.
+Accepted on 2026-10-23 by the owner's decision to merge this ADR (#81, merge commit `c73c5a23`), together with the design note (#80, `22c8c7d6`), the closing record of the first unit of P3b (#82, `bcf3b34d`) and the nightly profile of cic-factory (cic-factory #44, `fc91d6e2`). *Accepted* means this is the normative contract of the first unit of patch and we know what must be built; it is **not** evidence that an implementation exists or conforms. Nothing of it is implemented, and no patch vector exists yet.
 
 The decisions of section 9 of `docs/P4-DIFF-PATCH.md` are taken as proposed there, with the two clarifications of the review that are in sections 3 to 5 above:
 
