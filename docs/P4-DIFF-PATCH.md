@@ -21,7 +21,7 @@ So P4 is not one unit. The diff comes first, because `patch(A, diff(A, B))` cann
 ## 2. What the diff and the patch are for
 
 A diff is *descriptive evidence of a difference* (ADR 0008): it is not an instruction, and a difference is not drift and not an authorized change. A patch is the step from that evidence back to a document: it applies a
-set of changes to a document it is handed. **It decides nothing about who may.** Authorization, the interpretation of a difference as drift, and inheritance resolution stay outside (ADR 0008, "Not decided here"); the patch of this note is a mechanical, checked application.
+set of changes to a document it is handed. **It decides nothing about who may.** Authorization, the interpretation of a difference as drift, and inheritance resolution stay outside (ADR 0008, "Not decided here"); the patch of this note is a mechanical, checked application. That a patch applied says nothing about whether it was allowed, a diff does not become an instruction by being applied, and **an empty diff is neither evidence of provenance nor of authorization** (it says only that the compared logical content is equal).
 
 ## 3. What "equals" means: the invariant
 
@@ -36,12 +36,12 @@ set of changes to a document it is handed. **It decides nothing about who may.**
 B is impossible, not merely hard. ADR 0008 defines a diff on the logical content alone: YAML mapping order, list order, flow versus block style, quoting, comments and short versus expanded writing are **not** differences (the last is reported in `representation` and is not a change). Two texts of the same logical content therefore have
 the same diff from A, and the diff cannot say which of them was meant. A small example: A is `name: alpha`; B is `name: 'beta'  # the host`. The diff is one `value_change` (`alpha` to `beta`); `patch(A, d)` is `name: beta`; the quotes and the comment of B are not in the diff, and cannot be.
 
-**Proposed invariant (the owner's to accept, section 9.1): S+.** For every A and B that the first unit can handle (section 4):
+**Proposed invariant (the owner's to accept, section 9.1): S+.** For every A and B that the first unit can handle (section 4), with `d = diff(A, B)` made under one `SchemaContext` and one comparison scope:
 
-1. *Round trip.* `diff(patch(A, diff(A, B)), B)` has an empty `changes`.
+1. *Round trip, within the scope.* `diff(patch(A, d), B).changes` is empty **under the same context and the same scope as `d`**. With the complete scope that is logical equality of the two documents. With a partial scope (ADR 0008: what was not observed is not absent) it is equality of the **observed region only**: a diff made over `$.ip.gateway` and an empty result do not show that the whole of B equals the patched A, and the patch makes no such claim.
 2. *Minimality.* The result differs from A only at the positions of the applied changes; the bytes outside those scalars are A's, in every style, comment and line ending.
-3. *Idempotence.* `patch(patch(A, d), d)` is a conflict, not a second application (the `previous` of the change no longer matches), and `patch(A, [])` is A byte for byte.
-4. *Nothing partial.* Either every change of the diff is applied or the result is an error and no text.
+3. *Replay rejection* (not idempotence). A diff with at least one effective change applied a second time is a conflict, not a second application: the `previous` of the change no longer matches. A diff with **no** changes is not a conflict: `patch(A, empty diff)` is A byte for byte, every time.
+4. *Nothing partial.* Either every change of the diff is applied or the result is an error and **no text**; no partly modified text is returned, even when a working copy was edited internally on the way.
 
 Written the other way, the promise is: after a patch the **diff against B is empty**, and the **only bytes that moved are the values that had to**. Anything that would need B's text (its quoting, its comments, its short or expanded writing) is a *representation* matter, reported by the diff and never applied.
 
@@ -52,7 +52,9 @@ Small, and with every other change refused by name.
 * **Applies:** `value_change` events whose `path` addresses an **existing primitive scalar position** of A (a string, integer or boolean field, in short or expanded writing, a scalar inside a list element), with `previous` and `next` scalars of the kind the position has. Applying one is `edit_scalar` (P3b) with `next`, so every refusal of that operation (a block scalar, a multi-line scalar, a flow collection, a value a style cannot carry, ...) is already defined and already proved.
 * **Precondition (the conflict check):** the value that A holds at the path must equal `previous`, type-strict (`0` is not `false`). If it does not, the patch is **`PATCH_CONFLICT`** and nothing is applied. This is the explicit conflict the exit sentence asks for.
 * **Refused, whole patch, with a code:** `added`, `removed`, `policy_declaration_change`, `set_change`, a `value_change` on an opaque position (the value is not a scalar), on a key component of a list element (a diff never produces it: a changed identity is a removal plus an addition), or on a path A does not have. `representation` entries are not events and are ignored.
-* **Context:** a diff's bytes carry no schema context (ADR 0008 is not reopened). The caller passes the `SchemaContext` the diff was made under, and A must be readable under it; the patch cannot silently apply a diff made under another schema.
+* **Context, and what is proved of it.** A diff's canonical bytes carry no schema context (ADR 0008 is not reopened), so a patch **cannot verify under which context a diff was made**. The two sides are kept apart:
+  * *The patch verifies itself:* A parses and validates under the `SchemaContext` the caller passes; the version of the diff is known; every path of an event resolves against that schema; `next` and `previous` are of the kind the position has; the value A holds equals `previous`, type-strict.
+  * *The patch takes from the caller, as a trusted binding:* that the diff was computed under that same context. `Context supplied` is not `Context verified`, and `previous matches` is not `diff provenance verified`. A binding of a diff to its context, if one is wanted, is the work of a separate, trusted envelope (an integration contract, not this ADR); the patch does not claim to know where a diff came from.
 * **Order:** the changes of a diff are in canonical order and at most one per `(path, kind)`; positions that are independent commute (P3b guarantee 6), so the order of application is not observable. Atomicity holds either way: nothing is returned until every change has been checked and applied.
 
 Not in the first unit (each a later unit with its own note): applying `added` / `removed` (insertion and deletion are not in P3b either), set changes, declaration changes (the five fields of an expanded position), opaque values, changing representation, a patch of an already-parsed document without text, a command line, authorization.
@@ -85,10 +87,10 @@ A new phase `patch` after `diff` (ADR 0007 gets a tenth phase when ADR 0013 is a
 
 | Code | Condition |
 |---|---|
-| `PATCH_CONFLICT` | the value A holds at the path is not `previous` |
+| `PATCH_CONFLICT` | the value A holds at the path is not `previous` (this is also what a second application of a diff with effective changes is; a diff with no changes never conflicts) |
 | `PATCH_UNSUPPORTED_EVENT` | an event kind or a target the first unit does not apply (the list of section 4) |
 | `PATCH_TARGET_ABSENT` | the path does not address a position that A holds |
-| `PATCH_CONTEXT_MISMATCH` | A is not readable under the context the caller gave, or the diff's version is unknown |
+| `PATCH_CONTEXT_MISMATCH` | only what the patch can check: A is not readable under the context the caller gave, or the diff's version is unknown. It does **not** mean that the diff was made under another context: nothing in the inputs can show that |
 
 A refusal of the replacement itself keeps the code and the phase of ADR 0012 (`edit`); a refusal of A (parse, validate, path) is reported as it is today. One error per response, in the fixed order: the earlier phases, `PATCH_CONTEXT_MISMATCH`, then the events in canonical order.
 
@@ -98,10 +100,10 @@ It does not define a patch of anything but existing scalars, authorization, drif
 
 ## 9. Decisions that are the owner's
 
-1. **The invariant (section 3).** Proposed: S+ (the diff against B is empty and only the bytes of the changed scalars move); byte identity with B's text is not promised, with the argument above. The alternative is to demand more of the diff (carry the authored form and the text), which reopens ADR 0008.
-2. **The context of a patch (section 4).** Proposed: the caller passes the `SchemaContext`; the diff's bytes stay as ADR 0008 fixes them. The alternative is a context digest inside the diff (a change of ADR 0008).
+1. **The invariant (section 3).** Proposed: S+ (the diff against B is empty **within the context and the scope of the diff**, and only the bytes of the changed scalars move); byte identity with B's text is not promised, with the argument above. The alternative is to demand more of the diff (carry the authored form and the text), which reopens ADR 0008.
+2. **The context of a patch (section 4).** Proposed: the caller passes the `SchemaContext`; the patch checks what it can (A under that context, the version, the paths, the kinds, `previous`) and takes the rest, that the diff was made under that context, as the caller's trusted binding; the diff's bytes stay as ADR 0008 fixes them. The alternative is a context digest inside the diff (a change of ADR 0008), which would make the binding checkable.
 3. **Atomicity and the refused events.** Proposed: all or nothing, and a diff that holds any event the first unit does not apply is refused as a whole (`PATCH_UNSUPPORTED_EVENT`), never applied in part. The alternative is to apply the supported events and report the rest, which makes a patch of a diff differ from "the" patch of it.
 4. **The first unit's reach.** Proposed: only `value_change` on existing primitive scalars, through `edit_scalar` (text in, text out). The alternative is to start with a patch of a parsed value (no text); it needs a second writer that nothing proves.
 5. **The order of work (section 5).** Proposed: D1-D3 before P4-2, with P4-0 and P4-1 first and in parallel with D1. The alternative is to build the patch against a hand-made diff and the diff later, which tests the patch against evidence nobody computed.
-6. **The cost of the gate.** The counts of the accounting are numbers inside existing tests, so every new suite makes a pull request `full`. Proposed: move them to a data file before P4-1 (a small separate pull request), so that a new suite is an addition.
+6. **The cost of the gate.** The counts of the accounting are numbers inside existing tests, so every new suite makes a pull request `full`. Proposed: move them to a data file before P4-1 (a small separate pull request), so that a new suite is an addition. **The numbers stay expectations written down in advance, by hand, in that file; they are never computed from the run** (a test still compares the run with them, and a run that disagrees fails). The rule of the quality gate is not weakened by where the numbers live.
 7. **P3b is not closed by this.** The first unit of P3b (one scalar, E1-E4) is done; insertion, deletion, block and flow scalars, anchors and a batch of edits are still outside the supported subset. The `PHASES.md` row of P3b should say "first unit closed, later units open" once E4 is merged, and P4 is allowed to start before the rest of P3b because the first patch unit needs only the scalar replacement.
