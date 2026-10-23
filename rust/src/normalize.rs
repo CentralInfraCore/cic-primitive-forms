@@ -46,11 +46,13 @@ fn origins_of(mut found: Vec<(crate::recognize::Path, &'static str)>) -> Vec<Val
         .collect()
 }
 
-/// Expands `doc` and inserts the declared defaults of its absent optional fields. The input is not modified.
+/// Expands `doc` and inserts the declared defaults of its absent optional fields. The input is not modified. A document that
+/// does not validate (every expanded wrapper read as its value) is refused with its violations, as they are, and nothing is made:
+/// the walk checks the forms, not the values or the list identities (#88).
 ///
 /// # Errors
-/// Those of [`crate::expand`]: a contradictory context, an undeclared key (`UNKNOWN_FIELD`), a structure the schema does not
-/// allow.
+/// A contradictory context; the refusal of the validation; then those of [`crate::expand`]: an undeclared key
+/// (`UNKNOWN_FIELD`), a structure the schema does not allow.
 pub fn normalize(
     doc: &Node,
     shape: &Shape,
@@ -59,6 +61,7 @@ pub fn normalize(
     ctx: &Context,
 ) -> Result<NormalizationResult, Error> {
     ctx.check(shape)?;
+    crate::editscalar::refuse_invalid(doc, shape, a)?;
     let mut w = Walker::plain(a, g, Provenance::new(), Vec::new());
     w.defaults = true;
     let object = w.record(doc, shape, &mut Vec::new(), true)?;

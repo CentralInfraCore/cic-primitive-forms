@@ -1108,9 +1108,29 @@
    "id": "an-absent-field-gets-no-entry-and-an-inserted-default-does",
    "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  policy_surface:\n    default_access: [O=r]\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: d\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n          - name: prefix\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n          - name: metric\n            shape_type: scalar\n            scalar_type: integer\n            optional: true\n",
    "grammar": 1,
-   "yaml": "ip: {}\n",
+   "yaml": "type: t\nip: {}\n",
    "unknown": [],
    "expect": [
+    [
+     "$.type",
+     "access",
+     "list",
+     "object_default",
+     "$",
+     [
+      "O=r"
+     ],
+     ""
+    ],
+    [
+     "$.type",
+     "modify",
+     "owner",
+     "system",
+     "",
+     null,
+     ""
+    ],
     [
      "$.label",
      "access",
@@ -1154,7 +1174,8 @@
    ],
    "positions": [
     "$.ip",
-    "$.label"
+    "$.label",
+    "$.type"
    ]
   },
   {

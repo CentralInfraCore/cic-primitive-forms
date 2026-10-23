@@ -192,10 +192,20 @@ func TestNormalizeNeverDefaultsAMandatoryFieldOrAbsentStructure(t *testing.T) {
 		{Name: "must", Shape: str(forms.Mandatory, x)}, // a hand-built shape: the compiler never produces this
 		{Name: "box", Shape: forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{{Name: "in", Shape: str(forms.Optional, x)}}}},
 	}}
+	// the mandatory field is not defaulted: its absence is the validation's refusal, and nothing is made (#88)
 	doc, _ := forms.Parse("{}\n")
 	res, err := forms.Normalize(doc, root, keySet, bound(t, 1), forms.Context{})
-	if err != nil || len(res.ValueOrigins) != 0 || forms.Emit(res.Object) != "{}\n" {
-		t.Fatalf("got %v / %q", err, forms.Emit(res.Object))
+	var e *forms.Error
+	if res != nil || !errors.As(err, &e) || e.Kind != forms.ErrContract || e.Violations[0].Code != "MISSING_MANDATORY" ||
+		e.Violations[0].LogicalPath != "$.must" {
+		t.Fatalf("got %v / %v", res, err)
+	}
+	// and the absent optional structure is not made to hold its default
+	doc, _ = forms.Parse("must: y\n")
+	res, err = forms.Normalize(doc, root, keySet, bound(t, 1), forms.Context{})
+	if err != nil || len(res.ValueOrigins) != 1 || res.ValueOrigins[0] != (forms.ValueOrigin{Path: "$.must", Origin: forms.ValueOriginAuthored}) ||
+		len(res.Object.Entries) != 1 || res.Object.Entries[0].Key != "must" {
+		t.Fatalf("got %v / %+v", err, res)
 	}
 }
 
