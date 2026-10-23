@@ -1,4 +1,5 @@
 """Probes of the record builder: a record is made only from a run that can be described completely, and its verdict is the numbers'."""
+import collections
 import copy
 import datetime
 import json
@@ -63,14 +64,16 @@ class Run:
         write(a, "lines/rust-lines.json", {"data": [{"files": [{"filename": "/r/rust/src/a.rs", "summary": {"lines": {"covered": self.rust_lines[0], "count": self.rust_lines[1]}}}]}]})
         write(a, "lines/go-lines.out", "mode: set\nx/a.go:1.1,2.2 %d 1\nx/a.go:3.1,4.2 %d 0\n" % (self.go_lines[0], self.go_lines[1] - self.go_lines[0]))
         killed, survived, unviable = self.rust_mut
-        names = ["src/a.rs:%d:1: replace x with y in f%d" % (i, i) for i in range(killed + survived)]
+        names = ["src/a.rs:%d:1: replace x with y in f%d" % (i, i) for i in range(killed + survived + unviable)]
+        summary = ["MissedMutant"] * survived + ["Unviable"] * unviable + ["CaughtMutant"] * killed
         write(a, "quality-listed/rust-listed.json", [{"name": n} for n in names])
         for s in range(4):
-            mine = names[s::4]
-            missed = [n for n in mine if names.index(n) < survived]
-            outs = [{"scenario": "Baseline"}] + [{"scenario": {"Mutant": {"name": n}}} for n in mine]
-            write(a, "rust-mutants-%d/outcomes.json" % s, {"caught": len(mine) - len(missed), "missed": len(missed), "timeout": 0,
-                                                            "unviable": unviable if s == 0 else 0, "total_mutants": len(mine), "outcomes": outs})
+            mine = range(len(names))[s::4]
+            outs = [{"scenario": "Baseline", "summary": "Success"}] + [
+                {"scenario": {"Mutant": {"name": names[i]}}, "summary": summary[i]} for i in mine]
+            n = collections.Counter(summary[i] for i in mine)
+            write(a, "rust-mutants-%d/outcomes.json" % s, {"caught": n["CaughtMutant"], "missed": n["MissedMutant"], "timeout": 0,
+                                                            "unviable": n["Unviable"], "total_mutants": len(mine), "outcomes": outs})
         gk, gs, gu = self.go_mut
         ids = ["g%03d" % i for i in range(gk + gs + gu)]
         verdict = ["survived"] * gs + ["uncompilable"] * gu + ["killed"] * gk
@@ -195,9 +198,18 @@ class BuildTests(unittest.TestCase):
     def test_a_mutant_tested_twice_leaves_no_record(self):
         p = os.path.join(self.r.art, "rust-mutants-1", "outcomes.json")
         d = load_json(p)
-        d["outcomes"].append(d["outcomes"][1])
+        d["outcomes"].append(d["outcomes"][1])   # and the totals say so: a report that agrees with itself, only not with the list
+        d["total_mutants"] += 1
+        d[{"CaughtMutant": "caught", "MissedMutant": "missed", "Unviable": "unviable"}[d["outcomes"][1]["summary"]]] += 1
         write(self.r.art, "rust-mutants-1/outcomes.json", d)
         self.refuses("INCOMPLETE_MEASUREMENT")
+
+    def test_a_report_that_contradicts_itself_leaves_no_record(self):
+        p = os.path.join(self.r.art, "rust-mutants-1", "outcomes.json")
+        d = load_json(p)
+        d["caught"] += 500
+        write(self.r.art, "rust-mutants-1/outcomes.json", d)
+        self.refuses("UNMEASURED")
 
     def test_branch_reports_have_to_be_of_this_commit_and_metric(self):
         for label, edit in (("another commit", lambda d: d["source"].update(commit="9" * 40)), ("another metric", lambda d: d.update(metric="line")),

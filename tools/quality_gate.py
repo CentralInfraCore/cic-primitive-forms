@@ -20,6 +20,10 @@ Reports:
   --go-ledgers    one tools/mutation_shard_exec.sh ledger per shard of a sharded go-mutesting run
 Unviable mutants (Rust) and skipped or duplicated ones (Go) are not counted either way.
 
+A mutation report carries its result twice, as totals and as one verdict per mutant. The score is read from the
+verdicts, and totals that disagree with them are REPORT_INCONSISTENT, red: a report that contradicts itself
+measures nothing.
+
 A sharded measurement is only as good as its completeness: a shard that did not run, a mutant that two shards
 tested or that none tested, shards that disagree on which mutants there are, would raise the score without
 anyone noticing. Each of those is INCOMPLETE_SHARDS, red.
@@ -40,6 +44,7 @@ REASONS = {
     "MEASUREMENT_EMPTY": "nothing was measured (no lines or no mutants)",
     "BELOW_THRESHOLD": "not strictly above 90%",
     "INCOMPLETE_SHARDS": "a shard is missing, or a mutant was tested twice or not at all",
+    "REPORT_INCONSISTENT": "a report's totals disagree with its own per-mutant results",
 }
 
 
@@ -92,17 +97,32 @@ def go_lines(path):
     return covered, total
 
 
+# cargo-mutants 27.1.0 (src/outcome.rs, LabOutcome::add): each mutant outcome raises exactly one of these totals,
+# and total_mutants once. A mutant summarised as Success or Failure has no verdict.
+RUST_VERDICTS = {"CaughtMutant": "caught", "MissedMutant": "missed", "Timeout": "timeout", "Unviable": "unviable"}
+
+
 def _rust_outcome(path, need_names):
     try:
         d = json.loads(read(path))
-        killed = d["caught"] + d["timeout"]
-        survived = d["missed"]
-        if not all(isinstance(x, int) for x in (killed, survived)):
+        totals = {k: d[k] for k in ("caught", "missed", "timeout", "unviable", "total_mutants")}
+        if not all(isinstance(x, int) and not isinstance(x, bool) for x in totals.values()):
             raise TypeError
-        names = [o["scenario"]["Mutant"]["name"] for o in d["outcomes"] if isinstance(o.get("scenario"), dict)] if need_names else []
+        mutants = [o for o in d["outcomes"] if isinstance(o.get("scenario"), dict)]
+        names = [o["scenario"]["Mutant"]["name"] for o in mutants]
+        summaries = [o["summary"] for o in mutants]
     except (ValueError, KeyError, TypeError, AttributeError):
         raise Refused("REPORT_FORMAT", "%s: not a cargo-mutants outcomes.json" % path)
-    return killed, survived, names
+    counted = dict.fromkeys(RUST_VERDICTS.values(), 0)
+    for name, s in zip(names, summaries):
+        if s not in RUST_VERDICTS:
+            raise Refused("REPORT_INCONSISTENT", "%s: mutant %s has no verdict (%r)" % (path, name, s))
+        counted[RUST_VERDICTS[s]] += 1
+    counted["total_mutants"] = len(mutants)
+    wrong = ["%s %d, counted %d" % (k, totals[k], counted[k]) for k in totals if totals[k] != counted[k]]
+    if wrong:
+        raise Refused("REPORT_INCONSISTENT", "%s: the totals disagree with the mutant outcomes (%s)" % (path, "; ".join(wrong)))
+    return counted["caught"] + counted["timeout"], counted["missed"], names if need_names else []
 
 
 def _rust_listed(path, allow_empty=False):
@@ -186,13 +206,27 @@ def go_ledgers(paths, allow_empty=False):
     return killed, killed + survived
 
 
+# go-mutesting (cmd/go-mutesting/main.go at the pinned commit) prints one line per tested mutant, `PASS` (killed),
+# `FAIL` (escaped), `SKIP` (did not compile) or `UNKOWN exit code for` (sic; an error), followed by the quoted
+# mutant file and its checksum; its total is killed + escaped + skipped + errors. Duplicates have no line and are not
+# in the total. The exec script writes to the same stdout, so only the exact result-line shape is counted.
+GO_RESULT_LINE = re.compile(r'^(PASS|FAIL|SKIP|UNKOWN exit code for) ".*" with checksum [0-9a-f]+$', re.M)
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
 def go_mutants(path):
+    text = ANSI.sub("", read(path))
     m = re.search(r"The mutation score is [0-9.]+ \((\d+) passed, (\d+) failed, (\d+) duplicated, (\d+) skipped, total is (\d+)\)",
-                  read(path))
+                  text)
     if not m:
         raise Refused("REPORT_FORMAT", "%s: no go-mutesting summary line" % path)
-    killed, survived = int(m.group(1)), int(m.group(2))
-    return killed, killed + survived
+    lines = [r.group(1) for r in GO_RESULT_LINE.finditer(text)]
+    summary = {"passed": int(m.group(1)), "failed": int(m.group(2)), "skipped": int(m.group(4)), "total": int(m.group(5))}
+    counted = {"passed": lines.count("PASS"), "failed": lines.count("FAIL"), "skipped": lines.count("SKIP"), "total": len(lines)}
+    wrong = ["%s %d, counted %d" % (k, summary[k], counted[k]) for k in summary if summary[k] != counted[k]]
+    if wrong:
+        raise Refused("REPORT_INCONSISTENT", "%s: the summary line disagrees with the result lines (%s)" % (path, "; ".join(wrong)))
+    return counted["passed"], counted["passed"] + counted["failed"]
 
 
 def judge(name, measure, path):
@@ -259,12 +293,26 @@ def _go_cov(covered, count, name="x/a.go"):
     return "mode: set\n%s:1.1,2.2 %d %d\n%s:3.1,4.2 %d 0\n" % (name, covered, 1, name, count - covered)
 
 
-def _mut(caught, missed, timeout=0):
-    return json.dumps({"caught": caught, "missed": missed, "timeout": timeout, "unviable": 5, "total_mutants": caught + missed + 5})
+def _mut(caught, missed, timeout=0, unviable=5, claim=None, extra=()):
+    """A cargo-mutants outcomes.json: one outcome per mutant and the totals that go with them, unless `claim` overrides some;
+    `extra` adds outcomes with the given summaries that no total counts."""
+    kinds = ["CaughtMutant"] * caught + ["MissedMutant"] * missed + ["Timeout"] * timeout + ["Unviable"] * unviable + list(extra)
+    outs = [{"scenario": "Baseline", "summary": "Success"}] + [
+        {"scenario": {"Mutant": {"name": "src/a.rs:%d" % i}}, "summary": k} for i, k in enumerate(kinds)]
+    d = {"caught": caught, "missed": missed, "timeout": timeout, "unviable": unviable, "success": 0, "total_mutants": len(kinds),
+         "outcomes": outs}
+    d.update(claim or {})
+    return json.dumps(d)
 
 
-def _gomut(passed, failed):
-    return "...\nThe mutation score is 0.0 (%d passed, %d failed, 0 duplicated, 3 skipped, total is %d)\n" % (passed, failed, passed + failed + 3)
+def _gomut(passed, failed, skipped=3, claim=None):
+    """go-mutesting stdout: a result line per mutant, exec-script noise, and the summary line, unless `claim` overrides it."""
+    rows = ['%s "/tmp/go-mutesting-1/a.go.%d" with checksum %032x' % (k, i, i)
+            for i, k in enumerate(["PASS"] * passed + ["FAIL"] * failed + ["SKIP"] * skipped)]
+    s = dict(passed=passed, failed=failed, skipped=skipped, total=len(rows))
+    s.update(claim or {})
+    return "PASS\nok  \tx\t0.1s\n%s\nThe mutation score is 0.0 (%d passed, %d failed, 0 duplicated, %d skipped, total is %d)\n" % (
+        "\n".join(rows), s["passed"], s["failed"], s["skipped"], s["total"])
 
 
 def selftest():
@@ -290,6 +338,23 @@ def selftest():
         ("mutants json without the counters", dict(rm="{}"), "REPORT_FORMAT"),
         ("mutants json with a string counter", dict(rm=json.dumps({"caught": "9", "missed": 1, "timeout": 0})), "REPORT_FORMAT"),
         ("go-mutesting without a summary", dict(gm="no summary here"), "REPORT_FORMAT"),
+        ("mutants json without the outcomes", dict(rm=json.dumps({"caught": 95, "missed": 5, "timeout": 0, "unviable": 0, "total_mutants": 100})),
+         "REPORT_FORMAT"),
+        ("mutants json with a boolean counter", dict(rm=_mut(95, 1, claim={"missed": True})), "REPORT_FORMAT"),
+        ("rust totals claim 500 caught of one mutant", dict(rm=_mut(0, 1, unviable=0, claim={"caught": 500})), "REPORT_INCONSISTENT"),
+        ("rust totals swap a missed for a caught", dict(rm=_mut(94, 6, claim={"caught": 95, "missed": 5})), "REPORT_INCONSISTENT"),
+        ("rust total_mutants is not the outcome count", dict(rm=_mut(95, 5, claim={"total_mutants": 99})), "REPORT_INCONSISTENT"),
+        ("rust unviable total disagrees", dict(rm=_mut(95, 5, claim={"unviable": 0})), "REPORT_INCONSISTENT"),
+        ("rust mutant without a verdict (Failure)", dict(rm=_mut(95, 5, extra=["Failure"], claim={"total_mutants": 106})),
+         "REPORT_INCONSISTENT"),
+        ("rust mutant without a verdict (Success)", dict(rm=_mut(95, 5, extra=["Success"], claim={"total_mutants": 106})),
+         "REPORT_INCONSISTENT"),
+        ("go summary claims passes it has no lines for", dict(gm=_gomut(10, 1, claim={"passed": 500, "total": 504})), "REPORT_INCONSISTENT"),
+        ("go summary swaps a failed for a passed", dict(gm=_gomut(94, 6, claim={"passed": 95, "failed": 5})), "REPORT_INCONSISTENT"),
+        ("go total is not the number of result lines", dict(gm=_gomut(95, 5, claim={"total": 90})), "REPORT_INCONSISTENT"),
+        ("go colour codes around the result lines", dict(gm=_gomut(95, 5).replace("PASS \"", "\x1b[97;42mPASS\x1b[0m \"")), None),
+        ("go an error line counts in the total", dict(gm=_gomut(95, 5, claim={"total": 104}) + "UNKOWN exit code for \"/t/a.go.99\" with checksum ab\n"),
+         None),
     ]
     names = {"rl": "rust-lines", "gl": "go-lines", "rm": "rust-mutants", "gm": "go-mutants"}
     bad = 0
@@ -320,8 +385,8 @@ def selftest():
     def rshard(names, missed=()):
         outs = [{"scenario": "Baseline", "summary": "Success"}] + [
             {"scenario": {"Mutant": {"name": n}}, "summary": "MissedMutant" if n in missed else "CaughtMutant"} for n in names]
-        return json.dumps({"caught": len(names) - len(missed), "missed": len(missed), "timeout": 0, "unviable": 2,
-                           "total_mutants": len(names) + 2, "outcomes": outs})
+        return json.dumps({"caught": len(names) - len(missed), "missed": len(missed), "timeout": 0, "unviable": 0,
+                           "total_mutants": len(names), "outcomes": outs})
 
     def listing(names):
         return json.dumps([{"name": n, "file": "src/a.rs"} for n in names])
@@ -357,6 +422,8 @@ def selftest():
     sharded("sharded: a rust mutant was tested by two shards", "INCOMPLETE_SHARDS", rust=[rshard(a + b[:1]), rshard(b)])
     sharded("sharded: a rust shard reports a mutant that is not listed", "INCOMPLETE_SHARDS", rust=[rshard(a + ["zz"]), rshard(b)])
     sharded("sharded: the list is not a list of mutants", "REPORT_FORMAT", listed="{}")
+    sharded("sharded: a rust shard's totals claim more than its outcomes", "REPORT_INCONSISTENT",
+            rust=[json.dumps(dict(json.loads(rshard(a, missed=a[:3])), caught=500)), rshard(b)])
     sharded("sharded: a go shard did not run", "INCOMPLETE_SHARDS", ledgers=[ledger(k, 3, parts[k], gm) for k in (0, 1)])
     sharded("sharded: a go mutant was tested by two shards", "INCOMPLETE_SHARDS",
             ledgers=[ledger(0, 3, parts[0] + parts[1][:1], gm), ledger(1, 3, parts[1], gm), ledger(2, 3, parts[2], gm)])
@@ -409,7 +476,7 @@ def selftest():
     if missing:
         print("  BAD reasons without a fault: %s" % sorted(missing))
         bad += 1
-    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 14 + 14, len(set(REASONS) & seen), len(REASONS))
+    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 15 + 14, len(set(REASONS) & seen), len(REASONS))
           if bad == 0 else "self-test FAILED (%d)" % bad)
     return 0 if bad == 0 else 1
 

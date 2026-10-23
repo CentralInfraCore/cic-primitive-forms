@@ -32,6 +32,12 @@ fine. The gate therefore checks completeness before it computes anything, and an
   ledgers, not from go-mutesting's own summary.
 * The score is the sum over the shards, with the same rules as before: Rust `(caught + timeout) / (caught +
   timeout + missed)`, Go `killed / (killed + survived)`, unviable and uncompilable mutants in neither.
+* **A report must agree with itself** (#77). A cargo-mutants `outcomes.json` carries its totals and one outcome per
+  mutant; the gate counts the outcomes and requires `caught`, `missed`, `timeout`, `unviable` and `total_mutants` to
+  match them, and a mutant outcome without a verdict (`Success`, `Failure`) is refused. A go-mutesting stdout carries
+  its summary line and a `PASS` / `FAIL` / `SKIP` / `UNKOWN` line per mutant; `passed`, `failed`, `skipped` and
+  `total` must match those lines. The score is computed from the per-mutant results, and any disagreement is
+  `REPORT_INCONSISTENT`. Before this, totals of 500 caught over a single missed outcome passed as 100%.
 
 `quality_gate.py selftest` has a fault for each of these (a shard that did not run, a mutant tested twice, a mutant
 tested by none, a mutant not in the list, shards that disagree, a garbage or empty ledger, a merged score below
