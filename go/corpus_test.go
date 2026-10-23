@@ -9,6 +9,7 @@ package forms_test
 // docs/P1-SUPPORTED-SUBSET.md.
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"slices"
 	"sort"
 	"testing"
+	"unicode/utf8"
 
 	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
 	"gopkg.in/yaml.v3"
@@ -705,7 +707,7 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 			total++
 			kind := c["kind"].(string)
 			key := suite["suite"].(string) + "/" + kind
-			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) {
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) || kind == "source_span" {
 				run[key]++
 				ran++
 			} else {
@@ -720,8 +722,11 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 	for k, n := range notRun {
 		t.Logf("NOT RUN %s: %d", k, n)
 	}
-	if ran+skipped != total || ran != 240 || skipped != 179 {
-		t.Fatalf("accounting: %d run + %d not run of %d, want 240 + 179", ran, skipped, total)
+	if ran+skipped != total || ran != 268 || skipped != 151 {
+		t.Fatalf("accounting: %d run + %d not run of %d, want 268 + 151", ran, skipped, total)
+	}
+	if run["edit/source_span"] != 28 || notRun["edit/edit"] != 44 {
+		t.Fatalf("the source_span cases run (28) and the edit cases wait for step E3 (44): %v %v", run, notRun)
 	}
 	if run["lists/validate"] != 8 || run["paths/path_of"] != 18 || run["paths/path_stability"] != 7 ||
 		run["paths/path_parse"] != 57 || run["paths/path_format"] != 9 || run["paths/path_resolve"] != 34 {
@@ -1143,4 +1148,139 @@ func TestPathTextCasesMatchTheCorpus(t *testing.T) {
 	if ran != 100 {
 		t.Fatalf("the corpus has 57 path_parse, 9 path_format and 34 path_resolve cases, ran %d", ran)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// source_span (ADR 0012, step E2): where the scalar of a position is, in the original text.
+
+// sourceOf is the source text of a case: input_yaml, or the bytes of input_hex (what a text field cannot spell: a lone CR, a BOM).
+func sourceOf(t *testing.T, c obj) string {
+	t.Helper()
+	if s, ok := c["input_yaml"]; ok {
+		return s.(string)
+	}
+	b, err := hex.DecodeString(c["input_hex"].(string))
+	if err != nil || !utf8.Valid(b) {
+		t.Fatalf("input_hex: %v", err)
+	}
+	return string(b)
+}
+
+func expectedEditWires(t *testing.T, expect obj) []wire {
+	t.Helper()
+	var ws []wire
+	for _, e := range expect["errors"].([]any) {
+		ws = append(ws, expectedWire(t, e))
+	}
+	return ws
+}
+
+func TestSourceSpanCasesMatchTheCorpus(t *testing.T) {
+	ran := 0
+	for _, suite := range suites(t) {
+		if suite["suite"] != "edit" {
+			continue
+		}
+		for _, raw := range suite["cases"].([]any) {
+			c := raw.(obj)
+			if c["kind"] != "source_span" {
+				continue
+			}
+			ran++
+			id := c["id"].(string)
+			root := rootOf(t, suite, c["schema"].(obj)["synthetic"].(obj)["tree"].(string))
+			got, err := forms.SourceSpan(sourceOf(t, c), root, c["path"].(string), accessKeys)
+			expect := c["expect"].(obj)
+			if want, ok := expect["span"].(obj); ok {
+				if err != nil {
+					t.Errorf("%s: a span was expected, got %v", id, err)
+					continue
+				}
+				if got.Start != want["start"] || got.End != want["end"] || string(got.Style) != want["style"] {
+					t.Errorf("%s: got %v, want %v", id, got, want)
+				}
+				continue
+			}
+			var fe *forms.Error
+			if !errors.As(err, &fe) || fe.Kind != forms.ErrContract {
+				t.Errorf("%s: an error of the contract was expected, got %v", id, err)
+				continue
+			}
+			var ws []wire
+			for _, v := range fe.Violations {
+				ws = append(ws, wireOf(v))
+			}
+			if !reflect.DeepEqual(ws, expectedEditWires(t, expect)) {
+				t.Errorf("%s: got %v, want %v", id, ws, expectedEditWires(t, expect))
+			}
+		}
+	}
+	if ran != 28 {
+		t.Fatalf("the 28 source_span cases of corpus/edit, ran %d", ran)
+	}
+}
+
+func editRoot(t *testing.T) forms.Shape {
+	t.Helper()
+	for _, suite := range suites(t) {
+		if suite["suite"] == "edit" {
+			return rootOf(t, suite, "doc")
+		}
+	}
+	t.Fatal("the edit suite")
+	return forms.Shape{}
+}
+
+// spanOf is the span of a path, or the wires of the refusal.
+func spanOf(t *testing.T, text, path string) (forms.Span, []wire) {
+	t.Helper()
+	sp, err := forms.SourceSpan(text, editRoot(t), path, accessKeys)
+	if err == nil {
+		return sp, nil
+	}
+	var fe *forms.Error
+	if !errors.As(err, &fe) || fe.Kind != forms.ErrContract {
+		t.Fatalf("%s: outside the contract: %v", path, err)
+	}
+	var ws []wire
+	for _, v := range fe.Violations {
+		ws = append(ws, wireOf(v))
+	}
+	return forms.Span{}, ws
+}
+
+// The places a vector cannot reach (the trees of ADR 0005 have no nullable): a position the document does not spell, a node of the wrong kind,
+// a wrapper in a flow collection, the path errors, and the scanner at its edges. The Rust peer is source_span_edge_cases.
+func TestSourceSpanEdgeCases(t *testing.T) {
+	refused := func(text, path string, code, phase, loc, lp string) {
+		t.Helper()
+		if _, ws := spanOf(t, text, path); !reflect.DeepEqual(ws, []wire{{code, phase, loc, lp}}) {
+			t.Errorf("%q %s: got %v, want %s %s %s %s", text, path, ws, code, phase, loc, lp)
+		}
+	}
+	span := func(text, path string, start, end int, style forms.SpanStyle) {
+		t.Helper()
+		if sp, ws := spanOf(t, text, path); ws != nil || sp != (forms.Span{Start: start, End: end, Style: style}) {
+			t.Errorf("%q %s: got %v %v, want %d-%d %s", text, path, sp, ws, start, end, style)
+		}
+	}
+	refused("name:\ncount: 3\n", "$.name", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.name")
+	refused("count: 3\n", "$.ip.gateway", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.ip.gateway")
+	refused("count: 3\n", "$.ip", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip")
+	refused("name: {a: 1}\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
+	refused("name: [a]\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
+	refused("name: a\n", "$", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$")
+	refused("routes:\n  - to: a\n    metric: 1\n", `$.routes[{to="z"}].metric`, "EDIT_NO_SOURCE_VALUE", "edit", "2:3:10", `$.routes[{to="z"}].metric`)
+	wrapper := "name: {value: alpha, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n"
+	refused(wrapper, "$.name", "EDIT_FLOW_CONTEXT", "edit", "1:15:14", "$.name")
+	refused("name: a\n", "name", "PATH_SYNTAX", "path_parse", "not_applicable", "")
+	refused("name: a\n", "$.nope", "UNKNOWN_FIELD", "path_resolve", "not_applicable", "$.nope")
+	if _, err := forms.SourceSpan("name: [\n", editRoot(t), "$.name", accessKeys); err == nil || err.(*forms.Error).Kind != forms.ErrSyntax {
+		t.Errorf("a syntax error stays a syntax error: %v", err)
+	}
+	span("name: \"a\\\\\"\n", "$.name", 6, 11, forms.SpanDoubleQuoted) // an escaped backslash does not end the scalar early
+	span("name: \"a\" # c\n", "$.name", 6, 9, forms.SpanDoubleQuoted)
+	span("name: 'a' # c\n", "$.name", 6, 9, forms.SpanSingleQuoted)
+	span("name: a#b\n", "$.name", 6, 9, forms.SpanPlain) // a # that does not follow a space is part of the scalar
+	span("name: alpha  \ncount: 3\n", "$.name", 6, 11, forms.SpanPlain)
 }

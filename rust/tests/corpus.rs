@@ -12,8 +12,8 @@ use std::path::PathBuf;
 
 use cic_primitive_forms::{
     collapse_position, emit, expand_position, format_path, parse, parse_path, path_of, recognize,
-    resolve_path, Case, Class, Elements, Error, KeyComp, KeyValue, Location, Node, PathSeg, Phase,
-    Position, Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
+    resolve_path, source_span, Case, Class, Elements, Error, KeyComp, KeyValue, Location, Node,
+    PathSeg, Phase, Position, Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -146,6 +146,7 @@ fn wire(v: &Violation) -> Wire {
         Phase::PathParse => "path_parse",
         Phase::PathFormat => "path_format",
         Phase::PathResolve => "path_resolve",
+        Phase::Edit => "edit",
     };
     let loc = match v.location {
         Location::Unavailable => "unavailable".to_string(),
@@ -796,6 +797,7 @@ fn the_run_and_not_run_accounting_is_exact() {
                 || (kind == "validate" && has_runner(case))
                 || is_path_run(kind)
                 || is_p2_run(kind)
+                || kind == "source_span"
             {
                 *run.entry(key).or_default() += 1;
             } else {
@@ -814,8 +816,14 @@ fn the_run_and_not_run_accounting_is_exact() {
     assert_eq!(ran + skipped, total, "every case is accounted for");
     assert_eq!(
         (ran, skipped),
-        (240, 179),
-        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability run"
+        (268, 151),
+        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability + 28 source_span run"
+    );
+    assert_eq!(run.get("edit/source_span"), Some(&28));
+    assert_eq!(
+        not_run.get("edit/edit"),
+        Some(&44),
+        "the edit cases wait for step E3"
     );
     assert_eq!(run.get("lists/validate"), Some(&8));
     assert_eq!(run.get("paths/path_parse"), Some(&57));
@@ -1364,5 +1372,246 @@ fn path_text_cases_match_the_corpus() {
     assert_eq!(
         ran, 100,
         "57 path_parse, 9 path_format and 34 path_resolve cases"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// kind `source_span` (ADR 0012, step E2): where the scalar of a position is, in the original text.
+
+/// The source text of a case: `input_yaml`, or the bytes of `input_hex` (what a text field cannot spell: a lone CR, a BOM).
+fn source_of(case: &YamlOwned) -> String {
+    if let Some(t) = get(case, "input_yaml") {
+        return text(t, "input_yaml").to_string();
+    }
+    let hex = text(
+        get(case, "input_hex").expect("input_yaml or input_hex"),
+        "input_hex",
+    );
+    let bytes: Vec<u8> = (0..hex.len() / 2)
+        .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).expect("hex"))
+        .collect();
+    String::from_utf8(bytes).expect("the source of a source_span case is UTF-8")
+}
+
+fn expected_edit_wires(expect: &YamlOwned) -> Vec<Wire> {
+    get(expect, "errors")
+        .and_then(YamlOwned::as_vec)
+        .expect("errors")
+        .iter()
+        .map(|e| {
+            let sl = get(e, "source_location").expect("source_location");
+            let loc = match get(sl, "state") {
+                Some(state) => text(state, "state").to_string(),
+                None => {
+                    let n = |k: &str| get(sl, k).and_then(YamlOwned::as_integer).expect("integer");
+                    format!("{}:{}:{}", n("line"), n("column"), n("offset"))
+                }
+            };
+            (
+                text(get(e, "code").expect("code"), "code").to_string(),
+                text(get(e, "phase").expect("phase"), "phase").to_string(),
+                loc,
+                get(e, "logical_path")
+                    .map_or(String::new(), |p| text(p, "logical_path").to_string()),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn source_span_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "edit" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            if text(get(case, "kind").expect("kind"), "kind") != "source_span" {
+                continue;
+            }
+            ran += 1;
+            let id = text(get(case, "id").expect("id"), "id");
+            let tree = text(
+                get(
+                    get(case, "schema")
+                        .and_then(|s| get(s, "synthetic"))
+                        .unwrap(),
+                    "tree",
+                )
+                .unwrap(),
+                "tree",
+            );
+            let root = path_shape(
+                ShapeType::Composite(tree_fields(
+                    get(get(&suite, "trees").expect("trees"), tree).expect("tree"),
+                    &[],
+                )),
+                true,
+            );
+            let got = source_span(
+                &source_of(case),
+                &root,
+                text(get(case, "path").expect("path"), "path"),
+                &a(),
+            );
+            let expect = get(case, "expect").expect("expect");
+            if let Some(span) = get(expect, "span") {
+                let n = |k: &str| {
+                    usize::try_from(
+                        get(span, k)
+                            .and_then(YamlOwned::as_integer)
+                            .expect("integer"),
+                    )
+                    .expect("offset")
+                };
+                let got = got.unwrap_or_else(|e| panic!("{id}: a span was expected, got {e:?}"));
+                assert_eq!(
+                    (got.start, got.end, got.style.as_str()),
+                    (
+                        n("start"),
+                        n("end"),
+                        text(get(span, "style").expect("style"), "style")
+                    ),
+                    "{id}"
+                );
+            } else {
+                match got {
+                    Err(Error::Contract(vs)) => assert_eq!(
+                        vs.iter().map(wire).collect::<Vec<_>>(),
+                        expected_edit_wires(expect),
+                        "{id}"
+                    ),
+                    other => panic!("{id}: an error of the contract was expected, got {other:?}"),
+                }
+            }
+        }
+    }
+    assert_eq!(ran, 28, "the 28 source_span cases of corpus/edit");
+}
+
+fn edit_root() -> Shape {
+    let (_, suite) = suites()
+        .into_iter()
+        .find(|(n, _)| n == "edit")
+        .expect("the edit suite");
+    path_shape(
+        ShapeType::Composite(tree_fields(
+            get(get(&suite, "trees").expect("trees"), "doc").expect("tree"),
+            &[],
+        )),
+        true,
+    )
+}
+
+fn span_of(text: &str, path: &str) -> Result<(usize, usize, &'static str), Vec<Wire>> {
+    match source_span(text, &edit_root(), path, &a()) {
+        Ok(s) => Ok((s.start, s.end, s.style.as_str())),
+        Err(Error::Contract(vs)) => Err(vs.iter().map(wire).collect()),
+        Err(other) => panic!("{path}: outside the contract: {other:?}"),
+    }
+}
+
+fn refusal(code: &str, phase: &str, loc: &str, path: &str) -> Vec<Wire> {
+    vec![(code.into(), phase.into(), loc.into(), path.into())]
+}
+
+/// The places a vector cannot reach (the trees of ADR 0005 have no nullable): a position the document does not spell, a node of the wrong kind,
+/// a wrapper in a flow collection, the path errors, and the scanner at its edges.
+#[test]
+fn source_span_edge_cases() {
+    // a value the source does not spell has no text: the error is anchored at the enclosing structure
+    assert_eq!(
+        span_of("name:\ncount: 3\n", "$.name"),
+        Err(refusal("EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.name"))
+    );
+    assert_eq!(
+        span_of("count: 3\n", "$.ip.gateway"),
+        Err(refusal(
+            "EDIT_NO_SOURCE_VALUE",
+            "edit",
+            "1:1:0",
+            "$.ip.gateway"
+        ))
+    );
+    // a composite position is not a scalar, present or absent (the absent one is anchored at its parent)
+    assert_eq!(
+        span_of("count: 3\n", "$.ip"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
+    );
+    assert_eq!(
+        span_of("name: {a: 1}\n", "$.name"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name"))
+    );
+    assert_eq!(
+        span_of("name: [a]\n", "$.name"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name"))
+    );
+    assert_eq!(
+        span_of("name: a\n", "$"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$"))
+    );
+    // an element that is not in the list: anchored at the list
+    assert_eq!(
+        span_of(
+            "routes:\n  - to: a\n    metric: 1\n",
+            "$.routes[{to=\"z\"}].metric"
+        ),
+        Err(refusal(
+            "EDIT_NO_SOURCE_VALUE",
+            "edit",
+            "2:3:10",
+            "$.routes[{to=\"z\"}].metric"
+        ))
+    );
+    // an expanded wrapper written in flow style: its value is in a flow collection
+    let wrapper = "name: {value: alpha, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}\n";
+    assert_eq!(
+        span_of(wrapper, "$.name"),
+        Err(refusal("EDIT_FLOW_CONTEXT", "edit", "1:15:14", "$.name"))
+    );
+    // the refusals of the earlier phases are not changed
+    assert_eq!(
+        span_of("name: a\n", "name"),
+        Err(refusal("PATH_SYNTAX", "path_parse", "not_applicable", ""))
+    );
+    assert_eq!(
+        span_of("name: a\n", "$.nope"),
+        Err(refusal(
+            "UNKNOWN_FIELD",
+            "path_resolve",
+            "not_applicable",
+            "$.nope"
+        ))
+    );
+    assert!(matches!(
+        source_span("name: [\n", &edit_root(), "$.name", &a()),
+        Err(Error::Syntax(_))
+    ));
+    // the scanner at its edges
+    assert_eq!(
+        span_of("name: \"a\\\\\"\n", "$.name"),
+        Ok((6, 11, "double_quoted")),
+        "an escaped backslash does not end the scalar early"
+    );
+    assert_eq!(
+        span_of("name: \"a\" # c\n", "$.name"),
+        Ok((6, 9, "double_quoted"))
+    );
+    assert_eq!(
+        span_of("name: 'a' # c\n", "$.name"),
+        Ok((6, 9, "single_quoted"))
+    );
+    assert_eq!(
+        span_of("name: a#b\n", "$.name"),
+        Ok((6, 9, "plain")),
+        "a # that does not follow a space is part of the scalar"
+    );
+    assert_eq!(
+        span_of("name: alpha  \ncount: 3\n", "$.name"),
+        Ok((6, 11, "plain")),
+        "trailing spaces are not in the span"
     );
 }

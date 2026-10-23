@@ -14,6 +14,8 @@ pub enum Phase {
     PathParse,
     PathFormat,
     PathResolve,
+    /// The phase of a source-preserving edit and of the span it works on (ADR 0012).
+    Edit,
 }
 
 impl Phase {
@@ -27,6 +29,7 @@ impl Phase {
             Phase::PathParse => "path_parse",
             Phase::PathFormat => "path_format",
             Phase::PathResolve => "path_resolve",
+            Phase::Edit => "edit",
         }
     }
 }
