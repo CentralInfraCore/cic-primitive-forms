@@ -816,27 +816,41 @@ fn the_run_and_not_run_accounting_is_exact() {
     let ran: usize = run.values().sum();
     let skipped: usize = not_run.values().sum();
     assert_eq!(ran + skipped, total, "every case is accounted for");
+    // corpus/accounting.yaml: the numbers the runners are expected to reach, written by hand in advance and never computed from a run
+    let want = load(&repo_root().join("corpus").join("accounting.yaml"));
     assert_eq!(
-        (ran, skipped),
-        (312, 107),
-        "31 recognize + 29 presence validate + 21 inherit validate + 8 lists validate + 18 path_of + 7 path_stability + 28 source_span + 44 edit run"
+        text(get(&want, "format").expect("format"), "format"),
+        "cic-accounting/1"
     );
-    assert_eq!(run.get("edit/source_span"), Some(&28));
-    assert_eq!(run.get("edit/edit"), Some(&44));
-    assert_eq!(not_run.get("edit/edit"), None);
-    assert_eq!(run.get("lists/validate"), Some(&8));
-    assert_eq!(run.get("paths/path_parse"), Some(&57));
-    assert_eq!(run.get("paths/path_format"), Some(&9));
-    assert_eq!(run.get("paths/path_resolve"), Some(&34));
-    assert_eq!(run.get("paths/path_of"), Some(&18));
-    assert_eq!(run.get("paths/path_stability"), Some(&7));
-    assert_eq!(run.get("inherit/validate"), Some(&21));
-    assert_eq!(run.get("presence/validate"), Some(&29));
-    assert_eq!(
-        run.get("recognition/recognize").copied().unwrap_or(0)
-            + run.get("presence/recognize").copied().unwrap_or(0),
-        31
-    );
+    let n = |y: &YamlOwned, k: &str| {
+        usize::try_from(get(y, k).and_then(YamlOwned::as_integer).unwrap_or(0)).expect("a count")
+    };
+    let kinds = get(&want, "kinds")
+        .and_then(YamlOwned::as_mapping)
+        .expect("kinds");
+    let mut expected: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+    for (k, v) in kinds {
+        expected.insert(text(k, "kind").to_string(), (n(v, "run"), n(v, "not_run")));
+    }
+    let mut keys: Vec<String> = run
+        .keys()
+        .chain(not_run.keys())
+        .chain(expected.keys())
+        .cloned()
+        .collect();
+    keys.sort();
+    keys.dedup();
+    for k in keys {
+        let got = (
+            run.get(&k).copied().unwrap_or(0),
+            not_run.get(&k).copied().unwrap_or(0),
+        );
+        let exp = expected.get(&k).copied().unwrap_or((0, 0));
+        assert_eq!(
+            got, exp,
+            "{k}: (run, not run) of the runner against corpus/accounting.yaml"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------

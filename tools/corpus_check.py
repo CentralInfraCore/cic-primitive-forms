@@ -33,7 +33,8 @@ RULES = {
     "DUPLICATE_YAML_KEY": "a mapping repeats a key",
     "YAML_ANCHOR": "anchor or alias, which fixtures do not use (they must read the same in every loader)",
     "AMBIGUOUS_SCALAR": "unquoted scalar that YAML 1.1 and 1.2 read differently",
-    "UNEXPECTED_FILE": "YAML file in the corpus that is not pins, codes or a suite",
+    "UNEXPECTED_FILE": "YAML file in the corpus that is not pins, codes, the accounting or a suite",
+    "ACCOUNTING": "the accounting file does not list exactly the kinds of the corpus with their number of cases",
     "ENVELOPE": "missing, unknown or inconsistent file-level field",
     "FORMAT_VERSION": "corpus_format is not the supported version",
     "PIN_INVALID": "malformed pin (commit, sha256, repo, path, file set, order, name)",
@@ -1615,14 +1616,15 @@ def check_corpus(root):
 
     check_workflow(root, pins, vs)
     ids, used = {}, set()
-    allowed = {"corpus/pins.yaml", "corpus/codes.yaml"}
+    allowed = {"corpus/pins.yaml", "corpus/codes.yaml", "corpus/accounting.yaml"}
+    counts = {}                                                    # (suite, kind) -> the number of cases the corpus has
     for path in sorted(glob.glob(os.path.join(cdir, "**", "*.y*ml"), recursive=True)):
         rel = os.path.relpath(path, root)
         parts = rel.split(os.sep)
         if rel in allowed:
             continue
         if not (len(parts) == 3 and parts[2] == "vectors.yaml"):
-            vs.append(Violation("UNEXPECTED_FILE", rel, "only pins.yaml, codes.yaml and <suite>/vectors.yaml belong here"))
+            vs.append(Violation("UNEXPECTED_FILE", rel, "only pins.yaml, codes.yaml, accounting.yaml and <suite>/vectors.yaml belong here"))
             continue
         doc = load(rel)
         if doc is None:
@@ -1654,6 +1656,8 @@ def check_corpus(root):
         for case in doc["cases"]:
             cid = check_case(case, suite, doc["defaults"], pins, codes, adr_numbers, rel, vs, used, trees)
             stats["cases"] += 1
+            if isinstance(case, dict) and isinstance(case.get("kind"), str):
+                counts[(suite, case["kind"])] = counts.get((suite, case["kind"]), 0) + 1
             if isinstance(case, dict):
                 if case.get("polarity") in ("positive", "negative"):
                     stats[case["polarity"]] += 1
@@ -1661,6 +1665,10 @@ def check_corpus(root):
                 if cid in ids:
                     vs.append(Violation("ID_DUPLICATE", rel, "%s also in %s" % (cid, ids[cid])))
                 ids[cid] = rel
+    if os.path.exists(os.path.join(cdir, "accounting.yaml")):
+        check_accounting(load("corpus/accounting.yaml"), counts, vs)
+    else:
+        vs.append(Violation("ENVELOPE", "corpus/accounting.yaml", "missing"))
     used_codes = {code for code, _ in used}
     for c in sorted(set(codes) - used_codes):
         vs.append(Violation("CODE_UNUSED", "corpus/codes.yaml", "%s is used by no case" % c))
@@ -1669,6 +1677,31 @@ def check_corpus(root):
             if c in used_codes and (c, p) not in used:
                 vs.append(Violation("PHASE_UNUSED", "corpus/codes.yaml", "%s is listed for phase %s but no case exercises it" % (c, p)))
     return vs, stats
+
+
+def check_accounting(doc, counts, vs):
+    """corpus/accounting.yaml is written by hand, in advance: the runners compare their counts with it. Here it must list exactly the kinds of the corpus,
+    with as many cases as the corpus has; what is run and what is not is the runners' to confirm, not this checker's."""
+    where = "corpus/accounting.yaml"
+    if not isinstance(doc, dict) or set(doc) != {"format", "kinds"} or not isinstance(doc.get("kinds"), dict):
+        vs.append(Violation("ACCOUNTING", where, "keys must be format and kinds (a map)"))
+        return
+    if doc["format"] != "cic-accounting/1":
+        vs.append(Violation("ACCOUNTING", where, "format must be cic-accounting/1"))
+    for key, v in doc["kinds"].items():
+        if not isinstance(v, dict) or not v or not set(v) <= {"run", "not_run"} or any(type(n) is not int or n < 0 for n in v.values()):
+            vs.append(Violation("ACCOUNTING", where, "%s: a map of run and / or not_run, non-negative integers" % key))
+            continue
+        suite, _, kind = str(key).partition("/")
+        have = counts.get((suite, kind))
+        listed = v.get("run", 0) + v.get("not_run", 0)
+        if have is None:
+            vs.append(Violation("ACCOUNTING", where, "%s: no case of that kind in that suite" % key))
+        elif have != listed:
+            vs.append(Violation("ACCOUNTING", where, "%s: the accounting lists %d cases, the corpus has %d" % (key, listed, have)))
+    for (suite, kind), n in sorted(counts.items()):
+        if "%s/%s" % (suite, kind) not in doc["kinds"]:
+            vs.append(Violation("ACCOUNTING", where, "%s/%s (%d cases) is a kind of the corpus that the accounting does not list" % (suite, kind, n)))
 
 
 # --- seeded-fault self-test --------------------------------------------------

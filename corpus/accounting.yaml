@@ -1,0 +1,32 @@
+# The accounting of the corpus: for every kind of every suite, how many cases the Rust and Go runners RUN and how many they count as NOT RUN.
+# Written by hand, in advance. It is an expectation and is never computed from a run: the runners (go/corpus_test.go, rust/tests/corpus.rs) count the
+# cases they run and fail when the counts differ from this file in either direction (a case that no longer runs, a case that is not listed, a suite
+# or a kind that is missing), and tools/corpus_check.py checks that the file agrees with itself and with the number of cases of the corpus.
+# A new suite or a new kind is an addition to this file; a runner that starts to run a kind changes one `not_run` into a `run` here, in the same pull request.
+# There is no total in it: the totals are the sums of the table, and a new kind is a line appended at the end, so that adding a suite adds lines and changes none.
+format: cic-accounting/1
+kinds:
+  conformance/basis: {not_run: 16}
+  conformance/collapse: {run: 4}
+  conformance/validate: {not_run: 16}
+  diff/diff: {not_run: 62}
+  diff/diff_stability: {not_run: 4}
+  edit/edit: {run: 44}
+  edit/source_span: {run: 28}
+  grammar/grammar_manifest: {not_run: 9}
+  inherit/equality: {run: 1}
+  inherit/expand: {run: 1}
+  inherit/roundtrip: {run: 3}
+  inherit/validate: {run: 21}
+  lists/validate: {run: 8}
+  paths/path_format: {run: 9}
+  paths/path_of: {run: 18}
+  paths/path_parse: {run: 57}
+  paths/path_resolve: {run: 34}
+  paths/path_stability: {run: 7}
+  presence/collapse: {run: 1}
+  presence/recognize: {run: 1}
+  presence/roundtrip: {run: 6}
+  presence/validate: {run: 29}
+  recognition/collapse: {run: 10}
+  recognition/recognize: {run: 30}
