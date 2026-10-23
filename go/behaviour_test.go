@@ -433,6 +433,36 @@ func TestSameComparesEveryPartOfTheValue(t *testing.T) {
 	}
 }
 
+// Same reads the other mapping once (#85): a lookup per key in order takes minutes on a large mapping in reverse order, where every
+// key is at the far end; the bound is generous so a slow machine does not fail it, a quadratic implementation does. The Rust peer
+// is `same_of_many_keys_does_not_cost_quadratic_time` in rust/tests/behaviour.rs.
+func TestSameOfManyKeysDoesNotCostQuadraticTime(t *testing.T) {
+	limits := forms.Limits{MaxBytes: 16 << 20, MaxDepth: 64, MaxNodes: 1_000_000}
+	n := 100_000
+	a, err := forms.ParseWith(manyKeys(n), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := forms.ParseWith(manyKeys(n), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+		b.Entries[i], b.Entries[j] = b.Entries[j], b.Entries[i]
+	}
+	start := time.Now()
+	if !a.Same(b) || !b.Same(a) {
+		t.Fatal("the same keys and values in another order are the same value")
+	}
+	b.Entries[0].Value = &forms.Node{Kind: forms.KindInt, Int: 2}
+	if a.Same(b) || b.Same(a) {
+		t.Fatal("a changed value was not seen")
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("took %v", d)
+	}
+}
+
 func TestPositionsAfterLeadingLineBreaks(t *testing.T) {
 	for text, want := range map[string]forms.Pos{
 		"\na: 1":     {Line: 2, Column: 1, Offset: 1},

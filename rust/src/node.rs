@@ -1,5 +1,7 @@
 //! The document model: values with optional source positions.
 
+use std::collections::HashMap;
+
 /// A source position inside the YAML text (ADR 0007): `line` 1-based, `column` 1-based
 /// in Unicode code points, `offset` 0-based in bytes of the original UTF-8 input (a
 /// leading BOM included).
@@ -71,12 +73,17 @@ impl Node {
                 a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same(y))
             }
             (Value::Map(a), Value::Map(b)) => {
-                a.len() == b.len()
-                    && a.iter().all(|e| {
-                        b.iter()
-                            .find(|o| o.key == e.key)
-                            .is_some_and(|o| o.value.same(&e.value))
-                    })
+                if a.len() != b.len() {
+                    return false;
+                }
+                // The other mapping by key, read once: the first entry of a repeated key
+                // decides, as a lookup in order would (#85).
+                let mut by_key: HashMap<&str, &Node> = HashMap::with_capacity(b.len());
+                for o in b {
+                    by_key.entry(o.key.as_str()).or_insert(&o.value);
+                }
+                a.iter()
+                    .all(|e| by_key.get(e.key.as_str()).is_some_and(|o| o.same(&e.value)))
             }
             _ => false,
         }

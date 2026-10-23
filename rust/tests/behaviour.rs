@@ -501,6 +501,41 @@ fn a_late_duplicate_is_still_found_and_many_keys_do_not_cost_quadratic_time() {
     );
 }
 
+/// `same` reads the other mapping once (#85): a lookup per key in order takes minutes on a
+/// large mapping in reverse order, where every key is at the far end; the bound is generous so
+/// a slow machine does not fail it, a quadratic implementation does. The Go peer is
+/// `TestSameOfManyKeysDoesNotCostQuadraticTime` in go/behaviour_test.go.
+#[test]
+fn same_of_many_keys_does_not_cost_quadratic_time() {
+    let limits = Limits {
+        max_bytes: 16 << 20,
+        max_depth: 64,
+        max_nodes: 1_000_000,
+    };
+    let n = 100_000;
+    let a = parse_with(&many_keys(n), limits).expect("distinct keys parse");
+    let mut b = parse_with(&many_keys(n), limits).expect("distinct keys parse");
+    let Value::Map(entries) = &mut b.value else {
+        panic!()
+    };
+    entries.reverse();
+    let start = std::time::Instant::now();
+    assert!(
+        a.same(&b) && b.same(&a),
+        "the same keys and values in another order are the same value"
+    );
+    let Value::Map(entries) = &mut b.value else {
+        panic!()
+    };
+    entries[0].value = Node::new(Value::Int(2));
+    assert!(!a.same(&b) && !b.same(&a), "a changed value was not seen");
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "took {:?}",
+        start.elapsed()
+    );
+}
+
 /// Both parsers rank their errors alike: a syntax error anywhere in the text wins over an
 /// earlier duplicate key. The Go peer reads the whole text before it walks the tree; this one
 /// keeps the first non-syntax error and goes on scanning (the Go peer's test of the same name
