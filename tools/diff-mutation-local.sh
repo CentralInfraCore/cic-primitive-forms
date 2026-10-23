@@ -70,8 +70,8 @@ import quality_gate as q
 ok = True
 try:
     out = os.path.join(t, "rust", "mutants.out", "outcomes.json")
-    d = json.load(open(out)) if os.path.exists(out) else {"caught": 0, "missed": 0, "timeout": 0}
-    k, total = d["caught"] + d["timeout"], d["caught"] + d["timeout"] + d["missed"]
+    d = json.load(open(out)) if os.path.exists(out) else {}
+    k, total = q.rust_mutants([out]) if os.path.exists(out) else (0, 0)
     good, line = q.judge_diff("rust mutation (diff)", lambda: (k, total), out)
     print(("ok   " if good else "FAIL ") + line)
     ok &= good
