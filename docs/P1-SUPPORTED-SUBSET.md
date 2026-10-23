@@ -225,7 +225,9 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   `edit_parsed` is the case of a document supplied as a parsed value: after the document and the path are accepted, `EDIT_NO_SOURCE_TEXT`. No `Node`, `Provenance` or earlier
   result changes. Proved by the 44 `edit` vectors in both languages (written before the code, compared as bytes), the edge cases a vector cannot reach (null, the styles at their
   edges, the plain-safe rule, the earlier phases, the parsed value), a property over generated documents (the untouched bytes, the re-parse, the no-op, the commutation of
-  independent edits, edit and back), a fuzz target with a canary in each language, and 24 seeded defects.
+  independent edits, edit and back), a fuzz target with a canary in each language, and 24 seeded defects. Step E4 adds the proof from outside (`docs/P3B-SOURCE-PRESERVING-EDIT.md`
+  section 12): a Rust-against-Go differential of the six guarantees on 3000 generated inputs (`tools/parity/gen_edit.py`, the `parity_edit_dump` tests, `compare_edit.py`) with a
+  self-test that breaks it in 22 ways, planted defects that turn it red (`edit_proof.py`), and ten seeded defects of the internal guarantee check.
 * **What is refused, with a code and the path of the schema node.** `SCHEMA_INVALID` (a structure outside ADR 0002),
   `SCHEMA_SHAPE_UNSUPPORTED` (`choice`, `number`, `bytes`), `SCHEMA_REF_UNPINNED` (a base, identity, aggregate or node
   reference that is not `cic:<namespace>:<Name>@vX.Y.Z`; only the parts the contract reads are checked),

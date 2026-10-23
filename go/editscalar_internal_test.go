@@ -41,11 +41,13 @@ func TestVerifyEditNamesWhichGuaranteeFailed(t *testing.T) {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.code)
 		}
 	}
-	// only the suffix is wrong (the prefix is right), and only the prefix is wrong (the suffix is right): each half of the condition is read
-	if verifyEdit("n: abc\n", Span{Start: 3, End: 6}, "n: xyz", editShape(), editKeys, want) != "EDIT_SPAN_MISMATCH" {
+	// only the suffix is wrong (the prefix is right, and the tree is the expected one), and only the prefix is wrong (the suffix is right, the tree is the
+	// expected one): each half of the byte condition is read on its own, and the comparison of the trees cannot make up for it
+	short := mustParse(t, "n: xyz\n")
+	if verifyEdit("n: abc\n", Span{Start: 3, End: 6}, "n: xyz", editShape(), editKeys, short) != "EDIT_SPAN_MISMATCH" {
 		t.Error("a changed suffix")
 	}
-	if verifyEdit("n: abc\n", Span{Start: 3, End: 6}, "x: xyz\n", editShape(), editKeys, want) != "EDIT_SPAN_MISMATCH" {
+	if verifyEdit("n: abc\n", Span{Start: 3, End: 6}, "m: xyz\n", editShape(), editKeys, mustParse(t, "m: xyz\n")) != "EDIT_SPAN_MISMATCH" {
 		t.Error("a changed prefix")
 	}
 }

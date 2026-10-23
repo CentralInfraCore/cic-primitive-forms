@@ -296,18 +296,23 @@ mod tests {
             Some("EDIT_INVALID_RESULT")
         );
         assert_eq!(check("n: xyw\ncount: 3\n"), Some("EDIT_SPAN_MISMATCH"));
-        // only the suffix is wrong, and only the prefix is wrong: each half of the condition is read
+        // only the suffix is wrong (the prefix is right and the tree is the expected one), and only the prefix is wrong (the suffix is right and the tree
+        // is the expected one): each half of the byte condition is read on its own, and the comparison of the trees cannot make up for it
         let short = SourceSpan {
             start: 3,
             end: 6,
             style: SpanStyle::Plain,
         };
+        let short_want = node("n: xyz\n");
+        let c = |text: &str, out: &str, want: &Node| {
+            verify_edit(text, &short, out, &root(), &a(), want)
+        };
         assert_eq!(
-            verify_edit("n: abc\n", &short, "n: xyz", &root(), &a(), &want),
+            c("n: abc\n", "n: xyz", &short_want),
             Some("EDIT_SPAN_MISMATCH")
         );
         assert_eq!(
-            verify_edit("n: abc\n", &short, "x: xyz\n", &root(), &a(), &want),
+            c("n: abc\n", "m: xyz\n", &node("m: xyz\n")),
             Some("EDIT_SPAN_MISMATCH")
         );
     }

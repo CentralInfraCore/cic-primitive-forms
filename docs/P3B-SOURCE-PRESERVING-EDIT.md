@@ -1,6 +1,6 @@
 # P3b: source-preserving editing - the first unit, replacing one existing scalar
 
-Status: **design; steps E2 (`source_span`) and E3 (`edit_scalar`) are implemented in Rust and Go (section 11).** It follows the accepted ADR 0001, 0003, 0006, 0007 and 0010 and the merged P1-P3 behaviour; it re-opens none of them and changes
+Status: **design; steps E2 (`source_span`), E3 (`edit_scalar`) and E4 (the proof of the guarantees) are implemented in Rust and Go (sections 11 and 12).** It follows the accepted ADR 0001, 0003, 0006, 0007 and 0010 and the merged P1-P3 behaviour; it re-opens none of them and changes
 **no** existing API: `parse`, `recognize`, `validate`, `expand`, `collapse`, `normalize`, `denormalize`, the policy resolution, the `Node` type, the
 `Provenance` and the origins stay exactly as they are. It adds a new, separate thing. There is no editor and no patch engine here (P4 is later). The points
 that are the owner's are in section 10.
@@ -203,3 +203,25 @@ Things the implementation had to decide that the ADR leaves open or reads two wa
    `edit.key-of-a-list-element` could not be checked. The `edit` kind got an optional `path_after` (the author tool, the checker and both runners know it); no other case has it.
 6. **Not proved here.** The internal assertion `EDIT_SPAN_MISMATCH` (and its twin check of the re-parse) has no vector by design; its seeded defect is step E4. The 24 seeded
    defects of E3 prove the tests, not that assertion.
+
+## 12. Step E4: the proof that the guarantees hold, and that the proof can fail
+
+Step E3 made the guarantees true and checks them on every call. Step E4 shows, for each of them, **where it is checked from outside the library**, and that each of those checks can turn red. A check that has never been seen to fail proves nothing.
+
+| Guarantee (ADR 0012, section 3) | In the library, on every call | Property, each language | Rust against Go differential (`tools/parity`, 3000 inputs) | A planted defect that it catches |
+|---|---|---|---|---|
+| 1. the bytes outside the span are the original's | `verify_edit` | yes | prefix, suffix and the start of the new span, from the original span of the dump | the check of the bytes before / after the span is skipped |
+| 2. the style is kept and the canonical spelling is written | by construction (`token_for`) and `verify_edit` | yes | the style before, the style of the new span and of the token are the same; the token is the canonical spelling of the value | a single quote is not doubled; the backslash and the quote are not escaped; a string that needs quotes is written plain; the booleans are written capitalised |
+| 3. the result parses to the old tree with that one scalar replaced, and validates | `verify_edit` (expected tree, parse, validate) | yes | the parsed tree of the original and of the result are dumped by each language; the comparison replaces the scalar in the original tree itself and compares | the tree of the result is not compared; the expected tree replaces every scalar; the result is not validated |
+| 4. every position keeps its form | by the tree comparison of 3 | - | the same tree comparison, which also checks the order of the entries and an expanded wrapper | (as 3) |
+| 5. Rust and Go give the same bytes | - | - | the text, the span, the refusal (code, phase, position, logical path) of the edit, the no-op, the edit back and both orders, byte for byte | any defect planted in one language |
+| 6. a no-op is the identity; edit and back; independent edits commute | the no-op returns the input | yes | the no-op is the text; an accepted edit can be edited back and restores the bytes when the original token was canonical; independent edits are both accepted or both refused and give the same text in either order | a no-op rewrites the token |
+
+**The differential is not trusted until it has failed.**
+
+* Its input generator (`gen_edit.py`) is deterministic, and the comparison refuses a run that is too thin: every refusal code of the edit phase that a text can earn appears at least five times, and enough edits were accepted, changed, edited back and paired.
+* `selftest_edit.py` breaks the outputs in 22 ways, each of which must turn the comparison red: one side differs (a byte, a span end, a refusal, `changed`, a missing line, a wrong order), **both sides wrong in the same way** (a byte outside the span, a changed style, a plain value written quoted, a no-op that changes the text, an edit that cannot be edited back, edits that do not commute, another scalar of the result changed, a reordered mapping, a changed form, a missing tree), and a run that proves nothing (nothing accepted, a code that never appears). Its first run found one break that stayed green (a plain value written quoted: the dump did not carry the style before the edit); `before` was added and the break is red.
+* `edit_proof.py` plants ten defects in each language, one at a time, in a copy of the module, and the comparison against the other language's unmutated dump must turn red. Its first run found one defect that no generated input could see (the escapes of a double-quoted scalar: the generated documents never held a quoted scalar and a value with a quote or a backslash together); the generator got `quoted_case` and both languages are red now. The unmutated dumps must pass first.
+* The internal assertion `EDIT_SPAN_MISMATCH` (and `EDIT_INVALID_RESULT`) cannot be reached by any input of the public function. Each condition of `verify_edit` / `verifyEdit` is removed in turn (the bytes before the span, the bytes after it, parse and validate, the comparison of the trees, the choice of the scalar in the expected tree: ten seeded defects, five per language) and the direct tests of the check turn red. The first run left one condition unproved: the test for the bytes after the span also failed the tree comparison, which made up for it; the cases now differ in that one condition only.
+
+What E4 does not claim: that the two parsers read the YAML text alike beyond the subset (that is the parity of P1), the editing of anything but one existing single-line scalar, and the path text of a new list key that needs the escapes of ADR 0006 (such a key is not edited back in the differential).
