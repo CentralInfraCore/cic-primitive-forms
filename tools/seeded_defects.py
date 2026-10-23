@@ -428,6 +428,28 @@ DEFECTS = [
      [("\t\treturn strconv.FormatBool(v.Bool), true", "\t\treturn strings.ToUpper(strconv.FormatBool(v.Bool)[:1]) + strconv.FormatBool(v.Bool)[1:], true")]),
     ("go", "an edit of a parsed value is not refused for its missing text", "editscalar.go",
      [("\treturn editFailure(\"EDIT_NO_SOURCE_TEXT\", nil, path)", "\treturn editFailure(\"EDIT_NOT_A_SCALAR\", nil, path)")]),
+    # P3b, step E4: the internal assertion of edit_scalar (EDIT_SPAN_MISMATCH and EDIT_INVALID_RESULT: verify_edit / verifyEdit and the expected tree). No input of the
+    # public function can make it fail on purpose, so each condition of it is removed in turn and the direct tests of the check must turn red.
+    ("rust", "the check of the bytes before the span is skipped", "src/editscalar.rs",
+     [("    if !(out.starts_with(&text[..span.start]) && out.ends_with(&text[span.end..])) {", "    if !(out.ends_with(&text[span.end..])) {")]),
+    ("rust", "the check of the bytes after the span is skipped", "src/editscalar.rs",
+     [("    if !(out.starts_with(&text[..span.start]) && out.ends_with(&text[span.end..])) {", "    if !(out.starts_with(&text[..span.start])) {")]),
+    ("rust", "a result that does not parse or validate is accepted", "src/editscalar.rs",
+     [("        _ => Some(\"EDIT_INVALID_RESULT\"),", "        _ => None,")]),
+    ("rust", "the tree of the result is not compared with the expected one", "src/editscalar.rs",
+     [("            (!parsed.same(want)).then_some(\"EDIT_SPAN_MISMATCH\")", "            None")]),
+    ("rust", "the expected tree replaces every scalar, not the one that was edited", "src/editscalar.rs",
+     [("        _ if n.pos.is_some_and(|p| p.offset == offset) => value.value.clone(),", "        _ if n.pos.is_some() => value.value.clone(),")]),
+    ("go", "the check of the bytes before the span is skipped", "editscalar.go",
+     [("\tif !strings.HasPrefix(out, text[:sp.Start]) || !strings.HasSuffix(out, text[sp.End:]) {", "\tif !strings.HasSuffix(out, text[sp.End:]) {")]),
+    ("go", "the check of the bytes after the span is skipped", "editscalar.go",
+     [("\tif !strings.HasPrefix(out, text[:sp.Start]) || !strings.HasSuffix(out, text[sp.End:]) {", "\tif !strings.HasPrefix(out, text[:sp.Start]) {")]),
+    ("go", "a result that does not validate is accepted", "editscalar.go",
+     [("\tif err != nil || refuseInvalid(parsed, root, a) != nil {", "\tif err != nil {")]),
+    ("go", "the tree of the result is not compared with the expected one", "editscalar.go",
+     [("\tif !parsed.Same(want) {", "\tif false {")]),
+    ("go", "the expected tree replaces every scalar, not the one that was edited", "editscalar.go",
+     [("\t\tif n.Pos != nil && n.Pos.Offset == offset {", "\t\tif n.Pos != nil {")]),
 ]
 
 

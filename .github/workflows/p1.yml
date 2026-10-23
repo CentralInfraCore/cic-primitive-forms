@@ -763,3 +763,49 @@ jobs:
           (cd go && PARITY_P3_IN="$P/in.jsonl" PARITY_P3_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpP3Outcomes$' .)
           python3 tools/parity/compare_p3.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_p3.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+      # And for the edit of P3b (E4): 3000 generated documents, paths and values, fixed seed. The two languages must answer alike (the text byte for byte, the span, the
+      # refusal), and the comparison checks the guarantees of ADR 0012 on its own (the untouched bytes, the style kept and the canonical spelling, the old tree with one
+      # scalar replaced and the forms kept, the no-op, edit and back, the two orders of independent edits). Its self-test breaks the outputs in 22 ways that must turn it red.
+      - name: Edit differential, generate, dump with both languages, compare, self-test
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-edit"
+          mkdir -p "$P"
+          python3 tools/parity/gen_edit.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_edit_dump)
+          (cd go && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpEditOutcomes$' .)
+          python3 tools/parity/compare_edit.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_edit.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
+  # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
+  # dumps each), so that neither takes more than the time budget of a shard.
+  edit-proof:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode != 'light' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [rust, go]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+      - run: rustup toolchain install stable --profile minimal
+      - name: The unmutated dumps, then the planted defects of one language
+        env:
+          LANGUAGE: ${{ matrix.lang }}
+        run: |
+          set -e
+          P="$RUNNER_TEMP/edit-proof"
+          mkdir -p "$P"
+          python3 tools/parity/gen_edit.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/rust.jsonl" cargo +stable test --locked --test parity_edit_dump)
+          (cd go && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpEditOutcomes$' .)
+          python3 tools/parity/edit_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"
