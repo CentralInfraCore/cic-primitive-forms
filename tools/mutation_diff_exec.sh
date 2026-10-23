@@ -6,8 +6,6 @@
 #   CIC_MUTATION_LEDGER  the ledger file: `<mutant>\t<shard>\t<shards>\t<verdict>`
 #   CIC_DIFF_LINES       tools/diff_gate.py scope: diff-lines.json (the changed line ranges per product file)
 #   CIC_REPO_ROOT        the root the keys of diff-lines.json are relative to
-#   CIC_MUTATION_TEST_RUN  optional `go test -run` regex: the development loop runs only the tests of the code (a killed mutant stays killed
-#                          in the full run; a survivor must be rechecked without it). CI never sets it.
 # Verdicts: killed (the tests failed: exit 0), survived (they passed: exit 1), uncompilable (exit 2), offdiff (exit 2), unknown (exit 3).
 set -u
 : "${MUTATE_CHANGED:?}" "${MUTATE_ORIGINAL:?}" "${MUTATE_PACKAGE:?}" "${CIC_MUTATION_SHARD:?}" "${CIC_MUTATION_LEDGER:?}" "${CIC_DIFF_LINES:?}" "${CIC_REPO_ROOT:?}"
@@ -27,7 +25,7 @@ diff_out=$(diff -u "$MUTATE_ORIGINAL" "$MUTATE_CHANGED")
 mv "$MUTATE_ORIGINAL" "$MUTATE_ORIGINAL.tmp"
 trap 'mv "$MUTATE_ORIGINAL.tmp" "$MUTATE_ORIGINAL"' EXIT
 cp "$MUTATE_CHANGED" "$MUTATE_ORIGINAL"
-go test ${CIC_MUTATION_TEST_RUN:+-run "$CIC_MUTATION_TEST_RUN"} -timeout "${MUTATE_TIMEOUT:-10}s" "$MUTATE_PACKAGE" >/dev/null 2>&1
+go test -timeout "${MUTATE_TIMEOUT:-10}s" "$MUTATE_PACKAGE" >/dev/null 2>&1
 case $? in
 0) ledger survived; echo "$diff_out"; exit 1 ;;
 1) ledger killed; exit 0 ;;

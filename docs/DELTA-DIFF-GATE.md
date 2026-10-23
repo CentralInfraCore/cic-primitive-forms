@@ -141,7 +141,7 @@ The gate is not weakened here; the three tools below only bring its verdict forw
    of the tree.
 2. **Targeted tests, only in the loop.** `TESTS=regex` runs only the tests that match (Go `-run`, Rust test-name filter) for every
    mutant. A killed mutant stays killed when the whole suite runs, so a targeted score can only be **lower** than the real one; a
-   survivor must be rechecked without `TESTS` before it is believed or "fixed". CI never sets it, and a green loop is not a green gate.
+   survivor must be rechecked without `TESTS` before it is believed or "fixed". CI never sets it, and a green loop is not a green gate. (The Go side needs one line in the diff executor, `tools/mutation_diff_exec.sh`, which changes how the gate measures and therefore comes in its own pull request; until it is merged `TESTS=` has no effect on Go and the whole suite runs, which is slower but never wrong.)
 3. **A short local check, not a copy of CI.** `make quick` (`tools/quick-check.sh`): the texts of the seeded defects are checked against
    the code (`seeded_defects.py all --stale-only`, seconds: a stale text would fail the CI step ten minutes in), then the mutants of the
    working tree (1) with the filter of (2). It does **not** run the suites, the coverage gate, the seeded defects or the fuzzing: CI is
