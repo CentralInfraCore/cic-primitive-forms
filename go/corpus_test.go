@@ -1267,6 +1267,7 @@ func TestSourceSpanEdgeCases(t *testing.T) {
 	refused("name:\ncount: 3\n", "$.name", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.name")
 	refused("count: 3\n", "$.ip.gateway", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.ip.gateway")
 	refused("count: 3\n", "$.ip", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip")
+	refused("ip:\ncount: 3\n", "$.ip", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip") // an empty value has no position: the anchor is the enclosing structure
 	refused("name: {a: 1}\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
 	refused("name: [a]\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
 	refused("name: a\n", "$", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$")

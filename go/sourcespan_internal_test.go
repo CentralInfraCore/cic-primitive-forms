@@ -27,6 +27,13 @@ func TestTheScannerStopsWhereTheRulesSay(t *testing.T) {
 		{"name: 'a", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
 		{"name: \"a\nb\"\n", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
 		{"name: \"a\\\nb\"\n", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}}, // an escaped line break
+		{"name: \"a\\\rb\"\n", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}}, // an escaped CR
+		{"name: \"a\rb\"\n", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
+		{"name: 'a\rb'\n", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
+		{"name: \"\"\n", 6, want{8, SpanDoubleQuoted, ""}}, // the empty strings
+		{"name: ''\n", 6, want{8, SpanSingleQuoted, ""}},
+		{"name: 'a'''\n", 6, want{11, SpanSingleQuoted, ""}},    // a doubled quote right before the closing one
+		{"name: \"\\\\\"\n", 6, want{10, SpanDoubleQuoted, ""}}, // an escaped backslash right before the closing quote
 		{"name: \"a\\", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
 		{"name: \"a", 6, want{0, "", "EDIT_MULTILINE_SCALAR"}},
 		{"a: b\r\nc: d\r\n", 3, want{4, SpanPlain, ""}}, // the span stops before the CR
@@ -68,5 +75,18 @@ func TestASpanThatDoesNotReadBackToTheValueIsADefectNotAGuess(t *testing.T) {
 		if got := readBack(c.token, node(c.value), c.style); got != c.want {
 			t.Errorf("%q against %q (%s): got %q, want %q", c.token, c.value, c.style, got, c.want)
 		}
+	}
+}
+
+func TestTheShapeOfAFieldIsNilWhenTheFieldIsNotThere(t *testing.T) {
+	fields := []NamedShape{{Name: "a", Shape: Shape{Kind: ShapeComposite}}, {Name: "b", Shape: Shape{Kind: ShapeDeclaredList}}}
+	if got := fieldShape(fields, "b"); got == nil || got.Kind != ShapeDeclaredList {
+		t.Errorf("the field b: got %v", got)
+	}
+	if got := fieldShape(fields, "c"); got != nil {
+		t.Errorf("a missing field: got %v, want nil", got)
+	}
+	if got := fieldShape(nil, "a"); got != nil {
+		t.Errorf("no fields: got %v, want nil", got)
 	}
 }

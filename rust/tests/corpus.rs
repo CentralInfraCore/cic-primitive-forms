@@ -1541,6 +1541,11 @@ fn source_span_edge_cases() {
         span_of("count: 3\n", "$.ip"),
         Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
     );
+    // an empty value has no position: the anchor is the enclosing structure
+    assert_eq!(
+        span_of("ip:\ncount: 3\n", "$.ip"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
+    );
     assert_eq!(
         span_of("name: {a: 1}\n", "$.name"),
         Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name"))

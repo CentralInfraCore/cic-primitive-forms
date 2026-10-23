@@ -9,6 +9,7 @@
 # 3. The score of the mutants in the diff, by the rule of the gate (more than 90% killed, all of them when fewer than 10), and the survivors.
 # Needs cargo-mutants and go-mutesting on the PATH, and CIC_PRIMITIVES_ROOT / CIC_REGISTRY_ROOT set as for the tests. Takes minutes, not an hour.
 set -u
+ONLY=${ONLY:-}   # go or rust: measure one language only
 JOBS=${JOBS:-3}   # cargo-mutants jobs, each with its own copy of the tree; Go runs one process per changed file, also in its own copy
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BASE=$(git -C "$ROOT" merge-base "${1:-origin/main}" HEAD) || exit 2
@@ -22,7 +23,7 @@ mkdir -p "$T/rust" "$T/go"
 (cd "$ROOT/rust" && cargo mutants --list --json --in-diff "$T/rust.patch") > "$T/rust-listed.json" 2>/dev/null
 n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$T/rust-listed.json" 2>/dev/null || echo 0)
 echo "rust: $n mutants in the diff"
-if [ "$n" -gt 0 ]; then
+if [ "$n" -gt 0 ] && [ "$ONLY" != go ]; then
   (cd "$ROOT/rust" && CIC_FORMS_ROOT="$ROOT" cargo mutants --in-diff "$T/rust.patch" --output "$T/rust" --jobs "$JOBS" --timeout 120 -- --tests) > "$T/rust.log" 2>&1 &
   rust_pid=$!
 else
@@ -33,10 +34,13 @@ command -v go-mutesting >/dev/null || { echo "go-mutesting is not on PATH (go in
 
 files=$(python3 -c 'import json,sys; print(" ".join(p[len("go/"):] for p in json.load(open(sys.argv[1]))))' "$T/diff-lines.json")
 : > "$T/ledger"
+[ "$ONLY" = rust ] && files=
 echo "go files in the diff: ${files:-none}"
 for f in $files; do
   # go-mutesting rewrites the file under test in place, so each file gets a copy of the module and they run side by side
-  c="$T/gocopy/${f//\//_}"; mkdir -p "$c"; cp -a "$ROOT/go" "$c/go"
+  c="$T/gocopy/${f//\//_}"; mkdir -p "$c"; cp -a "$ROOT/go" "$c/go"; ln -s "$ROOT/corpus" "$c/corpus"; ln -s "$ROOT/testdata" "$c/testdata"
+  # the unmutated copy must pass: a copy whose tests cannot run would "kill" every mutant (a go test failure is a kill) and score 100%
+  (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" go test -count=1 ./... > "$T/go-baseline-${f//\//_}.log" 2>&1) || { echo "the unmutated Go copy fails its tests (see $T/go-baseline-${f//\//_}.log): the mutation result would be meaningless" >&2; exit 2; }
   (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER="$T/ledger" CIC_DIFF_LINES="$T/diff-lines.json" CIC_REPO_ROOT="$c" \
      go-mutesting --exec "$ROOT/tools/mutation_diff_exec.sh" "$f") > "$T/go-${f//\//_}.log" 2>&1 &
 done

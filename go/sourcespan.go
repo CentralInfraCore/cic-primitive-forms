@@ -74,14 +74,11 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 	for _, s := range segs {
 		here := f.value
 		if here == nil {
-			break
+			return f
 		}
 		f.parent = here
 		if !s.IsItem {
-			var shape *Shape
-			if i := slices.IndexFunc(fields, func(nf NamedShape) bool { return nf.Name == s.Field }); i >= 0 {
-				shape = &fields[i].Shape
-			}
+			shape := fieldShape(fields, s.Field)
 			f.container = here
 			position := lookup(here, s.Field)
 			var wrapped bool
@@ -102,7 +99,6 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 			}
 			continue
 		}
-		f.container = here
 		rec, c := findElement(here, elements, s.Item, a)
 		f.value = rec
 		if c != nil {
@@ -110,6 +106,14 @@ func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 		}
 	}
 	return f
+}
+
+// fieldShape is the shape of the named field, nil when the fields have none.
+func fieldShape(fields []NamedShape, name string) *Shape {
+	if i := slices.IndexFunc(fields, func(nf NamedShape) bool { return nf.Name == name }); i >= 0 {
+		return &fields[i].Shape
+	}
+	return nil
 }
 
 // findElement is the element of a list whose identity is id, with its case; nil, nil when the list has none (or is not a list).
@@ -182,7 +186,8 @@ func readBack(token string, n *Node, style SpanStyle) (code string) {
 	if parsed, err := Parse(token); err == nil && parsed.Same(n) {
 		return ""
 	}
-	if rest, ok := strings.CutPrefix(n.Str, token); style == SpanPlain && n.Kind == KindStr && ok && rest != "" {
+	// (n.Str is empty for every kind but a string, and a quoted token is never the start of its own longer value)
+	if rest, ok := strings.CutPrefix(n.Str, token); ok && rest != "" {
 		return "EDIT_MULTILINE_SCALAR"
 	}
 	return "EDIT_SPAN_MISMATCH"
@@ -210,7 +215,7 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	f := locate(doc, root, segs, a)
 	if resolved.Target != "scalar" {
 		at := f.parent.Pos
-		if f.value != nil && f.value.Pos != nil {
+		if f.value != nil && f.value.Pos != nil { // an empty value (`ip:`) has no position
 			at = f.value.Pos
 		}
 		return Span{}, editFailure("EDIT_NOT_A_SCALAR", at, canonical)
@@ -222,7 +227,7 @@ func SourceSpan(text string, root Shape, path string, a []string) (Span, error) 
 	if n.Kind == KindMap || n.Kind == KindSeq {
 		return Span{}, editFailure("EDIT_NOT_A_SCALAR", n.Pos, canonical)
 	}
-	if p := f.container.Pos; p != nil && strings.IndexAny(text[p.Offset:], "{[") == 0 {
+	if strings.IndexAny(text[f.container.Pos.Offset:], "{[") == 0 {
 		return Span{}, editFailure("EDIT_FLOW_CONTEXT", n.Pos, canonical)
 	}
 	start := n.Pos.Offset

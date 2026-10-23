@@ -191,7 +191,7 @@ DEFECTS = [
     ("go", "a comment is part of a plain scalar", "sourcespan.go",
      [("line = line[:strings.Index(line+\" #\", \" #\")]", "line = line[:len(line)]")]),
     ("go", "a scalar in a flow collection is not recognised", "sourcespan.go",
-     [("strings.IndexAny(text[p.Offset:], \"{[\") == 0", "false")]),
+     [("if strings.IndexAny(text[f.container.Pos.Offset:], \"{[\") == 0 {", "if false {")]),
     ("go", "the read-back of the span is skipped", "sourcespan.go",
      [("if code := readBack(text[start:end], n, style); code != \"\" {", "if code := \"\"; code != \"\" {")]),
     ("go", "a block scalar is scanned as a plain one", "sourcespan.go",
