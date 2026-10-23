@@ -58,7 +58,8 @@ EffectiveRule
 | `none`, `unknown` | `""`, with `layer: none` - stated here on purpose: there is no rule and so no declaring place |
 
 `none` is a `reset` barrier with no local rule (the reference's `RESET_NO_LOCAL_RULE`); `unknown` is a policy or object the walk
-had to read and could not (`POLICY_CONTEXT_UNKNOWN`, `CONTEXT_INCOMPLETE`). Neither is ever turned into `open`, `owner` or a
+had to read and could not (`POLICY_CONTEXT_UNKNOWN`, `CONTEXT_INCOMPLETE`), or an operation other than `access` and `modify`,
+refused before anything is read (`UNKNOWN_OPERATION`, #85: a misspelt `modify` must not get the rule of `access`). Neither is ever turned into `open`, `owner` or a
 list, and an empty list `[]` is a rule like any other (terminal, section 5). The reference's layer names `surface_rules` and
 `default` are `surface_rule` and `object_default` here (the P3 design names).
 

@@ -55,7 +55,7 @@ pub use resolve::{
     resolve_rule, Carrier, EffectiveRule, ObjectPolicy, PolicyGraph, PolicyObject, RuleKind,
     LAYER_FIELD, LAYER_FIELD_INHERITED, LAYER_NONE, LAYER_OBJECT_DEFAULT, LAYER_POLICY_INHERITED,
     LAYER_SURFACE_RULE, LAYER_SYSTEM, REASON_CONTEXT_INCOMPLETE, REASON_POLICY_CONTEXT_UNKNOWN,
-    REASON_RESET_NO_LOCAL_RULE,
+    REASON_RESET_NO_LOCAL_RULE, REASON_UNKNOWN_OPERATION,
 };
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
 pub use sourcespan::{source_span, SourceSpan, SpanStyle};
