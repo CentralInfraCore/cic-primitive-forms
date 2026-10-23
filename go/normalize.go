@@ -36,9 +36,14 @@ func originsOf(fs []found) []ValueOrigin {
 	return out
 }
 
-// Normalize expands doc and inserts the declared defaults of its absent optional fields. The input is not modified.
+// Normalize expands doc and inserts the declared defaults of its absent optional fields. The input is not modified. A document that
+// does not validate (every expanded wrapper read as its value) is refused with its violations, as they are, and nothing is made: the
+// walk below checks the forms, not the values or the list identities (#88).
 func Normalize(doc *Node, shape Shape, a []string, g Grammar, ctx Context) (*NormalizationResult, error) {
 	if err := ctx.check(shape); err != nil {
+		return nil, err
+	}
+	if err := refuseInvalid(doc, shape, a); err != nil {
 		return nil, err
 	}
 	w := &formWalker{a: a, g: g, prov: Provenance{}, defaults: true}

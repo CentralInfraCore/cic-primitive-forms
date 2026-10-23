@@ -402,8 +402,11 @@ func (c *compiler) collection(n *Node, path string, s *Shape) *Error {
 	} else if ok {
 		s.MinItems, s.HasMinItems = v, true
 	}
-	if _, _, err := intMember(n, "max_items", path); err != nil {
+	// ADR 0003 specifies min_items and no other count: a maximum the validator would not check is refused, not dropped (#88)
+	if _, ok, err := intMember(n, "max_items", path); err != nil {
 		return err
+	} else if ok {
+		return schemaErr(SchemaShapeUnsupported, path+".max_items", "max_items is not processed by this slice (only min_items is specified)")
 	}
 	variant := lookup(n, "collection_variant")
 	if variant == nil || variant.Kind != KindStr || (variant.Str != "list" && variant.Str != "set") {

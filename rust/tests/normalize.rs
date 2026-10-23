@@ -233,9 +233,30 @@ fn normalize_never_defaults_a_mandatory_field_or_absent_structure() {
     .iter()
     .map(|k| (*k).to_string())
     .collect();
+    // the mandatory field is not defaulted: its absence is the validation's refusal, and nothing is made (#88)
+    match normalize(&doc, &root, &a, bound(1), &Context::default()) {
+        Err(Error::Contract(v)) => {
+            assert_eq!(v[0].code, "MISSING_MANDATORY");
+            assert_eq!(v[0].logical_path.as_deref(), Some("$.must"));
+        }
+        other => panic!("{other:?}"),
+    }
+    // and the absent optional structure is not made to hold its default
+    let doc = parse("must: y\n").unwrap();
     let res = normalize(&doc, &root, &a, bound(1), &Context::default()).unwrap();
-    assert!(res.value_origins.is_empty());
-    assert_eq!(emit(&res.object), "{}\n");
+    assert_eq!(res.value_origins.len(), 1);
+    assert_eq!(
+        (
+            res.value_origins[0].path.as_str(),
+            res.value_origins[0].origin
+        ),
+        ("$.must", VALUE_AUTHORED)
+    );
+    let Value::Map(entries) = &res.object.value else {
+        panic!("{:?}", res.object)
+    };
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].key, "must");
 }
 
 #[test]

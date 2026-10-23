@@ -136,7 +136,8 @@ pub fn edit_parsed(doc: &Node, root: &Shape, path: &str, a: &[String], _value: &
 }
 
 /// The validate phase as an error: the violations, as they are. An expanded Access wrapper is read as its value ([`short_view`]).
-fn refuse_invalid(doc: &Node, root: &Shape, a: &[String]) -> Result<(), Error> {
+/// Also the first step of `normalize` and `resolve_policy` (#88).
+pub(crate) fn refuse_invalid(doc: &Node, root: &Shape, a: &[String]) -> Result<(), Error> {
     let v = validate(Some(&short_view(doc, a)), root, a)?;
     if v.violations.is_empty() {
         Ok(())

@@ -3,7 +3,7 @@
 
 use cic_primitive_forms::access::sha256_hex;
 use cic_primitive_forms::{
-    bind_grammar, compile_schema, denormalize, normalize, normalize_with_policy, parse,
+    bind_grammar, compile_schema, denormalize, expand, normalize, normalize_with_policy, parse,
     resolve_policy, CompiledSchema, Context, Grammar, SchemaInput, Value,
 };
 use serde_json::Value as J;
@@ -124,5 +124,77 @@ fn normalize_with_policy_carries_the_schema_it_was_made_from() {
     let ra = normalize_with_policy(&doc, &ca, &a, bound(1), &ctx, &[]).unwrap();
     if let Ok(rb) = normalize_with_policy(&doc, &cb, &a, bound(1), &ctx, &[]) {
         assert_ne!(ra.schema_digest, rb.schema_digest);
+    }
+}
+
+/// `normalize`, `resolve_policy` and `normalize_with_policy` start with the validation (#88): a value of the wrong type, also
+/// inside an expanded wrapper, and two list elements of one identity are refused as `validate` refuses them, and nothing is made;
+/// a key set without access, modify or inherit is an error. The schema is that of a shared resolution case (a mandatory type, an
+/// integer metric, routes keyed by to). The Go peer is `TestTheBoundariesValidateFirst` in go/normalizewithpolicy_test.go.
+#[test]
+fn the_boundaries_validate_first() {
+    let (f, a) = load();
+    let pin = f["grammar_pin"].as_str().unwrap();
+    let schema = f["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "an-absent-field-gets-no-entry-and-an-inserted-default-does")
+        .unwrap()["schema"]
+        .as_str()
+        .unwrap();
+    let cs = compile(schema, pin);
+    let g = bound(1);
+    let ctx = Context::default();
+    let wrapper = "{value: abc, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}";
+    for (yaml, want) in [
+        (
+            "type: t\nroutes:\n  - to: a\n    metric: abc\n".to_string(),
+            "value where",
+        ),
+        (
+            format!("type: t\nroutes:\n  - to: a\n    metric: {wrapper}\n"),
+            "value where",
+        ),
+        (
+            "type: t\nroutes:\n  - to: a\n  - to: a\n".to_string(),
+            "PATH_DUPLICATE_IDENTITY",
+        ),
+        ("routes: []\n".to_string(), "MISSING_MANDATORY"),
+    ] {
+        let doc = parse(&yaml).unwrap();
+        let says = |e: &cic_primitive_forms::Error| format!("{e:?}").contains(want);
+        match normalize(&doc, &cs.root, &a, g, &ctx) {
+            Err(e) => assert!(says(&e), "{yaml:?}, normalize: {e:?}"),
+            Ok(_) => panic!("{yaml:?}: normalize made a result"),
+        }
+        // resolve_policy reads an expanded object: expand makes one and checks no values
+        let (object, _) = expand(&doc, &cs.root, &a, g, &ctx).expect("expand");
+        match resolve_policy(&object, &cs.root, &cs.policy, &cs.surface, &a, g, &[]) {
+            Err(e) => assert!(says(&e), "{yaml:?}, resolve_policy: {e:?}"),
+            Ok(_) => panic!("{yaml:?}: resolve_policy made a result"),
+        }
+        match normalize_with_policy(&doc, &cs, &a, g, &ctx, &[]) {
+            Err(e) => assert!(says(&e), "{yaml:?}, normalize_with_policy: {e:?}"),
+            Ok(_) => panic!("{yaml:?}: normalize_with_policy made a result"),
+        }
+    }
+    // a key set without access: the wrapper the normalization makes has none, and the resolution refuses it
+    let no_access: Vec<String> = [
+        "value",
+        "modify",
+        "inherit",
+        "default_injection",
+        "conformance",
+    ]
+    .iter()
+    .map(|k| (*k).to_string())
+    .collect();
+    let doc = parse("type: t\n").unwrap();
+    match normalize_with_policy(&doc, &cs, &no_access, g, &ctx, &[]) {
+        Err(cic_primitive_forms::Error::Unsupported(m)) => {
+            assert!(m.contains("the position has no access"), "{m}");
+        }
+        other => panic!("{other:?}"),
     }
 }

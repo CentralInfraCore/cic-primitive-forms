@@ -53,10 +53,12 @@ fn unsupported(detail: String) -> Error {
 /// Resolves every position of `object`, an expanded document (the object of a `NormalizationResult`) read against `root`. `policy` is
 /// the compiled schema's PolicySurface and `surface` the surface it was compiled for. `unknown` names, by logical path, the objects
 /// whose policy the caller does not know (`$` is the root): a rule that has to read one of them is unknown. An object that is not
-/// expanded, a structure the schema does not allow, or an unknown path that names no object is an [`Error::Unsupported`].
+/// expanded, a structure the schema does not allow, or an unknown path that names no object is an [`Error::Unsupported`]. An object
+/// that the walk accepts but that does not validate (every wrapper read as its value) is refused with its violations before a result
+/// is made: two list elements of one identity would otherwise be one position of the result (#88).
 ///
 /// # Errors
-/// [`Error::Unsupported`] as above.
+/// The refusal of the validation; [`Error::Unsupported`] as above.
 pub fn resolve_policy(
     object: &Node,
     root: &Shape,
@@ -92,6 +94,7 @@ pub fn resolve_policy(
         _ => return Err(unsupported("the root of a document is a composite".into())),
     };
     w.object(object, fields, &mut Vec::new(), "$")?;
+    crate::editscalar::refuse_invalid(object, root, a)?;
     for u in unknown {
         match w.graph.get_mut(u) {
             Some(o) => o.policy = ObjectPolicy::Unknown,

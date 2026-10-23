@@ -22,7 +22,9 @@ type PolicyResolution map[string]PolicyEntry
 // ResolvePolicy resolves every position of object, an expanded document (the Object of a NormalizationResult) read against root.
 // policy is the compiled schema's PolicySurface and surface the surface it was compiled for. unknown names, by logical path, the
 // objects whose policy the caller does not know ("$" is the root): a rule that has to read one of them is unknown. An object that is
-// not expanded, a structure the schema does not allow, or an unknown path that names no object is an Unsupported error.
+// not expanded, a structure the schema does not allow, or an unknown path that names no object is an Unsupported error. An object
+// that the walk accepts but that does not validate (every wrapper read as its value) is refused with its violations before a result
+// is made: two list elements of one identity would otherwise be one position of the result (#88).
 func ResolvePolicy(object *Node, root Shape, policy PolicySurface, surface string, a []string, g Grammar, unknown []string) (PolicyResolution, error) {
 	w := &resolveWalker{a: a, g: g, graph: PolicyGraph{}}
 	state := PolicyAbsent
@@ -32,6 +34,9 @@ func ResolvePolicy(object *Node, root Shape, policy PolicySurface, surface strin
 	rootObj := &PolicyObject{ID: "$", Policy: ObjectPolicy{State: state, Surface: policy}}
 	w.graph["$"] = rootObj
 	if err := w.object(object, root.Fields, nil, rootObj); err != nil {
+		return nil, err
+	}
+	if err := refuseInvalid(object, root, a); err != nil {
 		return nil, err
 	}
 	for _, u := range unknown {
@@ -95,8 +100,13 @@ func (w *resolveWalker) object(n *Node, fields []NamedShape, path []seg, o *Poli
 
 // wrapper reads the Access wrapper of a position: the mode and the two rule values (nil is the symbol inherit).
 func (w *resolveWalker) wrapper(x *Node, text string) (mode Mode, access, modify *PolicyRule, err error) {
+	// a key set without one of the three gives a wrapper without it: refused, as in Rust, never read as nil (#88)
 	read := func(key string) (*PolicyRule, error) {
-		r, v := ReadRule(lookup(x, key))
+		n := lookup(x, key)
+		if n == nil {
+			return nil, unsupported("%s: the position has no %s", text, key)
+		}
+		r, v := ReadRule(n)
 		if v != nil {
 			return nil, unsupported("%s: %s of the position: %s", text, key, v.Code)
 		}
@@ -111,8 +121,13 @@ func (w *resolveWalker) wrapper(x *Node, text string) (mode Mode, access, modify
 	if modify, err = read("modify"); err != nil {
 		return
 	}
+	inherit := lookup(x, "inherit")
+	if inherit == nil {
+		err = unsupported("%s: the position has no inherit", text)
+		return
+	}
 	var v *Violation
-	if mode, v = ReadMode(lookup(x, "inherit"), w.g); v != nil {
+	if mode, v = ReadMode(inherit, w.g); v != nil {
 		err = unsupported("%s: inherit of the position: %s", text, v.Code)
 	}
 	return
