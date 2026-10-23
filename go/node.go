@@ -77,15 +77,16 @@ func (n *Node) Same(o *Node) bool {
 		if len(n.Entries) != len(o.Entries) {
 			return false
 		}
-		for _, e := range n.Entries {
-			found := false
-			for _, f := range o.Entries {
-				if f.Key == e.Key {
-					found = e.Value.Same(f.Value)
-					break
-				}
+		// The other mapping by key, read once: the first entry of a repeated key decides, as a lookup in order would (#85).
+		byKey := make(map[string]*Node, len(o.Entries))
+		for _, f := range o.Entries {
+			if _, seen := byKey[f.Key]; !seen {
+				byKey[f.Key] = f.Value
 			}
-			if !found {
+		}
+		for _, e := range n.Entries {
+			v, ok := byKey[e.Key]
+			if !ok || !e.Value.Same(v) {
 				return false
 			}
 		}

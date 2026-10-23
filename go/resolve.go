@@ -44,6 +44,8 @@ const (
 	ReasonResetNoLocalRule     = "RESET_NO_LOCAL_RULE"
 	ReasonPolicyContextUnknown = "POLICY_CONTEXT_UNKNOWN"
 	ReasonContextIncomplete    = "CONTEXT_INCOMPLETE"
+	// ReasonUnknownOperation: the operation is neither "access" nor "modify"; nothing is read for it (#85).
+	ReasonUnknownOperation = "UNKNOWN_OPERATION"
 )
 
 // EffectiveRule is data, not a decision.
@@ -149,8 +151,12 @@ func policyMode(o *PolicyObject) Mode {
 
 // ResolveRule finds the effective rule of one operation ("access" or "modify") for a field of an object of the graph. field is the
 // field's own value for the operation (nil for the symbol inherit) and fieldPath the path of the position, for the source of a
-// field rule. Same input, same output: no clock, no I/O.
+// field rule. Same input, same output: no clock, no I/O. Any other operation is unknown (UNKNOWN_OPERATION), never read as one of the
+// two: a misspelt "modify" must not get the rule of "access".
 func ResolveRule(g PolicyGraph, object, surface string, field *PolicyRule, fieldPath, op string) EffectiveRule {
+	if op != "access" && op != "modify" {
+		return unknownRule(ReasonUnknownOperation)
+	}
 	cur, ok := g[object]
 	if !ok {
 		return unknownRule(ReasonContextIncomplete)

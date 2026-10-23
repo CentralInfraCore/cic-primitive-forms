@@ -202,10 +202,17 @@ fn scan(text: &str, start: usize) -> Result<(usize, SpanStyle), &'static str> {
     }
 }
 
-/// The read-back: the span, parsed alone as a document, must be the value the parser gave for the node. `Err` is the code of the refusal: a plain
-/// scalar whose value is longer than its first line is multi-line, anything else that disagrees is a defect of the scanner.
+/// The read-back: the span, parsed as the value of a mapping entry (the context it came from), must be the value the parser gave for the node.
+/// Alone as a document it would not do: there a token that starts with `--- ` or `... ` is a document marker (#87). `Err` is the code of the
+/// refusal: a plain scalar whose value is longer than its first line is multi-line, anything else that disagrees is a defect of the scanner.
 fn read_back(token: &str, node: &Node, style: SpanStyle) -> Result<(), &'static str> {
-    if parse(token).is_ok_and(|parsed| parsed.same(node)) {
+    let entry = parse(&format!("k: {token}"))
+        .ok()
+        .and_then(|parsed| match parsed.value {
+            Value::Map(mut entries) => entries.pop(),
+            _ => None,
+        });
+    if entry.is_some_and(|e| e.value.same(node)) {
         return Ok(());
     }
     match (&node.value, style) {
@@ -329,6 +336,15 @@ mod tests {
         );
         assert_eq!(read_back("3", &node("3"), SpanStyle::Plain), Ok(()));
         assert_eq!(read_back("True", &node("true"), SpanStyle::Plain), Ok(()));
+        // a value that alone would be a document marker reads back as the value it is (#87)
+        for marker in ["--- ](e-+.(-f", "---", "--- x", "...", "... x"] {
+            let value = Node::new(Value::Str(marker.to_string()));
+            assert_eq!(
+                read_back(marker, &value, SpanStyle::Plain),
+                Ok(()),
+                "{marker:?}"
+            );
+        }
     }
 
     #[test]

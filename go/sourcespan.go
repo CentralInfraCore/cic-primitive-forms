@@ -183,11 +183,12 @@ func scanSpan(text string, start int) (end int, style SpanStyle, code string) {
 	return start + len(strings.TrimRight(line, " ")), SpanPlain, ""
 }
 
-// readBack is the check that the span is the scalar: the span, parsed alone as a document, must be the value the parser gave for the node.
-// code is the refusal: a plain scalar whose value is longer than its first line is multi-line, anything else that disagrees is a defect of the
-// scanner.
+// readBack is the check that the span is the scalar: the span, parsed as the value of a mapping entry (the context it came from), must be the
+// value the parser gave for the node. Alone as a document it would not do: there a token that starts with "--- " or "... " is a document
+// marker (#87). code is the refusal: a plain scalar whose value is longer than its first line is multi-line, anything else that disagrees is a
+// defect of the scanner.
 func readBack(token string, n *Node, style SpanStyle) (code string) {
-	if parsed, err := Parse(token); err == nil && parsed.Same(n) {
+	if parsed, err := Parse("k: " + token); err == nil && parsed.Kind == KindMap && parsed.Entries[0].Value.Same(n) {
 		return ""
 	}
 	// (n.Str is empty for every kind but a string, and a quoted token is never the start of its own longer value)

@@ -7,6 +7,7 @@ use cic_primitive_forms::{
     Entry, Mode, Node, ObjectPolicy, PolicyGraph, PolicyObject, PolicyRule, PolicySurface,
     RuleKind, SchemaInput, Value, LAYER_FIELD, LAYER_NONE, LAYER_OBJECT_DEFAULT,
     LAYER_POLICY_INHERITED, LAYER_SYSTEM, REASON_CONTEXT_INCOMPLETE, REASON_RESET_NO_LOCAL_RULE,
+    REASON_UNKNOWN_OPERATION,
 };
 use proptest::prelude::*;
 
@@ -153,6 +154,37 @@ fn object(
             carrier_path: id.to_string(),
         },
     )
+}
+
+/// An operation other than access and modify is unknown, before anything else is read: a misspelt `"modify"` must not fall through
+/// to the system default of access (open), and a field rule must not answer for it (#85). The Go peer is
+/// `TestAnUnknownOperationIsUnknownNeverPermissive` in go/policyresolution_test.go.
+#[test]
+fn an_unknown_operation_is_unknown_never_permissive() {
+    let g: PolicyGraph = [object("$", None, ObjectPolicy::Absent, None)]
+        .into_iter()
+        .collect();
+    let access = resolve_rule(&g, "$", "config_surface", None, "$.f", "access");
+    assert!(access.kind == RuleKind::Open, "access: {access:?}");
+    let modify = resolve_rule(&g, "$", "config_surface", None, "$.f", "modify");
+    assert!(modify.kind == RuleKind::Owner, "modify: {modify:?}");
+    let field = PolicyRule::Patterns(vec!["O=r".to_string()]);
+    for op in ["modfiy", "Modify", "read", "", "access ", "modify\0"] {
+        for f in [None, Some(&field)] {
+            for target in ["$", "absent"] {
+                let r = resolve_rule(&g, target, "config_surface", f, "$.f", op);
+                assert!(
+                    r.kind == RuleKind::Unknown
+                        && r.reason == REASON_UNKNOWN_OPERATION
+                        && r.layer == LAYER_NONE
+                        && r.source_path.is_empty()
+                        && r.patterns.is_empty(),
+                    "op {op:?}, field {}, object {target:?}: {r:?}",
+                    f.is_some()
+                );
+            }
+        }
+    }
 }
 
 fn assert_incomplete(g: &PolicyGraph, target: &str) {

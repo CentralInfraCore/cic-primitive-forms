@@ -39,6 +39,8 @@ pub const LAYER_NONE: &str = "none";
 pub const REASON_RESET_NO_LOCAL_RULE: &str = "RESET_NO_LOCAL_RULE";
 pub const REASON_POLICY_CONTEXT_UNKNOWN: &str = "POLICY_CONTEXT_UNKNOWN";
 pub const REASON_CONTEXT_INCOMPLETE: &str = "CONTEXT_INCOMPLETE";
+/// The operation is neither `"access"` nor `"modify"`; nothing is read for it (#85).
+pub const REASON_UNKNOWN_OPERATION: &str = "UNKNOWN_OPERATION";
 
 /// An effective rule is data, not a decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,7 +157,8 @@ fn policy_mode(o: &PolicyObject) -> Option<Mode> {
 
 /// Finds the effective rule of one operation (`"access"` or `"modify"`) for a field of an object of the graph. `field` is the field's
 /// own value for the operation (`None` for the symbol `inherit`) and `field_path` the path of the position, for the source of a field
-/// rule. Same input, same output: no clock, no I/O.
+/// rule. Same input, same output: no clock, no I/O. Any other operation is unknown (`UNKNOWN_OPERATION`), never read as one of the
+/// two: a misspelt `"modify"` must not get the rule of `"access"`.
 #[must_use]
 pub fn resolve_rule(
     graph: &PolicyGraph,
@@ -165,6 +168,9 @@ pub fn resolve_rule(
     field_path: &str,
     op: &str,
 ) -> EffectiveRule {
+    if op != "access" && op != "modify" {
+        return unknown_rule(REASON_UNKNOWN_OPERATION);
+    }
     let cur = match graph.get(object) {
         Some(cur) => cur,
         None => return unknown_rule(REASON_CONTEXT_INCOMPLETE),

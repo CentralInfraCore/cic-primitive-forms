@@ -238,6 +238,30 @@ func TestResolveRuleOnAnIncompleteOrCyclicGraph(t *testing.T) {
 	}, "a")
 }
 
+// An operation other than access and modify is unknown, before anything else is read: a misspelt "modify" must not fall through to
+// the system default of access (open), and a field rule must not answer for it (#85). The Rust peer is
+// `an_unknown_operation_is_unknown_never_permissive` in rust/tests/resolve_properties.rs.
+func TestAnUnknownOperationIsUnknownNeverPermissive(t *testing.T) {
+	g := forms.PolicyGraph{"$": {ID: "$", Policy: forms.ObjectPolicy{State: forms.PolicyAbsent}}}
+	if r := forms.ResolveRule(g, "$", "config_surface", nil, "$.f", "access"); r.Kind != forms.RuleOpen {
+		t.Fatalf("access: want the system open, got %+v", r)
+	}
+	if r := forms.ResolveRule(g, "$", "config_surface", nil, "$.f", "modify"); r.Kind != forms.RuleOwner {
+		t.Fatalf("modify: want the system owner, got %+v", r)
+	}
+	field := &forms.PolicyRule{Patterns: []string{"O=r"}}
+	for _, op := range []string{"modfiy", "Modify", "read", "", "access ", "modify\x00"} {
+		for _, f := range []*forms.PolicyRule{nil, field} {
+			for _, object := range []string{"$", "absent"} {
+				r := forms.ResolveRule(g, object, "config_surface", f, "$.f", op)
+				if r.Kind != forms.RuleUnknown || r.Reason != forms.ReasonUnknownOperation || r.Layer != forms.LayerNone || r.SourcePath != "" || r.Patterns != nil {
+					t.Fatalf("op %q, field %v, object %q: want unknown / UNKNOWN_OPERATION, got %+v", op, f != nil, object, r)
+				}
+			}
+		}
+	}
+}
+
 func TestASurfaceInAnUndeclaredPolicyIsIgnoredAndAParentFlagIsNeeded(t *testing.T) {
 	list := &forms.PolicyRule{Patterns: []string{"O=r"}}
 	// an absent policy carries no rule, whatever its surface holds

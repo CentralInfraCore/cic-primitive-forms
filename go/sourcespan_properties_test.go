@@ -91,8 +91,9 @@ func TestPropertyTheSpanOfEveryScalarReadsBackToItsValue(t *testing.T) {
 				if token == "" || strings.ContainsAny(token, "\r\n") {
 					t.Fatalf("%s: the span %q is empty or holds a line break in %q", path, token, text)
 				}
-				parsed, perr := forms.Parse(token)
-				if perr != nil || want == nil || !parsed.Same(want) {
+				// read as the value of a mapping entry, the context it came from (#87)
+				parsed, perr := forms.Parse("k: " + token)
+				if perr != nil || want == nil || parsed.Kind != forms.KindMap || !parsed.Entries[0].Value.Same(want) {
 					t.Fatalf("%s: %q is not the value of the node in %q", path, token, text)
 				}
 				continue
