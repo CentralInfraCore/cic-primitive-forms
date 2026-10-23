@@ -18,3 +18,9 @@ grammar-selftest:
 # commit: make grammar-verify UPSTREAM=path/to/cic-primitives (CI does this on every run).
 grammar-verify:
 	python3 tools/grammar_identity.py verify --pins corpus/pins.yaml --repo $(UPSTREAM)
+
+.PHONY: quick
+# The cheap local checks while writing (docs/DELTA-DIFF-GATE.md, section 9): the seeded-defect texts still match the code, and the working
+# tree's own mutants, targeted. CI is the authority for everything else. Optional: TESTS=go-regex RUST_TESTS=name JOBS=n
+quick:
+	tools/quick-check.sh

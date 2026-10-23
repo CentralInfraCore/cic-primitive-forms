@@ -7,7 +7,16 @@ temporary directory, applies one textual change (it must match exactly once, so 
 silently), runs the tests that cover the code and requires them to FAIL. It first requires the unmodified
 copy to pass. Nothing in the repository is modified.
 
-    seeded_defects.py rust|go|all [--changed-from DIFF_LINES_JSON]
+    seeded_defects.py rust|go|all [--changed-from SCOPE_JSON] [--stale-only] [--match SUBSTRING] [--shard K/N]
+
+`--changed-from` (CI, in a diff) runs only the defects of the product files that tools/diff_gate.py's scope.json lists; the others are reported `not run`.
+
+`--stale-only` applies every entry to its file and runs no test: seconds, and it says which entries no longer match the code (after a
+refactor, run it before the slow run). `--match` runs only the defects whose name or file contains the substring (the baseline still
+runs); a partial run is for the development loop, CI runs them all.
+
+`--shard K/N` (K from 0) runs every N-th defect of each language, starting at K: N processes with K = 0..N-1 cover every defect exactly once
+(run the N processes side by side by hand). Each process builds its own copy of the module, and the baseline runs in each.
 
 The first defects are about the grammar-1 spelling of `inherit`, the version binding, the pin verification and
 the CertPattern reading (cic-primitives D-018, ADR 0004): the places where a wrong implementation looks
@@ -191,7 +200,7 @@ DEFECTS = [
     ("go", "a comment is part of a plain scalar", "sourcespan.go",
      [("line = line[:strings.Index(line+\" #\", \" #\")]", "line = line[:len(line)]")]),
     ("go", "a scalar in a flow collection is not recognised", "sourcespan.go",
-     [("strings.IndexAny(text[p.Offset:], \"{[\") == 0", "false")]),
+     [("if strings.IndexAny(text[f.container.Pos.Offset:], \"{[\") == 0 {", "if false {")]),
     ("go", "the read-back of the span is skipped", "sourcespan.go",
      [("if code := readBack(text[start:end], n, style); code != \"\" {", "if code := \"\"; code != \"\" {")]),
     ("go", "a block scalar is scanned as a plain one", "sourcespan.go",
@@ -399,6 +408,24 @@ def command(lang):
     return ["go", "test", "-count=1", "./..."]
 
 
+def stale_only(langs, match):
+    """Every entry must match its file exactly once; no test runs."""
+    bad = checked = 0
+    for lang, name, rel, ops in DEFECTS:
+        if lang not in langs or (match and match not in name and match not in rel):
+            continue
+        text = open(os.path.join(ROOT, lang, rel), encoding="utf-8").read()
+        checked += 1
+        for old, new in ops:
+            if text.count(old) != 1:
+                print("%-4s STALE %s: %r occurs %d times" % (lang, name, old, text.count(old)))
+                bad += 1
+                break
+            text = text.replace(old, new)
+    print("SEEDED DEFECTS (texts only, no test run): %d entries, %s" % (checked, "all match" if bad == 0 else "%d STALE" % bad))
+    return 0 if bad == 0 else 1
+
+
 def main():
     args = sys.argv[1:]
     changed = None
@@ -409,8 +436,26 @@ def main():
         # tools/diff_gate.py's scope.json (the product files of both languages) or a plain list / object keyed by path
         changed = set(data.get("rust_files", [])) | set(data.get("go_files", [])) if "go_files" in data else set(data)
         del args[i:i + 2]
+    match = None
+    if "--match" in args:
+        i = args.index("--match")
+        match = args[i + 1]
+        del args[i:i + 2]
+    shard = (0, 1)
+    if "--shard" in args:
+        i = args.index("--shard")
+        k, n = args[i + 1].split("/")
+        shard = (int(k), int(n))
+        if not 0 <= shard[0] < shard[1]:
+            print("--shard K/N needs 0 <= K < N")
+            return 2
+        del args[i:i + 2]
+    only_texts = "--stale-only" in args
+    args = [a for a in args if a != "--stale-only"]
     which = args[0] if args else "all"
     langs = ("rust", "go") if which == "all" else (which,)
+    if only_texts:
+        return stale_only(langs, match)
     defects = DEFECTS if changed is None else in_diff(DEFECTS, changed)
     if changed is not None:
         print("diff mode: %d of %d defects are in changed files; the other %d are not run" % (len(defects), len(DEFECTS), len(DEFECTS) - len(defects)))
@@ -433,7 +478,8 @@ def main():
                 print(first.stdout[-2000:], first.stderr[-2000:])
                 bad += 1
                 continue
-            for _, name, rel, ops in [d for d in defects if d[0] == lang]:
+            mine = [d for d in defects if d[0] == lang and (not match or match in d[1] or match in d[2])]
+            for _, name, rel, ops in mine[shard[0]::shard[1]]:
                 path = os.path.join(base, rel)
                 original = open(path, encoding="utf-8").read()
                 text = original
@@ -452,7 +498,7 @@ def main():
                     bad += 0 if caught else 1
                     with open(path, "w", encoding="utf-8") as fh:
                         fh.write(original)
-    print("SEEDED DEFECTS: %s" % ("every defect is caught" if bad == 0 else "FAILED (%d)" % bad))
+    print("SEEDED DEFECTS%s: %s" % ((" (partial: --match %s)" % match if match else "") + (" (shard %d/%d)" % shard if shard[1] > 1 else ""), "every defect is caught" if bad == 0 else "FAILED (%d)" % bad))
     return 0 if bad == 0 else 1
 
 

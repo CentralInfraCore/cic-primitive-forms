@@ -1310,3 +1310,12 @@ func TestSourceSpanPathErrorsAndAListBelowAComposite(t *testing.T) {
 		t.Errorf("a list below a composite: %v %v", sp, err)
 	}
 }
+
+// An empty value (`ip:`) has no position of its own: a composite target there is refused at the enclosing structure. The Rust peer is
+// source_span_an_empty_value_is_not_a_scalar_target.
+func TestSourceSpanAnEmptyValueIsNotAScalarTarget(t *testing.T) {
+	_, ws := spanOf(t, "ip:\ncount: 3\n", "$.ip")
+	if want := []wire{{"EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"}}; !reflect.DeepEqual(ws, want) {
+		t.Errorf("got %v, want %v", ws, want)
+	}
+}
