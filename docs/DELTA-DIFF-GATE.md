@@ -130,3 +130,113 @@ behind the merge:
 2. The classifier of 2.1 is conservative by design; its false FULLs are visible in its report and can be tuned.
 3. Summer time handling of the nightly cron (section 4).
 4. Whether the nightly failure pull request should be a draft, and whether it gets a label; default: draft with the label `ci-nightly-failure`.
+
+## 9. The development loop: the same gate, sooner
+
+The gate is not weakened here; the three tools below only bring its verdict forward, to where the code is still fresh.
+
+1. **Measure while writing.** `WORKTREE=1 tools/diff-mutation-local.sh` measures the working tree (staged, unstaged and new files)
+   against the merge base, through a scratch index; the repository is not touched. Run it after each finished function, not after the
+   last one. Rust and Go run side by side, `JOBS` (default 3) cargo-mutants jobs, one Go process per changed file, each in its own copy
+   of the tree.
+2. **Targeted tests, only in the loop.** `TESTS=regex` runs only the tests that match (Go `-run`, Rust test-name filter) for every
+   mutant. A killed mutant stays killed when the whole suite runs, so a targeted score can only be **lower** than the real one; a
+   survivor must be rechecked without `TESTS` before it is believed or "fixed". CI never sets it, and a green loop is not a green gate.
+3. **A short local check, not a copy of CI.** `make quick` (`tools/quick-check.sh`): the texts of the seeded defects are checked against
+   the code (`seeded_defects.py all --stale-only`, seconds: a stale text would fail the CI step ten minutes in), then the mutants of the
+   working tree (1) with the filter of (2). It does **not** run the suites, the coverage gate, the seeded defects or the fuzzing: CI is
+   the authority for those, runs them in a clean environment and does not need a developer's machine. (A local copy of CI misleads in
+   both directions: the first parallel script reported a void 100%, and a shared build directory of another working tree failed tests
+   that pass in CI.) `seeded_defects.py --match SUBSTRING` and `--shard K/N` select or cut the defects when they are run by hand.
+
+Whatever is run locally must be able to fail: the Go copy of the tree runs its unmutated tests first, and the script stops if they fail.
+
+### 9.1 Writing code so that the gate has less to say
+
+Most survivors of the first runs of a new module were **equivalent mutants**: a mutation that cannot change the behaviour, because the
+code states the same thing twice. They cost more to remove than to avoid. In this order:
+
+* Prefer string and slice operations (`strings.Index`, `CutPrefix`, `slices.IndexFunc`, `split`, `find`, `strip_prefix`) to index
+  arithmetic and hand-written loops with `break`: every `+ 1`, `<` and `break` is a mutation site.
+* Do not guard what the callee already guarantees (a bound check before an index that cannot be out of range; a `nil` check before a
+  loop over a nil slice). Use a sentinel (append the delimiter you search for; treat NUL as the end of the text) instead of "not found"
+  branches that no input reaches.
+* Do not assign a value that is already there (`x = nil` after `var x`), and do not keep a branch that the parser makes unreachable (a tab
+  handler where the parser refuses tabs); remove it, or test the parser's refusal.
+* Keep one fact in one place, so that a mutation of it changes the result.
+
+### 9.2 Plan, not implemented: bounded units for mutation and for fuzzing
+
+Observation (owner, 2026-10-23): the bites the tests work on keep growing. A unit of work for a mutation run or a fuzz run is bounded
+twice: **about 100 mutants (or inputs) at most, and about 10 minutes of wall time at most, whichever is reached first**, so that a run is
+short, a weak part is not diluted by a strong one, and the parts run side by side.
+
+The measured state on the head of #72 (full mode): a Rust shard of 166 mutants took 16 to 25 minutes (6 to 9 seconds per mutant, build and
+baseline included), a Go shard 10 to 17 minutes; about 55 to 70 mutants fit in ten minutes, so the time bound is the stricter one. The number
+of shards is therefore **computed, not written into the matrix**: `max(ceil(mutants / 100), ceil(estimated seconds / 600))`, the fixed cost of a
+job (checkout, build, baseline) included in the estimate. A `plan` job next to `scope` computes it from the listed mutants and the cost table
+and passes the matrix on (`fromJSON`), so the shard count has one source; the gate's completeness check still requires every mutant in
+exactly one shard. The cost table (`tools/mutation-costs.json`) is refreshed first: it holds 467 Rust mutants and the shards now carry about
+1000, and a stale cost only makes the balance worse, never the measurement different.
+
+**Mutation.**
+
+* The unit is a group of about 100 mutants of the diff, cut along function boundaries (a function is never split; a function with more than 100
+  mutants is a unit of its own and the report says so). Each unit has its own score and its own verdict by the rule of section 2 (more than
+  90% killed, all of them when fewer than 10), and the gate is green only if every unit is. There is still no aggregate that hides a weak
+  unit behind a strong one.
+* Each unit runs in its own copy of the tree, and a unit can name the tests that cover it (the test file or the name filter of the module);
+  that is the targeted run of 9 (2), and the CI run of the same unit uses the whole suite.
+* Every copy of the tree must pass its tests unmutated before its mutants are counted. A copy that cannot run its tests (a missing
+  `corpus/`, a missing tool) would "kill" every mutant and score 100%; this happened once in the first parallel local script and is the
+  reason for the rule.
+* Open: `cargo mutants` already has `--shard k/n`; `go-mutesting` has not. The Go units are cut by the executor of
+  `tools/mutation_diff_exec.sh` (it already sees every mutant and its position), so the grouping is the same table in both languages
+  (`tools/diff_gate.py` writes it into `scope.json`).
+
+**Fuzz.**
+
+* Today each language runs its targets one after the other in one job, 60 seconds each (8 targets: Go about 8 minutes, Rust about 8 minutes plus
+  the build). The unit is **one target**, one job per target in a matrix, so the targets run side by side and a failure names its target.
+* In diff mode a target runs when the diff touches code it reaches (the target-to-source table is a file in the repository, checked by a
+  test, not guessed); the other targets run in the nightly FULL. A target that is not run is reported `not run (not reached by the diff)`,
+  never as passed.
+* The time of a target is not shortened; what changes is which targets a pull request needs. Where a target covers a large module,
+  the corpus of that target is split by input class (the committed seed inputs), each a unit of about 100 seeds, so that no one run depends
+  on one long session.
+* The canary proof (a committed canary input must turn each target red) stays per target and runs in the same unit.
+
+**The rest of the group** (the other quality steps of `p1.yml` that today run as one long step), by the same rule of a bounded unit
+of about 100 with its own verdict, its own copy of the tree and its own name in a failure:
+
+| Step | Today (as read from `p1.yml`; each row is rechecked when its pull request is written) | Unit |
+|---|---|---|
+| Seeded defects | all defects of a language, one after the other (each runs the whole suite) | the defects of one file (a defect is one test run); a language with more than about 100 defects is cut by file. Each runs in its own copy, the unmutated baseline first. In diff mode only the defects of files the diff touches run, the rest run in the nightly FULL; `--match` already selects them. |
+| Branch coverage | one measurement run per language, then the gate | the measurement stays one run (a branch is counted on the whole suite); the **report** is judged per module/file group of about 100 branches, so a weak file shows by name and is not averaged away, and the gate still fails on the first one below its floor. |
+| Parser parity | a sampled run, the allow list of exact inputs | the samples are cut into units of about 100 inputs, each its own job and its own digest line; the allow list stays by exact input. |
+| Property tests | the cases of a property in one test | one test per property with a fixed case count; no unit has more than about 100 generated cases unless the run is the nightly FULL. |
+| Unit tests, corpus | one run | unchanged: they are fast; they are the unit that the targeted run of 9 (2) selects. |
+
+Common rules: a unit that was not run is reported `not run` with the reason, never as passed; the sum of the units is checked
+against the whole (every mutant, defect, input and branch is in exactly one unit, as the completeness check of the ledger already
+requires for mutants), so cutting cannot lose a part; no threshold and no timeout changes.
+
+Each of these is implemented as its own pull request after the measurement window of section 7 (S); this section is the agreed shape,
+not a change of any threshold.
+
+### 9.3 Local sharding of the steps that take more than about ten minutes
+
+Owner's rule (2026-10-23): a step that takes more than about ten minutes on one machine is sharded, at least locally. The measured
+candidates and what is done for each:
+
+| Step | Local time (one process) | Local shard |
+|---|---|---|
+| Seeded defects | about 10 minutes in CI, each defect a whole-suite run | **done:** `seeded_defects.py --shard K/N`; run the N processes side by side by hand. Every defect is in exactly one shard (checked: the shards cover each language once). CI itself is the next place for the same cut (a matrix over the shards). |
+| Diff mutation, Rust | minutes per 50 mutants, serial | **done:** `cargo mutants --jobs` (`JOBS`, default 3); `--shard k/n` is available for a larger diff. |
+| Diff mutation, Go | serial per file | **done:** one process per changed file, in its own copy (with its unmutated baseline checked); a file of more than about 100 mutants is the next cut (9.2). |
+| Fuzz | 8 targets x 60 s per language, one after the other | planned: one process per target (9.2). |
+| FULL mutation | an hour or more | not run locally; the CI shards (the existing `shard_plan.py`) are the shape: the same plan with `k/n` run as parallel local processes is the next step if it is wanted on a machine. |
+
+A shard never changes what is measured: the same set, cut into parts, and the sum of the parts is the whole. A local shard count is
+bounded by memory more than by cores (each process holds its own copy of the tree and its own target directory); the defaults are chosen
+for a 12-core, 32 GB machine that is also in use.

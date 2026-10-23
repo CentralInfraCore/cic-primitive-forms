@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # The diff gate on your own machine (docs/DELTA-DIFF-GATE.md): exactly what the pull request runs, so a survivor shows up before the push.
 #
-#   [FORCE_DIFF=1] tools/diff-mutation-local.sh [BASE]    BASE defaults to origin/main (the merge base with HEAD is used)
+#   [FORCE_DIFF=1] [WORKTREE=1] [TESTS=go-regex] [RUST_TESTS=name] [ONLY=go|rust] [JOBS=n] tools/diff-mutation-local.sh [BASE]
+#   BASE defaults to origin/main (the merge base with HEAD is used)
+#
+#   WORKTREE=1   measure the working tree (staged, unstaged and new files) instead of HEAD: run it while writing, before a commit.
+#   TESTS=regex  Go: run only the tests that match (`go test -run`); RUST_TESTS=name the same for Rust (the test-name filter). A killed
+#                mutant stays killed in the full run, so the score can only be lower than the real one; a survivor must be rechecked
+#                without the filter before it is believed.
 #
 # 1. tools/diff_gate.py scope: the mode (diff or full) and the changed lines; in `full` it says why and stops - the pull request would run everything.
 # 2. Rust: cargo mutants --in-diff; Go: go-mutesting with tools/mutation_diff_exec.sh (a mutant outside the diff is `offdiff`).
@@ -15,7 +21,15 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BASE=$(git -C "$ROOT" merge-base "${1:-origin/main}" HEAD) || exit 2
 T=$(mktemp -d "${TMPDIR:-/tmp}/diff-mutation.XXXXXX")
 echo "scope against $BASE"
-python3 "$ROOT/tools/diff_gate.py" scope --base "$BASE" --head HEAD --out "$T" --root "$ROOT" || exit 2
+HEAD_REV=HEAD
+if [ -n "${WORKTREE:-}" ]; then
+  # the working tree as a commit object, through a scratch index: the repository, its index and its branch are not touched
+  IDX="$T/index"; GIT_INDEX_FILE="$IDX" git -C "$ROOT" read-tree HEAD && GIT_INDEX_FILE="$IDX" git -C "$ROOT" add -A || exit 2
+  HEAD_REV=$(git -C "$ROOT" commit-tree "$(GIT_INDEX_FILE="$IDX" git -C "$ROOT" write-tree)" -p HEAD -m worktree) || exit 2
+  echo "measuring the working tree ($HEAD_REV)"
+fi
+[ -n "${TESTS:-}${RUST_TESTS:-}" ] && echo "targeted run (TESTS=${TESTS:-} RUST_TESTS=${RUST_TESTS:-}): a survivor must be rechecked without the filter"
+python3 "$ROOT/tools/diff_gate.py" scope --base "$BASE" --head "$HEAD_REV" --out "$T" --root "$ROOT" || exit 2
 mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$T/scope.json")
 if [ "$mode" != diff ] && [ -z "${FORCE_DIFF:-}" ]; then echo "mode is $mode: the pull request would run the full mutation; set FORCE_DIFF=1 to measure only the mutants in the changed lines anyway"; exit 0; fi
 
@@ -24,7 +38,7 @@ mkdir -p "$T/rust" "$T/go"
 n=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$T/rust-listed.json" 2>/dev/null || echo 0)
 echo "rust: $n mutants in the diff"
 if [ "$n" -gt 0 ] && [ "$ONLY" != go ]; then
-  (cd "$ROOT/rust" && CIC_FORMS_ROOT="$ROOT" cargo mutants --in-diff "$T/rust.patch" --output "$T/rust" --jobs "$JOBS" --timeout 120 -- --tests) > "$T/rust.log" 2>&1 &
+  (cd "$ROOT/rust" && CIC_FORMS_ROOT="$ROOT" cargo mutants --in-diff "$T/rust.patch" --output "$T/rust" --jobs "$JOBS" --timeout 120 -- --tests ${RUST_TESTS:+-- "$RUST_TESTS"}) > "$T/rust.log" 2>&1 &
   rust_pid=$!
 else
   echo '{"caught": 0, "missed": 0, "timeout": 0, "unviable": 0, "total_mutants": 0, "outcomes": []}' > "$T/rust/mutants.out.json"
@@ -41,7 +55,7 @@ for f in $files; do
   c="$T/gocopy/${f//\//_}"; mkdir -p "$c"; cp -a "$ROOT/go" "$c/go"; ln -s "$ROOT/corpus" "$c/corpus"; ln -s "$ROOT/testdata" "$c/testdata"
   # the unmutated copy must pass: a copy whose tests cannot run would "kill" every mutant (a go test failure is a kill) and score 100%
   (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" go test -count=1 ./... > "$T/go-baseline-${f//\//_}.log" 2>&1) || { echo "the unmutated Go copy fails its tests (see $T/go-baseline-${f//\//_}.log): the mutation result would be meaningless" >&2; exit 2; }
-  (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER="$T/ledger" CIC_DIFF_LINES="$T/diff-lines.json" CIC_REPO_ROOT="$c" \
+  (cd "$c/go" && CIC_FORMS_ROOT="$ROOT" CIC_MUTATION_TEST_RUN="${TESTS:-}" CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER="$T/ledger" CIC_DIFF_LINES="$T/diff-lines.json" CIC_REPO_ROOT="$c" \
      go-mutesting --exec "$ROOT/tools/mutation_diff_exec.sh" "$f") > "$T/go-${f//\//_}.log" 2>&1 &
 done
 wait
