@@ -1541,11 +1541,6 @@ fn source_span_edge_cases() {
         span_of("count: 3\n", "$.ip"),
         Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
     );
-    // an empty value has no position: the anchor is the enclosing structure
-    assert_eq!(
-        span_of("ip:\ncount: 3\n", "$.ip"),
-        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
-    );
     assert_eq!(
         span_of("name: {a: 1}\n", "$.name"),
         Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name"))
@@ -1647,4 +1642,14 @@ fn source_span_path_errors_and_a_list_below_a_composite() {
         (69, 70, "plain")
     );
     assert_eq!(&text[span.start..span.end], "2");
+}
+
+/// An empty value (`ip:`) has no position of its own: a composite target there is refused at the enclosing structure.
+/// The Go peer is TestSourceSpanAnEmptyValueIsNotAScalarTarget.
+#[test]
+fn source_span_an_empty_value_is_not_a_scalar_target() {
+    assert_eq!(
+        span_of("ip:\ncount: 3\n", "$.ip"),
+        Err(refusal("EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"))
+    );
 }

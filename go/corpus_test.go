@@ -1267,7 +1267,6 @@ func TestSourceSpanEdgeCases(t *testing.T) {
 	refused("name:\ncount: 3\n", "$.name", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.name")
 	refused("count: 3\n", "$.ip.gateway", "EDIT_NO_SOURCE_VALUE", "edit", "1:1:0", "$.ip.gateway")
 	refused("count: 3\n", "$.ip", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip")
-	refused("ip:\ncount: 3\n", "$.ip", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip") // an empty value has no position: the anchor is the enclosing structure
 	refused("name: {a: 1}\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
 	refused("name: [a]\n", "$.name", "EDIT_NOT_A_SCALAR", "edit", "1:7:6", "$.name")
 	refused("name: a\n", "$", "EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$")
@@ -1309,5 +1308,14 @@ func TestSourceSpanPathErrorsAndAListBelowAComposite(t *testing.T) {
 	sp, err := forms.SourceSpan(text, root, `$.box.routes[{to="b"}].metric`, accessKeys)
 	if err != nil || sp != (forms.Span{Start: 69, End: 70, Style: forms.SpanPlain}) || text[sp.Start:sp.End] != "2" {
 		t.Errorf("a list below a composite: %v %v", sp, err)
+	}
+}
+
+// An empty value (`ip:`) has no position of its own: a composite target there is refused at the enclosing structure. The Rust peer is
+// source_span_an_empty_value_is_not_a_scalar_target.
+func TestSourceSpanAnEmptyValueIsNotAScalarTarget(t *testing.T) {
+	_, ws := spanOf(t, "ip:\ncount: 3\n", "$.ip")
+	if want := []wire{{"EDIT_NOT_A_SCALAR", "edit", "1:1:0", "$.ip"}}; !reflect.DeepEqual(ws, want) {
+		t.Errorf("got %v, want %v", ws, want)
 	}
 }
