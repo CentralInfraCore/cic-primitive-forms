@@ -5,6 +5,11 @@ name: p1
 on:
   workflow_dispatch:
   workflow_call:   # the nightly FULL on main (nightly.yml) runs this very gate
+    inputs:
+      full:
+        description: "run the full mode even when the caller event is a push (the FULL after a change of this workflow)"
+        type: boolean
+        default: false
   push:
     branches: ["main"]
   pull_request:
@@ -164,6 +169,7 @@ jobs:
       - id: s
         env:
           EVENT: ${{ github.event_name }}
+          FORCE_FULL: ${{ inputs.full }}
         run: |
           set -e
           S="$RUNNER_TEMP/scope"
@@ -174,7 +180,7 @@ jobs:
             mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$S/scope.json")
           else
             mode=full
-            [ "$EVENT" = "push" ] && mode=light
+            [ "$EVENT" = "push" ] && [ "$FORCE_FULL" != "true" ] && mode=light
             printf '{"mode": "%s", "reasons": ["not a pull request (%s)"], "notes": []}\n' "$mode" "$EVENT" > "$S/scope.json"
             : > "$S/rust.patch"
             echo '{}' > "$S/diff-lines.json"

@@ -31,8 +31,11 @@ import sys
 
 BUILD_CONFIG = (
     "rust/Cargo.toml", "rust/Cargo.lock", "go/go.mod", "go/go.sum", "tools/quality_gate.py", "tools/shard_plan.py",
-    "tools/mutation-costs.json", "tools/diff_gate.py", ".github/workflows/p1.yml",
+    "tools/mutation-costs.json", "tools/diff_gate.py",
 )
+# The workflow is not a reason for `full` on the pull request: a FULL is started in the background when it is merged (nightly.yml, trigger push on this
+# path), and by hand at any time (workflow_dispatch, force). The pull request still runs the gate self-tests.
+GATE_WORKFLOW = ".github/workflows/p1.yml"
 BUILD_CONFIG_PREFIX = ("rust/.cargo/", ".github/actions/", "tools/mutation_", "coverage/")
 DATA_PREFIX = ("testdata/", "corpus/")
 STARTS_GO = ("func ", "type ", "var ", "const ", "//", "import ", "package ")
@@ -153,6 +156,9 @@ def classify(root, base, head):
         reasons.append(why)
 
     for path, f in sorted(diff.items()):
+        if path == GATE_WORKFLOW:
+            notes.append("%s changes the gate itself: a FULL runs in the background after the merge (nightly.yml, on push to main) and can be started by hand" % path)
+            continue
         k = kind(path)
         if k in ("other", "fuzz"):
             continue

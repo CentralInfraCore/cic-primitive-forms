@@ -78,6 +78,22 @@ Consequences for the tools, done in step S: the post-merge profile (`tools/ci-re
 only the light set, and `land-chain.sh` waits for that set, not for `quality` and the mutation shards. Until S the full `p1` still runs on
 every push, and the profile is the old one.
 
+### 4.2 A change of the gate workflow (`p1.yml`): the pull request is fast, a FULL runs in the background
+
+Owner's decision, 2026-10-23. A change of `.github/workflows/p1.yml` used to make the pull request run `full` (it changes how the gate
+measures, 2.1). It no longer does: the pull request runs the diff mode, and the **gate self-tests stay mandatory on it**
+(`quality-gate-selftest`, the seeded proof, `scope`: they show in minutes whether the gate can still fail). The full proof moves
+behind the merge:
+
+* `nightly.yml` also runs on a **push to `main` that changes `p1.yml`** (the `changed` job answers yes for a push), through the same
+  `p1` and `corpus` workflows, with `full: true` (the called `p1.yml` would otherwise read a push as `light`).
+* It can be started by hand at any time: `gh workflow run nightly.yml -f force=true` (the same workflow, `workflow_dispatch`).
+* If it fails, a pull request is opened that carries the failed run (an issue if the repository does not allow it), as for the nightly
+  run; the report names the kind: "FULL after a change of the gate workflow", "Nightly FULL" or "FULL (by hand)".
+* The cost, stated: for the time the FULL runs, `main` holds a change of the gate that has not yet been proved on every mutant. A
+  weakening that the self-tests do not show is found by the FULL after the merge, not before it. Other gate files
+  (`quality_gate.py`, `diff_gate.py`, `mutation_*`, the build configuration) still make the pull request `full`.
+
 ## 5. What this replaces in `FULL-DELTA-PLAN.md`
 
 * Section 2, first bullet (DELTA starts as shadow mode, "reports, does not decide"): replaced; the diff gate decides.
