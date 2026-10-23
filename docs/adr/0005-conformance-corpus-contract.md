@@ -170,7 +170,7 @@ Two kinds are added (the cases of P3b, `docs/P3B-SOURCE-PRESERVING-EDIT.md`). Bo
 | Kind | Input fields | Expectation keys |
 |---|---|---|
 | `source_span` | `input_yaml` or `input_hex`, `schema`, `path` (canonical ADR 0006 text) | exactly one of `span` (`{start, end, style}`: byte offsets, half-open, of the value scalar of the position, and `plain`, `single_quoted` or `double_quoted`) and `errors` |
-| `edit` | `input_yaml` or `input_hex`, `schema`, `path`, `value` (`{string: s}`, `{integer: n}`, `{boolean: b}` or `{null: true}`) | exactly one of `output_yaml` or `output_hex` (the exact bytes of the edited text) and `errors` (one error, phase `edit` or the earlier phase that refused) |
+| `edit` | `input_yaml` or `input_hex`, `schema`, `path`, `value` (`{string: s}`, `{integer: n}`, `{boolean: b}` or `{"null": true}`; the key `null` is quoted, since an unquoted `null` as a key is the null value) | exactly one of `output_yaml` or `output_hex` (the exact bytes of the edited text) and `errors` (one error, phase `edit` or the earlier phase that refused) |
 
 Outputs and spans are compared as **bytes** and offsets; an `edit` case also carries the `span_before` and `span_after` it expects. An error carries the code, the phase and the source position of its anchor (ADR 0007). A case with a text field that
 contains only what a text can spell may use `output_yaml`; the gate rejects a case whose expected bytes it cannot reproduce from the given field. The accounting stays exact.

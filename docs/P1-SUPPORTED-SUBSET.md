@@ -332,7 +332,7 @@ expand/collapse (P2), normalize (P3), diff/patch (P4) and materialize/receipt (P
 ## Corpus coverage: run and `NOT RUN`
 
 Exact: `the_run_and_not_run_accounting_is_exact` (Rust) and `TestTheRunAndNotRunAccountingIsExact` (Go) count every
-case of the corpus (339), assert that each is either run or listed here, and assert **240 run + 107 NOT RUN**.
+case of the corpus (419), assert that each is either run or listed here, and assert **240 run + 179 NOT RUN**.
 
 | Suite | Kind | Cases | Status |
 |---|---|---|---|
@@ -349,6 +349,7 @@ case of the corpus (339), assert that each is either run or listed here, and ass
 | paths | `path_stability` | 7 | **run**, both languages, every variant gives the one path (or the one error) |
 | paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
+| edit | `source_span` 28, `edit` 44 | 72 | NOT RUN (P3b, ADR 0012): the vectors of step E1, written by hand before any code; run by step E2 (`source_span`) and E3 (`edit`) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
 A runner asserts the number it ran (31, 29, 21), so a vector that stops being run is a failure, and a green run cannot
@@ -380,6 +381,8 @@ nesting limit and their own wording of a syntax error.
 ## Parser parity (Rust against Go)
 
 **Stability of the generated inputs (#39).** The fixed-seed run and its allow list depend on the seed list, because the random edits `choice` from it. The seeds are therefore the *pinned* suites named in `tools/parity/gen_inputs.py` (`PINNED_SUITES`); a corpus suite added later (`corpus/lists`) is not a seed of that run but is appended after it, with its own texts and 3 000 mutations from a generator of its own, so adding a suite cannot reshuffle the pinned inputs again. Checked: with `corpus/lists` present the first 30 000 inputs are byte for byte those of the head before it, and the 286 allowed divergences, `changed: 0`, `new: 0` hold on them. The appended inputs found 2 divergences, both the open flow-context class (a `?` inside a plain scalar of a flow mapping), now in the allow list with their minimal forms.
+
+**A new suite takes part in the run (`corpus/edit`, P3b step E1).** `edit` is not in `PINNED_SUITES`, so its texts (and 3000 mutations of them) are added after the pinned part: the pinned run is byte for byte what it was, and the new texts are compared too. They found 4 new inputs on which the parsers differ, all in the open classes below: three are a double-quoted scalar that continues on a line less indented than its key or after another entry (yaml.v3 folds it into one string, saphyr refuses it), one is a `?` inside a plain scalar of a flow mapping (Rust reads it as text, yaml.v3 refuses it). They are in `testdata/p1/parity-known.txt` with a comment, 291 allowed in all; the comparison is green, its selftest still turns red in every break. Nothing in the parsers changed. It matters to P3b because the editor refuses a multi-line scalar (`EDIT_MULTILINE_SCALAR`) and the scanner of step E2 may only read what both parsers accept.
 
 **The pin rename shifted the samples (#52), and what that found.** The seeds are the texts of the pinned corpus suites, and the pin rename edited the `grammar:` lines of those texts, so the random edits of the fixed-seed run drew other texts. Checked, not assumed: the one allowed divergence whose input contained the old pin name is gone from the run, and its counterpart with the new pin name (a `?` inside a plain scalar of a flow mapping, the open class below) is the same divergence on a changed text, now in the allow list in its place. The run also found **one divergence of another open class**, a colon right before the closing brace of a flow mapping, ` {aa:}`: saphyr reads the colon as the value indicator (key `aa`, empty value, as YAML 1.2 does for a colon followed by a flow indicator), yaml.v3 keeps it in the plain scalar (key `aa:`). It is in the allow list with its input and both outcomes. Neither is a change of a parser: the 287 other allowed divergences hold, `changed: 0`, `new: 0` (289 allowed in all).
 
