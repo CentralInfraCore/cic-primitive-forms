@@ -7,8 +7,12 @@ name: nightly
 # cron wants "0 0 * * *". GitHub may start a scheduled run late.
 #
 # Opening the pull request needs "Allow GitHub Actions to create and approve pull requests" in the repository settings
-# (Settings > Actions > General), which only the owner can switch. Without it the report job fails and says so; the failed run itself
-# stays visible.
+# (Settings > Actions > General, at the bottom, "Workflow permissions"; and in the organization's settings if the organization forbids it), which only
+# the owner can switch. Without it the report job does not fail: it opens an ISSUE with the same facts (the run id, the commit, the failed jobs, the branch
+# it pushed) and says in a warning why. An issue needs no such setting. The failed run itself stays visible either way.
+#
+# Test of the report: run the workflow by hand with report_test = true. It skips the heavy gate and runs only the report job, which then opens the pull
+# request (or the issue) marked [TEST]; close it afterwards.
 on:
   schedule:
     - cron: "0 1 * * *"
@@ -16,6 +20,10 @@ on:
     inputs:
       force:
         description: "run the FULL even if main had no development in the last 48 hours"
+        type: boolean
+        default: false
+      report_test:
+        description: "only test the report: skip the gate and open the [TEST] pull request (or issue) about a pretended failure"
         type: boolean
         default: false
 permissions: {}
@@ -38,7 +46,9 @@ jobs:
       - id: c
         env:
           FORCE: ${{ inputs.force }}
+          REPORT_TEST: ${{ inputs.report_test }}
         run: |
+          if [ "$REPORT_TEST" = "true" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "report test: the gate is skipped"; exit 0; fi
           n=$(git log --since='48 hours ago' --format=%H origin/main | wc -l)
           echo "commits on main in the last 48 hours: $n"
           if [ "$n" -gt 0 ] || [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; echo "no development: the nightly FULL is skipped"; fi
@@ -56,18 +66,20 @@ jobs:
       contents: read
   report:
     needs: [changed, p1, corpus]
-    if: ${{ always() && needs.changed.outputs.run == 'true' && (needs.p1.result == 'failure' || needs.corpus.result == 'failure') }}
+    if: ${{ always() && (github.event.inputs.report_test == 'true' || (needs.changed.outputs.run == 'true' && (needs.p1.result == 'failure' || needs.corpus.result == 'failure'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
-      - name: Open the pull request about the failed run
+      - name: Open the pull request (or, if that is not allowed, an issue) about the failed run
         env:
+          REPORT_TEST: ${{ github.event.inputs.report_test }}
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -78,10 +90,12 @@ jobs:
           set -e
           day=$(date -u +%Y-%m-%d)
           failed=$(gh run view "$RUN_ID" --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | join("\n- ")')
+          tag=""
+          if [ "$REPORT_TEST" = "true" ]; then tag="[TEST] "; failed="(a test of the report: no job failed)"; fi
           branch="ci-incident/nightly-$day-$RUN_ID"
           mkdir -p ci-incidents
           {
-            echo "# Nightly FULL failed on $day"
+            echo "# ${tag}Nightly FULL failed on $day"
             echo
             echo "- run: $RUN_ID ($RUN_URL)"
             echo "- commit: $SHA"
@@ -97,7 +111,7 @@ jobs:
           git push origin "$branch"
           gh label create ci-nightly-failure --color B60205 --description "the nightly FULL on main failed" 2>/dev/null || true
           {
-            echo "The nightly FULL on main failed."
+            echo "${tag}The nightly FULL on main failed."
             echo
             echo "- failed run: **$RUN_ID** - $RUN_URL"
             echo "- commit: \`$SHA\`"
@@ -107,5 +121,15 @@ jobs:
             echo
             echo "This pull request only records the incident (\`ci-incidents/$day-$RUN_ID.md\`). The fix is a separate change; close this one when it is understood."
           } > "$RUNNER_TEMP/body.md"
-          gh pr create --base main --head "$branch" --draft --label ci-nightly-failure \
-            --title "ci: nightly FULL failed ($day, run $RUN_ID)" --body-file "$RUNNER_TEMP/body.md"
+          title="${tag}ci: nightly FULL failed ($day, run $RUN_ID)"
+          if gh pr create --base main --head "$branch" --draft --label ci-nightly-failure --title "$title" --body-file "$RUNNER_TEMP/body.md"; then
+            echo "pull request opened"
+          else
+            echo "::warning::the pull request could not be opened (the repository setting 'Allow GitHub Actions to create and approve pull requests' is probably off, or the organization forbids it); opening an issue with the same facts"
+            {
+              cat "$RUNNER_TEMP/body.md"
+              echo
+              echo "(No pull request could be opened. The record is on the branch \`$branch\`, pushed by the nightly run.)"
+            } > "$RUNNER_TEMP/issue.md"
+            gh issue create --label ci-nightly-failure --title "$title" --body-file "$RUNNER_TEMP/issue.md"
+          fi
