@@ -181,7 +181,10 @@ class NightlyWorkflowTests(unittest.TestCase):
 
     def test_who_can_start_it(self):
         triggers = self.nt["on"]
-        self.assertEqual(sorted(triggers), ["schedule", "workflow_dispatch"])
+        # also a push to main that changes the gate workflow (docs/DELTA-DIFF-GATE.md, 4.2): the FULL in the background, only on that path
+        self.assertEqual(sorted(triggers), ["push", "schedule", "workflow_dispatch"])
+        self.assertEqual(triggers["push"]["paths"], [".github/workflows/p1.yml"])
+        self.assertEqual(triggers["push"]["branches"], ["main"])
         self.assertEqual([s["cron"] for s in triggers["schedule"]], ["0 1 * * *"])   # 02:00 CET; one change at summer time
 
     def test_it_runs_the_same_gate_as_a_pull_request(self):
@@ -237,14 +240,20 @@ class LightPushTests(unittest.TestCase):
         self.jobs = self.p1["jobs"]
 
     def test_the_scope_job_calls_a_push_light_and_a_pull_request_by_its_diff(self):
-        self.assertIn('[ "$EVENT" = "push" ] && mode=light', self.text)
+        # a push is light unless the caller forces full (the FULL after a change of this workflow, nightly.yml)
+        self.assertIn('[ "$EVENT" = "push" ] && [ "$FORCE_FULL" != "true" ] && mode=light', self.text)
         self.assertIn("diff_gate.py scope", self.text)
-        self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}"})
+        self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}", "fuzz_matrix": "${{ steps.s.outputs.fuzz_matrix }}"})
 
     def test_the_heavy_jobs_do_not_run_on_a_light_push(self):
-        for name in ("fuzz", "seeded-defects", "evidence-selftest"):
+        for name in ("seeded-defects", "evidence-selftest"):
             self.assertIn("scope", _needs(self.jobs[name]), name)
             self.assertEqual(self.jobs[name]["if"], "${{ needs.scope.outputs.mode != 'light' }}", name)
+        # the fuzz targets: one job each, and none on a light push (the matrix is empty there as well); `fuzz` joins them under the name that is required
+        self.assertIn("mode != 'light'", self.jobs["fuzz-target"]["if"])
+        self.assertIn("fuzz_matrix != '[]'", self.jobs["fuzz-target"]["if"])
+        self.assertIn("mode != 'light'", self.jobs["fuzz"]["if"])
+        self.assertIn("fuzz-target", _needs(self.jobs["fuzz"]))
         self.assertIn("mode != 'light'", self.jobs["quality"]["if"])
         for name in ("quality-mutation-rust", "quality-mutation-go"):
             self.assertIn("mode == 'full'", self.jobs[name]["if"], name)       # light is not full
@@ -254,6 +263,28 @@ class LightPushTests(unittest.TestCase):
     def test_the_cheap_checks_run_whatever_the_mode_is(self):
         for name in ("rust", "go", "branch-coverage", "quality-gate-selftest", "quality-lines", "parity"):
             self.assertNotIn("if", self.jobs[name], name)
+
+
+@unittest.skipIf(yaml is None, "no PyYAML")
+class ShardPlanTests(unittest.TestCase):
+    """p1.yml (docs/DELTA-DIFF-GATE.md, 9.2): the shard count of the full mutation is one computed value, not a number written in three places."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.jobs = self.p1["jobs"]
+
+    def test_the_plan_job_feeds_both_matrices_and_the_gate_waits_for_it(self):
+        self.assertIn("mode == 'full'", self.jobs["plan"]["if"])
+        for name in ("quality-mutation-rust", "quality-mutation-go"):
+            self.assertIn("plan", _needs(self.jobs[name]), name)
+            self.assertIn("fromJSON(needs.plan.outputs.", self.jobs[name]["strategy"]["matrix"]["shard"], name)
+        self.assertIn("plan", _needs(self.jobs["quality"]))
+        self.assertNotIn("/6", self.text)                      # no shard count written into a script
+        self.assertNotIn("RUST_SHARDS: 6", self.text)
+
+    def test_the_gate_wants_the_plan_to_have_succeeded_in_full_and_skipped_in_diff(self):
+        self.assertIn('full) test "$PLAN" = success', self.text)
+        self.assertIn('diff) test "$PLAN" = skipped', self.text)
 
 
 def _needs(job):

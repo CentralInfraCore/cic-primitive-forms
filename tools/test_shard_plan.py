@@ -179,12 +179,12 @@ class PlanTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_the_number_of_shards_is_written_once_and_the_matrix_agrees(self):
+    def test_the_number_of_shards_is_computed_once_and_the_matrix_agrees(self):
         text = read(os.path.join(HERE, "..", ".github", "workflows", "p1.yml"))
         job = text[text.index("\n  quality-mutation-rust:"):text.index("\n  quality-mutation-go:")]
-        n = int(re.search(r"^\s+RUST_SHARDS: (\d+)$", job, re.M).group(1))
-        matrix = [int(x) for x in re.search(r"shard: \[([0-9, ]+)\]", job).group(1).split(",")]
-        self.assertEqual(matrix, list(range(n)))
+        # the count is the output of the plan job (tools/shard_count.py); the matrix and the dealing read the same value
+        self.assertIn("RUST_SHARDS: ${{ needs.plan.outputs.rust_n }}", job)
+        self.assertIn("shard: ${{ fromJSON(needs.plan.outputs.rust_shards) }}", job)
         self.assertNotRegex(job, r"cargo \+?\w* ?mutants[^\n]*--shard\b")   # no second way of dealing the mutants
         self.assertIn("--timeout 120", job)               # the timeout is the one the measurement has always had
         self.assertIn("shard_plan.py verify", job)        # the shard stops if its regex selects other mutants than planned

@@ -156,6 +156,16 @@ class Scope(unittest.TestCase):
         self.write("rust/Cargo.toml", "[package]\nname = \"x\"\nversion = \"1\"\n")
         self.assertEqual(self.mode(), "full")
 
+    def test_a_change_of_the_gate_workflow_alone_is_diff_with_a_note(self):
+        # the pull request stays fast; a FULL runs in the background after the merge (nightly.yml)
+        self.write(".github/workflows/p1.yml", "name: p1\n")
+        self.assertEqual(self.mode(), "diff")
+
+    def test_the_gate_workflow_with_a_build_config_change_is_still_full(self):
+        self.write(".github/workflows/p1.yml", "name: p1\n")
+        self.write("rust/Cargo.toml", "[package]\nname = \"x\"\nversion = \"1\"\n")
+        self.assertEqual(self.mode(), "full")
+
     def test_a_modified_unit_test_inside_a_source_file_is_full(self):
         self.write("rust/src/w.rs", RUST_SRC_WITH_TESTS.replace("add(1, 2), 3", "add(1, 2), 4"))
         self.assertEqual(self.mode(), "full")
