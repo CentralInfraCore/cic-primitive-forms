@@ -1627,6 +1627,13 @@ fn source_span_edge_cases() {
         Ok((6, 11, "plain")),
         "trailing spaces are not in the span"
     );
+    // a value that alone would be a document marker is a plain scalar like any other (#87; the fuzz input of #86)
+    assert_eq!(
+        span_of("name: --- ](e-+.(-f\n", "$.name"),
+        Ok((6, 19, "plain"))
+    );
+    assert_eq!(span_of("name: ---\n", "$.name"), Ok((6, 9, "plain")));
+    assert_eq!(span_of("name: ... x\n", "$.name"), Ok((6, 11, "plain")));
 }
 
 /// The offset of a path_parse error is present there and nowhere else; and a list below a composite is found by its identity.

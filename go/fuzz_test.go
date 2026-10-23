@@ -422,7 +422,8 @@ func FuzzResolvePolicy(f *testing.F) {
 
 func FuzzSourceSpan(f *testing.F) {
 	for _, seed := range []string{"", "a: x\n", "a: 'x'\nb: 3\n", "a: \"x\"\nc:\n  d: y\n  e: true\n", "a: x # c\n", "a: |\n  x\n", "a: x\n  y\n", "c: {d: y}\n",
-		"a:\n  value: x\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n"} {
+		"a:\n  value: x\n  access: inherit\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n",
+		"a: --- ](e-+.(-f", "a: ---\n", "a: ... x\n"} { // values that alone would be document markers (#87)
 		f.Add(seed)
 	}
 	str := func() forms.Shape {
@@ -456,8 +457,9 @@ func FuzzSourceSpan(f *testing.F) {
 				if !utf8.ValidString(token) || strings.ContainsAny(token, "\r\n") {
 					t.Fatalf("%s: the span %q is not a whole single line in %q", path, token, text)
 				}
-				if _, err := forms.Parse(token); err != nil {
-					t.Fatalf("%s: the span %q does not parse", path, token)
+				// as the value of a mapping entry, the context it came from: alone, "--- x" would be a document marker (#87)
+				if _, err := forms.Parse("k: " + token); err != nil {
+					t.Fatalf("%s: the span %q does not parse as a value", path, token)
 				}
 				continue
 			}

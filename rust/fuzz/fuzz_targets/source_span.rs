@@ -46,7 +46,8 @@ fuzz_target!(|data: &[u8]| {
                 assert!(text.is_char_boundary(span.start) && text.is_char_boundary(span.end), "{path}: not on character boundaries in {text:?}");
                 let token = &text[span.start..span.end];
                 assert!(!token.contains('\n') && !token.contains('\r'), "{path}: a line break in the span {token:?}");
-                assert!(parse(token).is_ok(), "{path}: the span {token:?} does not parse");
+                // as the value of a mapping entry, the context it came from: alone, `--- x` would be a document marker (#87)
+                assert!(parse(&format!("k: {token}")).is_ok(), "{path}: the span {token:?} does not parse as a value");
             }
             Err(Error::Contract(vs)) => assert_ne!(vs[0].code, "EDIT_SPAN_MISMATCH", "{path}: the read-back refused in {text:?}"),
             Err(_) => {}

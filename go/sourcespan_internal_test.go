@@ -69,6 +69,12 @@ func TestASpanThatDoesNotReadBackToTheValueIsADefectNotAGuess(t *testing.T) {
 			t.Errorf("%q against %q (%s): got %q, want %q", c.token, c.value, c.style, got, c.want)
 		}
 	}
+	// a value that alone would be a document marker reads back as the value it is (#87)
+	for _, marker := range []string{"--- ](e-+.(-f", "---", "--- x", "...", "... x"} {
+		if got := readBack(marker, &Node{Kind: KindStr, Str: marker}, SpanPlain); got != "" {
+			t.Errorf("%q: got %q", marker, got)
+		}
+	}
 }
 
 func TestTheShapeOfAFieldIsNilWhenTheFieldIsNotThere(t *testing.T) {

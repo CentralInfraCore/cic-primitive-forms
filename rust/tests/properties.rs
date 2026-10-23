@@ -728,7 +728,11 @@ proptest! {
                     let token = &text[span.start..span.end];
                     prop_assert!(!token.contains('\n') && !token.contains('\r') && !token.is_empty(), "{path}: {token:?}");
                     let want = node_at(&doc, &names).expect("a span means the node exists");
-                    prop_assert!(parse(token).expect("the token parses").same(want), "{path}: {token:?} is not {want:?}");
+                    // read as the value of a mapping entry, the context it came from (#87)
+                    let Value::Map(entries) = parse(&format!("k: {token}")).expect("the token parses as a value").value else {
+                        panic!("{path}: {token:?} is not read as a value")
+                    };
+                    prop_assert!(entries[0].value.same(want), "{path}: {token:?} is not {want:?}");
                 }
                 Err(Error::Contract(vs)) => {
                     prop_assert!(
