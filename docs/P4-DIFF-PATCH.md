@@ -64,7 +64,7 @@ Not in the first unit (each a later unit with its own note): applying `added` / 
 | Step | Content |
 |---|---|
 | **P4-0** | this note; ADR 0013 (the patch contract: invariant S+, the first unit, the phase `patch` and its codes), written after the owner's decisions of section 9 |
-| **P4-1** | the patch vectors, written by hand before any code (kind `patch`: a clean apply, a conflict, each refused event kind, the round trip, the minimality, the context mismatch, idempotence), the checker, accounting stays exact |
+| **P4-1** | the patch vectors, written by hand before any code (kind `patch`: a clean apply, a conflict, each refused event kind, the round trip, the minimality, the context mismatch, replay rejection and the no-op of an empty diff), the checker, accounting stays exact |
 | **D1** | `diff`, step one: the logical view (expanded form, identities, sets), scalar and declaration changes, representation, opaque values, the canonical bytes; the vectors of those groups run in both languages |
 | **D2** | `diff`, step two: composites, lists by identity, sets, appearing and disappearing nodes as one event |
 | **D3** | `diff`, step three: the scope, the errors (`DIFF_CONTEXT_MISMATCH`, `DIFF_UNSUPPORTED_VALUE`), the stability cases; all 66 vectors run; the Rust-against-Go differential and its self-test |
