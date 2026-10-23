@@ -196,7 +196,7 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertEqual(self.nt["permissions"], {})
         for name, job in self.nt["jobs"].items():
             wrote = {k for k, v in job.get("permissions", {}).items() if v == "write"}
-            self.assertEqual(wrote, {"contents", "pull-requests"} if name == "report" else set(), name)
+            self.assertEqual(wrote, {"contents", "pull-requests", "issues"} if name == "report" else set(), name)
 
     def test_the_report_runs_when_the_gate_failed_and_carries_the_run_id(self):
         report = self.nt["jobs"]["report"]
@@ -206,6 +206,20 @@ class NightlyWorkflowTests(unittest.TestCase):
         self.assertIn("github.run_id", self.text)
         self.assertIn("RUN_ID", self.text)
         self.assertIn("gh pr create", self.text)
+
+    def test_when_the_pull_request_cannot_be_opened_an_issue_with_the_same_facts_is_opened(self):
+        # the setting "Allow GitHub Actions to create and approve pull requests" may be off, or the organization may forbid it: that must not hide the failure
+        self.assertIn("if gh pr create", self.text)
+        self.assertIn("gh issue create", self.text)
+        self.assertIn("::warning::", self.text)
+        self.assertLess(self.text.index("gh pr create"), self.text.index("gh issue create"))
+        self.assertIn("RUN_ID", self.text.split("gh issue create")[0].split("issue.md")[0])
+
+    def test_the_report_can_be_tested_by_hand_without_the_heavy_gate(self):
+        self.assertEqual(self.nt["on"]["workflow_dispatch"]["inputs"]["report_test"]["default"], False)
+        self.assertIn("report_test == 'true'", self.nt["jobs"]["report"]["if"])
+        self.assertIn("run=false", self.text.split("REPORT_TEST\" = \"true\"")[1].split("exit 0")[0])   # the gate is skipped in a test
+        self.assertIn("[TEST]", self.text)
 
     def test_no_event_text_reaches_a_shell_line(self):
         for job in self.nt["jobs"].values():
