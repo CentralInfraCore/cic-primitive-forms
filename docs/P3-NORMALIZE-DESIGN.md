@@ -114,8 +114,10 @@ fields inherit from its list field and its object, not from a sibling.
 
 ## 7. Same result in Rust and Go
 
-- A new corpus kind `normalize` (ADR 0005 notation: schema tree with roles and defaults, a policy tree, a document, the expected
-  normalized object as typed values) run by both languages; accounting stays exact.
+- Shared cases run by both languages: **as built**, they are JSON files under `testdata/p1/` (`policy`, `defaults`, `normalize`, `resolution`),
+  each holding a schema, documents and the expected results, read by the Rust and the Go tests; they are not a `corpus/` kind in the ADR 0005 notation,
+  and the `corpus/` accounting does not count them. The golden vectors of the reference are run from the pinned checkout (#52), and `tools/parity/gen_p3.py`
+  feeds generated inputs to both languages for a direct comparison (`compare_p3.py`, #57).
 - Shared negative and edge cases first: `false` vs `0` vs `true` at every scope; absent vs explicit-equal-to-default; `null`, `[]`,
   `""` never request a default; each of `inherit`/`no-inherit`/`reset` on a carrier and on an object; `reset` with and without a local
   rule; an explicit `[]` under an `open` parent; `unknown` policy on and off the walk; the grammar-1 and grammar-2 spellings (no
