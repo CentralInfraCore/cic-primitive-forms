@@ -95,6 +95,40 @@ fn limit_boundaries_are_inclusive() {
     assert!(parse_with("a: {b: 1}", two).is_ok(), "depth 2");
 }
 
+/// Past a limit no tree is kept, but the scan goes on: a syntax error further on still wins, as in Go, which reads the whole text
+/// first (#85). The Go peer is `TestASyntaxErrorAfterALimitStillWins` in go/behaviour_test.go.
+#[test]
+fn a_syntax_error_after_a_limit_still_wins() {
+    let few = Limits {
+        max_nodes: 3,
+        ..Limits::default()
+    };
+    let shallow = Limits {
+        max_depth: 2,
+        ..Limits::default()
+    };
+    assert!(matches!(
+        parse_with("a: [1, 2, 3]\nb: 1\n", few),
+        Err(Error::Limit(_))
+    ));
+    assert!(matches!(
+        parse_with("a: [1, 2, 3]\nb: [\n", few),
+        Err(Error::Syntax(_))
+    ));
+    assert!(matches!(
+        parse_with("a: [1, 2, 3]\n: b\n", few),
+        Err(Error::Syntax(_))
+    ));
+    assert!(matches!(
+        parse_with("a: {b: {c: 1}}\nd: 1\n", shallow),
+        Err(Error::Limit(_))
+    ));
+    assert!(matches!(
+        parse_with("a: {b: {c: 1}}\nd: [\n", shallow),
+        Err(Error::Syntax(_))
+    ));
+}
+
 #[test]
 fn deep_nesting_is_refused_not_overflowed() {
     // Past our limit but below the YAML library's own: ours answers.

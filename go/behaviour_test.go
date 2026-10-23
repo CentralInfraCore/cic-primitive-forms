@@ -354,6 +354,31 @@ func TestASyntaxErrorAfterADuplicateKeyWinsInBothLanguages(t *testing.T) {
 	}
 }
 
+// Go reads the whole text before it walks the tree, so a syntax error anywhere beats a limit; the Rust peer, which stops keeping a
+// tree at the limit and scans on, must give the same answers (#85). The Rust peer is `a_syntax_error_after_a_limit_still_wins` in
+// rust/tests/behaviour.rs.
+func TestASyntaxErrorAfterALimitStillWins(t *testing.T) {
+	few := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 3}
+	shallow := forms.Limits{MaxBytes: 1 << 20, MaxDepth: 2, MaxNodes: 100_000}
+	for _, c := range []struct {
+		text   string
+		limits forms.Limits
+		want   forms.ErrorKind
+	}{
+		{"a: [1, 2, 3]\nb: 1\n", few, forms.ErrLimit},
+		{"a: [1, 2, 3]\nb: [\n", few, forms.ErrSyntax},
+		{"a: [1, 2, 3]\n: b\n", few, forms.ErrSyntax},
+		{"a: {b: {c: 1}}\nd: 1\n", shallow, forms.ErrLimit},
+		{"a: {b: {c: 1}}\nd: [\n", shallow, forms.ErrSyntax},
+	} {
+		_, err := forms.ParseWith(c.text, c.limits)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != c.want {
+			t.Fatalf("%q: want kind %v, got %v", c.text, c.want, err)
+		}
+	}
+}
+
 func TestTheDefaultLimitsAreThePublishedOnes(t *testing.T) {
 	if got := forms.DefaultLimits(); got != (forms.Limits{MaxBytes: 1 << 20, MaxDepth: 64, MaxNodes: 100_000}) {
 		t.Errorf("%+v", got)
