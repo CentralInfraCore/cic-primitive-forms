@@ -209,5 +209,109 @@ class Patch(unittest.TestCase):
             self.assertFalse(diff_gate.in_diff(lines, "go/other.go", orig, mut_in))
 
 
+
+class Narrowing(unittest.TestCase):
+    """#92: a change inside an existing test is narrowed to the product lines the base version of that test executed."""
+
+    setUp, tearDown, git, write, scope = Scope.setUp, Scope.tearDown, Scope.git, Scope.write, Scope.scope
+
+    def test_the_test_that_holds_a_line(self):
+        go = GO_TEST.splitlines() + ["", "func helper() int {", "\treturn 1", "}"]
+        self.assertEqual(diff_gate.enclosing_test("go", go, 7), "TestOne")       # inside the body
+        self.assertEqual(diff_gate.enclosing_test("go", go, 11), "TestOne")      # the closing brace
+        self.assertIsNone(diff_gate.enclosing_test("go", go, 3))                 # the import block
+        self.assertIsNone(diff_gate.enclosing_test("go", go, 14))                # a helper
+        self.assertIsNone(diff_gate.enclosing_test("go", go, 99))
+        rs = RUST_TEST.splitlines() + ["", "fn helper() -> i32 {", "    1", "}"]
+        self.assertEqual(diff_gate.enclosing_test("rust", rs, 5), "one")
+        self.assertIsNone(diff_gate.enclosing_test("rust", rs, 9))               # a fn without #[test]
+        self.assertIsNone(diff_gate.enclosing_test("rust", rs, 1))
+        unit = RUST_SRC_WITH_TESTS.splitlines()
+        self.assertEqual(diff_gate.enclosing_test("rust", unit, unit.index("        assert_eq!(add(1, 2), 3);") + 1), "adds")
+        prop = ["proptest! {", "    /// doc", "    #[test]", "    fn holds(x in 0..3i32) {", "        prop_assert!(x < 3);", "    }", "}"]
+        self.assertEqual(diff_gate.enclosing_test("rust", prop, 5), "holds")
+
+    def test_a_modified_assert_is_pending_its_measurement(self):
+        self.write("go/a_test.go", GO_TEST.replace("1 != 1", "1 != 2"))
+        v, _, _ = self.scope()
+        self.assertEqual((v["mode"], v["reasons"], v["widen"]), ("full", [diff_gate.PENDING], {"go": {"go": ["TestOne"]}}))
+
+    def test_rust_tests_are_named_with_their_target(self):
+        self.write("rust/tests/t.rs", RUST_TEST.replace("assert_eq!(1, 1);", "assert_eq!(1, 2 - 1);"))
+        self.write("rust/src/w.rs", RUST_SRC_WITH_TESTS.replace("add(1, 2), 3", "add(2, 1), 3"))
+        v, _, _ = self.scope()
+        self.assertEqual(v["reasons"], [diff_gate.PENDING])
+        self.assertEqual(v["widen"], {"rust": {"lib": ["adds"], "t": ["one"]}})
+
+    def test_a_change_outside_a_test_function_stays_full(self):
+        self.write("go/a_test.go", GO_TEST.replace('\t"testing"\n', '\t"testing"\n\t"fmt"\n').replace("import (", "import (\n\t_ \"os\"") + "\nvar table = 1\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "a helper")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.write("go/a_test.go", GO_TEST.replace('\t"testing"\n', '\t"testing"\n\t"fmt"\n').replace("import (", "import (\n\t_ \"os\"") + "\nvar table = 2\n")
+        v, _, _ = self.scope()
+        self.assertEqual(v["mode"], "full")
+        self.assertNotIn(diff_gate.PENDING, v["reasons"])
+        self.assertIn("outside a test function", v["reasons"][0])
+        self.assertEqual(v["widen"], {})
+
+    def test_test_data_stays_full(self):
+        self.write("testdata/p1/c.json", '{"a": 2}\n')
+        v, _, _ = self.scope()
+        self.assertEqual((v["mode"], v["widen"]), ("full", {}))
+
+    def test_the_measurement_decides_the_mode(self):
+        v = {"mode": "full", "reasons": [diff_gate.PENDING], "notes": [], "widen": {"go": {"go": ["TestOne"]}}}
+        ok = diff_gate.narrowed(v, lambda: ["measured"])
+        self.assertEqual((ok["mode"], ok["reasons"], ok["notes"]), ("diff", [], ["measured"]))
+
+        def fails():
+            raise diff_gate.MeasureError("the changed Go tests did not all run\nlog")
+        bad = diff_gate.narrowed(v, fails)
+        self.assertEqual(bad["mode"], "full")
+        self.assertEqual(bad["reasons"], ["the coverage of the changed tests could not be measured: the changed Go tests did not all run"])
+        other = diff_gate.narrowed(dict(v, reasons=[diff_gate.PENDING, "a data line"]), lambda: [])
+        self.assertEqual((other["mode"], other["reasons"]), ("full", ["a data line"]))   # another reason keeps it full
+
+    def test_the_lines_the_old_test_executed_join_the_diff_on_the_head(self):
+        # the head shifts a.go by one line and changes Sub; the base version of the changed test executed Add's body (base line 4)
+        self.write("go/a.go", "// a comment\n" + GO_SRC.replace("a - b", "b - a"))
+        self.write("go/a_test.go", GO_TEST.replace("1 != 1", "1 != 2"))
+        v, pr, pg = self.scope()
+        self.assertEqual(pg["go/a.go"][0], [[1, 1], [9, 9]])                    # the new comment and the changed Sub
+        seen = []
+
+        def run(lang, wt, targets):
+            seen.append((lang, targets, os.path.exists(os.path.join(wt, "go", "a.go"))))
+            with open(os.path.join(wt, "go", "a.go"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read(), GO_SRC)                             # the base, not the head
+            return {"go/a.go": {4, 8}}                                          # Add's return, and Sub's (changed by the PR)
+        notes = diff_gate.measure(self.root, self.base, "HEAD", v["widen"], pr, pg, run=run)
+        self.assertEqual(seen, [("go", {"go": ["TestOne"]}, True)])
+        self.assertEqual(pg["go/a.go"][0], [[1, 1], [5, 5], [9, 9]])            # base 4 is head 5; base 8 changed, it is in the diff already
+        self.assertIn("TestOne", notes[0])
+        self.assertNotIn("diff-gate-base-", self.git("worktree", "list"))     # the worktree is gone
+
+    def test_a_measurement_of_nothing_is_an_error(self):
+        self.write("go/a_test.go", GO_TEST.replace("1 != 1", "1 != 2"))
+        v, pr, pg = self.scope()
+        with self.assertRaises(diff_gate.MeasureError):
+            diff_gate.measure(self.root, self.base, "HEAD", v["widen"], pr, pg, run=lambda *a: {})
+
+    def test_the_coverage_formats(self):
+        prof = "mode: set\nm/go/a.go:3.10,5.2 2 1\nm/go/a.go:7.1,8.2 1 0\nm/go/a_test.go:1.1,2.2 1 1\nother/x.go:1.1,1.9 1 1\n"
+        self.assertEqual(diff_gate.parse_go_profile(prof, "m/go"), {"go/a.go": {3, 4, 5}})
+        with self.assertRaises(diff_gate.MeasureError):
+            diff_gate.parse_go_profile("mode: set\nnonsense\n", "m/go")
+        lcov = "SF:/w/rust/src/a.rs\nDA:1,0\nDA:2,3\nend_of_record\nSF:/w/rust/tests/t.rs\nDA:5,1\nend_of_record\n"
+        self.assertEqual(diff_gate.parse_lcov(lcov, "/w"), {"rust/src/a.rs": {2}})
+
+    def test_the_line_helpers(self):
+        self.assertEqual(diff_gate.carry_lines(["a", "b", "c"], ["x", "a", "B", "c"], {1, 2, 3}), {2, 4})
+        self.assertEqual(diff_gate.merge_ranges([[5, 6], [1, 2], [3, 3], [9, 9]]), [[1, 3], [5, 6], [9, 9]])
+        self.assertEqual(diff_gate.merge_ranges([[1, 4], [2, 3], [5, 5]]), [[1, 5]])
+        self.assertEqual(diff_gate.to_ranges({4, 2, 3, 7}), [[2, 4], [7, 7]])
+
+
 if __name__ == "__main__":
     unittest.main()
