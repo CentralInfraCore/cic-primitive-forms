@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """The scope of the diff gate of a pull request (docs/DELTA-DIFF-GATE.md).
 
-    diff_gate.py scope --base REV --head REV --out DIR [--root DIR]    classify the change and write the files the mutation jobs read
+    diff_gate.py scope --base REV --head REV --out DIR [--root DIR] [--measure]    classify the change and write the files the mutation jobs read
     diff_gate.py in-diff --lines FILE --path REL --original F --changed F    exit 0 if the mutant changes a line of the diff, 1 if not
 
 `scope` compares two commits (for a pull request: the first parent of the merge candidate and the merge candidate itself) and decides
@@ -13,9 +13,14 @@ It is conservative: whatever it cannot show to be safe is `full`, with the reaso
     count as changed. Only the mutants on those lines are run.
   * a test or a test data file that is only ADDED to (a new file, or new top-level tests, or lines appended to a data file) can only add
     kills: nothing else has to run.
-  * a REMOVED or MODIFIED line of an existing test or test data file, a deleted test file, or anything that changes how the gate
-    measures (Cargo.toml/lock, go.mod/sum, the mutation and gate tools, the actions, the workflow p1) can weaken what the unchanged
-    code is protected by: `full`.
+  * a REMOVED or MODIFIED line inside an existing TEST FUNCTION (#92) can only weaken the protection of the code that test executed: the
+    test is named (Go `func TestX`/`FuzzX`, Rust `#[test] fn x`, also in a `#[cfg(test)]` module), and with `--measure` the old version of
+    every such test runs on the base with line coverage; the product lines it executed, carried over to the head, join the diff. A mutant
+    outside them was not killed by a changed test before, so its status cannot have changed. Without `--measure`, or when a test cannot
+    be named or measured, it is `full`.
+  * a removed or modified line outside a test function (a helper, a fixture, a shared table), a test data line, a deleted test file, or
+    anything that changes how the gate measures (Cargo.toml/lock, go.mod/sum, the mutation and gate tools, the actions, the workflow p1)
+    can weaken what the unchanged code is protected by: `full`.
   * documentation and the other tools do not touch a mutant.
 
 Files written to --out: scope.json (mode, reasons, counts), rust.patch (a unified diff of the changed lines of rust/src, for
@@ -26,8 +31,10 @@ import difflib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 BUILD_CONFIG = (
     "rust/Cargo.toml", "rust/Cargo.lock", "go/go.mod", "go/go.sum", "tools/quality_gate.py", "tools/shard_plan.py",
@@ -148,12 +155,189 @@ def read_head(root, head, path):
         return []
 
 
+# ---- narrowing a changed test to the code it executed (#92) -----------------------------------------------------------------------
+
+TEST_GO = re.compile(r"^func ((?:Test|Fuzz)\w*)\(")
+FN_RUST = re.compile(r"^(\s*)(?:pub(?:\(crate\))?\s+)?fn\s+(\w+)")
+PENDING = "the coverage of the changed tests is not measured (diff_gate.py scope --measure): without it a changed test counts as a weakening"
+
+
+def enclosing_test(lang, lines, n):
+    """The test function that holds line n (1-based) of a test file as the base has it, or None: a helper, a fixture, a shared table, a
+    line between tests. Go: a top-level `func TestX`/`FuzzX` up to its closing `}`. Rust: a `fn` with `#[test]` among the attributes
+    right above it, up to the `}` at its own indentation (top-level in rust/tests, indented in a test module or a proptest! block)."""
+    if not 1 <= n <= len(lines):
+        return None
+    for i in range(n - 1, -1, -1):
+        if lang == "go":
+            if not lines[i].startswith("func "):
+                continue
+            m = TEST_GO.match(lines[i])
+            close = "}"
+        else:
+            m = FN_RUST.match(lines[i])
+            if not m:
+                continue
+            j, attrs = i - 1, []
+            while j >= 0 and lines[j].strip().startswith(("#[", "//")):
+                attrs.append(lines[j].strip())
+                j -= 1
+            if "#[test]" not in attrs:
+                return None
+            close = m.group(1) + "}"
+        if not m:
+            return None
+        end = next((k for k in range(i + 1, len(lines)) if lines[k] == close), None)
+        return m.group(m.lastindex) if end is not None and n - 1 <= end else None
+    return None
+
+
+def hunk_tests(lang, base_lines, hunk):
+    """The tests a hunk of a test file changes, by its lines on the base; None when any of them is outside a test."""
+    old_start, old_len = hunk[0], hunk[1]
+    lines = range(old_start, old_start + old_len) if old_len else (old_start, old_start + 1)   # an insertion lands between two lines
+    names = {enclosing_test(lang, base_lines, n) for n in lines}
+    return None if None in names else names
+
+
+def rust_target(path):
+    """The cargo test target of a Rust file: `lib` for the crate's own test modules, the file stem for rust/tests/<stem>.rs."""
+    return "lib" if path.startswith("rust/src/") else os.path.splitext(os.path.basename(path))[0]
+
+
+class MeasureError(Exception):
+    pass
+
+
+def parse_go_profile(text, module):
+    """go test -coverprofile: {repo path: {executed line}} of the product files (not the tests)."""
+    out = {}
+    for line in text.splitlines()[1:]:
+        m = re.match(r"^(.+):(\d+)\.\d+,(\d+)\.\d+ \d+ (\d+)$", line)
+        if not m:
+            raise MeasureError("an unreadable Go coverage line %r" % line)
+        path, a, b, count = m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))
+        if not path.startswith(module + "/") or path.endswith("_test.go") or count == 0:
+            continue
+        out.setdefault("go/" + path[len(module) + 1:], set()).update(range(a, b + 1))
+    return out
+
+
+def parse_lcov(text, root):
+    """cargo llvm-cov --lcov: {repo path: {executed line}} of the files of rust/src."""
+    out, cur = {}, None
+    for line in text.splitlines():
+        if line.startswith("SF:"):
+            rel = os.path.relpath(line[3:], root)
+            cur = rel if rel.startswith("rust/src/") else None
+        elif line.startswith("DA:") and cur is not None:
+            n, count = line[3:].split(",")[:2]
+            if int(count) > 0:
+                out.setdefault(cur, set()).add(int(n))
+    return out
+
+
+def carry_lines(base_lines, head_lines, lines):
+    """The head line numbers of base lines that the change left as they were; a line it changed is in the diff already."""
+    out = set()
+    for tag, i1, i2, j1, _ in difflib.SequenceMatcher(None, base_lines, head_lines, autojunk=False).get_opcodes():
+        if tag == "equal":
+            out.update(j1 + (n - 1 - i1) + 1 for n in lines if i1 <= n - 1 < i2)
+    return out
+
+
+def merge_ranges(ranges):
+    out = []
+    for a, b in sorted(ranges):
+        if out and a <= out[-1][1] + 1:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return out
+
+
+def to_ranges(lines):
+    return merge_ranges([[n, n] for n in lines])
+
+
+def run_coverage(lang, wt, targets):
+    """Runs the named tests of the base worktree wt with line coverage; {repo path: {line}}. Every named test must have run."""
+    env = dict(os.environ, CIC_FORMS_ROOT=wt)
+    if lang == "go":
+        names = sorted(targets["go"])
+        prof = os.path.join(wt, "go-changed-tests.cover")
+        r = subprocess.run(["go", "test", "-count=1", "-v", "-run", "^(%s)$" % "|".join(names), "-coverprofile=" + prof, "."],
+                           cwd=os.path.join(wt, "go"), capture_output=True, text=True, env=env)
+        ran = set(re.findall(r"^=== RUN\s+(\w+)$", r.stdout, re.M))
+        if r.returncode != 0 or set(names) - ran:
+            raise MeasureError("the changed Go tests did not all run and pass on the base (missing: %s)\n%s" % (
+                sorted(set(names) - ran), (r.stdout + r.stderr)[-2000:]))
+        module = next(l.split()[1] for l in open(os.path.join(wt, "go", "go.mod")) if l.startswith("module "))
+        with open(prof, encoding="utf-8") as fh:
+            return parse_go_profile(fh.read(), module)
+    out = {}
+    cargo = os.environ.get("DIFF_GATE_CARGO", "cargo +stable").split()
+    for target, names in sorted(targets.items()):
+        lcov = os.path.join(wt, "rust-changed-tests-%s.lcov" % target)
+        sel = ["--lib"] if target == "lib" else ["--test", target]
+        r = subprocess.run(cargo + ["llvm-cov", "--locked", "--lcov", "--output-path", lcov] + sel + ["--"] + sorted(names)
+                           + ([] if target == "lib" else ["--exact"]), cwd=os.path.join(wt, "rust"), capture_output=True, text=True, env=env)
+        ran = set(re.findall(r"^test (?:\S+::)?(\w+) \.\.\. ok$", r.stdout, re.M))
+        if r.returncode != 0 or set(names) - ran:
+            raise MeasureError("the changed Rust tests of %s did not all run and pass on the base (missing: %s)\n%s" % (
+                target, sorted(set(names) - ran), (r.stdout + r.stderr)[-2000:]))
+        with open(lcov, encoding="utf-8") as fh:
+            for path, lines in parse_lcov(fh.read(), wt).items():
+                out.setdefault(path, set()).update(lines)
+    return out
+
+
+def measure(root, base, head, widen, product_rust, product_go, run=run_coverage):
+    """Adds to the diff the head lines the base versions of the changed tests executed; the notes say how much."""
+    notes = []
+    wt = tempfile.mkdtemp(prefix="diff-gate-base-")
+    try:
+        git(root, "worktree", "add", "--detach", wt, base)
+        for lang, product in (("go", product_go), ("rust", product_rust)):
+            if not widen.get(lang):
+                continue
+            covered = run(lang, wt, widen[lang])
+            if not covered:
+                raise MeasureError("the changed %s tests executed no product line on the base" % lang)
+            added = 0
+            for path, lines in sorted(covered.items()):
+                head_lines = read_head(root, head, path)
+                carried = carry_lines(read_head(root, base, path), head_lines, lines)
+                if not carried:
+                    continue
+                ranges, _ = product.get(path, ([], head_lines))
+                product[path] = (merge_ranges(ranges + to_ranges(carried)), head_lines)
+                added += len(carried)
+            notes.append("%s: the changed tests %s executed %d product lines on the base; they join the diff" % (
+                lang, ", ".join(sorted(n for ns in widen[lang].values() for n in ns)), added))
+    finally:
+        subprocess.run(["git", "-C", root, "worktree", "remove", "--force", wt], capture_output=True)
+        shutil.rmtree(wt, ignore_errors=True)
+    return notes
+
+
 def classify(root, base, head):
     diff = parse_diff(git(root, "diff", "--unified=0", "--no-renames", base, head))
     reasons, product_rust, product_go, notes = [], {}, {}, []
+    widen = {}   # {"go": {"go": {test}}, "rust": {target: {test}}}: the changed tests whose coverage joins the diff (#92)
 
     def full(why):
         reasons.append(why)
+
+    def narrow(path, k, h, why):
+        """A changed hunk of a test: the tests it changes are measured (`--measure`), or, outside a test, it is `full` as before."""
+        lang = "go" if k == "test-go" else "rust"
+        names = hunk_tests(lang, read_head(root, base, path), h)
+        if names is None:
+            full(why)
+            return
+        target = "go" if lang == "go" else rust_target(path)
+        widen.setdefault(lang, {}).setdefault(target, set()).update(names)
 
     for path, f in sorted(diff.items()):
         if path == GATE_WORKFLOW:
@@ -177,17 +361,15 @@ def classify(root, base, head):
                 where = "%s:%d" % (path, h[2])
                 if k != "data" and only_imports_grow(k, h[4], h[5]):
                     continue
-                if h[4]:
-                    full("%s removes or modifies a line of an existing test or test data" % where)
-                elif k == "data":
-                    if h[2] - 1 + h[3] < len(head_lines):
+                if k == "data":
+                    if h[4]:
+                        full("%s removes or modifies a line of an existing test or test data" % where)
+                    elif h[2] - 1 + h[3] < len(head_lines):
                         full("%s adds lines inside an existing data file (only appending is an addition)" % where)
-                elif k == "test-go":
-                    if not top_level_addition(path, head_lines, h, STARTS_GO):
-                        full("%s adds lines that are not whole new top-level tests" % where)
-                else:
-                    if not top_level_addition(path, head_lines, h, STARTS_RUST):
-                        full("%s adds lines that are not whole new top-level tests" % where)
+                elif h[4]:
+                    narrow(path, k, h, "%s removes or modifies a line outside a test function (a helper, a fixture, a shared table)" % where)
+                elif not top_level_addition(path, head_lines, h, STARTS_GO if k == "test-go" else STARTS_RUST):
+                    narrow(path, k, h, "%s adds lines that are not whole new top-level tests and not inside a test function" % where)
             continue
         # product code
         head_lines = read_head(root, head, path)
@@ -203,7 +385,7 @@ def classify(root, base, head):
             in_tests = test_from is not None and new_start >= test_from
             if in_tests:
                 if removed or not top_level_addition(path, head_lines, h, STARTS_RUST, indented=True):
-                    full("%s:%d changes an existing unit test inside the source file" % (path, new_start))
+                    narrow(path, "test-rust", h, "%s:%d changes the test module of the source file outside a test function" % (path, new_start))
                 continue
             if new_len == 0:   # a pure deletion: the neighbours of the cut are the changed code
                 ranges.append([max(new_start, 1), min(new_start + 1, max(len(head_lines), 1))])
@@ -211,7 +393,21 @@ def classify(root, base, head):
                 ranges.append([new_start, new_start + new_len - 1])
         if ranges:
             (product_rust if k == "product-rust" else product_go)[path] = (ranges, head_lines)
-    return {"mode": "full" if reasons else "diff", "reasons": reasons, "notes": notes}, product_rust, product_go
+    if widen:
+        reasons.append(PENDING)
+    widen = {lang: {target: sorted(names) for target, names in targets.items()} for lang, targets in widen.items()}
+    return {"mode": "full" if reasons else "diff", "reasons": reasons, "notes": notes, "widen": widen}, product_rust, product_go
+
+
+def narrowed(verdict, run_measure):
+    """The verdict after the measurement: the pending reason is dropped when it worked, and replaced by why when it did not (fail closed)."""
+    reasons = [r for r in verdict["reasons"] if r != PENDING]
+    notes = list(verdict["notes"])
+    try:
+        notes += run_measure()
+    except (MeasureError, subprocess.CalledProcessError, OSError) as e:
+        reasons.append("the coverage of the changed tests could not be measured: %s" % str(e).splitlines()[0])
+    return dict(verdict, reasons=reasons, notes=notes, mode="full" if reasons else "diff")
 
 
 def write_outputs(out, verdict, product_rust, product_go):
@@ -264,6 +460,7 @@ def main():
     s.add_argument("--head", required=True)
     s.add_argument("--out", required=True)
     s.add_argument("--root", default=".")
+    s.add_argument("--measure", action="store_true", help="run the base versions of the changed tests with coverage and narrow to it")
     i = sub.add_parser("in-diff")
     i.add_argument("--lines", required=True)
     i.add_argument("--path", required=True)
@@ -273,6 +470,8 @@ def main():
     if a.cmd == "in-diff":
         return 0 if in_diff(a.lines, a.path, a.original, a.changed) else 1
     verdict, pr, pg = classify(a.root, a.base, a.head)
+    if a.measure and verdict["widen"]:
+        verdict = narrowed(verdict, lambda: measure(a.root, a.base, a.head, verdict["widen"], pr, pg))
     verdict = write_outputs(a.out, verdict, pr, pg)
     print("mode=%s  rust ranges=%d  go ranges=%d" % (verdict["mode"], verdict["rust_ranges"], verdict["go_ranges"]))
     for r in verdict["reasons"]:
