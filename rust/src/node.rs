@@ -86,9 +86,8 @@ impl Node {
                     by_key.entry(o.key.as_str()).or_default().push(&o.value);
                 }
                 a.iter().all(|e| {
-                    let Some(vs) = by_key.get_mut(e.key.as_str()) else {
-                        return false;
-                    };
+                    // a key the other mapping lacks has no values, so no match
+                    let vs = by_key.entry(e.key.as_str()).or_default();
                     match vs.iter().position(|o| o.same(&e.value)) {
                         Some(i) => {
                             vs.swap_remove(i);
