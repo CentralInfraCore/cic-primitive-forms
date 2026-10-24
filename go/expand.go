@@ -194,6 +194,7 @@ type formWalker struct {
 	inDefault int             // > 0 while an inserted default is being expanded: nothing below it is authored or defaulted
 	origins   []found         // Expand: the origin (authored or default) of every declared position of the output
 	strip     map[string]bool // Collapse: the positions the normalization made, which are not part of the authored document
+	members   bool            // Normalize: read the rule members of every authored expanded wrapper (readWrapper, #90)
 }
 
 func pathText(path []seg) (string, error) {
@@ -312,6 +313,11 @@ func (w *formWalker) position(n *Node, shape Shape, path []seg, expand bool) (*N
 		ep, authored, err := ExpandPosition(n, w.a, w.g)
 		if err != nil {
 			return nil, withPath(err, path)
+		}
+		if authored && w.members {
+			if _, _, _, err := readWrapper(ep, w.g, text); err != nil {
+				return nil, err
+			}
 		}
 		if w.inDefault == 0 {
 			w.prov[text] = Origin{AuthoredExpanded: authored}

@@ -196,6 +196,8 @@ pub(crate) struct Walker<'a> {
     pub(crate) origins: Vec<(Path, &'static str)>,
     /// Collapse: the positions the normalization made, which are not part of the authored document.
     pub(crate) strip: std::collections::BTreeSet<String>,
+    /// Normalize: read the rule members of every authored expanded wrapper (`read_wrapper`, #90).
+    pub(crate) members: bool,
 }
 
 impl<'a> Walker<'a> {
@@ -214,6 +216,7 @@ impl<'a> Walker<'a> {
             in_default: 0,
             origins: Vec::new(),
             strip: std::collections::BTreeSet::new(),
+            members: false,
         }
     }
 }
@@ -414,6 +417,9 @@ impl Walker<'_> {
                 }
                 other => other,
             })?;
+            if authored && self.members {
+                crate::policyresolution::read_wrapper(&wrapper, self.g, &text)?;
+            }
             if self.in_default == 0 {
                 self.prov.insert(
                     text,

@@ -9,9 +9,11 @@
 //! and collapses with the provenance, so that `denormalize(normalize(x))` is `x` as a value, for every document that `expand`
 //! accepts, short, expanded or mixed, with explicit policy settings, `null`, and values that equal their default.
 //!
-//! Like `expand`, `normalize` expects a document that validates in the sense of the schema (it refuses an undeclared key and a
-//! structure the schema does not allow, but does not report a missing mandatory field) and the trusted [`Context`] of ADR
-//! 0010. It never inserts a default for a mandatory field, into an absent composite or list, or over a present value.
+//! `normalize` validates before it walks (#88): a document that `validate` refuses (with every expanded wrapper read as its
+//! value) - an undeclared key, a value of the wrong type, two list elements of one identity, a missing mandatory field - is
+//! refused with its violations, and an authored expanded wrapper whose access, modify or inherit the bound grammar does not
+//! read is refused as the resolution refuses it (#90). It takes the trusted [`Context`] of ADR 0010. It never inserts a
+//! default for a mandatory field, into an absent composite or list, or over a present value.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -64,6 +66,7 @@ pub fn normalize(
     crate::editscalar::refuse_invalid(doc, shape, a)?;
     let mut w = Walker::plain(a, g, Provenance::new(), Vec::new());
     w.defaults = true;
+    w.members = true;
     let object = w.record(doc, shape, &mut Vec::new(), true)?;
     Ok(NormalizationResult {
         object,

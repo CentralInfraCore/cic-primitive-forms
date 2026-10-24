@@ -100,6 +100,12 @@ func (w *resolveWalker) object(n *Node, fields []NamedShape, path []seg, o *Poli
 
 // wrapper reads the Access wrapper of a position: the mode and the two rule values (nil is the symbol inherit).
 func (w *resolveWalker) wrapper(x *Node, text string) (mode Mode, access, modify *PolicyRule, err error) {
+	return readWrapper(x, w.g, text)
+}
+
+// readWrapper is the reading of an Access wrapper's rule members under the bound grammar; Normalize uses it too, on every
+// authored expanded wrapper, so a normalized result never holds a member the resolution would refuse (#90).
+func readWrapper(x *Node, g Grammar, text string) (mode Mode, access, modify *PolicyRule, err error) {
 	// a key set without one of the three gives a wrapper without it: refused, as in Rust, never read as nil (#88)
 	read := func(key string) (*PolicyRule, error) {
 		n := lookup(x, key)
@@ -127,7 +133,7 @@ func (w *resolveWalker) wrapper(x *Node, text string) (mode Mode, access, modify
 		return
 	}
 	var v *Violation
-	if mode, v = ReadMode(inherit, w.g); v != nil {
+	if mode, v = ReadMode(inherit, g); v != nil {
 		err = unsupported("%s: inherit of the position: %s", text, v.Code)
 	}
 	return

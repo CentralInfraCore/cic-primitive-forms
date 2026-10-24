@@ -194,25 +194,7 @@ impl Walker<'_> {
         x: &Node,
         text: &str,
     ) -> Result<(Mode, Option<PolicyRule>, Option<PolicyRule>), Error> {
-        let field = |key: &str| -> Result<Option<PolicyRule>, Error> {
-            let n = crate::expand::entry(x, key)
-                .ok_or_else(|| unsupported(format!("{text}: the position has no {key}")))?;
-            match read_rule(n) {
-                Ok(Rule::Symbol) => Ok(None),
-                Ok(Rule::List(p)) => Ok(Some(PolicyRule::Patterns(p))),
-                Err(v) => Err(unsupported(format!(
-                    "{text}: {key} of the position: {}",
-                    v.code
-                ))),
-            }
-        };
-        let access = field("access")?;
-        let modify = field("modify")?;
-        let inherit = crate::expand::entry(x, "inherit")
-            .ok_or_else(|| unsupported(format!("{text}: the position has no inherit")))?;
-        let mode = read_mode(inherit, self.g)
-            .map_err(|v| unsupported(format!("{text}: inherit of the position: {}", v.code)))?;
-        Ok((mode, access, modify))
+        read_wrapper(x, self.g, text)
     }
 
     /// Goes into what a position holds: the object of a composite, the elements of a declared list.
@@ -290,4 +272,32 @@ impl Walker<'_> {
             },
         );
     }
+}
+
+/// The reading of an Access wrapper's rule members under the bound grammar; `normalize` uses it too, on every authored
+/// expanded wrapper, so a normalized result never holds a member the resolution would refuse (#90).
+pub(crate) fn read_wrapper(
+    x: &Node,
+    g: Grammar,
+    text: &str,
+) -> Result<(Mode, Option<PolicyRule>, Option<PolicyRule>), Error> {
+    let field = |key: &str| -> Result<Option<PolicyRule>, Error> {
+        let n = crate::expand::entry(x, key)
+            .ok_or_else(|| unsupported(format!("{text}: the position has no {key}")))?;
+        match read_rule(n) {
+            Ok(Rule::Symbol) => Ok(None),
+            Ok(Rule::List(p)) => Ok(Some(PolicyRule::Patterns(p))),
+            Err(v) => Err(unsupported(format!(
+                "{text}: {key} of the position: {}",
+                v.code
+            ))),
+        }
+    };
+    let access = field("access")?;
+    let modify = field("modify")?;
+    let inherit = crate::expand::entry(x, "inherit")
+        .ok_or_else(|| unsupported(format!("{text}: the position has no inherit")))?;
+    let mode = read_mode(inherit, g)
+        .map_err(|v| unsupported(format!("{text}: inherit of the position: {}", v.code)))?;
+    Ok((mode, access, modify))
 }

@@ -10,9 +10,11 @@ package forms
 // the Provenance, so that Denormalize(Normalize(x)) is x as a value, for every document that Expand accepts, short, expanded or
 // mixed, with explicit policy settings, null, and values that equal their default.
 //
-// Like Expand, Normalize expects a document that validates in the sense of the schema (it refuses an undeclared key and a
-// structure the schema does not allow, but does not report a missing mandatory field) and the trusted Context of ADR 0010.
-// It never inserts a default for a mandatory field, into an absent composite or list, or over a present value.
+// Normalize validates before it walks (#88): a document that Validate refuses (with every expanded wrapper read as its value) -
+// an undeclared key, a value of the wrong type, two list elements of one identity, a missing mandatory field - is refused with
+// its violations, and an authored expanded wrapper whose access, modify or inherit the bound grammar does not read is refused
+// as the resolution refuses it (#90). It takes the trusted Context of ADR 0010. It never inserts a default for a mandatory
+// field, into an absent composite or list, or over a present value.
 
 import "slices"
 
@@ -46,7 +48,7 @@ func Normalize(doc *Node, shape Shape, a []string, g Grammar, ctx Context) (*Nor
 	if err := refuseInvalid(doc, shape, a); err != nil {
 		return nil, err
 	}
-	w := &formWalker{a: a, g: g, prov: Provenance{}, defaults: true}
+	w := &formWalker{a: a, g: g, prov: Provenance{}, defaults: true, members: true}
 	out, err := w.record(doc, shape, nil, true)
 	if err != nil {
 		return nil, err
