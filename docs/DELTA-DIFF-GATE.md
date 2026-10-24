@@ -29,18 +29,40 @@ What counts is whether the change can **weaken** the protection that existing te
 | Change | Mutants run |
 |---|---|
 | a **pure addition**: a new test function, a new test file, a new case in a table; no removed or modified line, the added lines are whole new tests | the diff's mutants only (an addition can only add kills) |
-| a removed or modified line of an **existing** test | **FULL** on that PR |
-| a modified existing shared helper, fixture or `testdata` line | **FULL** on that PR |
+| a removed, modified or added line **inside an existing test function** | the diff's mutants **plus the mutants on the product lines the base version of that test executed** (2.2) |
+| a modified existing shared helper, fixture or `testdata` line, a line outside any test function, a deleted test file | **FULL** on that PR |
 
 The classification is made from the diff by a script (a hunk with no removed line whose added lines are complete new `func Test...` /
 `#[test] fn` items, or a new file, is an addition; a line added inside an existing function is a modification). When the classifier is
-unsure, it says FULL. Narrowing the FULL case by per-test coverage (only the mutants on lines the changed test executes) is a later
-optimisation, and only if the FULL case turns out to be frequent.
+unsure, it says FULL.
+
+### 2.2 A changed test is narrowed by its coverage (#92)
+
+Narrowing the FULL case by per-test coverage was the "later optimisation" of the first version of this section, to come if the FULL case
+turned out to be frequent. It did: every product pull request of 2026-10-23/24 ran FULL, most of them because a fix that changes behaviour
+changes the test that pinned the old behaviour.
+
+* **Which tests.** Each hunk of a test file is mapped, on the base, to the test function that holds it: Go `func TestX`/`FuzzX` up to its
+  closing `}`, Rust a `fn` with `#[test]` among its attributes (in `rust/tests/<target>.rs`, in a `#[cfg(test)]` module of a source file,
+  in a `proptest!` block). A line that no test function holds keeps the PR FULL, as before.
+* **What they executed.** The `scope` job checks the base out in a worktree and runs exactly those tests, in their base version, with line
+  coverage (`go test -run '^(...)$' -coverprofile`, `cargo llvm-cov --lcov --lib|--test <target> -- <names>`). Every named test must run
+  and pass.
+* **Why that is enough.** A mutant on a line the old test did not execute was not killed by it, so replacing the test cannot change the
+  mutant's status; it still depends only on the unchanged tests. The executed lines are carried over to the head (a line the PR changed
+  is in the diff already) and join the diff: their mutants run as the diff's do, under the same rule.
+* **Fail closed.** `diff_gate.py scope` without `--measure` reports a pending measurement as a reason for FULL; the measurement turns it
+  into `diff` only when it worked, and any failure (a test that does not run or fails on the base, a coverage of nothing, a tool error)
+  leaves FULL with the reason. The toolchains are set up in `scope` only when a changed test is the only reason for FULL.
+* **The diff is sharded.** A narrowed diff can be large (a test that parses YAML executes much of the parser), so the diff mutation runs
+  in shards like the full run: the `diff-plan` job counts the mutants of the diff (Rust `cargo mutants --list --in-diff`, Go the diff
+  executor in its list mode), `tools/shard_count.py` cuts them with the same budget, Rust shards are dealt by measured cost
+  (`shard_plan.py`) and Go shards by digest, as in the full run; the gate checks every shard against the one list.
 
 ## 3. How each language does it
 
-* **Rust:** `cargo mutants --in-diff <patch>` (cargo-mutants 27.1 has it) runs only the mutants in code the patch touches. The existing
-  shard tooling and plan stay.
+* **Rust:** `cargo mutants --in-diff <patch>` (cargo-mutants 27.1 has it) runs only the mutants in code the patch touches; in shards,
+  `-F` with the regex `shard_plan.py` gives each shard (2.2).
 * **Go:** `go-mutesting` has no diff option (only `--match`, a function-name regex). The executor `tools/mutation_shard_exec.sh`
   already receives the original and the mutated file for every mutant; it compares the changed lines with the PR's changed lines and
   answers a mutant outside the diff with the verdict `offdiff` (exit 2, like `offshard`), written to the ledger. `quality_gate.py`

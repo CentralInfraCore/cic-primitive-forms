@@ -287,6 +287,38 @@ class ShardPlanTests(unittest.TestCase):
         self.assertIn('diff) test "$PLAN" = skipped', self.text)
 
 
+@unittest.skipIf(yaml is None, "no PyYAML")
+class DiffShardTests(unittest.TestCase):
+    """p1.yml (#92): the diff is sharded like the full run, and a change inside existing tests is narrowed by their coverage."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.jobs = self.p1["jobs"]
+
+    def test_the_diff_plan_feeds_both_diff_matrices_and_the_gate_waits_for_it(self):
+        self.assertIn("mode == 'diff'", self.jobs["diff-plan"]["if"])
+        for name, lang in (("diff-mutation-rust", "rust"), ("diff-mutation-go", "go")):
+            self.assertIn("diff-plan", _needs(self.jobs[name]), name)
+            self.assertEqual(self.jobs[name]["strategy"]["matrix"]["shard"], "${{ fromJSON(needs.diff-plan.outputs.%s_shards) }}" % lang, name)
+        self.assertIn("diff-plan", _needs(self.jobs["quality"]))
+        self.assertIn('diff) test "$PLAN" = skipped && test "$DIFF_PLAN" = success', self.text)
+        self.assertIn('test "$DIFF_PLAN" = skipped && test "$DIFF_RUST" = skipped', self.text)   # and skipped in full
+
+    def test_every_diff_shard_report_is_read_against_the_one_list(self):
+        self.assertIn('--rust-mutants "$Q"/in/rust-diff-mutants-*/outcomes.json --rust-listed "$Q/in/rust-diff-listed/rust-listed.json"', self.text)
+        self.assertIn('--go-ledgers "$Q"/in/go-diff-ledger-*/ledger', self.text)
+        self.assertIn('CIC_MUTATION_SHARD="${{ matrix.shard }}/$GO_N"', self.text)
+        self.assertIn("shard_plan.py verify", str(self.jobs["diff-mutation-rust"]["steps"]))
+
+    def test_the_scope_measures_only_when_a_changed_test_is_all_that_keeps_it_full(self):
+        steps = {s.get("id"): s for s in self.jobs["scope"]["steps"] if s.get("id")}
+        self.assertIn("only = v[\"reasons\"] == [d.PENDING]", steps["w"]["run"])
+        self.assertIn("--measure", steps["s"]["run"])
+        for s in self.jobs["scope"]["steps"]:
+            if s.get("uses", "").startswith("./.github/actions/") or "Rust toolchain" in s.get("name", ""):
+                self.assertIn("steps.w.outputs.", s.get("if", ""), s)
+
+
 def _needs(job):
     n = job.get("needs", [])
     return [n] if isinstance(n, str) else n
