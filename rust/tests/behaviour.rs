@@ -2,8 +2,8 @@
 //! the guarantee that validation changes nothing.
 
 use cic_primitive_forms::{
-    emit, parse, parse_with, recognize, Class, Error, Limits, Location, Node, Phase, Pos, Position,
-    Value,
+    emit, parse, parse_with, recognize, Class, Entry, Error, Limits, Location, Node, Phase, Pos,
+    Position, Value,
 };
 
 fn a() -> Vec<String> {
@@ -324,6 +324,32 @@ fn same_ignores_position_and_mapping_order_but_not_value_or_type() {
     assert!(!Node::new(Value::Bool(true)).same(&Node::new(Value::Null)));
     assert!(Node::new(Value::Null).same(&Node::new(Value::Null)));
     assert!(!Node::new(Value::Int(1)).same(&Node::new(Value::Int(2))));
+}
+
+/// With a repeated key (only a hand-built node can have one) the entries are a multiset, and
+/// `same` is symmetric (#90). The Go peer is in `TestSameComparesEveryPartOfTheValue`.
+#[test]
+fn same_with_a_repeated_key_is_symmetric() {
+    let dup = |vals: &[i64]| {
+        Node::new(Value::Map(
+            vals.iter()
+                .map(|v| Entry {
+                    key: "a".into(),
+                    key_pos: None,
+                    value: Node::new(Value::Int(*v)),
+                })
+                .collect(),
+        ))
+    };
+    for (a, b, same) in [
+        (&[1, 1][..], &[1, 2][..], false),
+        (&[1, 2], &[2, 1], true),
+        (&[1, 1], &[1, 1], true),
+        (&[1, 2, 2], &[2, 1, 1], false),
+    ] {
+        assert_eq!(dup(a).same(&dup(b)), same, "{a:?} vs {b:?}");
+        assert_eq!(dup(b).same(&dup(a)), same, "{b:?} vs {a:?}");
+    }
 }
 
 #[test]

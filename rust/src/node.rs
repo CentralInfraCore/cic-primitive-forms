@@ -76,14 +76,27 @@ impl Node {
                 if a.len() != b.len() {
                     return false;
                 }
-                // The other mapping by key, read once: the first entry of a repeated key
-                // decides, as a lookup in order would (#85).
-                let mut by_key: HashMap<&str, &Node> = HashMap::with_capacity(b.len());
+                // The other mapping by key, read once (#85). The entries are compared as a
+                // multiset: each entry is matched to a distinct entry of the other mapping with
+                // the same key and the same value, so a repeated key (only a hand-built node has
+                // one) cannot make `same` asymmetric (#90). Without a repeated key every list
+                // holds one value.
+                let mut by_key: HashMap<&str, Vec<&Node>> = HashMap::with_capacity(b.len());
                 for o in b {
-                    by_key.entry(o.key.as_str()).or_insert(&o.value);
+                    by_key.entry(o.key.as_str()).or_default().push(&o.value);
                 }
-                a.iter()
-                    .all(|e| by_key.get(e.key.as_str()).is_some_and(|o| o.same(&e.value)))
+                a.iter().all(|e| {
+                    let Some(vs) = by_key.get_mut(e.key.as_str()) else {
+                        return false;
+                    };
+                    match vs.iter().position(|o| o.same(&e.value)) {
+                        Some(i) => {
+                            vs.swap_remove(i);
+                            true
+                        }
+                        None => false,
+                    }
+                })
             }
             _ => false,
         }

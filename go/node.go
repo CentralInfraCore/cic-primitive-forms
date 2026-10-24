@@ -9,6 +9,8 @@
 // The expanded-form key set A is never hardcoded: the caller passes it in.
 package forms
 
+import "slices"
+
 // Pos is a source position inside the YAML text (ADR 0007): Line 1-based, Column
 // 1-based in Unicode code points, Offset 0-based in bytes of the original UTF-8 input (a
 // leading BOM included).
@@ -77,18 +79,20 @@ func (n *Node) Same(o *Node) bool {
 		if len(n.Entries) != len(o.Entries) {
 			return false
 		}
-		// The other mapping by key, read once: the first entry of a repeated key decides, as a lookup in order would (#85).
-		byKey := make(map[string]*Node, len(o.Entries))
+		// The other mapping by key, read once (#85). The entries are compared as a multiset: each entry is matched to a distinct
+		// entry of the other mapping with the same key and the same value, so a repeated key (only a hand-built node has one)
+		// cannot make Same asymmetric (#90). Without a repeated key every list holds one value.
+		byKey := make(map[string][]*Node, len(o.Entries))
 		for _, f := range o.Entries {
-			if _, seen := byKey[f.Key]; !seen {
-				byKey[f.Key] = f.Value
-			}
+			byKey[f.Key] = append(byKey[f.Key], f.Value)
 		}
 		for _, e := range n.Entries {
-			v, ok := byKey[e.Key]
-			if !ok || !e.Value.Same(v) {
+			vs := byKey[e.Key]
+			i := slices.IndexFunc(vs, e.Value.Same)
+			if i < 0 {
 				return false
 			}
+			byKey[e.Key] = slices.Delete(vs, i, i+1)
 		}
 		return true
 	}

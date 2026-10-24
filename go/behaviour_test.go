@@ -420,7 +420,8 @@ func TestSameComparesEveryPartOfTheValue(t *testing.T) {
 			t.Errorf("%s", text)
 		}
 	}
-	// With a repeated key (only a hand-built node can have one) the first match decides.
+	// With a repeated key (only a hand-built node can have one) the entries are a multiset, and Same is symmetric (#90). The Rust
+	// peer is `same_with_a_repeated_key_is_symmetric` in rust/tests/behaviour.rs.
 	dup := func(vals ...int64) *forms.Node {
 		n := &forms.Node{Kind: forms.KindMap}
 		for _, v := range vals {
@@ -428,8 +429,18 @@ func TestSameComparesEveryPartOfTheValue(t *testing.T) {
 		}
 		return n
 	}
-	if !dup(1, 1).Same(dup(1, 2)) {
-		t.Error("the first entry with the key decides")
+	for _, c := range []struct {
+		a, b []int64
+		same bool
+	}{
+		{[]int64{1, 1}, []int64{1, 2}, false}, // the first entry alone would say true one way and false the other
+		{[]int64{1, 2}, []int64{2, 1}, true},  // the order of the entries is not part of the value
+		{[]int64{1, 1}, []int64{1, 1}, true},
+		{[]int64{1, 2, 2}, []int64{2, 1, 1}, false},
+	} {
+		if dup(c.a...).Same(dup(c.b...)) != c.same || dup(c.b...).Same(dup(c.a...)) != c.same {
+			t.Errorf("%v vs %v: want %v both ways", c.a, c.b, c.same)
+		}
 	}
 }
 
