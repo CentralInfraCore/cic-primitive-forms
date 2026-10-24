@@ -202,3 +202,30 @@ func TestNormalizeReadsTheRuleMembersOfAnAuthoredWrapper(t *testing.T) {
 		t.Fatalf("a wrapper the grammar reads was refused: %v", err)
 	}
 }
+
+// Expand does not read the rule members of an authored wrapper: only Normalize does (#90). An access the grammar cannot read is
+// kept as authored. The Rust peer is `expand_does_not_read_the_rule_members_of_an_authored_wrapper` in rust/tests/composed.rs.
+func TestExpandDoesNotReadTheRuleMembersOfAnAuthoredWrapper(t *testing.T) {
+	b, _ := os.ReadFile("../testdata/p1/resolution.json")
+	var f resolutionFile
+	if err := json.Unmarshal(b, &f); err != nil {
+		t.Fatal(err)
+	}
+	var schema string
+	for _, c := range f.Cases {
+		if c.ID == "an-absent-field-gets-no-entry-and-an-inserted-default-does" {
+			schema = c.Schema
+		}
+	}
+	cs, err := compileDefaults(schema, f.GrammarPin, "config_surface")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := forms.Parse("type: t\nlabel:\n  value: hello\n  access: 123\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n")
+	if _, _, err := forms.Expand(doc, cs.Root, f.AccessKeys, bound(t, 1), forms.Context{}); err != nil {
+		t.Fatalf("expand read an authored member: %v", err)
+	}
+	if _, err := forms.Normalize(doc, cs.Root, f.AccessKeys, bound(t, 1), forms.Context{}); err == nil {
+		t.Fatal("normalize did not read it")
+	}
+}
