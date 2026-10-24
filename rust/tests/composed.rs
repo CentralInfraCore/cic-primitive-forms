@@ -198,3 +198,74 @@ fn the_boundaries_validate_first() {
         other => panic!("{other:?}"),
     }
 }
+
+/// `normalize` reads the rule members of an authored expanded wrapper under the bound grammar, as the resolution does (#90):
+/// a member it cannot read is refused with the resolution's message, and a wrapper it can read is normalized as before. The Go
+/// peer is `TestNormalizeReadsTheRuleMembersOfAnAuthoredWrapper` in go/normalizewithpolicy_test.go.
+#[test]
+fn normalize_reads_the_rule_members_of_an_authored_wrapper() {
+    let (f, a) = load();
+    let pin = f["grammar_pin"].as_str().unwrap();
+    let schema = f["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "an-absent-field-gets-no-entry-and-an-inserted-default-does")
+        .unwrap()["schema"]
+        .as_str()
+        .unwrap();
+    let cs = compile(schema, pin);
+    let g = bound(1);
+    let ctx = Context::default();
+    let wrapper = |access: &str, modify: &str, inherit: &str| {
+        format!("type: t\nlabel:\n  value: hello\n  access: {access}\n  modify: {modify}\n  inherit: {inherit}\n  default_injection: null\n  conformance: implemented\n")
+    };
+    for (yaml, want) in [
+        (
+            wrapper("123", "inherit", "true"),
+            "$.label: access of the position: INVALID_ACCESS_VALUE",
+        ),
+        (
+            wrapper("inherit", "5", "true"),
+            "$.label: modify of the position: INVALID_ACCESS_VALUE",
+        ),
+        (
+            wrapper("inherit", "inherit", "maybe"),
+            "$.label: inherit of the position: INVALID_INHERIT",
+        ),
+    ] {
+        let doc = parse(&yaml).unwrap();
+        match normalize(&doc, &cs.root, &a, g, &ctx) {
+            Err(cic_primitive_forms::Error::Unsupported(m)) => {
+                assert!(m.contains(want), "{yaml:?}: {m}")
+            }
+            other => panic!("{yaml:?}: want {want:?}, got {other:?}"),
+        }
+    }
+    let doc = parse(&wrapper("['O=r']", "inherit", "false")).unwrap();
+    normalize(&doc, &cs.root, &a, g, &ctx).expect("a wrapper the grammar reads");
+}
+
+/// `expand` does not read the rule members of an authored wrapper: only `normalize` does (#90). An `access` the grammar cannot
+/// read is kept as authored. The Go peer is `TestExpandDoesNotReadTheRuleMembersOfAnAuthoredWrapper`.
+#[test]
+fn expand_does_not_read_the_rule_members_of_an_authored_wrapper() {
+    let (f, a) = load();
+    let pin = f["grammar_pin"].as_str().unwrap();
+    let schema = f["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "an-absent-field-gets-no-entry-and-an-inserted-default-does")
+        .unwrap()["schema"]
+        .as_str()
+        .unwrap();
+    let cs = compile(schema, pin);
+    let doc = parse("type: t\nlabel:\n  value: hello\n  access: 123\n  modify: inherit\n  inherit: true\n  default_injection: null\n  conformance: implemented\n").unwrap();
+    expand(&doc, &cs.root, &a, bound(1), &Context::default())
+        .expect("expand keeps an unreadable member as authored");
+    assert!(
+        normalize(&doc, &cs.root, &a, bound(1), &Context::default()).is_err(),
+        "normalize reads it"
+    );
+}
