@@ -6,8 +6,10 @@ below this copies the tool directory to a temporary place, applies one textual c
 a stale entry cannot pass silently), runs the unit tests there and requires them to FAIL. The unmodified copy has to
 pass first. Nothing in the repository is modified.
 
-    seeded.py
+    seeded.py [--shard K/N]      the defects K, K+N, K+2N, ... (all of them by default)
+    seeded.py --parallel N       all of them, in N processes side by side (one shard each), joined: what CI runs (#98)
 """
+import argparse
 import os
 import shutil
 import subprocess
@@ -239,7 +241,33 @@ def run_tests(directory):
     return p.returncode, p.stdout + p.stderr
 
 
-def main():
+def parallel(n):
+    """Every defect, in n processes side by side: each is a shard with its own copy of the tools; the shards cover every defect once."""
+    procs = [subprocess.Popen([sys.executable, os.path.abspath(__file__), "--shard", "%d/%d" % (k, n)], stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True) for k in range(n)]
+    outs = [p.communicate()[0] for p in procs]
+    failed = 0
+    for k, (p, out) in enumerate(zip(procs, outs)):
+        print("---- shard %d/%d ----" % (k, n))
+        print(out, end="")
+        failed += p.returncode != 0
+    assert sum(len(DEFECTS[k::n]) for k in range(n)) == len(DEFECTS)
+    print("SEEDED DEFECTS: %s" % ("every defect is caught (%d, in %d shards)" % (len(DEFECTS), n) if failed == 0
+                                  else "FAILED (%d of %d shards)" % (failed, n)))
+    return 0 if failed == 0 else 1
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--shard", default="0/1", help="K/N: the defects K, K+N, ...")
+    ap.add_argument("--parallel", type=int, default=0, help="run every defect in N processes side by side")
+    a = ap.parse_args(argv)
+    if a.parallel:
+        return parallel(a.parallel)
+    k, n = (int(x) for x in a.shard.split("/"))
+    if not 0 <= k < n:
+        ap.error("--shard K/N needs 0 <= K < N")
+    defects = DEFECTS[k::n]
     bad = 0
     with tempfile.TemporaryDirectory() as tmp:
         tools = os.path.join(tmp, "tools")
@@ -254,7 +282,7 @@ def main():
         if rc != 0:
             print(out[-2000:])
             return 1
-        for name, rel, ops in DEFECTS:
+        for name, rel, ops in defects:
             path = os.path.join(tmp, rel) if rel.startswith(".github/") else os.path.join(work, rel)
             original = open(path, encoding="utf-8").read()
             text = original
@@ -281,7 +309,8 @@ def main():
             bad += 0 if caught else 1
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(original)
-    print("SEEDED DEFECTS: %s" % ("every defect is caught (%d)" % len(DEFECTS) if bad == 0 else "FAILED (%d)" % bad))
+    where = " (shard %d/%d)" % (k, n) if n > 1 else ""
+    print("SEEDED DEFECTS%s: %s" % (where, "every defect is caught (%d)" % len(defects) if bad == 0 else "FAILED (%d)" % bad))
     return 0 if bad == 0 else 1
 
 

@@ -360,6 +360,17 @@ class ChainReviewTests(unittest.TestCase):
         self.assertIn('git push origin --delete "$branch"', self.ntext)
 
 
+@unittest.skipIf(yaml is None, "no PyYAML")
+class EveryPullRequestTests(unittest.TestCase):
+    """#97: the checks of p1 are required on main, so p1 must report them on every pull request."""
+
+    def test_p1_has_no_path_filter_on_pull_requests(self):
+        p1, _ = load("p1.yml")
+        triggers = p1[True] if True in p1 else p1["on"]   # PyYAML reads the key `on` as True
+        self.assertIn("pull_request", triggers)
+        self.assertFalse((triggers["pull_request"] or {}).get("paths"))
+
+
 def _needs(job):
     n = job.get("needs", [])
     return [n] if isinstance(n, str) else n
