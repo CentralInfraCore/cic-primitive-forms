@@ -74,15 +74,17 @@ pub struct PatchResult {
 }
 
 fn failure(code: &'static str, path: &str, at: Option<Pos>) -> Error {
+    // (outside the macro: the branch tool does not enumerate an `if` inside a macro invocation)
+    let logical_path = if path.is_empty() {
+        None
+    } else {
+        Some(path.to_string())
+    };
     Error::Contract(vec![Violation {
         code,
         phase: Phase::Patch,
         location: at.map_or(Location::NotApplicable, Location::At),
-        logical_path: if path.is_empty() {
-            None
-        } else {
-            Some(path.to_string())
-        },
+        logical_path,
         path_offset: None,
         operand: None,
     }])
