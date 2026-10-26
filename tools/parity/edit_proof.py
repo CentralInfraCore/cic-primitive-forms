@@ -40,7 +40,7 @@ def compare(inputs, rust, go):
 
 def dump(lang, module, inputs, out, env):
     e = dict(env, PARITY_EDIT_IN=inputs, PARITY_EDIT_OUT=out)
-    cmd = (["cargo", "+stable", "test", "--locked", "--test", "parity_edit_dump"] if lang == "rust"
+    cmd = (["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--test", "parity_edit_dump"] if lang == "rust"
            else ["go", "test", "-count=1", "-run", "^TestDumpEditOutcomes$", "."])
     return subprocess.run(cmd, cwd=module, env=e, capture_output=True, text=True)
 

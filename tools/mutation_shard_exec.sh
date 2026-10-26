@@ -26,10 +26,10 @@ diff_out=$(diff -u "$MUTATE_ORIGINAL" "$MUTATE_CHANGED")
 mv "$MUTATE_ORIGINAL" "$MUTATE_ORIGINAL.tmp"
 trap 'mv "$MUTATE_ORIGINAL.tmp" "$MUTATE_ORIGINAL"' EXIT
 cp "$MUTATE_CHANGED" "$MUTATE_ORIGINAL"
-go test -timeout "${MUTATE_TIMEOUT:-10}s" "$MUTATE_PACKAGE" >/dev/null 2>&1
-case $? in
-0) ledger survived; echo "$diff_out"; exit 1 ;;
-1) ledger killed; exit 0 ;;
-2) ledger uncompilable; exit 2 ;;
+. "$(dirname "$0")/mutation_go_test.sh"
+case $(go_test_verdict "$MUTATE_PACKAGE" -timeout "${MUTATE_TIMEOUT:-10}s") in
+survived) ledger survived; echo "$diff_out"; exit 1 ;;
+killed) ledger killed; exit 0 ;;
+uncompilable) ledger uncompilable; exit 2 ;;
 *) ledger unknown; exit 3 ;;
 esac

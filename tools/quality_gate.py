@@ -18,6 +18,7 @@ Reports:
   --rust-listed   `cargo mutants --list --json`          the mutants there are; every one must be in exactly one shard
   --go-mutants    go-mutesting stdout                    (score = passed / (passed + failed))
   --go-ledgers    one tools/mutation_shard_exec.sh ledger per shard of a sharded go-mutesting run
+  --go-expected   the number of Go mutants the plan counted (#94): the ledgers must give exactly that many a verdict
 Unviable mutants (Rust) and skipped or duplicated ones (Go) are not counted either way.
 
 A mutation report carries its result twice, as totals and as one verdict per mutant. The score is read from the
@@ -162,9 +163,10 @@ def rust_mutants(paths, listed=None, allow_empty=False):
 LEDGER_VERDICTS = {"killed", "survived", "uncompilable", "offshard", "offdiff"}
 
 
-def go_ledgers(paths, allow_empty=False):
+def go_ledgers(paths, allow_empty=False, expected=None):
     """One ledger per shard, lines `<mutant>\t<shard>\t<shards>\t<verdict>`: every shard sees every mutant and tests
-    the ones it owns; each mutant must be owned by exactly one shard."""
+    the ones it owns; each mutant must be owned by exactly one shard. `expected`, when given, is the number of mutants the plan
+    counted (#94): the shards agreeing with each other does not show that none of them stopped early at the same place."""
     shard_of, ids_of, count = {}, {}, None
     verdicts = {}
     for path in paths:
@@ -180,7 +182,7 @@ def go_ledgers(paths, allow_empty=False):
                 raise Refused("INCOMPLETE_SHARDS", "%s: mutant %s twice in one ledger" % (path, f[0]))
             mine.setdefault("ids", {})[f[0]] = f[3]
         if "shard" not in mine:
-            if allow_empty and len(paths) == 1:   # a diff with no Go product code: no mutant was listed, nothing to judge
+            if allow_empty and len(paths) == 1 and not expected:   # a diff with no Go product code: no mutant was listed, nothing to judge
                 return 0, 0
             raise Refused("MEASUREMENT_EMPTY", "%s: empty ledger" % path)
         k, n = mine["shard"]
@@ -196,13 +198,16 @@ def go_ledgers(paths, allow_empty=False):
     first = ids_of[0]
     if any(ids != first for ids in ids_of.values()):
         raise Refused("INCOMPLETE_SHARDS", "the shards disagree on which mutants there are")
-    killed = survived = 0
+    killed = survived = tested = 0
     for mid, vs in verdicts.items():
         owned = [v for v in vs if v != "offshard"]
         if len(owned) != 1:
             raise Refused("INCOMPLETE_SHARDS", "mutant %s was tested by %d shards" % (mid, len(owned)))
         killed += owned[0] == "killed"
         survived += owned[0] == "survived"
+        tested += owned[0] in ("killed", "survived", "uncompilable")
+    if expected is not None and tested != expected:
+        raise Refused("INCOMPLETE_SHARDS", "%d Go mutants have a verdict, the plan counted %d" % (tested, expected))
     return killed, killed + survived
 
 
@@ -257,7 +262,8 @@ def judge_diff(name, measure, path):
 def check(args):
     diff = getattr(args, "diff", False)
     rust_m = args.rust_mutants if isinstance(args.rust_mutants, list) else [args.rust_mutants]
-    go_m = (lambda: go_ledgers(args.go_ledgers, allow_empty=diff)) if args.go_ledgers else (lambda: go_mutants(args.go_mutants))
+    go_m = ((lambda: go_ledgers(args.go_ledgers, allow_empty=diff, expected=getattr(args, "go_expected", None))) if args.go_ledgers
+            else (lambda: go_mutants(args.go_mutants)))
     gates = [("rust line coverage", lambda: rust_lines(args.rust_lines), args.rust_lines),
              ("go statement coverage", lambda: go_lines(args.go_lines), args.go_lines),
              ("rust mutation score", lambda: rust_mutants(rust_m, args.rust_listed, allow_empty=diff), " ".join(rust_m)),
@@ -400,7 +406,7 @@ def selftest():
     gm = ["g%02d" % i for i in range(30)]
     parts = [gm[0:10], gm[10:20], gm[20:30]]
 
-    def sharded(title, want, rust=None, listed=None, ledgers=None):
+    def sharded(title, want, rust=None, listed=None, ledgers=None, go_expected=None):
         nonlocal bad
         with tempfile.TemporaryDirectory() as d:
             rfiles = [_w(d, "r%d" % i, t) for i, t in enumerate(rust if rust is not None else [rshard(a), rshard(b)])]
@@ -408,7 +414,7 @@ def selftest():
             gfiles = [_w(d, "g%d" % i, t) for i, t in enumerate(ledgers if ledgers is not None else
                       [ledger(k, 3, parts[k], gm) for k in range(3)])]
             ns = argparse.Namespace(rust_lines=_w(d, "rl", _rust_cov(95, 100)), go_lines=_w(d, "gl", _go_cov(95, 100)),
-                                    rust_mutants=rfiles, rust_listed=lf, go_mutants=None, go_ledgers=gfiles)
+                                    rust_mutants=rfiles, rust_listed=lf, go_mutants=None, go_ledgers=gfiles, go_expected=go_expected)
             rc, text = _capture(check, ns)
         got = None if rc == 0 else next((r for r in REASONS if r in text), "?")
         seen.add(got)
@@ -435,16 +441,20 @@ def selftest():
             ledgers=[ledger(0, 3, parts[0], gm), ledger(0, 3, parts[1], gm), ledger(2, 3, parts[2], gm)])
     sharded("sharded: a go ledger line is garbage", "REPORT_FORMAT", ledgers=["nonsense\n"] + [ledger(k, 3, parts[k], gm) for k in (1, 2)])
     sharded("sharded: an empty go ledger", "MEASUREMENT_EMPTY", ledgers=[""] + [ledger(k, 3, parts[k], gm) for k in (1, 2)])
+    sharded("sharded: the go ledgers give the planned count a verdict", None, go_expected=30)
+    sharded("sharded: every go shard stopped at the same place", "INCOMPLETE_SHARDS",
+            ledgers=[ledger(k, 3, [m for m in parts[k] if m < "g25"], [m for m in gm if m < "g25"]) for k in range(3)], go_expected=30)
     sharded("sharded: the merged go score is below 90%", "BELOW_THRESHOLD",
             ledgers=[ledger(k, 3, parts[k], gm, verdict="survived") for k in range(3)])
     # the diff gate (docs/DELTA-DIFF-GATE.md): the same threshold on the mutants of the diff, a rule for few of them, and green for none
-    def diffcase(title, want, rm=None, gm=None, rl=None, ledgers=None, rust_listed=None):
+    def diffcase(title, want, rm=None, gm=None, rl=None, ledgers=None, rust_listed=None, go_expected=None):
         nonlocal bad
         with tempfile.TemporaryDirectory() as d:
             gfiles = [_w(d, "g%d" % i, t) for i, t in enumerate(ledgers)] if ledgers is not None else None
             ns = argparse.Namespace(rust_lines=_w(d, "rl", rl or _rust_cov(95, 100)), go_lines=_w(d, "gl", _go_cov(95, 100)),
                                     rust_mutants=[_w(d, "rm", rm or _mut(0, 0))], rust_listed=_w(d, "list", rust_listed) if rust_listed else None,
-                                    go_mutants=None if gfiles else _w(d, "gm", gm or _gomut(0, 0)), go_ledgers=gfiles, diff=True)
+                                    go_mutants=None if gfiles else _w(d, "gm", gm or _gomut(0, 0)), go_ledgers=gfiles, diff=True,
+                                    go_expected=go_expected)
             rc, text = _capture(check, ns)
         got = None if rc == 0 else next((r for r in REASONS if r in text), "?")
         seen.add(got)
@@ -468,6 +478,7 @@ def selftest():
     diffcase("diff: go ledger, one of 5 in the diff survives", "BELOW_THRESHOLD", ledgers=dledger(4, 1, 25))
     diffcase("diff: go ledger, every mutant outside the diff", None, ledgers=dledger(0, 0, 30))
     diffcase("diff: go ledger is empty (no Go product code in the diff)", None, ledgers=[""])
+    diffcase("diff: go ledger is empty but the plan counted mutants", "MEASUREMENT_EMPTY", ledgers=[""], go_expected=3)
     diffcase("diff: go ledger, a mutant twice", "INCOMPLETE_SHARDS", ledgers=["a\t0\t1\tkilled\na\t0\t1\toffdiff\n"])
     diffcase("diff: rust list is empty and nothing ran", None, rm=rshard([]), rust_listed="[]")
     diffcase("diff: rust ran a mutant that is not listed", "INCOMPLETE_SHARDS",
@@ -476,7 +487,7 @@ def selftest():
     if missing:
         print("  BAD reasons without a fault: %s" % sorted(missing))
         bad += 1
-    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 15 + 14, len(set(REASONS) & seen), len(REASONS))
+    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 17 + 15, len(set(REASONS) & seen), len(REASONS))
           if bad == 0 else "self-test FAILED (%d)" % bad)
     return 0 if bad == 0 else 1
 
@@ -502,6 +513,7 @@ def main():
     group = c.add_mutually_exclusive_group(required=True)
     group.add_argument("--go-mutants")
     group.add_argument("--go-ledgers", nargs="+")
+    c.add_argument("--go-expected", type=int, help="with --go-ledgers: the number of Go mutants the plan counted")
     sub.add_parser("selftest")
     a = ap.parse_args()
     return check(a) if a.cmd == "check" else selftest()

@@ -156,6 +156,10 @@ class Scope(unittest.TestCase):
         self.write("rust/Cargo.toml", "[package]\nname = \"x\"\nversion = \"1\"\n")
         self.assertEqual(self.mode(), "full")
 
+    def test_a_tool_that_decides_what_runs_in_diff_mode_is_full(self):
+        for rel in ("tools/shard_count.py", "tools/shard_budget.json", "tools/fuzz_matrix.py", "tools/seeded_defects.py"):
+            self.assertEqual(diff_gate.kind(rel), "build", rel)
+
     def test_a_change_of_the_gate_workflow_alone_is_diff_with_a_note(self):
         # the pull request stays fast; a FULL runs in the background after the merge (nightly.yml)
         self.write(".github/workflows/p1.yml", "name: p1\n")

@@ -4,8 +4,9 @@
 A gate that cannot fail proves nothing, and neither does a test suite that has never been shown to fail on
 the defects it exists to catch. For each defect below, this copies the Rust crate (or the Go module) to a
 temporary directory, applies one textual change (it must match exactly once, so a stale entry cannot pass
-silently), runs the tests that cover the code and requires them to FAIL. It first requires the unmodified
-copy to pass. Nothing in the repository is modified.
+silently), runs the tests that cover the code and requires them to FAIL - on a defect that builds: a failure that is a build
+error is DOES NOT BUILD and counts against the run (#94). It first requires the unmodified copy to pass. Nothing in the repository
+is modified.
 
     seeded_defects.py rust|go|all [--changed-from SCOPE_JSON] [--stale-only] [--match SUBSTRING] [--shard K/N]
 
@@ -140,7 +141,7 @@ DEFECTS = [
     ("rust", "a policy-inherited rule keeps the layer of the ancestor's own rule", "src/resolve.rs",
      [("            hit.layer = LAYER_POLICY_INHERITED;\n", "")]),
     ("go", "the reset barrier is ignored: the system default follows a reset", "resolve.go",
-     [("\tif barrier {\n\t\treturn EffectiveRule{Kind: RuleNone", "\tif false {\n\t\treturn EffectiveRule{Kind: RuleNone")]),
+     [("\tif barrier {\n\t\treturn EffectiveRule{Kind: RuleNone", "\tif barrier && false {\n\t\treturn EffectiveRule{Kind: RuleNone")]),
     ("go", "an unknown ancestor policy is treated as transparent", "resolve.go",
      [("\t\to = next\n\t\tif o.Policy.State == PolicyUnknown {\n\t\t\treturn unknownRule(ReasonPolicyContextUnknown)\n\t\t}\n", "\t\to = next\n")]),
     ("go", "a no-inherit carrier does not stop the field rules above it", "resolve.go",
@@ -206,7 +207,7 @@ DEFECTS = [
     ("go", "a block scalar is scanned as a plain one", "sourcespan.go",
      [("case '|', '>':\n\t\treturn 0, \"\", \"EDIT_BLOCK_SCALAR\"", "case '|', '>':\n\t\tif false {\n\t\t\treturn 0, \"\", \"EDIT_BLOCK_SCALAR\"\n\t\t}")]),
     ("go", "a list element is found by its place, not by its identity", "sourcespan.go",
-     [("return code == \"\" && slices.Equal(got, id)", "return code == \"\"")]),
+     [("return code == \"\" && slices.Equal(got, id)", "return code == \"\" && (slices.Equal(got, id) || true)")]),
     ("go", "an expanded wrapper is not looked through", "sourcespan.go",
      [("if class, viol := classify(n, a); viol == nil && class == ClassExpanded {", "if class, viol := classify(n, a); viol == nil && class == ClassExpanded && false {")]),
     ("go", "a plain scalar that continues on the next line is called a defect", "sourcespan.go",
@@ -214,7 +215,7 @@ DEFECTS = [
     ("rust", "a default is inserted at a position whose logical path cannot be written", "src/expand.rs",
      [("            if let Err(e) = path_text(path) {\n                path.pop();\n                return Err(e);\n            }\n", "")]),
     ("go", "a default is inserted at a position whose logical path cannot be written", "expand.go",
-     [("if _, err := pathText(fp); err != nil { // the origin of an inserted value", "if false { // the origin of an inserted value")]),
+     [("if _, err := pathText(fp); err != nil { // the origin of an inserted value", "if _, err := pathText(fp); err != nil && false { // the origin of an inserted value")]),
     ("rust", "the object's own default is cut by its own reset", "src/resolve.rs",
      [("    if let Some(hit) = local_rule(cur, surface, op) {\n        return hit;", "    if let Some(hit) = local_rule(cur, surface, op).filter(|_| policy_mode(cur) != Some(Mode::Reset)) {\n        return hit;")]),
     ("go", "the object's own default is cut by its own reset", "resolve.go",
@@ -268,7 +269,7 @@ DEFECTS = [
     ("rust", "an indented marker inside a quoted scalar is a document marker", "src/parse.rs",
      [("            indent == 0\n        } else {", "            true\n        } else {")]),
     ("go", "the content of a block scalar is scanned for markers", "parse.go",
-     [("\t\t\t\tif blank || indent > block {", "\t\t\t\tif false {")]),
+     [("\t\t\t\tif blank || indent > block {", "\t\t\t\tif (blank || indent > block) && false {")]),
     ("go", "an indented marker inside a quoted scalar is a document marker", "parse.go",
      [("\t\t\trefused = indent == 0", "\t\t\trefused = true")]),
     ("go", "a syntax error in a second document is reported as a second document", "parse.go",
@@ -280,11 +281,11 @@ DEFECTS = [
     ("rust", "a default on a field that does not say optional is accepted", "src/schema.rs",
      [("if presence == Presence::Mandatory {", "if false {")]),
     ("rust", "an unknown grammar pin is read as a known one", "src/schema.rs",
-     [("None => return Err(Error::Binding(GRAMMAR_PIN_UNKNOWN)),", "None => Profile { item_choice: true },")]),
+     [("None => return Err(Error::Binding(GRAMMAR_PIN_UNKNOWN)),", "None => profiles[0].1,")]),
     ("rust", "item_choice is read under a grammar that does not define it", "src/schema.rs",
      [("if !self.profile.item_choice {", "if false {")]),
     ("rust", "a list without a key is accepted", "src/schema.rs",
-     [("if keys.is_empty() {", "if keys.is_empty() {\n            return Ok(());\n        }\n        if false {")]),
+     [("if keys.is_empty() {", "if keys.is_empty() && false {"), ("None if keys.len() == 1 => keys,", "None if keys.len() <= 1 => keys,")]),
     ("rust", "the scalar types number and bytes are read as unknown", "src/schema.rs",
      [("\"number\" | \"bytes\" => Err(problem(", "\"number_\" | \"bytes_\" => Err(problem(")]),
     ("rust", "an unpinned reference is accepted", "src/schema.rs",
@@ -294,11 +295,11 @@ DEFECTS = [
     ("go", "a default on a field that does not say optional is accepted", "schema.go",
      [("if s.Presence == Mandatory {", "if false {")]),
     ("go", "an unknown grammar pin is read as a known one", "schema.go",
-     [("profile, ok := profiles[in.Grammar]\n\tif !ok {", "profile, ok := profiles[in.Grammar]\n\tif false {")]),
+     [("profile, ok := profiles[in.Grammar]\n\tif !ok {", "profile, ok := profiles[in.Grammar]\n\tif !ok && false {")]),
     ("go", "item_choice is read under a grammar that does not define it", "schema.go",
      [("if !c.profile.ItemChoice {", "if false {")]),
     ("go", "a list without a key is accepted", "schema.go",
-     [("case len(keys) == 0:", "case len(keys) == 0:\n\t\treturn nil\n\tcase false:")]),
+     [("case len(keys) == 0:\n\t\treturn nil, schemaErr(SchemaInvalid, path, \"a list needs a key: one item_fields entry with role: key\")", "case len(keys) == 0:\n\t\torder = keys")]),
     ("go", "the scalar types number and bytes are read as unknown", "schema.go",
      [("if v.Str == \"number\" || v.Str == \"bytes\" {", "if false {")]),
     ("go", "an unpinned reference is accepted", "schema.go",
@@ -338,7 +339,7 @@ DEFECTS = [
     ("rust", "a value that would be read as expanded is shortened", "src/expand.rs",
      [("Some(value) if matches!(classify(value, a), Ok(Class::Short)) => value.clone(),", "Some(value) => value.clone(),")]),
     ("go", "an explicit policy setting is dropped by collapse", "expand.go",
-     [("if got := entry(n, k); got == nil || !got.Same(d) {", "if false {")]),
+     [("if got := entry(n, k); got == nil || !got.Same(d) {", "if got := entry(n, k); (got == nil || !got.Same(d)) && false {")]),
     ("go", "an authored expanded position is shortened", "expand.go",
      [("if authoredExpanded || basis == BasisBinding {", "if basis == BasisBinding {")]),
     ("go", "a binding_attested position is shortened", "expand.go",
@@ -474,9 +475,17 @@ def prepare(lang, tmp):
 
 def command(lang):
     if lang == "rust":
-        return ["cargo", "+stable", "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
+        return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
                 "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar"]
     return ["go", "test", "-count=1", "./..."]
+
+
+def build_command(lang):
+    """The same packages and test targets, built and not run: a defect the suites "catch" only because it does not build proves nothing
+    (#94); `go test` exits 1 for a build failure as for a failing test, and so does cargo."""
+    if lang == "rust":
+        return command(lang) + ["--no-run"]
+    return ["go", "test", "-vet=off", "-count=1", "-run", "^$", "./..."]
 
 
 def stale_only(langs, match):
@@ -565,8 +574,9 @@ def main():
                         fh.write(text)
                     r = run(command(lang), base, env)
                     caught = r.returncode != 0
-                    print("%-4s %-46s: %s" % (lang, name, "CAUGHT" if caught else "NOT CAUGHT"))
-                    bad += 0 if caught else 1
+                    builds = not caught or run(build_command(lang), base, env).returncode == 0
+                    print("%-4s %-46s: %s" % (lang, name, "NOT CAUGHT" if not caught else "CAUGHT" if builds else "DOES NOT BUILD (proves nothing)"))
+                    bad += 0 if caught and builds else 1
                     with open(path, "w", encoding="utf-8") as fh:
                         fh.write(original)
     print("SEEDED DEFECTS%s: %s" % ((" (partial: --match %s)" % match if match else "") + (" (shard %d/%d)" % shard if shard[1] > 1 else ""), "every defect is caught" if bad == 0 else "FAILED (%d)" % bad))

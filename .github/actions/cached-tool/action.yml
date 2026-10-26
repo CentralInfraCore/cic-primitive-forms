@@ -27,7 +27,7 @@ runs:
       run: |
         set -euo pipefail
         case "$KIND" in
-          cargo) bindir="$HOME/.cargo/bin"; compiler="$(rustc +stable --version)" ;;
+          cargo) bindir="$HOME/.cargo/bin"; compiler="$(rustc +"${RUST_TOOLCHAIN:-stable}" --version)" ;;
           go) bindir="$(go env GOPATH)/bin"; compiler="$(go version)"; echo "$bindir" >> "$GITHUB_PATH" ;;
           *) echo "unknown kind '$KIND'" >&2; exit 1 ;;
         esac

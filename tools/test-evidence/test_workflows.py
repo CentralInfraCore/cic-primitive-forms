@@ -319,6 +319,47 @@ class DiffShardTests(unittest.TestCase):
                 self.assertIn("steps.w.outputs.", s.get("if", ""), s)
 
 
+@unittest.skipIf(yaml is None, "no PyYAML")
+class ChainReviewTests(unittest.TestCase):
+    """#94: the toolchain is pinned in one place, the caches find their files, the gate knows the Go count, the nightly reports
+    every way it can fail and runs the FULL once per commit."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.nightly, self.ntext = load("nightly.yml")
+
+    def test_the_rust_toolchain_is_pinned_once_and_every_rust_job_installs_it(self):
+        self.assertRegex(self.p1["env"]["RUST_TOOLCHAIN"], r"^\d+\.\d+\.\d+$")
+        self.assertNotIn("+stable", self.text)
+        self.assertNotIn("install stable", self.text)
+        for name, job in self.p1["jobs"].items():
+            steps = str(job.get("steps", []))
+            if '+"$RUST_TOOLCHAIN"' in steps or "'kind': 'cargo'" in steps or "seeded_defects.py" in steps:
+                self.assertIn('toolchain install "$RUST_TOOLCHAIN"', steps, name)
+
+    def test_the_caches_find_their_files(self):
+        for name, job in self.p1["jobs"].items():
+            for s in job.get("steps", []):
+                if s.get("uses", "").startswith("actions/setup-go@"):
+                    self.assertEqual(s["with"].get("cache-dependency-path"), "go/go.sum", name)
+        self.assertIn("Swatinem/rust-cache@", self.text)
+
+    def test_the_gate_checks_the_go_count_of_the_plan(self):
+        for job in ("plan", "diff-plan"):
+            self.assertIn("go_mutants", self.p1["jobs"][job]["outputs"], job)
+        self.assertEqual(self.text.count('--go-expected "$GO_MUTANTS"'), 2)
+
+    def test_the_nightly_runs_once_per_commit_and_reports_every_failure(self):
+        changed = str(self.nightly["jobs"]["changed"]["steps"])
+        self.assertIn("nightly_last_full.py", changed)
+        self.assertNotIn("48 hours ago", changed)
+        cond = self.nightly["jobs"]["report"]["if"]
+        for part in ("needs.changed.result == 'failure'", "needs.changed.result == 'cancelled'", "needs.p1.result == 'cancelled'",
+                     "needs.corpus.result == 'cancelled'"):
+            self.assertIn(part, cond)
+        self.assertIn('git push origin --delete "$branch"', self.ntext)
+
+
 def _needs(job):
     n = job.get("needs", [])
     return [n] if isinstance(n, str) else n
