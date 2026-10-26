@@ -85,3 +85,10 @@ path = "fuzz_targets/diff.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "patch"
+path = "fuzz_targets/patch.rs"
+test = false
+doc = false
+bench = false

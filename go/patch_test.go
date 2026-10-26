@@ -195,13 +195,26 @@ func TestPatchAnEventOfAnotherKindThatCarriesBothValuesIsStillRefused(t *testing
 	}
 }
 
-func TestPatchAPositionWithNoValueInTheDocumentIsAbsent(t *testing.T) {
+func TestPatchAPositionSpelledWithNoValueHoldsNull(t *testing.T) {
 	str := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, Nullable: true}
 	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: diffFields("n", str)}
-	_, err := forms.Patch("n:\n", root, accessKeys, boundGrammar(t), forms.DiffContext{}, forms.DiffContext{}, forms.PatchDiff{Version: 1, Changes: []forms.DiffEvent{{Kind: forms.EventValueChange, Path: "$.n", Previous: &forms.Node{Kind: forms.KindNull}, Next: sval("x")}}})
+	run := func(text string, previous *forms.Node) error {
+		_, err := forms.Patch(text, root, accessKeys, boundGrammar(t), forms.DiffContext{}, forms.DiffContext{}, forms.PatchDiff{Version: 1, Changes: []forms.DiffEvent{{Kind: forms.EventValueChange, Path: "$.n", Previous: previous, Next: sval("x")}}})
+		return err
+	}
+	null := &forms.Node{Kind: forms.KindNull}
+	// `n:` holds null: with previous null the patch reaches the edit, which has no text to replace (found by the fuzzer: it used to say the position was absent)
 	var fe *forms.Error
-	if !errors.As(err, &fe) || fe.Code() != "PATCH_TARGET_ABSENT" || wireOf(fe.Violations[0]).loc != "1:1:0" {
-		t.Errorf("got %v", err)
+	if err := run("n:\n", null); !errors.As(err, &fe) || fe.Code() != "EDIT_NO_SOURCE_VALUE" || wireOf(fe.Violations[0]).phase != "edit" {
+		t.Errorf("previous null: %v", err)
+	}
+	// any other previous is a conflict, anchored at the enclosing structure because there is no value to point at
+	if err := run("n:\n", sval("y")); !errors.As(err, &fe) || fe.Code() != "PATCH_CONFLICT" || wireOf(fe.Violations[0]).loc != "1:1:0" {
+		t.Errorf("previous y: %v", err)
+	}
+	// a field the document does not spell at all is absent
+	if err := run("{}\n", null); !errors.As(err, &fe) || fe.Code() != "PATCH_TARGET_ABSENT" {
+		t.Errorf("absent: %v", err)
 	}
 }
 

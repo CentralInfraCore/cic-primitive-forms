@@ -1257,7 +1257,7 @@ fn patch_an_event_of_another_kind_that_carries_both_values_is_still_refused() {
 }
 
 #[test]
-fn patch_a_position_with_no_value_in_the_document_is_absent() {
+fn patch_a_position_spelled_with_no_value_holds_null() {
     let top = shape(
         ShapeType::Composite(vec![(
             "n".to_string(),
@@ -1266,15 +1266,32 @@ fn patch_a_position_with_no_value_in_the_document_is_absent() {
         false,
     );
     let c = DiffContext::default();
-    let d = PatchDiff {
-        version: 1,
-        changes: vec![vc("$.n", Node::new(Value::Null), string("x"))],
+    let run = |text: &str, previous: Node| {
+        let d = PatchDiff {
+            version: 1,
+            changes: vec![vc("$.n", previous, string("x"))],
+        };
+        patch(text, &top, &a(), grammar(), &c, &c, &d)
     };
-    match patch("n:\n", &top, &a(), grammar(), &c, &c, &d) {
+    // `n:` holds null: with previous null the patch reaches the edit, which has no text to replace (found by the fuzzer: it used to say the position was absent)
+    match run("n:\n", Node::new(Value::Null)) {
+        Err(Error::Contract(vs)) => assert_eq!(
+            (vs[0].code, vs[0].phase),
+            ("EDIT_NO_SOURCE_VALUE", Phase::Edit)
+        ),
+        other => panic!("{other:?}"),
+    }
+    // any other previous is a conflict, anchored at the enclosing structure because there is no value to point at
+    match run("n:\n", string("y")) {
         Err(Error::Contract(vs)) => assert_eq!(
             (vs[0].code, at(&vs[0])),
-            ("PATCH_TARGET_ABSENT", "1:1:0".to_string())
+            ("PATCH_CONFLICT", "1:1:0".to_string())
         ),
+        other => panic!("{other:?}"),
+    }
+    // a field the document does not spell at all is absent
+    match run("{}\n", Node::new(Value::Null)) {
+        Err(Error::Contract(vs)) => assert_eq!(vs[0].code, "PATCH_TARGET_ABSENT"),
         other => panic!("{other:?}"),
     }
 }
