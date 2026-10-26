@@ -463,3 +463,103 @@ func TestDiffTheCanonicalStrings(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffAFieldNameThatCannotBeWrittenIsRefused(t *testing.T) {
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: diffFields("a\nb", diffScalar(forms.ScalarString))}
+	doc := func(v string) *forms.Node {
+		return &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "a\nb", Value: &forms.Node{Kind: forms.KindStr, Str: v}}}}
+	}
+	empty := &forms.Node{Kind: forms.KindMap}
+	for _, c := range []struct{ a, b *forms.Node }{{doc("x"), doc("y")}, {empty, doc("y")}, {doc("x"), empty}} {
+		_, err := forms.Diff(diffView(c.a), diffView(c.b), root, accessKeys, boundGrammar(t), nil)
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+			t.Errorf("a position whose path cannot be written: %v", err)
+		}
+	}
+}
+
+func TestDiffAScopeBelowANullInOneOperandOnly(t *testing.T) {
+	null, ok := diffParse(t, "opt: null\n"), diffParse(t, "opt: {x: a}\n")
+	for name, pair := range map[string][2]*forms.Node{"a": {ok, null}, "b": {null, ok}} {
+		_, err := runDiff(t, pair[0], pair[1], []string{"$.opt.x"})
+		var fe *forms.Error
+		if !errors.As(err, &fe) || fe.Kind != forms.ErrUnsupported {
+			t.Errorf("null in %s: %v", name, err)
+		}
+	}
+}
+
+func TestDiffANullCollectionThatAppearsKeepsItsNull(t *testing.T) {
+	for _, field := range []string{"opt", "oset", "nics", "note"} {
+		got := diffCanonical(t, "mtu: 1\n", "mtu: 1\n"+field+": null\n", nil)
+		want := `{"changes":[{"kind":"added","next":{` + diffDflt + `,"value":null},"path":"$.` + field + `"}],"representation":[],"version":1}`
+		if got != want {
+			t.Errorf("%s:\n got %s\nwant %s", field, got, want)
+		}
+	}
+}
+
+func TestDiffEveryRemovedElementIsReportedAndTheRestIsStillCompared(t *testing.T) {
+	a := "ports:\n  - {port: 1, label: x}\n  - {port: 2, label: x}\n  - {port: 3, label: x}\n  - {port: 4, label: x}\n"
+	b := "ports:\n  - {port: 4, label: y}\n  - {port: 5, label: x}\n  - {port: 6, label: x}\n"
+	r, err := runDiff(t, diffParse(t, a), diffParse(t, b), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range r.Changes {
+		got = append(got, e.Kind+" "+e.Path)
+	}
+	want := []string{"removed $.ports[{port=1}]", "removed $.ports[{port=2}]", "removed $.ports[{port=3}]", "value_change $.ports[{port=4}].label", "added $.ports[{port=5}]", "added $.ports[{port=6}]"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestDiffASetThatOnlyLosesOrOnlyGainsOneElement(t *testing.T) {
+	for _, c := range []struct{ a, b, event string }{
+		{"ip: {addrs: [a, b]}\n", "ip: {addrs: [a]}\n", `{"added":[],"kind":"set_change","path":"$.ip.addrs","removed":["b"]}`},
+		{"ip: {addrs: [a]}\n", "ip: {addrs: [a, b]}\n", `{"added":["b"],"kind":"set_change","path":"$.ip.addrs","removed":[]}`},
+	} {
+		if got, want := diffCanonical(t, c.a, c.b, nil), `{"changes":[`+c.event+`],"representation":[],"version":1}`; got != want {
+			t.Errorf("got %s", got)
+		}
+	}
+}
+
+func TestDiffTheScopeKeepsEveryEntryThatIsNotInsideAnother(t *testing.T) {
+	a, b := "mtu: 1\nname: x\nip: {gw: g1}\n", "mtu: 2\nname: y\nip: {gw: g2}\n"
+	all := diffCanonical(t, a, b, nil)
+	for _, scope := range [][]string{{"$.mtu", "$.name", "$.ip.gw"}, {"$.ip.gw", "$.name", "$.mtu"}, {"$.mtu", "$.ip", "$.name"}} {
+		if got := diffCanonical(t, a, b, scope); got != all {
+			t.Errorf("%v:\n got %s\nwant %s", scope, got, all)
+		}
+	}
+	if got := diffCanonical(t, a, b, []string{"$.mtu", "$.ip.gw"}); got == all || got == diffCanonical(t, a, b, []string{"$.mtu"}) || got == diffCanonical(t, a, b, []string{"$.ip.gw"}) {
+		t.Errorf("two entries, neither inside the other: %s", got)
+	}
+}
+
+func TestDiffAnUnsupportedNumberAfterEntriesThatAreClean(t *testing.T) {
+	flt := &forms.Node{Kind: forms.KindUnsupported, Str: "1.5"}
+	str := &forms.Node{Kind: forms.KindStr, Str: "n"}
+	clean := diffParse(t, "mtu: 1\n")
+	cases := []struct {
+		name string
+		doc  *forms.Node
+		path string
+	}{
+		{"as the value of a list position", &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "nics", Value: flt}}}, "$.nics"},
+		{"in a later element after one without an identity", &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "nics", Value: &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{
+			{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "name", Value: str}}},
+			{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "name", Value: str}, {Key: "zone", Value: str}, {Key: "subnet", Value: flt}}},
+		}}}}}, `$.nics[{name="n",zone="n"}].subnet`},
+		{"after an undeclared key that is clean", &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "bogus", Value: str}, {Key: "mtu", Value: flt}}}, "$.mtu"},
+	}
+	for _, c := range cases {
+		if w, operand := diffRefusal(t, c.doc, clean, nil); w.code != "DIFF_UNSUPPORTED_VALUE" || w.path != c.path || operand != "a" {
+			t.Errorf("%s: %v %q", c.name, w, operand)
+		}
+	}
+}

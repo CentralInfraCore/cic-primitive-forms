@@ -117,18 +117,27 @@ func holdsUnsupported(n *Node) bool {
 // field names; ok is false when there is none. A value the schema does not describe at the place (an undeclared key, a list element without an
 // identity) is named by the position above it.
 func unsupportedBelow(v *Node, shape Shape, path []seg, a []string) (found []seg, ok bool) {
-	fields := shape.Fields
-	var elements *Elements
 	switch {
-	case shape.Kind == ShapeComposite && v.Kind == KindMap:
-	case shape.Kind == ShapeDeclaredList && v.Kind == KindSeq && shape.Elements != nil:
-		elements = shape.Elements
-	default:
-		return path, holdsUnsupported(v)
-	}
-	if elements != nil {
+	case v.Kind == KindMap:
+		// (a mapping where the schema declares no fields is read with none: every key is undeclared and names the position above)
+		entries := slices.Clone(v.Entries)
+		slices.SortFunc(entries, func(x, y Entry) int { return strings.Compare(x.Key, y.Key) })
+		for _, e := range entries {
+			i := slices.IndexFunc(shape.Fields, func(f NamedShape) bool { return f.Name == e.Key })
+			if i < 0 {
+				if holdsUnsupported(e.Value) {
+					return path, true
+				}
+				continue
+			}
+			if p, ok := unsupportedAt(e.Value, shape.Fields[i].Shape, append(slices.Clone(path), seg{field: e.Key}), a); ok {
+				return p, true
+			}
+		}
+		return nil, false
+	case v.Kind == KindSeq && shape.Elements != nil: // only a declared list has elements
 		for _, it := range v.Items {
-			c, id, code, _ := identify(it, elements, a)
+			c, id, code, _ := identify(it, shape.Elements, a)
 			if code != "" {
 				if holdsUnsupported(it) {
 					return path, true
@@ -141,21 +150,7 @@ func unsupportedBelow(v *Node, shape Shape, path []seg, a []string) (found []seg
 		}
 		return nil, false
 	}
-	entries := slices.Clone(v.Entries)
-	slices.SortFunc(entries, func(x, y Entry) int { return strings.Compare(x.Key, y.Key) })
-	for _, e := range entries {
-		i := slices.IndexFunc(fields, func(f NamedShape) bool { return f.Name == e.Key })
-		if i < 0 {
-			if holdsUnsupported(e.Value) {
-				return path, true
-			}
-			continue
-		}
-		if p, ok := unsupportedAt(e.Value, fields[i].Shape, append(slices.Clone(path), seg{field: e.Key}), a); ok {
-			return p, true
-		}
-	}
-	return nil, false
+	return path, holdsUnsupported(v)
 }
 
 // unsupportedAt looks at one position: through an expanded wrapper at its value, and at the other members of the wrapper as a whole.
@@ -223,9 +218,10 @@ func segsOf(p []PathSeg) []seg {
 	return out
 }
 
+// hasPrefix says whether path starts with prefix, which is not longer than path.
 func hasPrefix(path, prefix []seg) bool {
 	for i, s := range prefix {
-		if i >= len(path) || path[i].key() != s.key() {
+		if path[i].key() != s.key() {
 			return false
 		}
 	}

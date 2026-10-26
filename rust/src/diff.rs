@@ -169,8 +169,13 @@ fn holds_unsupported(n: &Node) -> bool {
 /// The logical path of the first position of the value `v` that holds an unsupported number, in the order of the field names. A value the
 /// schema does not describe at the place (an undeclared key, a list element without an identity) is named by the position above it.
 fn unsupported_below(v: &Node, shape: &Shape, path: &Path, a: &[String]) -> Option<Path> {
-    match (&shape.shape_type, &v.value) {
-        (ShapeType::Composite(fields), Value::Map(entries)) => {
+    match (&v.value, &shape.shape_type) {
+        (Value::Map(entries), shape_type) => {
+            // (a mapping where the schema declares no fields is read with none: every key is undeclared and names the position above)
+            let fields: &[(String, Shape)] = match shape_type {
+                ShapeType::Composite(fields) => fields,
+                _ => &[],
+            };
             let mut sorted: Vec<&Entry> = entries.iter().collect();
             sorted.sort_by(|x, y| x.key.cmp(&y.key));
             for e in sorted {
@@ -191,7 +196,7 @@ fn unsupported_below(v: &Node, shape: &Shape, path: &Path, a: &[String]) -> Opti
             }
             None
         }
-        (ShapeType::DeclaredList { elements, .. }, Value::Seq(items)) => {
+        (Value::Seq(items), ShapeType::DeclaredList { elements, .. }) => {
             for it in items {
                 match identify(it, elements, a) {
                     Err(_) => {

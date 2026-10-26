@@ -783,3 +783,150 @@ fn the_canonical_strings() {
         );
     }
 }
+
+#[test]
+fn a_field_name_that_cannot_be_written_is_refused() {
+    let top = shape(
+        ShapeType::Composite(vec![("a\nb".to_string(), scalar(ScalarType::String))]),
+        false,
+    );
+    let doc = |v: &str| Node::map(vec![("a\nb", string(v))]);
+    let empty = Node::map(vec![]);
+    for (x, y) in [
+        (doc("x"), doc("y")),
+        (empty.clone(), doc("y")),
+        (doc("x"), empty),
+    ] {
+        let r = diff(&view(&x), &view(&y), &top, &a(), grammar(), None);
+        assert!(matches!(r, Err(Error::Unsupported(_))), "{r:?}");
+    }
+}
+
+#[test]
+fn a_scope_below_a_null_in_one_operand_only() {
+    let null = doc("opt: null\n");
+    let ok = doc("opt: {x: a}\n");
+    for (x, y) in [(&ok, &null), (&null, &ok)] {
+        assert!(matches!(
+            run(x, y, Some(&["$.opt.x"])),
+            Err(Error::Unsupported(_))
+        ));
+    }
+}
+
+#[test]
+fn a_null_collection_that_appears_keeps_its_null() {
+    for field in ["opt", "oset", "nics", "note"] {
+        assert_eq!(
+            canonical("mtu: 1\n", &format!("mtu: 1\n{field}: null\n"), None),
+            format!(
+                r#"{{"changes":[{{"kind":"added","next":{{{DFLT},"value":null}},"path":"$.{field}"}}],"representation":[],"version":1}}"#
+            )
+        );
+    }
+}
+
+#[test]
+fn every_removed_element_is_reported_and_the_rest_is_still_compared() {
+    let x = "ports:\n  - {port: 1, label: x}\n  - {port: 2, label: x}\n  - {port: 3, label: x}\n  - {port: 4, label: x}\n";
+    let y = "ports:\n  - {port: 4, label: y}\n  - {port: 5, label: x}\n  - {port: 6, label: x}\n";
+    let r = run(&doc(x), &doc(y), None).unwrap();
+    let got: Vec<String> = r
+        .changes
+        .iter()
+        .map(|e| format!("{} {}", e.kind.as_str(), e.path))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            "removed $.ports[{port=1}]",
+            "removed $.ports[{port=2}]",
+            "removed $.ports[{port=3}]",
+            "value_change $.ports[{port=4}].label",
+            "added $.ports[{port=5}]",
+            "added $.ports[{port=6}]"
+        ]
+    );
+}
+
+#[test]
+fn a_set_that_only_loses_or_only_gains_one_element() {
+    for (x, y, event) in [
+        (
+            "ip: {addrs: [a, b]}\n",
+            "ip: {addrs: [a]}\n",
+            r#"{"added":[],"kind":"set_change","path":"$.ip.addrs","removed":["b"]}"#,
+        ),
+        (
+            "ip: {addrs: [a]}\n",
+            "ip: {addrs: [a, b]}\n",
+            r#"{"added":["b"],"kind":"set_change","path":"$.ip.addrs","removed":[]}"#,
+        ),
+    ] {
+        assert_eq!(
+            canonical(x, y, None),
+            format!(r#"{{"changes":[{event}],"representation":[],"version":1}}"#)
+        );
+    }
+}
+
+#[test]
+fn the_scope_keeps_every_entry_that_is_not_inside_another() {
+    let x = "mtu: 1\nname: x\nip: {gw: g1}\n";
+    let y = "mtu: 2\nname: y\nip: {gw: g2}\n";
+    let all = canonical(x, y, None);
+    for scope in [
+        vec!["$.mtu", "$.name", "$.ip.gw"],
+        vec!["$.ip.gw", "$.name", "$.mtu"],
+        vec!["$.mtu", "$.ip", "$.name"],
+    ] {
+        assert_eq!(canonical(x, y, Some(&scope)), all, "{scope:?}");
+    }
+    let two = canonical(x, y, Some(&["$.mtu", "$.ip.gw"]));
+    assert!(
+        two != all
+            && two != canonical(x, y, Some(&["$.mtu"]))
+            && two != canonical(x, y, Some(&["$.ip.gw"]))
+    );
+}
+
+#[test]
+fn an_unsupported_number_after_entries_that_are_clean() {
+    let flt = || unsupported("1.5");
+    let clean = doc("mtu: 1\n");
+    let cases: Vec<(&str, Node, &str)> = vec![
+        (
+            "as the value of a list position",
+            Node::map(vec![("nics", flt())]),
+            "$.nics",
+        ),
+        (
+            "in a later element after one without an identity",
+            Node::map(vec![(
+                "nics",
+                seq(vec![
+                    Node::map(vec![("name", string("n"))]),
+                    Node::map(vec![
+                        ("name", string("n")),
+                        ("zone", string("n")),
+                        ("subnet", flt()),
+                    ]),
+                ]),
+            )]),
+            r#"$.nics[{name="n",zone="n"}].subnet"#,
+        ),
+        (
+            "after an undeclared key that is clean",
+            Node::map(vec![("bogus", string("n")), ("mtu", flt())]),
+            "$.mtu",
+        ),
+    ];
+    for (name, bad, path) in cases {
+        let v = refusal(&bad, &clean, None);
+        assert_eq!(
+            (v.code, v.logical_path.as_deref(), v.operand),
+            ("DIFF_UNSUPPORTED_VALUE", Some(path), Some("a")),
+            "{name}"
+        );
+    }
+}

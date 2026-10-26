@@ -3,6 +3,7 @@ package forms
 import (
 	"cmp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -23,8 +24,8 @@ func (s slot) fieldsOf() (rec *Node, ok bool) {
 	if s.record {
 		return s.node, true
 	}
-	v := entry(s.node, valueKey)
-	return v, v != nil && v.Kind == KindMap
+	v := entry(s.node, valueKey) // (an expanded position always has its value)
+	return v, v.Kind == KindMap
 }
 
 // descend walks the path below s in an expanded tree. found is false when the tree does not have the place; a place below a null or
@@ -45,21 +46,18 @@ func descend(s slot, path []seg, a []string) (slot, bool, error) {
 			continue
 		}
 		list := entry(s.node, valueKey)
-		if list == nil || list.Kind != KindSeq || s.shape.Elements == nil {
+		if list.Kind != KindSeq {
 			return slot{}, false, unsupported("a list element below a value that is not a list")
 		}
-		var next *slot
-		for _, it := range list.Items {
-			c, id, code, _ := identify(it, s.shape.Elements, a)
-			if code == "" && (seg{item: id, isItem: true}).key() == sg.key() {
-				next = &slot{node: it, shape: Shape{Kind: ShapeComposite, Fields: c.Fields}, record: true}
-				break
-			}
-		}
-		if next == nil {
+		i := slices.IndexFunc(list.Items, func(it *Node) bool {
+			_, id, code, _ := identify(it, s.shape.Elements, a)
+			return code == "" && (seg{item: id, isItem: true}).key() == sg.key()
+		})
+		if i < 0 {
 			return slot{}, false, nil
 		}
-		s = *next
+		c, _, _, _ := identify(list.Items[i], s.shape.Elements, a)
+		s = slot{node: list.Items[i], shape: Shape{Kind: ShapeComposite, Fields: c.Fields}, record: true}
 	}
 	return s, true, nil
 }
@@ -275,18 +273,11 @@ func compareScalars(x, y *Node) int {
 	}
 	switch x.Kind {
 	case KindBool:
-		return cmp.Compare(boolInt(x.Bool), boolInt(y.Bool))
+		return strings.Compare(strconv.FormatBool(x.Bool), strconv.FormatBool(y.Bool)) // "false" sorts before "true"
 	case KindInt:
 		return cmp.Compare(x.Int, y.Int)
 	case KindStr:
 		return strings.Compare(x.Str, y.Str)
-	}
-	return 0
-}
-
-func boolInt(b bool) int {
-	if b {
-		return 1
 	}
 	return 0
 }
