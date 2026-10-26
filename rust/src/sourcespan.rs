@@ -91,7 +91,12 @@ pub(crate) struct Found<'n, 'r> {
     pub(crate) shape: Option<&'r Shape>,
 }
 
-fn locate<'n, 'r>(doc: &'n Node, root: &'r Shape, segs: &[PathSeg], a: &[String]) -> Found<'n, 'r> {
+pub(crate) fn locate<'n, 'r>(
+    doc: &'n Node,
+    root: &'r Shape,
+    segs: &[PathSeg],
+    a: &[String],
+) -> Found<'n, 'r> {
     let mut fields: &'r [(String, Shape)] = match &root.shape_type {
         ShapeType::Composite(f) => f,
         _ => &[],

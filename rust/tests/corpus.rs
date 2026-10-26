@@ -12,9 +12,10 @@ use std::path::PathBuf;
 
 use cic_primitive_forms::{
     collapse_position, diff, edit_parsed, edit_scalar, emit, expand_position, format_path, parse,
-    parse_path, path_of, recognize, resolve_path, source_span, Case, Class, Context, DiffContext,
-    DiffView, Elements, Error, KeyComp, KeyValue, Location, Node, PathSeg, Phase, Position,
-    Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
+    parse_path, patch, path_of, recognize, resolve_path, source_span, Case, Class, Context,
+    DiffContext, DiffView, Elements, Error, EventKind, KeyComp, KeyValue, Location, Node,
+    PatchDiff, PatchEvent, PathSeg, Phase, Position, Presence, ScalarType, Shape, ShapeType, Step,
+    Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -149,6 +150,7 @@ fn wire(v: &Violation) -> Wire {
         Phase::PathResolve => "path_resolve",
         Phase::Edit => "edit",
         Phase::Diff => "diff",
+        Phase::Patch => "patch",
     };
     let loc = match v.location {
         Location::Unavailable => "unavailable".to_string(),
@@ -803,6 +805,7 @@ fn the_run_and_not_run_accounting_is_exact() {
                 || kind == "source_span"
                 || kind == "edit"
                 || is_diff_run(kind)
+                || kind == "patch"
             {
                 *run.entry(key).or_default() += 1;
             } else {
@@ -2027,4 +2030,158 @@ fn diff_cases_match_the_corpus() {
         }
     }
     assert_eq!(ran, 66, "the corpus has 62 diff and 4 diff_stability cases");
+}
+
+// ---------------------------------------------------------------------------
+// patch (ADR 0013): the first unit of applying a diff, as exact text with the replaced scalars and their spans, or the one error.
+
+fn patch_event_kind(name: &str) -> EventKind {
+    match name {
+        "added" => EventKind::Added,
+        "removed" => EventKind::Removed,
+        "value_change" => EventKind::ValueChange,
+        "policy_declaration_change" => EventKind::PolicyDeclarationChange,
+        _ => EventKind::SetChange,
+    }
+}
+
+/// The structured `changes` of the diff of a case as events; the typed values `{type, value}` are their plain values.
+fn patch_events(diff: &YamlOwned) -> Vec<PatchEvent> {
+    let plain = |c: &YamlOwned, key: &str| get(c, key).and_then(|v| get(v, "value")).map(diff_node);
+    get(diff, "changes")
+        .and_then(YamlOwned::as_vec)
+        .map(|changes| {
+            changes
+                .iter()
+                .map(|c| PatchEvent {
+                    kind: patch_event_kind(text(get(c, "kind").expect("kind"), "kind")),
+                    path: text(get(c, "path").expect("path"), "path").to_string(),
+                    previous: plain(c, "previous"),
+                    next: plain(c, "next"),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The version the canonical bytes of the diff say.
+fn patch_version(diff: &YamlOwned) -> i64 {
+    let bytes = text(get(diff, "canonical").expect("canonical"), "canonical");
+    let json: serde_json::Value =
+        serde_json::from_str(bytes).expect("the canonical bytes of a diff");
+    json["version"].as_i64().expect("version")
+}
+
+fn patch_context(case: &YamlOwned, key: &str) -> DiffContext {
+    let s = get(case, key)
+        .or_else(|| get(case, "schema"))
+        .expect("schema");
+    DiffContext {
+        schema: text(
+            get(get(s, "synthetic").expect("synthetic"), "tree").expect("tree"),
+            "tree",
+        )
+        .to_string(),
+        ..DiffContext::default()
+    }
+}
+
+#[test]
+fn patch_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "patch" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            ran += 1;
+            let tree = text(
+                get(
+                    get(get(case, "schema").expect("schema"), "synthetic").expect("synthetic"),
+                    "tree",
+                )
+                .expect("tree"),
+                "tree",
+            );
+            let root = path_shape(
+                ShapeType::Composite(tree_fields(
+                    get(get(&suite, "trees").expect("trees"), tree).expect("tree"),
+                    &[],
+                )),
+                true,
+            );
+            let diff = get(case, "diff").expect("diff");
+            let d = PatchDiff {
+                version: patch_version(diff),
+                changes: patch_events(diff),
+            };
+            let got = patch(
+                &source_of(case),
+                &root,
+                &a(),
+                bound_grammar(),
+                &patch_context(case, "schema"),
+                &patch_context(case, "context"),
+                &d,
+            );
+            let expect = get(case, "expect").expect("expect");
+            if get(expect, "errors").is_some() {
+                match got {
+                    Err(Error::Contract(vs)) => assert_eq!(
+                        vs.iter().map(wire).collect::<Vec<_>>(),
+                        expected_edit_wires(expect),
+                        "{id}"
+                    ),
+                    other => panic!("{id}: an error of the contract was expected, got {other:?}"),
+                }
+                continue;
+            }
+            let res = got.unwrap_or_else(|e| panic!("{id}: a patch was expected, got {e:?}"));
+            let want = match get(expect, "output_yaml") {
+                Some(y) => text(y, "output_yaml").to_string(),
+                None => hex_text(text(
+                    get(expect, "output_hex").expect("output"),
+                    "output_hex",
+                )),
+            };
+            assert_eq!(res.text, want, "{id}");
+            let replaced: Vec<&str> = get(expect, "replaced")
+                .and_then(YamlOwned::as_vec)
+                .expect("replaced")
+                .iter()
+                .map(|p| text(p, "path"))
+                .collect();
+            assert_eq!(
+                res.replaced.iter().map(String::as_str).collect::<Vec<_>>(),
+                replaced,
+                "{id}"
+            );
+            let spans = get(expect, "spans")
+                .and_then(YamlOwned::as_vec)
+                .expect("spans");
+            assert_eq!(res.spans.len(), spans.len(), "{id}");
+            for (got, want) in res.spans.iter().zip(spans) {
+                let pair = |k: &str| {
+                    let s = get(want, k).expect(k);
+                    let n = |f: &str| {
+                        usize::try_from(get(s, f).and_then(YamlOwned::as_integer).expect(f))
+                            .expect("offset")
+                    };
+                    (n("start"), n("end"))
+                };
+                assert_eq!(
+                    got.path,
+                    text(get(want, "path").expect("path"), "path"),
+                    "{id}"
+                );
+                assert_eq!((got.before.start, got.before.end), pair("before"), "{id}");
+                assert_eq!((got.after.start, got.after.end), pair("after"), "{id}");
+            }
+        }
+    }
+    assert_eq!(ran, 60, "the 60 patch cases of corpus/patch");
 }

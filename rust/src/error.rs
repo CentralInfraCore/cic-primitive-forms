@@ -18,6 +18,8 @@ pub enum Phase {
     Edit,
     /// The phase of `diff` itself (ADR 0008): the contexts of the views differ, or a view holds a value the diff refuses.
     Diff,
+    /// The phase of `patch` itself (ADR 0013).
+    Patch,
 }
 
 impl Phase {
@@ -33,6 +35,7 @@ impl Phase {
             Phase::PathResolve => "path_resolve",
             Phase::Edit => "edit",
             Phase::Diff => "diff",
+            Phase::Patch => "patch",
         }
     }
 }

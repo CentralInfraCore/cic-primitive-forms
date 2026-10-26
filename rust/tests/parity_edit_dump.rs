@@ -110,6 +110,7 @@ fn phase(p: Phase) -> &'static str {
         Phase::PathResolve => "path_resolve",
         Phase::Edit => "edit",
         Phase::Diff => "diff",
+        Phase::Patch => "patch",
     }
 }
 
