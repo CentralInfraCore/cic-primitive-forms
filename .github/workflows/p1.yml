@@ -54,7 +54,8 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: python3 tools/test-evidence/evidence.py pins
       - run: python3 tools/test-evidence/evidence.py selftest
-      - run: python3 tools/test-evidence/seeded.py
+      # the 97 defects in 4 processes side by side on the runner's cores (#98): one job, the same required check name
+      - run: python3 tools/test-evidence/seeded.py --parallel 4
       - run: CIC_REQUIRE_GH_ATTESTATION=1 python3 tools/test-evidence/evidence.py check-gh
   rust:
     runs-on: ubuntu-latest
