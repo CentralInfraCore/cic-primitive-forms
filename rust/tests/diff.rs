@@ -944,3 +944,375 @@ fn a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_comp
     let v = refusal(&bad, &doc("mtu: 1\n"), None);
     assert_eq!(v.logical_path.as_deref(), Some("$.ip.gw"));
 }
+
+// ---- patch (ADR 0013) at the places a vector of corpus/patch cannot reach; the Go peer is go/patch_test.go --------------------------------------
+
+use cic_primitive_forms::{patch, EventKind, PatchDiff, PatchEvent, PatchResult};
+
+const PATCH_DOC: &str = "mtu: 1\nname: a\nip:\n  gw: g\nports:\n  - port: 1\n    label: x\n  - port: 9\n    label: y\nvlans:\n  - ref: r\n  - vlan_id: 7\n    mode: m\nnics:\n  - name: n\n    zone: z\n    subnet: s\n";
+
+fn vc(path: &str, previous: Node, next: Node) -> PatchEvent {
+    PatchEvent {
+        kind: EventKind::ValueChange,
+        path: path.to_string(),
+        previous: Some(previous),
+        next: Some(next),
+    }
+}
+
+fn run_patch(text: &str, changes: Vec<PatchEvent>) -> Result<PatchResult, Error> {
+    let c = DiffContext::default();
+    patch(
+        text,
+        &root(),
+        &a(),
+        grammar(),
+        &c,
+        &c,
+        &PatchDiff {
+            version: 1,
+            changes,
+        },
+    )
+}
+
+fn patch_refusal(text: &str, changes: Vec<PatchEvent>) -> Violation {
+    match run_patch(text, changes) {
+        Err(Error::Contract(vs)) => {
+            assert_eq!(vs.len(), 1);
+            vs[0].clone()
+        }
+        other => panic!("expected one contract error, got {other:?}"),
+    }
+}
+
+fn at(v: &Violation) -> String {
+    match v.location {
+        cic_primitive_forms::Location::At(p) => format!("{}:{}:{}", p.line, p.column, p.offset),
+        cic_primitive_forms::Location::NotApplicable => "not_applicable".to_string(),
+        cic_primitive_forms::Location::Unavailable => "unavailable".to_string(),
+    }
+}
+
+#[test]
+fn patch_applying_and_the_spans() {
+    let res = run_patch(
+        PATCH_DOC,
+        vec![
+            vc("$.mtu", int(1), int(12345)),
+            vc("$.name", string("a"), string("bcd")),
+            vc("$.ports[{port=9}].label", string("y"), string("yy")),
+            vc(
+                r#"$.nics[{name="n",zone="z"}].subnet"#,
+                string("s"),
+                string("t"),
+            ),
+            vc("$.vlans[{vlan_id=7}].mode", string("m"), string("n")),
+        ],
+    )
+    .unwrap();
+    let want = "mtu: 12345\nname: bcd\nip:\n  gw: g\nports:\n  - port: 1\n    label: x\n  - port: 9\n    label: yy\nvlans:\n  - ref: r\n  - vlan_id: 7\n    mode: n\nnics:\n  - name: n\n    zone: z\n    subnet: t\n";
+    assert_eq!(res.text, want);
+    assert_eq!(
+        res.replaced,
+        [
+            "$.mtu",
+            "$.name",
+            "$.ports[{port=9}].label",
+            r#"$.nics[{name="n",zone="z"}].subnet"#,
+            "$.vlans[{vlan_id=7}].mode"
+        ]
+    );
+    for sp in &res.spans {
+        assert_eq!(
+            sp.before,
+            cic_primitive_forms::source_span(PATCH_DOC, &root(), &sp.path, &a()).unwrap()
+        );
+        assert_eq!(
+            sp.after,
+            cic_primitive_forms::source_span(&res.text, &root(), &sp.path, &a()).unwrap()
+        );
+    }
+    assert_eq!(res.spans[0].after.end - res.spans[0].after.start, 5);
+    // the same diff on its own result is a conflict; the empty diff is the identity
+    let v = patch_refusal(&res.text, vec![vc("$.mtu", int(1), int(12345))]);
+    assert_eq!(
+        (v.code, v.logical_path.as_deref()),
+        ("PATCH_CONFLICT", Some("$.mtu"))
+    );
+    let same = run_patch(PATCH_DOC, vec![]).unwrap();
+    assert!(same.text == PATCH_DOC && same.replaced.is_empty() && same.spans.is_empty());
+    // an event whose next is its previous is accepted and moves nothing
+    let noop = run_patch(PATCH_DOC, vec![vc("$.mtu", int(1), int(1))]).unwrap();
+    assert!(noop.text == PATCH_DOC && noop.replaced == ["$.mtu"]);
+}
+
+#[test]
+fn patch_the_key_components_and_the_targets_it_refuses() {
+    for path in [
+        "$.ports[{port=1}].port",
+        r#"$.vlans[{ref="r"}].ref"#,
+        "$.vlans[{vlan_id=7}].vlan_id",
+        r#"$.nics[{name="n",zone="z"}].name"#,
+        r#"$.nics[{name="n",zone="z"}].zone"#,
+        "$.ip",
+        "$.ip.addrs",
+        "$.ports",
+        "$.note",
+        "$.ports[{port=1}]",
+    ] {
+        let v = patch_refusal(PATCH_DOC, vec![vc(path, string("x"), string("y"))]);
+        assert_eq!(
+            (v.code, v.phase, at(&v), v.logical_path.as_deref()),
+            (
+                "PATCH_UNSUPPORTED_EVENT",
+                Phase::Patch,
+                "not_applicable".to_string(),
+                Some(path)
+            ),
+            "{path}"
+        );
+    }
+    for (path, previous) in [
+        ("$.ip.gw", "g"),
+        ("$.ports[{port=1}].label", "x"),
+        (r#"$.nics[{name="n",zone="z"}].subnet"#, "s"),
+        ("$.vlans[{vlan_id=7}].mode", "m"),
+    ] {
+        assert!(
+            run_patch(PATCH_DOC, vec![vc(path, string(previous), string("q"))]).is_ok(),
+            "{path}"
+        );
+    }
+    // a value change that does not carry both values
+    for e in [
+        PatchEvent {
+            kind: EventKind::ValueChange,
+            path: "$.mtu".into(),
+            previous: None,
+            next: Some(int(2)),
+        },
+        PatchEvent {
+            kind: EventKind::ValueChange,
+            path: "$.mtu".into(),
+            previous: Some(int(1)),
+            next: None,
+        },
+    ] {
+        assert_eq!(
+            patch_refusal(PATCH_DOC, vec![e]).code,
+            "PATCH_UNSUPPORTED_EVENT"
+        );
+    }
+}
+
+#[test]
+fn patch_the_order_of_the_checks_across_events() {
+    let absent = || {
+        vc(
+            r#"$.nics[{name="zz",zone="z"}].subnet"#,
+            string("s"),
+            string("t"),
+        )
+    };
+    let conflict = || vc("$.mtu", int(2), int(3));
+    let bad_path = || vc("$.nope", int(1), int(2));
+    let unsupported = || PatchEvent {
+        kind: EventKind::SetChange,
+        path: "$.ip.addrs".into(),
+        previous: None,
+        next: None,
+    };
+    let v = patch_refusal(PATCH_DOC, vec![conflict(), bad_path(), unsupported()]);
+    assert_eq!(
+        (v.code, v.logical_path.as_deref()),
+        ("PATCH_UNSUPPORTED_EVENT", Some("$.ip.addrs"))
+    );
+    let v = patch_refusal(PATCH_DOC, vec![absent(), conflict(), bad_path()]);
+    assert_eq!(
+        (v.code, v.phase, v.logical_path.as_deref()),
+        ("UNKNOWN_FIELD", Phase::PathResolve, Some("$.nope"))
+    );
+    let v = patch_refusal(PATCH_DOC, vec![absent(), conflict()]);
+    assert_eq!(
+        (v.code, at(&v)),
+        ("PATCH_TARGET_ABSENT", "15:3:137".to_string())
+    );
+    let v = patch_refusal(PATCH_DOC, vec![conflict(), absent()]);
+    assert_eq!(
+        (v.code, v.logical_path.as_deref(), at(&v)),
+        ("PATCH_CONFLICT", Some("$.mtu"), "1:6:5".to_string())
+    );
+    let v = patch_refusal("name: a\n", vec![vc("$.mtu", int(1), int(2))]);
+    assert_eq!(
+        (v.code, at(&v)),
+        ("PATCH_TARGET_ABSENT", "1:1:0".to_string())
+    );
+    assert_eq!(
+        patch_refusal(PATCH_DOC, vec![vc("$.mtu", string("1"), int(2))]).code,
+        "PATCH_CONFLICT"
+    );
+    assert_eq!(
+        patch_refusal(PATCH_DOC, vec![vc("$.", int(1), int(2))]).phase,
+        Phase::PathParse
+    );
+}
+
+#[test]
+fn patch_the_context_and_the_earlier_phases() {
+    let base = DiffContext {
+        schema: "s".into(),
+        schema_digest: "d".into(),
+        grammar: "g".into(),
+        grammar_digest: "gd".into(),
+        surface: "x".into(),
+    };
+    let run = |text: &str, schema: &DiffContext, context: &DiffContext, version: i64| {
+        patch(
+            text,
+            &root(),
+            &a(),
+            grammar(),
+            schema,
+            context,
+            &PatchDiff {
+                version,
+                changes: vec![],
+            },
+        )
+    };
+    let variants = [
+        DiffContext {
+            schema: "t".into(),
+            ..base.clone()
+        },
+        DiffContext {
+            schema_digest: "t".into(),
+            ..base.clone()
+        },
+        DiffContext {
+            grammar: "t".into(),
+            ..base.clone()
+        },
+        DiffContext {
+            grammar_digest: "t".into(),
+            ..base.clone()
+        },
+        DiffContext {
+            surface: "t".into(),
+            ..base.clone()
+        },
+    ];
+    for (i, other) in variants.iter().enumerate() {
+        match run(PATCH_DOC, &base, other, 1) {
+            Err(Error::Contract(vs)) => assert_eq!(
+                (vs[0].code, vs[0].phase, vs[0].logical_path.clone()),
+                ("PATCH_CONTEXT_MISMATCH", Phase::Patch, None),
+                "context {i}"
+            ),
+            other => panic!("context {i}: {other:?}"),
+        }
+    }
+    for version in [0, 2, -1] {
+        assert_eq!(
+            run(PATCH_DOC, &base, &base, version).unwrap_err().code(),
+            "PATCH_CONTEXT_MISMATCH",
+            "version {version}"
+        );
+    }
+    assert!(run(PATCH_DOC, &base, &base, 1).is_ok());
+    for (src, code) in [
+        ("a: 1\na: 2\n", "DUPLICATE_KEY"),
+        ("bogus: 1\n", "UNKNOWN_FIELD"),
+    ] {
+        assert_eq!(
+            run(src, &base, &variants[0], 9).unwrap_err().code(),
+            code,
+            "{src:?}"
+        );
+    }
+}
+
+#[test]
+fn patch_an_event_of_another_kind_that_carries_both_values_is_still_refused() {
+    for kind in [
+        EventKind::Added,
+        EventKind::Removed,
+        EventKind::PolicyDeclarationChange,
+        EventKind::SetChange,
+    ] {
+        let e = PatchEvent {
+            kind,
+            path: "$.mtu".into(),
+            previous: Some(int(1)),
+            next: Some(int(2)),
+        };
+        let v = patch_refusal(PATCH_DOC, vec![e]);
+        assert_eq!(
+            (v.code, v.logical_path.as_deref()),
+            ("PATCH_UNSUPPORTED_EVENT", Some("$.mtu")),
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn patch_a_position_with_no_value_in_the_document_is_absent() {
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "n".to_string(),
+            shape(ShapeType::Scalar(ScalarType::String), true),
+        )]),
+        false,
+    );
+    let c = DiffContext::default();
+    let d = PatchDiff {
+        version: 1,
+        changes: vec![vc("$.n", Node::new(Value::Null), string("x"))],
+    };
+    match patch("n:\n", &top, &a(), grammar(), &c, &c, &d) {
+        Err(Error::Contract(vs)) => assert_eq!(
+            (vs[0].code, at(&vs[0])),
+            ("PATCH_TARGET_ABSENT", "1:1:0".to_string())
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn patch_a_key_name_below_an_element_is_not_a_key_component() {
+    let inner = shape(
+        ShapeType::Composite(vec![("id".to_string(), scalar(ScalarType::String))]),
+        false,
+    );
+    let mut key = scalar(ScalarType::String);
+    key.presence = Presence::Mandatory;
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "l".to_string(),
+            list(
+                false,
+                vec![case("e", &["id"], vec![("id", key), ("c", inner)])],
+                false,
+            ),
+        )]),
+        false,
+    );
+    let text = "l:\n  - id: a\n    c:\n      id: x\n";
+    let c = DiffContext::default();
+    let apply = |path: &str, previous: &str| {
+        let d = PatchDiff {
+            version: 1,
+            changes: vec![vc(path, string(previous), string("y"))],
+        };
+        patch(text, &top, &a(), grammar(), &c, &c, &d)
+    };
+    assert!(
+        apply(r#"$.l[{id="a"}].c.id"#, "x").is_ok(),
+        "a field that is called like the key, one level down"
+    );
+    assert_eq!(
+        apply(r#"$.l[{id="a"}].id"#, "a").unwrap_err().code(),
+        "PATCH_UNSUPPORTED_EVENT"
+    );
+}

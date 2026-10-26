@@ -21,6 +21,7 @@ pub mod listitem;
 pub mod node;
 pub mod normalize;
 pub mod parse;
+pub mod patch;
 pub mod pathtext;
 pub mod policy;
 pub mod policyresolution;
@@ -51,6 +52,10 @@ pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
 pub use node::{Entry, Node, Pos, Value};
 pub use normalize::{denormalize, normalize, renormalize, NormalizationResult};
 pub use parse::{parse, parse_with, Limits};
+pub use patch::{
+    patch, PatchDiff, PatchEvent, PatchResult, PatchSpan, PATCH_CONFLICT, PATCH_CONTEXT_MISMATCH,
+    PATCH_TARGET_ABSENT, PATCH_UNSUPPORTED_EVENT,
+};
 pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use policy::{read_policy_surface, PolicyRule, PolicySurface, SurfaceRule};
 pub use policyresolution::{resolve_policy, PolicyEntry, PolicyResolution};

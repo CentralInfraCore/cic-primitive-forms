@@ -10,7 +10,7 @@ implementations (Rust and Go) held to one shared conformance corpus.
 > (a pinned schema, list elements by identity, paths); `expand` / `collapse`; from P3 the schema's policy and `identity.base`, the
 > schema defaults (ADR 0011), `normalize` / `denormalize` with the origin of every value kept, and `PolicyResolution` (the effective
 > access and modify rule of every position, as data; `docs/P3-UNIT4-POLICY-RESOLUTION.md`), also in one bound call (`normalize_with_policy`). The evidence of P3
-> is `docs/P3-EXIT-CRITERIA.md`. **Not started:** the later units of P3b (insertion, deletion, block and flow scalars, a batch of edits), patch (the `diff` exists since P4 D1-D3, see `docs/P4-DIFF-PATCH.md`), reference resolution and materialization.
+> is `docs/P3-EXIT-CRITERIA.md`. **Not started:** the later units of P3b (insertion, deletion, block and flow scalars, a batch of edits), the later units of patch (the `diff` exists since P4 D1-D3 and the first unit of `patch` since P4-2, see `docs/P4-DIFF-PATCH.md`), reference resolution and materialization.
 
 ## What it does
 
@@ -37,7 +37,7 @@ primitive is:
 - normalize: the declared defaults of absent fields, with the origin (authored or default) of every value kept, and the way back
   (`apply_defaults`, `normalize`, `renormalize`, `denormalize`) - **implemented**; the effective access and modify rule of every position
   (`PolicyResolution`, `resolve_rule`) - **implemented**, cross-checked against the 86 pinned reference vectors
-- structural and semantic diff (`diff`, ADR 0008) - **implemented** in both languages, all 66 corpus vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4 D3b); targeted patch (`patch`) - later
+- structural and semantic diff (`diff`, ADR 0008) - **implemented** in both languages, all 66 corpus vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4 D3b); targeted patch (`patch`, ADR 0013, the first unit: `value_change` on existing scalars) - **implemented** in both languages, its 60 vectors run (its proof pass P4-3 is open); other events - later
 - later: resolve references from a supplied snapshot, and materialize for the engine
 
 ## Principles

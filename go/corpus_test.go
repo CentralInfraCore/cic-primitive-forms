@@ -707,7 +707,7 @@ func TestTheRunAndNotRunAccountingIsExact(t *testing.T) {
 			total++
 			kind := c["kind"].(string)
 			key := suite["suite"].(string) + "/" + kind
-			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) || kind == "source_span" || kind == "edit" || isDiffRun(kind) {
+			if kind == "recognize" || (kind == "validate" && hasRunner(c)) || isPathRun(kind) || isP2Run(kind) || kind == "source_span" || kind == "edit" || isDiffRun(kind) || isPatchRun(kind) {
 				run[key]++
 				ran++
 			} else {
