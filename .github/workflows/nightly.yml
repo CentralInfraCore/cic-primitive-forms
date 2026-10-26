@@ -1,7 +1,9 @@
 name: nightly
 # The nightly FULL on main (docs/DELTA-DIFF-GATE.md, section 4): the whole gate (p1 and corpus, every mutant, both languages) on the
-# head of main, every night, only if main had development in the last 48 hours (two days, not one: a scheduled run can start late, by an unknown amount, so the window must not depend on the hour it started). If it fails, a pull request is opened that carries the
-# identifier of the failed run (ci-incidents/<date>-<run id>.md and the description).
+# head of main, every night, only if the head of main is not the commit the last nightly FULL measured (#94: tools/nightly_last_full.py;
+# a 48-hour window ran the FULL twice for one commit, and the comparison does not depend on when a scheduled run starts). If it fails,
+# is cancelled, or cannot even decide, a pull request is opened that carries the identifier of the failed run (ci-incidents/<date>-<run
+# id>.md and the description), or an issue with the same facts.
 #
 # 02:00 Europe/Budapest. GitHub cron is UTC only: 01:00 UTC is 02:00 in winter time (CET); in summer time (CEST) it is 03:00 and the
 # cron wants "0 0 * * *". GitHub may start a scheduled run late.
@@ -22,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: "run the FULL even if main had no development in the last 48 hours"
+        description: "run the FULL even if the last nightly FULL measured the head of main already"
         type: boolean
         default: false
       report_test:
@@ -36,10 +38,11 @@ concurrency:
 jobs:
   changed:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       run: ${{ steps.c.outputs.run }}
+    permissions:
+      contents: read
+      actions: read   # the earlier nightly runs, for the commit the last FULL measured
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -51,12 +54,17 @@ jobs:
           EVENT: ${{ github.event_name }}
           FORCE: ${{ inputs.force }}
           REPORT_TEST: ${{ inputs.report_test }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         run: |
+          set -e
           if [ "$REPORT_TEST" = "true" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "report test: the gate is skipped"; exit 0; fi
-          n=$(git log --since='48 hours ago' --format=%H origin/main | wc -l)
-          echo "commits on main in the last 48 hours: $n"
+          # the FULL measures main; a run by hand from another branch would measure that branch under main's name
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "run=false" >> "$GITHUB_OUTPUT"; echo "::warning::the nightly measures main: start it from main ($GITHUB_REF)"; exit 0; fi
           if [ "$EVENT" = "push" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "the gate workflow changed on main: the FULL runs"; exit 0; fi
-          if [ "$n" -gt 0 ] || [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; echo "no development: the nightly FULL is skipped"; fi
+          if [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; echo "forced by hand: the FULL runs"; exit 0; fi
+          python3 tools/nightly_last_full.py --repo "$REPO" --head "$(git rev-parse HEAD)" --current "$RUN_ID" >> "$GITHUB_OUTPUT"
   p1:
     needs: changed
     if: ${{ needs.changed.outputs.run == 'true' }}
@@ -73,7 +81,8 @@ jobs:
       contents: read
   report:
     needs: [changed, p1, corpus]
-    if: ${{ always() && (github.event.inputs.report_test == 'true' || (needs.changed.outputs.run == 'true' && (needs.p1.result == 'failure' || needs.corpus.result == 'failure'))) }}
+    # also when the decision itself failed, and when a run was cancelled: silence must not look like a pass (#94)
+    if: ${{ always() && (github.event.inputs.report_test == 'true' || needs.changed.result == 'failure' || needs.changed.result == 'cancelled' || (needs.changed.outputs.run == 'true' && (needs.p1.result == 'failure' || needs.p1.result == 'cancelled' || needs.corpus.result == 'failure' || needs.corpus.result == 'cancelled'))) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,12 +101,13 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SHA: ${{ github.sha }}
+          CHANGED: ${{ needs.changed.result }}
           P1: ${{ needs.p1.result }}
           CORPUS: ${{ needs.corpus.result }}
         run: |
           set -e
           day=$(date -u +%Y-%m-%d)
-          failed=$(gh run view "$RUN_ID" --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | join("\n- ")')
+          failed=$(gh run view "$RUN_ID" --json jobs -q '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | "\(.name) (\(.conclusion))"] | join("\n- ")')
           tag=""
           if [ "$REPORT_TEST" = "true" ]; then tag="[TEST] "; failed="(a test of the report: no job failed)"; fi
           branch="ci-incident/nightly-$day-$RUN_ID"
@@ -107,7 +117,7 @@ jobs:
             echo
             echo "- run: $RUN_ID ($RUN_URL)"
             echo "- commit: $SHA"
-            echo "- p1: $P1, corpus: $CORPUS"
+            echo "- decision: $CHANGED, p1: $P1, corpus: $CORPUS"
             echo "- failed jobs:"
             echo "- $failed"
           } > "ci-incidents/$day-$RUN_ID.md"
@@ -123,7 +133,7 @@ jobs:
             echo
             echo "- failed run: **$RUN_ID** - $RUN_URL"
             echo "- commit: \`$SHA\`"
-            echo "- p1: $P1, corpus: $CORPUS"
+            echo "- decision: $CHANGED, p1: $P1, corpus: $CORPUS"
             echo "- failed jobs:"
             echo "- $failed"
             echo
@@ -137,7 +147,9 @@ jobs:
             {
               cat "$RUNNER_TEMP/body.md"
               echo
-              echo "(No pull request could be opened. The record is on the branch \`$branch\`, pushed by the nightly run.)"
+              echo "(No pull request could be opened; this issue is the record.)"
             } > "$RUNNER_TEMP/issue.md"
             gh issue create --label ci-nightly-failure --title "$title" --body-file "$RUNNER_TEMP/issue.md"
+            # the branch was pushed for the pull request; with an issue instead it would only pile up (#94)
+            git push origin --delete "$branch" || echo "::warning::the branch $branch could not be deleted"
           fi
