@@ -937,6 +937,22 @@ jobs:
           python3 tools/parity/compare_edit.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_edit.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
 
+      # And for the diff of P4 (D3b): 3000 generated pairs of documents with a scope, fixed seed. The two languages and the model of tools/parity/diff_model.py must
+      # answer alike (the canonical bytes, the refusals with their code, phase, location, path and operand), and the comparison checks the properties of ADR 0008 on its own
+      # (stability under the order of lists and sets, A against A is empty, B to A is A to B turned round, the canonical writing, the injected faults). Its self-test
+      # breaks the outputs in 21 ways that must turn it red.
+      - name: Diff differential, generate, dump with both languages, compare, self-test
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-diff"
+          mkdir -p "$P"
+          python3 tools/parity/diff_model.py --selftest
+          python3 tools/parity/gen_diff.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_diff_dump)
+          (cd go && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpDiffOutcomes$' .)
+          python3 tools/parity/compare_diff.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_diff.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
   edit-proof:
@@ -973,3 +989,40 @@ jobs:
           (cd rust && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_edit_dump)
           (cd go && PARITY_EDIT_IN="$P/in.jsonl" PARITY_EDIT_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpEditOutcomes$' .)
           python3 tools/parity/edit_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"
+
+  # The diff differential on real defects (P4 D3b): a defect planted in one language must turn the Rust/Go/model comparison red (the "diff:" entries of
+  # tools/seeded_defects.py). One job per language, as edit-proof.
+  diff-proof:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode != 'light' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [rust, go]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: go/go.sum   # the module is in go/, not at the root (#94)
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust -> target
+      - name: The unmutated dumps, then the planted defects of one language (diff)
+        env:
+          LANGUAGE: ${{ matrix.lang }}
+        run: |
+          set -e
+          P="$RUNNER_TEMP/diff-proof"
+          mkdir -p "$P"
+          python3 tools/parity/gen_diff.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_diff_dump)
+          (cd go && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpDiffOutcomes$' .)
+          python3 tools/parity/diff_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"

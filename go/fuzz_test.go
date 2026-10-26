@@ -538,3 +538,70 @@ func FuzzEditScalar(f *testing.F) {
 		}
 	})
 }
+
+// FuzzDiff (P4, step D3b): two texts, both parsed; the diff of any pair is a result or a refusal of the contract, never a panic, and when it is a result the
+// views are equal to themselves, the diff turned round has as many events, and the bytes are the canonical writing. The Rust peer is rust/fuzz/fuzz_targets/diff.rs.
+func FuzzDiff(f *testing.F) {
+	for _, seed := range []struct{ a, b string }{
+		{"", ""}, {"a: x\n", "a: y\n"}, {"a: x\nb: 1\n", "b: 2\n"}, {"s: [x, y]\n", "s: [y, z]\n"}, {"l:\n  - {k: a, v: 1}\n", "l:\n  - {k: b, v: 1}\n  - {k: a, v: 2}\n"},
+		{"c: {d: x, e: true}\n", "c: {d: x, e: false}\n"}, {"a:\n  value: x\n  access: [OU=a]\n  modify: inherit\n  inherit: true\n  default_injection: ~\n  conformance: implemented\n", "a: x\n"},
+		{"a: ~\n", "a: ''\n"}, {"b: 1\n", "b: true\n"}, {"l:\n  - {k: a}\n  - {k: a}\n", "a: x\n"},
+	} {
+		f.Add(seed.a, seed.b)
+	}
+	str := func() forms.Shape {
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, Nullable: true}
+	}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: []forms.NamedShape{
+		{Name: "a", Shape: str()},
+		{Name: "b", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}},
+		{Name: "c", Shape: forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+			{Name: "d", Shape: str()},
+			{Name: "e", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean, Presence: forms.Optional}},
+		}}},
+		{Name: "s", Shape: forms.Shape{Kind: forms.ShapeSet, Scalar: forms.ScalarString, Presence: forms.Optional}},
+		{Name: "l", Shape: forms.Shape{Kind: forms.ShapeDeclaredList, Presence: forms.Optional, Elements: &forms.Elements{Cases: []forms.Case{{
+			Name: "e", Key: []string{"k"}, Fields: []forms.NamedShape{
+				{Name: "k", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}},
+				{Name: "v", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}}}}}}}},
+	}}
+	f.Fuzz(func(t *testing.T, a, b string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(a, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		da, errA := forms.Parse(a)
+		db, errB := forms.Parse(b)
+		if errA != nil || errB != nil {
+			return
+		}
+		g, gerr := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: 1}, &forms.Node{Kind: forms.KindInt, Int: 1})
+		if gerr != nil {
+			t.Fatal(gerr)
+		}
+		diff := func(x, y *forms.Node) (*forms.DiffResult, error) {
+			return forms.Diff(forms.DiffView{Doc: x}, forms.DiffView{Doc: y}, root, keySet, g, nil)
+		}
+		ab, err := diff(da, db)
+		if err != nil {
+			var fe *forms.Error
+			if errors.As(err, &fe) && fe.Kind == forms.ErrContract && fe.Violations[0].Code == "DIFF_UNSUPPORTED_VALUE" {
+				t.Fatalf("an unsupported number from a parsed text: %q %q", a, b)
+			}
+			return
+		}
+		ba, err := diff(db, da)
+		if err != nil {
+			t.Fatalf("A to B was a result and B to A is %v: %q %q", err, a, b)
+		}
+		if len(ab.Changes) != len(ba.Changes) || len(ab.Representation) != len(ba.Representation) {
+			t.Fatalf("the diff turned round has other events: %q %q", a, b)
+		}
+		aa, err := diff(da, da)
+		if err != nil || len(aa.Changes) != 0 || len(aa.Representation) != 0 {
+			t.Fatalf("A against A: %v %q", err, a)
+		}
+		if got := ab.Canonical(); !utf8.ValidString(got) || !strings.HasPrefix(got, `{"changes":[`) || !strings.HasSuffix(got, `"version":1}`) {
+			t.Fatalf("not the canonical writing: %q", got)
+		}
+	})
+}
