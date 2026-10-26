@@ -52,6 +52,7 @@ pub(crate) fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error 
         location: at.map_or(Location::Unavailable, Location::At),
         logical_path: Some(path.to_string()),
         path_offset: None,
+        operand: None,
     }])
 }
 
@@ -68,6 +69,7 @@ pub(crate) fn path_failure(e: PathError) -> Error {
         location: Location::NotApplicable,
         logical_path: e.logical_path,
         path_offset,
+        operand: None,
     }])
 }
 

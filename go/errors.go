@@ -18,6 +18,8 @@ const (
 	PhasePathResolve Phase = "path_resolve"
 	// PhaseEdit is the phase of a source-preserving edit and of the span it works on (ADR 0012).
 	PhaseEdit Phase = "edit"
+	// PhaseDiff is the phase of Diff itself (ADR 0008): the contexts of the views differ, or a view holds a value the diff refuses.
+	PhaseDiff Phase = "diff"
 )
 
 // Location is the source_location of ADR 0007: coordinates, or unavailable for a document
@@ -44,6 +46,8 @@ type Violation struct {
 	// PathOffset is the offset in code points of the offending character in the path text, for phase path_parse only
 	// (ADR 0007): present there, zero included, and nil for every other phase.
 	PathOffset *int
+	// Operand is "a" or "b" when the error concerns one view of a diff (ADR 0008), and "" for every other error.
+	Operand string
 }
 
 // ErrorKind says which boundary an Error is.

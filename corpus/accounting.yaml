@@ -9,8 +9,8 @@ kinds:
   conformance/basis: {not_run: 16}
   conformance/collapse: {run: 4}
   conformance/validate: {not_run: 16}
-  diff/diff: {not_run: 62}
-  diff/diff_stability: {not_run: 4}
+  diff/diff: {run: 62}
+  diff/diff_stability: {run: 4}
   edit/edit: {run: 44}
   edit/source_span: {run: 28}
   grammar/grammar_manifest: {not_run: 9}

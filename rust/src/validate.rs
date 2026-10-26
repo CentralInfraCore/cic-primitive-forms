@@ -117,6 +117,7 @@ fn found(code: &'static str, phase: Phase, location: Location) -> Violation {
         location,
         logical_path: None,
         path_offset: None,
+        operand: None,
     }
 }
 
@@ -352,6 +353,7 @@ fn kind_name(v: &Value) -> &'static str {
         Value::Str(_) => "string",
         Value::Seq(_) => "list",
         Value::Map(_) => "mapping",
+        Value::Unsupported(_) => "unsupported number",
     }
 }
 

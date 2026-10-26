@@ -168,7 +168,7 @@ func (w *walk) absent(shape Shape, path []seg, parentPos *Pos) {
 }
 
 func kindName(n *Node) string {
-	return [...]string{"null", "boolean", "integer", "string", "list", "mapping"}[n.Kind]
+	return [...]string{"null", "boolean", "integer", "string", "list", "mapping", "unsupported number"}[n.Kind]
 }
 
 func (w *walk) scalar(node *Node, t ScalarType, path []seg) error {

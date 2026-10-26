@@ -182,6 +182,7 @@ impl State<'_, '_> {
                                 location: Location::At(at),
                                 logical_path: None,
                                 path_offset: None,
+                                operand: None,
                             }]));
                         }
                         return Ok(());

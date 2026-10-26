@@ -29,6 +29,10 @@ pub enum Value {
     Str(String),
     Seq(Vec<Node>),
     Map(Vec<Entry>),
+    /// A number the document model does not carry: a float, or an integer beyond signed 64 bits. The parser never produces it (it
+    /// refuses such a spelling); only a caller that builds a view from another source can, and the diff refuses it
+    /// (`DIFF_UNSUPPORTED_VALUE`). It holds its spelling.
+    Unsupported(String),
 }
 
 /// A value and, when it came from source text, where it starts.
@@ -68,7 +72,9 @@ impl Node {
             (Value::Null, Value::Null) => true,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) | (Value::Unsupported(a), Value::Unsupported(b)) => {
+                a == b
+            }
             (Value::Seq(a), Value::Seq(b)) => {
                 a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same(y))
             }

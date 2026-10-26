@@ -96,6 +96,7 @@ pub(crate) fn classify(node: &Node, a: &[String]) -> Result<Class, Violation> {
             location: location(node.pos),
             logical_path: None,
             path_offset: None,
+            operand: None,
         })
     }
 }
@@ -119,6 +120,7 @@ fn validate_short(
                         location: location(node.pos),
                         logical_path: None,
                         path_offset: None,
+                        operand: None,
                     },
                 ));
             }
@@ -143,6 +145,7 @@ fn validate_short(
                         location: location(e.key_pos),
                         logical_path: None,
                         path_offset: None,
+                        operand: None,
                     },
                 ));
             }
@@ -329,6 +332,7 @@ fn recognize_list(
                             location: location(e.key_pos),
                             logical_path: None,
                             path_offset: None,
+                            operand: None,
                         },
                     ));
                     continue;
