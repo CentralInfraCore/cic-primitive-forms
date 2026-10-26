@@ -30,3 +30,4 @@ kinds:
   presence/validate: {run: 29}
   recognition/collapse: {run: 10}
   recognition/recognize: {run: 30}
+  patch/patch: {not_run: 60}

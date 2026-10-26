@@ -2,6 +2,7 @@
 # Structural corpus check plus the seeded-fault self-test (ADR 0005); the edit suite must be what its authoring tool writes (ADR 0012).
 corpus:
 	python3 tools/edit-vectors/author.py --check
+	python3 tools/patch-vectors/author.py --check
 	python3 tools/corpus_check.py
 
 .PHONY: coverage

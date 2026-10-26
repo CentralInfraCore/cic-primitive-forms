@@ -379,6 +379,7 @@ case of the corpus (419), assert that each is either run or listed here, and com
 | paths | `path_parse` 57, `path_format` 9, `path_resolve` 34 | 100 | **run**, both languages (`parse_path`, `format_path`, `resolve_path`): the strict text of ADR 0006, offsets in code points, the resolution against the schema |
 | diff | `diff` 62, `diff_stability` 4 | 66 | NOT RUN (P4) |
 | edit | `source_span` | 28 | **run**, both languages (P3b step E2, ADR 0012): the byte span and the style of a position's scalar, or the refusal with its code, phase, position and logical path; the vectors were written by hand in step E1, before the code |
+| patch | `patch` | 60 | NOT RUN (P4 step P4-2): the vectors exist (P4-1: written by hand from ADR 0013, the byte arithmetic of every success and the position of every refusal checked against the Go `EditScalar` and `SourceSpan` once, not part of the repository), the patch does not |
 | edit | `edit` | 44 | **run**, both languages (P3b step E3, ADR 0012): the edited text compared as bytes (or the refusal with its code, phase, position and logical path), and the span of the scalar before and after (`span_before`, `span_after`; `path_after` where the edit changes the address of the scalar) |
 | grammar | `grammar_manifest` | 9 | not run by these runners (checked by `make corpus` and `tools/grammar_identity.py`) |
 
