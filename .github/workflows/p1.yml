@@ -953,6 +953,21 @@ jobs:
           python3 tools/parity/compare_diff.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_diff.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
 
+      # And for the patch of P4 (P4-3): 3000 generated documents (the text with its styles, line ends, wrappers and the scalars that cannot be replaced) and a B each, fixed seed.
+      # The two languages and the model of tools/parity/diff_model.py must answer alike, and the comparison checks the promises of ADR 0013 on its own (an unsupported event
+      # is named first, the text is A with the canonical tokens swapped in and nothing else, the diff of the result to B has no changes, a replay and a tampered previous
+      # are a conflict, the empty diff gives A back, an invalid A is refused by its own phase). Its self-test breaks the outputs in 24 ways that must turn it red.
+      - name: Patch differential, generate, dump with both languages, compare, self-test
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-patch"
+          mkdir -p "$P"
+          python3 tools/parity/gen_patch.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_patch_dump)
+          (cd go && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpPatchOutcomes$' .)
+          python3 tools/parity/compare_patch.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_patch.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
   edit-proof:
@@ -1026,3 +1041,40 @@ jobs:
           (cd rust && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_diff_dump)
           (cd go && PARITY_DIFF_IN="$P/in.jsonl" PARITY_DIFF_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpDiffOutcomes$' .)
           python3 tools/parity/diff_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"
+
+  # The patch differential on real defects (P4 P4-3): a defect planted in one language must turn the Rust/Go/model comparison red (the "patch:" entries of
+  # tools/seeded_defects.py). One job per language, as edit-proof and diff-proof.
+  patch-proof:
+    needs: scope
+    if: ${{ needs.scope.outputs.mode != 'light' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [rust, go]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: go/go.sum   # the module is in go/, not at the root (#94)
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust -> target
+      - name: The unmutated dumps, then the planted defects of one language (patch)
+        env:
+          LANGUAGE: ${{ matrix.lang }}
+        run: |
+          set -e
+          P="$RUNNER_TEMP/patch-proof"
+          mkdir -p "$P"
+          python3 tools/parity/gen_patch.py "$P/in.jsonl" --count 3000
+          (cd rust && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_patch_dump)
+          (cd go && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpPatchOutcomes$' .)
+          python3 tools/parity/patch_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"

@@ -177,7 +177,8 @@ pub fn patch(
     }
     for (e, segs) in d.changes.iter().zip(&parsed) {
         let found = locate(&doc, root, segs, a);
-        let value = match found.value.filter(|v| v.pos.is_some()) {
+        // (the document holds a position that is spelled with no value, `a:`, as the null it means; replacing it is the edit's refusal, not an absence)
+        let value = match found.value {
             Some(v) => v,
             None => return Err(failure(PATCH_TARGET_ABSENT, &e.path, found.parent.pos)),
         };
@@ -186,7 +187,11 @@ pub fn patch(
             .as_ref()
             .is_some_and(|previous| value.same(previous))
         {
-            return Err(failure(PATCH_CONFLICT, &e.path, value.pos));
+            return Err(failure(
+                PATCH_CONFLICT,
+                &e.path,
+                value.pos.or(found.parent.pos),
+            ));
         }
     }
     let mut out = text.to_string();

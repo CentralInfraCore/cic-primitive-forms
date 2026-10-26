@@ -1257,7 +1257,7 @@ fn patch_an_event_of_another_kind_that_carries_both_values_is_still_refused() {
 }
 
 #[test]
-fn patch_a_position_with_no_value_in_the_document_is_absent() {
+fn patch_a_position_spelled_with_no_value_holds_null() {
     let top = shape(
         ShapeType::Composite(vec![(
             "n".to_string(),
@@ -1266,15 +1266,32 @@ fn patch_a_position_with_no_value_in_the_document_is_absent() {
         false,
     );
     let c = DiffContext::default();
-    let d = PatchDiff {
-        version: 1,
-        changes: vec![vc("$.n", Node::new(Value::Null), string("x"))],
+    let run = |text: &str, previous: Node| {
+        let d = PatchDiff {
+            version: 1,
+            changes: vec![vc("$.n", previous, string("x"))],
+        };
+        patch(text, &top, &a(), grammar(), &c, &c, &d)
     };
-    match patch("n:\n", &top, &a(), grammar(), &c, &c, &d) {
+    // `n:` holds null: with previous null the patch reaches the edit, which has no text to replace (found by the fuzzer: it used to say the position was absent)
+    match run("n:\n", Node::new(Value::Null)) {
+        Err(Error::Contract(vs)) => assert_eq!(
+            (vs[0].code, vs[0].phase),
+            ("EDIT_NO_SOURCE_VALUE", Phase::Edit)
+        ),
+        other => panic!("{other:?}"),
+    }
+    // any other previous is a conflict, anchored at the enclosing structure because there is no value to point at
+    match run("n:\n", string("y")) {
         Err(Error::Contract(vs)) => assert_eq!(
             (vs[0].code, at(&vs[0])),
-            ("PATCH_TARGET_ABSENT", "1:1:0".to_string())
+            ("PATCH_CONFLICT", "1:1:0".to_string())
         ),
+        other => panic!("{other:?}"),
+    }
+    // a field the document does not spell at all is absent
+    match run("{}\n", Node::new(Value::Null)) {
+        Err(Error::Contract(vs)) => assert_eq!(vs[0].code, "PATCH_TARGET_ABSENT"),
         other => panic!("{other:?}"),
     }
 }
@@ -1313,6 +1330,51 @@ fn patch_a_key_name_below_an_element_is_not_a_key_component() {
     );
     assert_eq!(
         apply(r#"$.l[{id="a"}].id"#, "a").unwrap_err().code(),
+        "PATCH_UNSUPPORTED_EVENT"
+    );
+}
+
+#[test]
+fn patch_a_key_component_of_a_list_below_a_composite() {
+    let mut key = scalar(ScalarType::String);
+    key.presence = Presence::Mandatory;
+    let l = list(
+        false,
+        vec![case(
+            "e",
+            &["k"],
+            vec![("k", key), ("v", scalar(ScalarType::Integer))],
+        )],
+        false,
+    );
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "c".to_string(),
+            shape(ShapeType::Composite(vec![("l".to_string(), l)]), false),
+        )]),
+        false,
+    );
+    let text = "c:\n  l:\n    - k: a\n      v: 1\n";
+    let c = DiffContext::default();
+    let apply = |path: &str, previous: Node, next: Node| {
+        patch(
+            text,
+            &top,
+            &a(),
+            grammar(),
+            &c,
+            &c,
+            &PatchDiff {
+                version: 1,
+                changes: vec![vc(path, previous, next)],
+            },
+        )
+    };
+    assert!(apply(r#"$.c.l[{k="a"}].v"#, int(1), int(2)).is_ok());
+    assert_eq!(
+        apply(r#"$.c.l[{k="a"}].k"#, string("a"), string("b"))
+            .unwrap_err()
+            .code(),
         "PATCH_UNSUPPORTED_EVENT"
     );
 }

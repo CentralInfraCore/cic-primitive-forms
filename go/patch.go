@@ -111,11 +111,16 @@ func Patch(text string, root Shape, a []string, g Grammar, schema, context DiffC
 	}
 	for i, e := range d.Changes {
 		f := locate(doc, root, parsed[i], a)
-		if f.value == nil || f.value.Pos == nil {
+		// (the document holds a position that is spelled with no value, `a:`, as the null it means; replacing it is the edit's refusal, not an absence)
+		if f.value == nil {
 			return nil, patchFailure(CodePatchTargetAbsent, e.Path, f.parent.Pos)
 		}
 		if !f.value.Same(e.Previous) {
-			return nil, patchFailure(CodePatchConflict, e.Path, f.value.Pos)
+			at := f.value.Pos
+			if at == nil {
+				at = f.parent.Pos
+			}
+			return nil, patchFailure(CodePatchConflict, e.Path, at)
 		}
 	}
 	out := &PatchResult{Text: text, Replaced: []string{}, Spans: []PatchSpan{}}

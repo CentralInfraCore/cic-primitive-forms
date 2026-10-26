@@ -605,3 +605,80 @@ func FuzzDiff(f *testing.F) {
 		}
 	})
 }
+
+// FuzzPatch (P4, step P4-3): two texts, both parsed; the diff of A to B is applied to the text of A. The patch is a result or a refusal of the contract and never a
+// panic, never a conflict or an absence (the diff was made from the same text); a result parses, the diff of the result to B has no changes (ADR 0013, S+), it
+// replaced one scalar per event, the same diff on the result is refused, and the empty diff gives A back. The Rust peer is rust/fuzz/fuzz_targets/patch.rs.
+func FuzzPatch(f *testing.F) {
+	for _, seed := range []struct{ a, b string }{
+		{"", ""}, {"a: x\n", "a: y\n"}, {"a: x\nb: 1\n", "a: z\nb: 2\n"}, {"a: 'x'\nb: 3\n", "a: it's\nb: 3\n"}, {"a: x # c\r\nb: 1\r\n", "a: y\nb: 1\n"},
+		{"c:\n  d: x\n  e: true\n", "c:\n  d: y\n  e: false\n"}, {"l:\n  - k: a\n    v: 1\n", "l:\n  - k: a\n    v: 2\n"}, {"a: |\n  x\n", "a: y\n"},
+		{"s: [x]\n", "s: [y]\n"}, {"a: x\n", "a: x\nb: 1\n"}, {"c: {d: x}\n", "c: {d: y}\n"},
+	} {
+		f.Add(seed.a, seed.b)
+	}
+	str := func() forms.Shape {
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, Nullable: true}
+	}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: []forms.NamedShape{
+		{Name: "a", Shape: str()},
+		{Name: "b", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}},
+		{Name: "c", Shape: forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+			{Name: "d", Shape: str()},
+			{Name: "e", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarBoolean, Presence: forms.Optional}},
+		}}},
+		{Name: "s", Shape: forms.Shape{Kind: forms.ShapeSet, Scalar: forms.ScalarString, Presence: forms.Optional}},
+		{Name: "l", Shape: forms.Shape{Kind: forms.ShapeDeclaredList, Presence: forms.Optional, Elements: &forms.Elements{Cases: []forms.Case{{
+			Name: "e", Key: []string{"k"}, Fields: []forms.NamedShape{
+				{Name: "k", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}},
+				{Name: "v", Shape: forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}}}}}}}},
+	}}
+	f.Fuzz(func(t *testing.T, a, b string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(a, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		da, errA := forms.Parse(a)
+		db, errB := forms.Parse(b)
+		if errA != nil || errB != nil {
+			return
+		}
+		g, gerr := forms.BindGrammar(&forms.Node{Kind: forms.KindInt, Int: 1}, &forms.Node{Kind: forms.KindInt, Int: 1})
+		if gerr != nil {
+			t.Fatal(gerr)
+		}
+		ctx := forms.DiffContext{}
+		d, err := forms.Diff(forms.DiffView{Doc: da}, forms.DiffView{Doc: db}, root, keySet, g, nil)
+		if err != nil {
+			return
+		}
+		pd := forms.PatchDiff{Version: 1, Changes: d.Changes}
+		res, err := forms.Patch(a, root, keySet, g, ctx, ctx, pd)
+		if err != nil {
+			var fe *forms.Error
+			if errors.As(err, &fe) && fe.Kind == forms.ErrContract {
+				switch fe.Violations[0].Code {
+				case "PATCH_CONFLICT", "PATCH_TARGET_ABSENT", "PATCH_CONTEXT_MISMATCH", "EDIT_SPAN_MISMATCH", "EDIT_INVALID_RESULT":
+					t.Fatalf("%s for a diff made from the same text: %q -> %q", fe.Violations[0].Code, a, b)
+				}
+			}
+			return
+		}
+		patched, perr := forms.Parse(res.Text)
+		if perr != nil {
+			t.Fatalf("the result does not parse: %v in %q", perr, res.Text)
+		}
+		rt, err := forms.Diff(forms.DiffView{Doc: patched}, forms.DiffView{Doc: db}, root, keySet, g, nil)
+		if err != nil || len(rt.Changes) != 0 {
+			t.Fatalf("the diff of the result to B has changes or fails (%v): %q -> %q gives %q", err, a, b, res.Text)
+		}
+		if len(res.Replaced) != len(d.Changes) {
+			t.Fatalf("replaced %v for %d events", res.Replaced, len(d.Changes))
+		}
+		if _, err := forms.Patch(res.Text, root, keySet, g, ctx, ctx, pd); len(d.Changes) > 0 && err == nil {
+			t.Fatalf("a replay was accepted: %q", res.Text)
+		}
+		if empty, err := forms.Patch(a, root, keySet, g, ctx, ctx, forms.PatchDiff{Version: 1}); err != nil || empty.Text != a {
+			t.Fatalf("the empty diff did not give A back: %v", err)
+		}
+	})
+}
