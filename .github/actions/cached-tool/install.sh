@@ -12,7 +12,7 @@ works() {
   case "$KIND" in
     cargo)
       # run the way cargo runs a subcommand: `cargo mutants --help`, not `cargo-mutants --help`
-      cargo +stable "${NAME#cargo-}" --help >/dev/null 2>&1 ;;
+      cargo +"${RUST_TOOLCHAIN:-stable}" "${NAME#cargo-}" --help >/dev/null 2>&1 ;;
     go)
       # the build information embedded in the binary names the main package and the module version it was built from
       local info rc
@@ -37,7 +37,7 @@ fi
 echo "$NAME: building $SPEC"
 rm -f "$BIN"
 if [ "$KIND" = cargo ]; then
-  cargo +stable install --locked "${SPEC%@*}" --version "${SPEC#*@}"
+  cargo +"${RUST_TOOLCHAIN:-stable}" install --locked "${SPEC%@*}" --version "${SPEC#*@}"
 else
   go install "$SPEC"
 fi

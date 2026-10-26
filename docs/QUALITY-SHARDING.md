@@ -38,6 +38,18 @@ fine. The gate therefore checks completeness before it computes anything, and an
   its summary line and a `PASS` / `FAIL` / `SKIP` / `UNKOWN` line per mutant; `passed`, `failed`, `skipped` and
   `total` must match those lines. The score is computed from the per-mutant results, and any disagreement is
   `REPORT_INCONSISTENT`. Before this, totals of 500 caught over a single missed outcome passed as 100%.
+* **A Go mutant that does not build is not a kill** (#94). `go test` exits 1 for a build failure as for a failing test, and
+  go-mutesting type-checks only the original file, so the executors used to count every mutant that does not compile as killed: the
+  nightly of 2026-10-26 (run 40275097685) had 0 `uncompilable` among 2143 tested Go mutants, and 64 of 732 mutants of four files do not build. The
+  executors now share `tools/mutation_go_test.sh`: after a `[build failed]` the package is built without vet, and a mutant that does not
+  build is `uncompilable` (neither killed nor survived), one that only vet catches stays killed. `tools/test_mutation_exec.py` runs the
+  three executors on every kind (the `go` job).
+* **The Go count of the plan reaches the gate** (#94). The ledgers agreeing with each other does not show that no shard stopped early
+  at the same place; `plan` and `diff-plan` count the Go mutants and the gate requires exactly that many verdicts (`--go-expected`).
+* **A seeded defect must build** (#94). `tools/seeded_defects.py` counted a defect whose code does not compile as caught; it now builds
+  a failing defect again without running it, and one that does not build is `DOES NOT BUILD`, a failure of the run. Nine of the 199
+  defects did not build (an unused variable, a missing return value); they were rewritten to plant the same wrong behaviour in code that
+  builds. `tools/test-evidence/seeded.py` requires the same of its defects (a Python or YAML file that does not parse).
 
 `quality_gate.py selftest` has a fault for each of these (a shard that did not run, a mutant tested twice, a mutant
 tested by none, a mutant not in the list, shards that disagree, a garbage or empty ledger, a merged score below

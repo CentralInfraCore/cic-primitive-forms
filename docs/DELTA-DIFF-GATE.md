@@ -71,6 +71,12 @@ changes the test that pinned the old behaviour.
 
 ## 4. The nightly FULL
 
+**Since #94:** the nightly runs the FULL when the head of main is not the commit the last nightly FULL measured (`tools/nightly_last_full.py`;
+a run whose `p1` succeeded or failed counts, a cancelled one does not; any doubt runs it), instead of "development in the last 48 hours",
+which ran it twice for one commit. It reports a failed or cancelled decision, `p1` or `corpus`, not only a failure of the last two; when
+the incident becomes an issue the pushed branch is deleted. The Rust toolchain of the whole gate is one pinned version
+(`RUST_TOOLCHAIN` in `p1.yml`), raised on purpose.
+
 * A scheduled workflow, every day at **02:00 Europe/Budapest**. GitHub cron is UTC only, so it is set to 01:00 UTC for winter time
   (CET) and needs one change at the start of summer time (CEST, 00:00 UTC), unless the workflow itself checks the local hour.
 * It first checks whether `main` has commits in the last **48 hours** (two days, not one: a scheduled run can start late by an unknown amount, so the window must not depend on the hour it started); without development it ends green and says so. A manual run can force it.

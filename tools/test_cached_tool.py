@@ -164,7 +164,7 @@ DEFECTS = [
     ("the module of the go tool is not compared", 'grep -Eq "^[[:space:]]+mod[[:space:]]+${want_mod}[[:space:]]+${SPEC#*@}([[:space:]]|\\$)" <<< "$info" || return 1', "true"),
     ("the version of the go tool is not compared", '${want_mod}[[:space:]]+${SPEC#*@}([[:space:]]|\\$)', '${want_mod}[[:space:]]+[^[:space:]]+([[:space:]]|\\$)'),
     ("a go tool that cannot start is accepted", '[ "$rc" -lt 126 ]', "true"),
-    ("a cargo tool is checked by its file name, not as a subcommand", 'cargo +stable "${NAME#cargo-}" --help >/dev/null 2>&1', '"$BIN" --nonsense >/dev/null 2>&1 || true'),
+    ("a cargo tool is checked by its file name, not as a subcommand", 'cargo +"${RUST_TOOLCHAIN:-stable}" "${NAME#cargo-}" --help >/dev/null 2>&1', '"$BIN" --nonsense >/dev/null 2>&1 || true'),
     ("a bad build passes", 'works || { echo "$NAME: the binary just built does not pass its own check" >&2; exit 1; }', "true"),
     ("a miss does not build", 'rm -f "$BIN"\nif [ "$KIND" = cargo ]; then', 'rm -f "$BIN"\nif false; then'),
     ("an unknown kind is accepted", "    *) return 1 ;;", "    *) return 0 ;;"),
