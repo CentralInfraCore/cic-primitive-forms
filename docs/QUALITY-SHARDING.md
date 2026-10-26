@@ -81,7 +81,7 @@ shard (the sum is 39 minutes).
   many mutants had no measured cost.
 * **Refreshing the table** is a reviewed data change: download the `rust-mutants-*` artifacts of a green run on `main`, then
   `python3 tools/shard_plan.py costs --outcomes <dir>/rust-mutants-*/outcomes.json --out tools/mutation-costs.json`.
-* The tests are `tools/test_shard_plan.py` (run by `quality-gate-selftest`, which also checks that every file `p1` uses is in its `pull_request.paths`), with 12 seeded defects of the planner (longest
+* The tests are `tools/test_shard_plan.py` (run by `quality-gate-selftest`, which also checks that `p1` runs on every pull request, #97), with 12 seeded defects of the planner (longest
   first turned around, round robin, a mutant dropped, an unanchored or unescaped regex, a weak `verify`, ...), each of which has
   to turn a test red.
 

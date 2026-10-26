@@ -192,25 +192,14 @@ class WorkflowTests(unittest.TestCase):
 
 
 class TriggerTests(unittest.TestCase):
-    """A pull request that changes only a file p1 uses must still run p1: otherwise the check it is subject to can be skipped."""
+    """A pull request that changes only a file p1 uses must still run p1: otherwise the check it is subject to can be skipped. Since #97
+    p1 runs on every pull request (its checks are required by the ruleset of main), which holds it for every file at once; a path filter
+    would bring the question back."""
 
-    def test_every_file_p1_runs_or_reads_is_in_its_pull_request_paths(self):
+    def test_p1_runs_on_every_pull_request(self):
         text = read(os.path.join(HERE, "..", ".github", "workflows", "p1.yml"))
-        m = re.search(r"^    paths: \[(.*)\]$", text, re.M)
-        paths = re.findall(r'"([^"]+)"', m.group(1))
-        body = text.replace(m.group(0), "")
-        body = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))      # comments name files; they do not use them
-        refs = set(re.findall(r"(?<![A-Za-z0-9_./-])((?:tools|rust|go|testdata|corpus|coverage)/[A-Za-z0-9_./*-]+)", body))
-        refs |= set(re.findall(r"(?<![A-Za-z0-9_./-])(\.github/(?:actions|workflows)/[A-Za-z0-9_./*-]+)", body))
-        missing = []
-        for r in sorted(refs):
-            ok = any((p.endswith("/**") and r.startswith(p[:-2])) or p == r for p in paths)
-            ok = ok or r in ("tools/parity", "tools/test-evidence")                      # directories, covered as dir/**
-            if not ok:
-                missing.append(r)
-        self.assertEqual(missing, [])
-        for must in ("tools/shard_plan.py", "tools/test_shard_plan.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", ".github/actions/**"):
-            self.assertIn(must, paths)
+        self.assertRegex(text, r"(?m)^  pull_request:(\s*#.*)?$")
+        self.assertNotRegex(text, r"(?m)^    paths: \[")
 
 
 # (name, old, new): each must occur once in shard_plan.py and make a test of PlanTests fail
