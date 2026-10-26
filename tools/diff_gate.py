@@ -39,6 +39,8 @@ import tempfile
 BUILD_CONFIG = (
     "rust/Cargo.toml", "rust/Cargo.lock", "go/go.mod", "go/go.sum", "tools/quality_gate.py", "tools/shard_plan.py",
     "tools/mutation-costs.json", "tools/diff_gate.py",
+    # the tools that decide what runs in diff mode (#94): a change of them, measured only by the diff mode it changes, would prove nothing
+    "tools/shard_count.py", "tools/shard_budget.json", "tools/fuzz_matrix.py", "tools/seeded_defects.py",
 )
 # The workflow is not a reason for `full` on the pull request: a FULL is started in the background when it is merged (nightly.yml, trigger push on this
 # path), and by hand at any time (workflow_dispatch, force). The pull request still runs the gate self-tests.
@@ -276,7 +278,7 @@ def run_coverage(lang, wt, targets):
         with open(prof, encoding="utf-8") as fh:
             return parse_go_profile(fh.read(), module)
     out = {}
-    cargo = os.environ.get("DIFF_GATE_CARGO", "cargo +stable").split()
+    cargo = os.environ.get("DIFF_GATE_CARGO", "cargo +" + os.environ.get("RUST_TOOLCHAIN", "stable")).split()
     for target, names in sorted(targets.items()):
         lcov = os.path.join(wt, "rust-changed-tests-%s.lcov" % target)
         sel = ["--lib"] if target == "lib" else ["--test", target]
