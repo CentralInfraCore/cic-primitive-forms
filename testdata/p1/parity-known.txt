@@ -302,3 +302,16 @@ efbbbf613a207b783a20312c20783a2c20783a20327d0a 9ad851224788091401bb8370a00e644f4
 6e616d653a2022616c7068610a272062657461220a636f756e743a20330a 274af9fa33f5bc71e17bac5ef8fbd421ff70aa54fd4aefe482df021554a9dd45
 6e613e6d653a2022616c7068610a0a636f6e743a20330a20206265746122 6f79fddc15139679de2ff159079cc8a3869fbeb1f1f7e6f23c72be36116e77bc
 69703a207b676174657761793a20673f312c207072656669783a2032347d0a 1e73ac23f6be8580d53bd22aa04cbd6c3a94b3d9211c647b67d1ef89bea502c2
+# Added with corpus/patch (ADR 0013, P4-1): the new suite shifts the generated sample, so five more mutated windows of it surface. No parser changed.
+# Three are classes that are already open (docs/P1-SUPPORTED-SUBSET.md, Parser parity): a quoted scalar that continues on a following line
+# (single-quoted `'alph` / `a'`, and double-quoted `"alpha` / `>  beta"`, the latter with a duplicate key behind it): yaml.v3 folds it, saphyr refuses;
+# a bare CR inside a flow sequence (`[x, \ry]`): yaml.v3 reads it as a line break, saphyr refuses; a `?` inside a plain scalar of a flow mapping
+# (`{g?ateway: g1}`): Rust reads it as text, yaml.v3 refuses it. The fifth is a POSITION difference only, with the same tree: for a block sequence that is the
+# value of a key which itself starts with a dash (`-items:`), Rust locates the sequence at its first item (3:5), Go at its `-` (3:3). It is the
+# fixed 'indentless sequence' position class showing through a variant the fix did not cover; no scalar position differs, so P3b/P4 (which read
+# scalar spans only) are not affected. It stays open and tracked, not hidden.
+6e616d653a2027616c70680a61270a0a636f756e743a2033 342126525d09d2689d5b0f21401f47204b1a9d920f4e2efbd1a8d96c907f430f
+746167733a205b782c200d795d0a0a 050a25fcd8841fe4a982c90eafd0d51e3bb668fd874fdfc1d1c56f64db51f5cb
+2d2d2d0a69703a207b673f6174657761793a2067317d0a 21c94a6603eea7134684594baf8b15ba88fdbcfc62a295041ee5665cd288c24a
+6974656d733a0a20202d6974656d733a0a20202d202d313a20610a202020206b323a20620a 6f81b65da0e214c967ceb6a790d0fbb061dc51fca0410c8524fd26ccf33767ac
+6e616d653a2022616c7068610a3e202062657461220a636f756e743a20330a636f756e743a20330a a8a9d8ff2a11335a264e9881373a98153f58fe691b95d2547e62d216b6e659b0
