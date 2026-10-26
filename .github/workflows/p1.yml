@@ -12,8 +12,7 @@ on:
         default: false
   push:
     branches: ["main"]
-  pull_request:
-    paths: [".github/actions/**", "tools/seeded_defects.py", "tools/diff_gate.py", "tools/test_diff_gate.py", "tools/mutation_diff_exec.sh", "tools/mutation_go_test.sh", "tools/test_mutation_exec.py", "tools/nightly_last_full.py", "tools/test_nightly_last_full.py", "rust/**", "go/**", "tools/quality_gate.py", "tools/mutation_reduced_exec.sh", "tools/mutation_shard_exec.sh", "tools/shard_plan.py", "tools/test_shard_plan.py", "tools/shard_count.py", "tools/shard_budget.json", "tools/test_shard_count.py", "tools/fuzz_matrix.py", "tools/test_fuzz_matrix.py", "tools/test_seeded_select.py", "tools/test_cached_tool.py", "tools/mutation-costs.json", "tools/requirements.txt", "testdata/**", "corpus/**", "coverage/**", "tools/branchcov/**", "tools/coverage_gate.py", "tools/parity/**", "tools/test-evidence/**", ".github/workflows/p1.yml"]
+  pull_request:   # every pull request (#97): its checks are required by the ruleset of main, and a change with no product code is a cheap diff
 permissions:
   contents: read
 env:
