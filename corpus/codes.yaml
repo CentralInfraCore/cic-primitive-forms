@@ -232,3 +232,23 @@ codes:
     phases: {edit: value}
     meaning: The edited document would not validate where the original did (for example a changed key makes two list elements share one identity).
     trigger: The result of the replacement fails validation.
+  PATCH_CONTEXT_MISMATCH:
+    status: stable
+    phases: {patch: none}
+    meaning: The context the caller passed does not match the schema it passed, or the diff has a version the patch does not know. It never says under which context a diff was made (nothing in the inputs can show that, ADR 0013 section 5).
+    trigger: The schema identity or digest, the grammar or the surface of the context differ from the schema given, or the version of the diff is not 1.
+  PATCH_UNSUPPORTED_EVENT:
+    status: stable
+    phases: {patch: none}
+    meaning: The diff holds an event or a target the first unit of patch does not apply; the whole patch is refused and nothing is applied in part (ADR 0013 section 2).
+    trigger: An added, removed, policy_declaration_change or set_change event; a value_change on an opaque position, a composite, a list, or a key component of a list element.
+  PATCH_TARGET_ABSENT:
+    status: stable
+    phases: {patch: parent}
+    meaning: The path of an event resolves against the schema, but the document does not hold that position.
+    trigger: A field the document does not spell, or a list element of an identity the list does not hold.
+  PATCH_CONFLICT:
+    status: stable
+    phases: {patch: value}
+    meaning: The value the document holds at the path is not the previous value of the event, type-strict; this is also what a second application of a diff with effective changes is.
+    trigger: The scalar at the path differs from `previous` (0 is not false, "3" is not 3).

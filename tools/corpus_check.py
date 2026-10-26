@@ -35,6 +35,9 @@ RULES = {
     "AMBIGUOUS_SCALAR": "unquoted scalar that YAML 1.1 and 1.2 read differently",
     "UNEXPECTED_FILE": "YAML file in the corpus that is not pins, codes, the accounting or a suite",
     "ACCOUNTING": "the accounting file does not list exactly the kinds of the corpus with their number of cases",
+    "PATCH_INPUT": "malformed patch input: the source, the schema or context, the diff, the round-trip operand",
+    "PATCH_BYTES": "the expected patched text disagrees with the input and the spans, or the replaced paths with the events of the diff",
+    "PATCH_ROUNDTRIP": "the patched text is not the logical content of B within the scope the case names",
     "ENVELOPE": "missing, unknown or inconsistent file-level field",
     "FORMAT_VERSION": "corpus_format is not the supported version",
     "PIN_INVALID": "malformed pin (commit, sha256, repo, path, file set, order, name)",
@@ -201,6 +204,7 @@ INPUT_FORMS = {
     "equality": "ab",
     "source_span": "input_yaml|input_hex, path",
     "edit": "input_yaml|input_hex|input (only for EDIT_NO_SOURCE_TEXT), path, value, path_after (optional: the address after an edit that changes it)",
+    "patch": "input_yaml|input_hex, diff (changes, representation, canonical), optional context, round_trip",
 }
 KIND_FIELDS = {
     "grammar_manifest": {"files", "declared"},
@@ -220,6 +224,7 @@ KIND_FIELDS = {
     "equality": {"a", "b"},
     "source_span": {"input_yaml", "input_hex", "path"},
     "edit": {"input_yaml", "input_hex", "input", "path", "value", "path_after"},
+    "patch": {"input_yaml", "input_hex", "diff", "context", "round_trip"},
 }
 COMMON_FIELDS = {"id", "kind", "polarity", "description", "adr", "grammar",
                  "schema", "codes_status", "expect"}
@@ -248,6 +253,7 @@ EXPECT_KEYS = {
     "equality": ({"equal"}, {"equal"}),
     "source_span": ({"span", "errors"}, None),
     "edit": ({"output_yaml", "output_hex", "span_before", "span_after", "errors"}, None),
+    "patch": ({"output_yaml", "output_hex", "replaced", "spans", "errors"}, None),
 }
 PRESENCE = ("mandatory", "optional")
 SHAPE_KEYS = {"type", "presence", "nullable", "default", "min_items", "fields", "elements"}
@@ -285,7 +291,7 @@ def collect_codes(expect):
     return [e["code"] for e in errs if isinstance(e, dict) and "code" in e]
 
 
-PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of", "diff", "edit")
+PHASES = ("parse", "recognize", "validate", "path_parse", "path_format", "path_resolve", "path_of", "diff", "edit", "patch")
 ANCHORS = ("second_key", "key", "value", "value_or_key", "mapping", "sequence", "parent", "path_text", "none")
 KIND_PHASES = {
     "recognize": {"parse", "recognize", "validate"},
@@ -302,8 +308,11 @@ KIND_PHASES = {
     # an earlier phase may refuse the document or the path; the phase edit is the last (ADR 0012, section 4)
     "source_span": {"parse", "path_parse", "path_resolve", "edit"},
     "edit": {"parse", "recognize", "validate", "path_parse", "path_resolve", "edit"},
+    # an earlier phase may refuse the document or a path; `edit` is the refusal of a replacement; `patch` is the last (ADR 0013, section 3)
+    "patch": {"parse", "recognize", "validate", "path_parse", "path_resolve", "edit", "patch"},
 }
 EDIT_KINDS = ("source_span", "edit")
+PATCH_KINDS = ("patch",)
 DIFF_KINDS = ("diff", "diff_stability")
 SINGLE_ERROR_PHASES = {"parse", "path_parse", "path_format", "path_resolve", "path_of", "edit"}
 ERROR_KEYS = {"code", "phase", "logical_path", "source_location", "path_offset", "operand"}
@@ -589,6 +598,175 @@ def check_edit_expect(kind, case, expect, where, vs):
         vs.append(Violation("EDIT_BYTES", where, "the bytes after the span are not the original's, or span_after does not end where they start"))
     if "value" in case and (data == out) != (data[before["start"]:before["end"]] == out[after["start"]:after["end"]]):
         vs.append(Violation("EDIT_BYTES", where, "inconsistent no-op"))
+
+
+def _canonical_only(text, where, vs):
+    """A diff given only as its canonical bytes (the version of the diff is the one thing it varies): strict JSON, canonical writing, a version other than 1."""
+    try:
+        parsed = json.loads(text, object_pairs_hook=_no_dup_pairs, parse_float=lambda s: (_ for _ in ()).throw(ValueError("float")))
+    except (ValueError, TypeError) as exc:
+        vs.append(Violation("PATCH_INPUT", where, "the canonical diff is not strict JSON without floats: %s" % exc))
+        return
+    if json.dumps(parsed, sort_keys=True, separators=(",", ":"), ensure_ascii=False) != text:
+        vs.append(Violation("PATCH_INPUT", where, "the canonical diff is not the canonical writing"))
+    if not isinstance(parsed, dict) or set(parsed) != {"changes", "representation", "version"} or type(parsed.get("version")) is not int or parsed["version"] == 1:
+        vs.append(Violation("PATCH_INPUT", where, "a diff given only as canonical bytes carries a version other than 1 (the case of an unknown version)"))
+
+
+def check_patch_inputs(case, where, vs):
+    """ADR 0013, section 7: the source, the diff (the structured events of ADR 0008 and their canonical bytes), the optional context and the optional round-trip operand."""
+    forms = [f for f in ("input_yaml", "input_hex") if f in case]
+    if len(forms) != 1:
+        vs.append(Violation("PATCH_INPUT", where, "exactly one of input_yaml, input_hex"))
+    if "input_yaml" in case and not isinstance(case["input_yaml"], str):
+        vs.append(Violation("PATCH_INPUT", where, "input_yaml must be a string"))
+    if "input_hex" in case and (not isinstance(case["input_hex"], str) or not HEXBYTES.match(case["input_hex"])):
+        vs.append(Violation("PATCH_INPUT", where, "input_hex is lower-case hex of whole bytes"))
+    d = case.get("diff")
+    if not isinstance(d, dict):
+        vs.append(Violation("PATCH_INPUT", where, "diff is the diff of ADR 0008: changes, representation and canonical"))
+    elif set(d) == {"canonical"}:
+        _canonical_only(d["canonical"], where + ".diff", vs)
+    else:
+        check_diff_expect(d, where + ".diff", vs)
+    rt = case.get("round_trip")
+    if rt is not None:
+        if not isinstance(rt, dict) or not set(rt) <= {"b_yaml", "scope"} or not isinstance(rt.get("b_yaml"), str):
+            vs.append(Violation("PATCH_INPUT", where, "round_trip is {b_yaml: text, scope: optional list of canonical logical paths}"))
+        elif "scope" in rt:
+            sc = rt["scope"]
+            if not isinstance(sc, list) or not sc:
+                vs.append(Violation("PATCH_INPUT", where, "the scope of a round trip is a non-empty list of canonical logical paths"))
+            else:
+                for p in sc:
+                    try:
+                        parse_logical_path(p)
+                    except (ValueError, TypeError):
+                        vs.append(Violation("PATCH_INPUT", where, "scope entry %r is not a canonical logical path" % (p,)))
+
+
+def _logical(doc):
+    """The logical content of a loaded document for the comparison of a round trip: an expanded position is its value (ADR 0001), so short and expanded are one."""
+    if isinstance(doc, dict):
+        if set(doc) == {"value", "access", "modify", "inherit", "default_injection", "conformance"}:
+            return _logical(doc["value"])
+        return {k: _logical(v) for k, v in doc.items()}
+    if isinstance(doc, list):
+        # a list is keyed by the identity of its elements and a set has no order (ADR 0008): the order of the elements is not logical content
+        return sorted((_logical(x) for x in doc), key=lambda x: json.dumps(x, sort_keys=True, default=str))
+    return doc
+
+
+def _at(doc, segs):
+    """The subtree a canonical logical path addresses in a loaded document (fields, and a list element by its identity); (False, None) if it is not there."""
+    cur = doc
+    for seg in segs:
+        cur = _logical(cur)
+        if seg[0] == "field":
+            if not isinstance(cur, dict) or seg[1] not in cur:
+                return False, None
+            cur = cur[seg[1]]
+        else:
+            found = False
+            for el in cur if isinstance(cur, list) else ():
+                el = _logical(el)
+                if isinstance(el, dict) and all(el.get(n) == v for n, _t, v in seg[1]):
+                    cur, found = el, True
+                    break
+            if not found:
+                return False, None
+    return True, _logical(cur)
+
+
+def check_patch_expect(case, expect, where, vs):
+    success = [k for k in ("output_yaml", "output_hex", "replaced", "spans") if k in expect]
+    if ("errors" in expect) == bool(success):
+        vs.append(Violation("EXPECT_FIELD", where, "a patch case expects exactly one of two shapes: success (output and replaced and spans) or failure (errors)"))
+        return
+    d = case.get("diff") if isinstance(case.get("diff"), dict) else {}
+    changes = d.get("changes") if isinstance(d.get("changes"), list) else []
+    if "errors" in expect:
+        if "round_trip" in case:
+            vs.append(Violation("PATCH_INPUT", where, "a round trip belongs to a success case: a failure returns no text"))
+        errs = expect["errors"] if isinstance(expect["errors"], list) else []
+        if len(errs) != 1:
+            vs.append(Violation("EXPECT_FIELD", where, "a patch refusal is one error (ADR 0013, section 3)"))
+            return
+        e = errs[0] if isinstance(errs[0], dict) else {}
+        paths = [c.get("path") for c in changes if isinstance(c, dict)]
+        if e.get("code") in ("PATCH_UNSUPPORTED_EVENT", "PATCH_TARGET_ABSENT", "PATCH_CONFLICT") and e.get("logical_path") not in paths:
+            vs.append(Violation("PATCH_BYTES", where, "%s names the path of an event of the diff" % e.get("code")))
+        if e.get("code") == "PATCH_CONTEXT_MISMATCH" and "logical_path" in e:
+            vs.append(Violation("PATCH_BYTES", where, "PATCH_CONTEXT_MISMATCH is about the context, not about a path"))
+        return
+    data = case_bytes(case)
+    if data is None or sum(k in expect for k in ("output_yaml", "output_hex")) != 1 or "replaced" not in expect or "spans" not in expect:
+        vs.append(Violation("PATCH_BYTES", where, "a success holds the source text, exactly one of output_yaml/output_hex, replaced and spans"))
+        return
+    if "output_yaml" in expect:
+        if not isinstance(expect["output_yaml"], str):
+            vs.append(Violation("PATCH_BYTES", where, "output_yaml must be a string"))
+            return
+        out = expect["output_yaml"].encode("utf-8")
+    else:
+        h = expect["output_hex"]
+        if not isinstance(h, str) or not HEXBYTES.match(h):
+            vs.append(Violation("PATCH_BYTES", where, "output_hex is lower-case hex of whole bytes"))
+            return
+        out = bytes.fromhex(h)
+    want = [c.get("path") for c in changes if isinstance(c, dict)]
+    if any(isinstance(c, dict) and c.get("kind") != "value_change" for c in changes):
+        vs.append(Violation("PATCH_BYTES", where, "a success applies value_change events only (ADR 0013, section 2)"))
+    if expect["replaced"] != want:
+        vs.append(Violation("PATCH_BYTES", where, "replaced is the paths of the events of the diff, in their canonical order"))
+    spans = expect["spans"]
+    if not isinstance(spans, list) or [x.get("path") if isinstance(x, dict) else None for x in spans] != want:
+        vs.append(Violation("PATCH_BYTES", where, "spans has one entry per replaced path, in the same order"))
+        return
+    ranges = []
+    for i, x in enumerate(spans):
+        w = "%s.spans[%d]" % (where, i)
+        if set(x) != {"path", "before", "after"}:
+            vs.append(Violation("PATCH_BYTES", w, "a span entry is {path, before, after}"))
+            return
+        p = span_problem(data, x["before"], w + ".before") or span_problem(out, x["after"], w + ".after")
+        if p:
+            vs.append(Violation("PATCH_BYTES", w, p))
+            return
+        ranges.append((x["before"]["start"], x["before"]["end"], x["after"]["start"], x["after"]["end"]))
+    ranges.sort()
+    pos_in, pos_out, delta = 0, 0, 0
+    for bs, be, as_, ae in ranges:
+        if bs < pos_in:
+            vs.append(Violation("PATCH_BYTES", where, "the replaced scalars overlap"))
+            return
+        if data[pos_in:bs] != out[pos_out:as_] or as_ - pos_out != bs - pos_in:
+            vs.append(Violation("PATCH_BYTES", where, "the bytes between the replaced scalars are not the original's, or an after span does not start where the bytes before it end"))
+            return
+        pos_in, pos_out = be, ae
+    if data[pos_in:] != out[pos_out:]:
+        vs.append(Violation("PATCH_BYTES", where, "the bytes after the last replaced scalar are not the original's"))
+    if not changes and data != out:
+        vs.append(Violation("PATCH_BYTES", where, "an empty diff is the identity: the output is the input byte for byte"))
+    rt = case.get("round_trip")
+    if isinstance(rt, dict) and isinstance(rt.get("b_yaml"), str):
+        try:
+            got, exp = yaml.load(out.decode("utf-8"), Loader=StrictLoader), yaml.load(rt["b_yaml"], Loader=StrictLoader)
+        except (yaml.YAMLError, UnicodeDecodeError) as exc:
+            vs.append(Violation("PATCH_ROUNDTRIP", where, "the output and b_yaml must both load: %s" % exc))
+            return
+        scope = rt.get("scope")
+        if scope is None:
+            if _logical(got) != _logical(exp):
+                vs.append(Violation("PATCH_ROUNDTRIP", where, "with the complete scope the patched text and B hold the same logical content"))
+        else:
+            for sp in scope:
+                try:
+                    segs = [("field", g[1]) if g[0] == "field" else ("item", g[1]) for g in parse_logical_path(sp)]
+                except (ValueError, TypeError, IndexError):
+                    continue
+                if _at(got, segs) != _at(exp, segs):
+                    vs.append(Violation("PATCH_ROUNDTRIP", where, "inside the scope %s the patched text and B differ" % sp))
 
 
 def check_errors(kind, case, expect, codes, where, vs, used_pairs):
@@ -1051,7 +1229,7 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
     if kind in ("path_parse", "path_format", "grammar_manifest"):
         if syn != {"lexical": True}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "kinds without a schema take synthetic: {lexical: true}"))
-    elif kind.startswith("path_") or kind in DIFF_KINDS or kind in EDIT_KINDS or kind == "basis":
+    elif kind.startswith("path_") or kind in DIFF_KINDS or kind in EDIT_KINDS or kind in PATCH_KINDS or kind == "basis":
         if set(syn) != {"tree"}:
             vs.append(Violation("SCHEMA_FIXTURE", where, "path kind needs synthetic.tree"))
         elif isinstance(syn["tree"], str):
@@ -1166,6 +1344,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
         vs.append(Violation("INPUT_PRESENCE", where, "via is expand or absent"))
     if kind in DIFF_KINDS and "schema_b" in case:
         check_schema(kind, case["schema_b"], pins, where + ".schema_b", vs, trees)
+    if kind in PATCH_KINDS and "context" in case:
+        check_schema(kind, case["context"], pins, where + ".context", vs, trees)
     expect = case.get("expect")
     if kind and isinstance(expect, dict):
         allowed, required = EXPECT_KEYS[kind]
@@ -1199,6 +1379,8 @@ def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_
             check_diff_expect(expect, where + ".expect", vs)
         if kind in EDIT_KINDS:
             check_edit_expect(kind, case, expect, where + ".expect", vs)
+        if kind in PATCH_KINDS:
+            check_patch_expect(case, expect, where + ".expect", vs)
         if "errors" in expect:
             check_errors(kind, case, expect, codes, where + ".expect", vs, used_codes)
         found = [x for x in collect_codes(expect) if isinstance(x, str)]
@@ -1437,6 +1619,9 @@ def check_inputs(kind, case, where, vs):
         return
     if kind in EDIT_KINDS:
         check_edit_inputs(kind, case, where, vs)
+        return
+    if kind in PATCH_KINDS:
+        check_patch_inputs(case, where, vs)
         return
     if kind == "grammar_manifest":
         check_manifest_input(case, where, vs)
