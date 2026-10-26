@@ -931,3 +931,39 @@ fn write_string(out: &mut String, s: &str) {
     }
     out.push('"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{compare_scalars, sorted_scalars};
+    use crate::node::{Node, Value};
+    use std::cmp::Ordering;
+
+    /// The order of the elements of a set (ADR 0008): null, booleans, integers, strings, then by value. A validated set holds one kind, so the
+    /// order across kinds is reached only here.
+    #[test]
+    fn set_elements_are_ordered_by_kind_then_by_value() {
+        let n = |v: Value| Node::new(v);
+        let want = vec![
+            n(Value::Null),
+            n(Value::Bool(false)),
+            n(Value::Bool(true)),
+            n(Value::Int(-1)),
+            n(Value::Int(1)),
+            n(Value::Str("a".into())),
+            n(Value::Str("b".into())),
+        ];
+        let mut shuffled: Vec<Node> = vec![4, 3, 2, 0, 6, 5, 1, 3, 0]
+            .into_iter()
+            .map(|i: usize| want[i].clone())
+            .collect();
+        shuffled.reverse();
+        let got = sorted_scalars(&n(Value::Seq(shuffled)));
+        assert!(got.len() == want.len() && got.iter().zip(&want).all(|(x, y)| x.same(y)));
+        for (i, x) in want.iter().enumerate() {
+            for (j, y) in want.iter().enumerate() {
+                assert_eq!(compare_scalars(x, y), i.cmp(&j), "{i} against {j}");
+            }
+        }
+        assert_eq!(compare_scalars(&want[0], &want[0]), Ordering::Equal);
+    }
+}
