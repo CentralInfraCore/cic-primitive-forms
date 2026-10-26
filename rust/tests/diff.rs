@@ -1333,3 +1333,48 @@ fn patch_a_key_name_below_an_element_is_not_a_key_component() {
         "PATCH_UNSUPPORTED_EVENT"
     );
 }
+
+#[test]
+fn patch_a_key_component_of_a_list_below_a_composite() {
+    let mut key = scalar(ScalarType::String);
+    key.presence = Presence::Mandatory;
+    let l = list(
+        false,
+        vec![case(
+            "e",
+            &["k"],
+            vec![("k", key), ("v", scalar(ScalarType::Integer))],
+        )],
+        false,
+    );
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "c".to_string(),
+            shape(ShapeType::Composite(vec![("l".to_string(), l)]), false),
+        )]),
+        false,
+    );
+    let text = "c:\n  l:\n    - k: a\n      v: 1\n";
+    let c = DiffContext::default();
+    let apply = |path: &str, previous: Node, next: Node| {
+        patch(
+            text,
+            &top,
+            &a(),
+            grammar(),
+            &c,
+            &c,
+            &PatchDiff {
+                version: 1,
+                changes: vec![vc(path, previous, next)],
+            },
+        )
+    };
+    assert!(apply(r#"$.c.l[{k="a"}].v"#, int(1), int(2)).is_ok());
+    assert_eq!(
+        apply(r#"$.c.l[{k="a"}].k"#, string("a"), string("b"))
+            .unwrap_err()
+            .code(),
+        "PATCH_UNSUPPORTED_EVENT"
+    );
+}

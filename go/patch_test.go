@@ -236,3 +236,22 @@ func TestPatchAKeyNameBelowAnElementIsNotAKeyComponent(t *testing.T) {
 		t.Errorf("the key: %v", err)
 	}
 }
+
+func TestPatchAKeyComponentOfAListBelowAComposite(t *testing.T) {
+	num := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarInteger, Presence: forms.Optional}
+	key := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}
+	list := diffList(false, forms.Case{Name: "e", Key: []string{"k"}, Fields: diffFields("k", key, "v", num)})
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: diffFields("c", forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: diffFields("l", list)})}
+	text := "c:\n  l:\n    - k: a\n      v: 1\n"
+	apply := func(path string, previous, next *forms.Node) error {
+		_, err := forms.Patch(text, root, accessKeys, boundGrammar(t), forms.DiffContext{}, forms.DiffContext{}, forms.PatchDiff{Version: 1, Changes: []forms.DiffEvent{vc(path, previous, next)}})
+		return err
+	}
+	if err := apply(`$.c.l[{k="a"}].v`, ival(1), ival(2)); err != nil {
+		t.Errorf("the value: %v", err)
+	}
+	var fe *forms.Error
+	if err := apply(`$.c.l[{k="a"}].k`, sval("a"), sval("b")); !errors.As(err, &fe) || fe.Code() != "PATCH_UNSUPPORTED_EVENT" {
+		t.Errorf("the key: %v", err)
+	}
+}
