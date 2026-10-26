@@ -216,6 +216,22 @@ DEFECTS = [
 ]
 
 
+def parse_error(path, text):
+    """Why the defective file does not parse, or "": Python by compile(), YAML by yaml.safe_load when PyYAML is there."""
+    try:
+        if path.endswith(".py"):
+            compile(text, path, "exec")
+        elif path.endswith((".yml", ".yaml")):
+            try:
+                import yaml
+            except ImportError:
+                return ""
+            yaml.safe_load(text)
+    except Exception as e:   # SyntaxError, yaml.YAMLError
+        return "%s: %s" % (type(e).__name__, str(e).splitlines()[0][:80])
+    return ""
+
+
 def run_tests(directory):
     env = dict(os.environ)
     p = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", directory, "-p", "test_*.py"],
@@ -250,6 +266,11 @@ def main():
                     break
                 text = text.replace(old, new)
             if stale:
+                bad += 1
+                continue
+            unreadable = parse_error(path, text)
+            if unreadable:   # a defect the tests "catch" only because the file does not parse proves nothing (#94)
+                print("%-62s: DOES NOT PARSE (%s)" % (name, unreadable))
                 bad += 1
                 continue
             with open(path, "w", encoding="utf-8") as fh:
