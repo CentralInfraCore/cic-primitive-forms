@@ -563,3 +563,19 @@ func TestDiffAnUnsupportedNumberAfterEntriesThatAreClean(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffACompositeThatAppearsIsSortedInsideAndAFloatInsideAnExpandedCompositeIsNamed(t *testing.T) {
+	got := diffCanonical(t, "mtu: 1\n", "mtu: 1\nip: {addrs: [b, a]}\n", nil)
+	want := `{"changes":[{"kind":"added","next":{` + diffDflt + `,"value":{"addrs":{` + diffDflt + `,"value":["a","b"]}}},"path":"$.ip"}],"representation":[],"version":1}`
+	if got != want {
+		t.Errorf("got %s", got)
+	}
+	str := func(s string) *forms.Node { return &forms.Node{Kind: forms.KindStr, Str: s} }
+	members := []forms.Entry{{Key: "value", Value: &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "gw", Value: &forms.Node{Kind: forms.KindUnsupported, Str: "1.5"}}}}},
+		{Key: "access", Value: str("inherit")}, {Key: "modify", Value: str("inherit")}, {Key: "inherit", Value: &forms.Node{Kind: forms.KindBool, Bool: true}},
+		{Key: "default_injection", Value: &forms.Node{Kind: forms.KindNull}}, {Key: "conformance", Value: str("implemented")}}
+	bad := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "ip", Value: &forms.Node{Kind: forms.KindMap, Entries: members}}}}
+	if w, _ := diffRefusal(t, bad, diffParse(t, "mtu: 1\n"), nil); w.path != "$.ip.gw" {
+		t.Errorf("got %v", w)
+	}
+}

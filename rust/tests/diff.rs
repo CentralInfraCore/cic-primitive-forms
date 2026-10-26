@@ -930,3 +930,17 @@ fn an_unsupported_number_after_entries_that_are_clean() {
         );
     }
 }
+
+#[test]
+fn a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_composite_is_named() {
+    assert_eq!(
+        canonical("mtu: 1\n", "mtu: 1\nip: {addrs: [b, a]}\n", None),
+        format!(
+            r#"{{"changes":[{{"kind":"added","next":{{{DFLT},"value":{{"addrs":{{{DFLT},"value":["a","b"]}}}}}},"path":"$.ip"}}],"representation":[],"version":1}}"#
+        )
+    );
+    let inner = Node::map(vec![("gw", unsupported("1.5"))]);
+    let bad = Node::map(vec![("ip", wrapper(inner, None))]);
+    let v = refusal(&bad, &doc("mtu: 1\n"), None);
+    assert_eq!(v.logical_path.as_deref(), Some("$.ip.gw"));
+}
