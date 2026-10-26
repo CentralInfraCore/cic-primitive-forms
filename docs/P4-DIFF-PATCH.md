@@ -68,7 +68,7 @@ Not in the first unit (each a later unit with its own note): applying `added` / 
 | **D1** (done, one pull request with D2 and D3: the groups turned out small and are one function) | `diff`, step one: the logical view (expanded form, identities, sets), scalar and declaration changes, representation, opaque values, the canonical bytes; the vectors of those groups run in both languages |
 | **D2** | `diff`, step two: composites, lists by identity, sets, appearing and disappearing nodes as one event |
 | **D3** (the code and the 66 vectors done with D1-D2; the differential, its self-test, the planted defects and the fuzz target are **D3b, done**) | `diff`, step three: the scope, the errors (`DIFF_CONTEXT_MISMATCH`, `DIFF_UNSUPPORTED_VALUE`), the stability cases; all 66 vectors run; the Rust-against-Go differential and its self-test |
-| **P4-2** | `patch`, first unit, in Rust and Go on top of D1-D3 and `edit_scalar` |
+| **P4-2** (done) | `patch`, first unit, in Rust and Go on top of D1-D3 and `edit_scalar` |
 | **P4-3** | the proof pass, as E4 was for P3b: properties (the round trip and minimality over generated A and B), a Rust-against-Go differential that checks each promise on its own, its self-test, planted defects, the seeded defects of the checks inside `patch`, a fuzz target |
 
 D1-D3 may be fewer steps if the groups turn out small; the cut is by vector group, so the accounting stays exact at every step. P4-1 can run beside D1.
@@ -132,3 +132,16 @@ The vectors are 66 cases; the implementations were written by the author of the 
 * **Fuzzing.** `FuzzDiff` (Go) and `diff` (Rust, cargo-fuzz): two texts, any parseable pair; no panic, never `DIFF_UNSUPPORTED_VALUE` from a parsed text, B to A has as many events, A against A is empty, the bytes are the canonical writing. A first minute of each (about 1M executions) found nothing.
 
 Not claimed: that the model is independent of the author's reading of ADR 0008; that the generated trees reach a nullable composite, a list or a set (they are `Unsupported` by decision and covered by unit tests); that the patch exists (P4-2).
+
+## 12. P4-2: what the first patch decided (the points ADR 0013 leaves to the implementation)
+
+`go/patch.go` and `rust/src/patch.rs`; the 60 vectors run in both languages and passed at the first run of working code, which is the evidence that the hand-written expectations and the code agree without having been derived from each other.
+
+1. **The diff is passed as events, not as bytes.** `Patch(text, root, keys, grammar, schema, context, diff)` takes the version of the diff and its events (`PatchDiff`); representation entries are not passed. Reading the canonical bytes of a diff into events is not part of this unit (the runners read the structured `changes` of a vector, and the version from the bytes with a JSON reader of their own); an unknown version is therefore a number the caller passes. The ADR allows either form; the narrower one avoids a second JSON reader in the library that nothing proves.
+2. **The context** is two `DiffContext` values, the schema's and the one the caller says the diff was made under, compared field by field; any difference, or a version other than `1`, is `PATCH_CONTEXT_MISMATCH`, after A has been read (parse, validate come first, as row 1 says).
+3. **Rows 3 and 4 are passes over all the events, rows 5 and 6 are per event.** An unsupported kind or target anywhere in the diff is named first (its path, `not_applicable`), whatever the events before it; then the first path the schema does not resolve (the error of the path operations); then, event by event in the order of the diff, an absent position (anchored at the enclosing structure: the mapping for a field, the list for an element) and a value that is not `previous`, type-strict (anchored at the scalar). The events are taken in the order given: a diff is in the canonical order by ADR 0008, and the patch does not sort or check it.
+4. **A value change that carries no `previous` or no `next`** is `PATCH_UNSUPPORTED_EVENT` (it is not the event section 2 describes). No vector covers it; the unit tests do.
+5. **A key component** is detected from the schema (the path ends at a field of the selected case's key, below an element selector), not from the text.
+6. **The application** is `edit_scalar` on the result of the one before, in the order of the diff; the refusals keep their code and phase `edit`, with the position in the working text (identical to A's for the first event, and for any event whose scalar lies before the earlier replacements). `spans` hold, for each replaced scalar, its span in A and its span in the final text. An event whose `next` equals its `previous` is accepted, is listed in `replaced`, and moves nothing.
+
+Not done in this step: the proof pass of P4-3 (properties over generated A and B, the round trip, the Rust-against-Go differential of `patch` with its self-test, planted and seeded defects, a fuzz target), the reading of canonical bytes into a diff, the patch of a parsed value, and every unsupported event.

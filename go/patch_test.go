@@ -185,3 +185,41 @@ func TestPatchTheContextAndTheEarlierPhases(t *testing.T) {
 		}
 	}
 }
+
+func TestPatchAnEventOfAnotherKindThatCarriesBothValuesIsStillRefused(t *testing.T) {
+	for _, kind := range []string{forms.EventAdded, forms.EventRemoved, forms.EventPolicyDeclarationChange, forms.EventSetChange} {
+		e := forms.DiffEvent{Kind: kind, Path: "$.mtu", Previous: ival(1), Next: ival(2)}
+		if w := patchRefusal(t, patchDoc, e); w.code != "PATCH_UNSUPPORTED_EVENT" || w.path != "$.mtu" {
+			t.Errorf("%s: %v", kind, w)
+		}
+	}
+}
+
+func TestPatchAPositionWithNoValueInTheDocumentIsAbsent(t *testing.T) {
+	str := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional, Nullable: true}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: diffFields("n", str)}
+	_, err := forms.Patch("n:\n", root, accessKeys, boundGrammar(t), forms.DiffContext{}, forms.DiffContext{}, forms.PatchDiff{Version: 1, Changes: []forms.DiffEvent{{Kind: forms.EventValueChange, Path: "$.n", Previous: &forms.Node{Kind: forms.KindNull}, Next: sval("x")}}})
+	var fe *forms.Error
+	if !errors.As(err, &fe) || fe.Code() != "PATCH_TARGET_ABSENT" || wireOf(fe.Violations[0]).loc != "1:1:0" {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestPatchAKeyNameBelowAnElementIsNotAKeyComponent(t *testing.T) {
+	str := forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Optional}
+	inner := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: diffFields("id", str)}
+	root := forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Mandatory, Fields: diffFields("l", diffList(false, forms.Case{Name: "e", Key: []string{"id"}, Fields: diffFields(
+		"id", forms.Shape{Kind: forms.ShapeScalar, Scalar: forms.ScalarString, Presence: forms.Mandatory}, "c", inner)}))}
+	text := "l:\n  - id: a\n    c:\n      id: x\n"
+	apply := func(path string) error {
+		_, err := forms.Patch(text, root, accessKeys, boundGrammar(t), forms.DiffContext{}, forms.DiffContext{}, forms.PatchDiff{Version: 1, Changes: []forms.DiffEvent{vc(path, sval(map[bool]string{true: "a", false: "x"}[path == `$.l[{id="a"}].id`]), sval("y"))}})
+		return err
+	}
+	if err := apply(`$.l[{id="a"}].c.id`); err != nil {
+		t.Errorf("a field that is called like the key, one level down: %v", err)
+	}
+	var fe *forms.Error
+	if err := apply(`$.l[{id="a"}].id`); !errors.As(err, &fe) || fe.Code() != "PATCH_UNSUPPORTED_EVENT" {
+		t.Errorf("the key: %v", err)
+	}
+}

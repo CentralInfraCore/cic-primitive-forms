@@ -52,19 +52,16 @@ func patchFailure(code, path string, at *Pos) *Error {
 	return &Error{Kind: ErrContract, Violations: []Violation{{Code: code, Phase: PhasePatch, Location: loc, LogicalPath: path}}}
 }
 
-// isKeyComponent says whether segs ends at a key field of a list element.
+// isKeyComponent says whether segs, the path of a scalar position, ends at a key field of a list element: the element selector is the segment before the
+// last one, and the last one names a field of the key of the case it selects.
 func isKeyComponent(root Shape, segs []PathSeg) bool {
-	n := len(segs)
-	if n < 2 || segs[n-1].IsItem || !segs[n-2].IsItem {
-		return false
-	}
 	fields := root.Fields
 	var elements *Elements
 	var c *Case
-	for _, s := range segs[:n-1] {
+	for _, s := range segs[:len(segs)-1] {
 		if !s.IsItem {
 			i := slices.IndexFunc(fields, func(f NamedShape) bool { return f.Name == s.Field })
-			elements, fields = fields[i].Shape.Elements, fields[i].Shape.Fields
+			elements, fields, c = fields[i].Shape.Elements, fields[i].Shape.Fields, nil
 			continue
 		}
 		names := make([]string, len(s.Item))
@@ -75,7 +72,7 @@ func isKeyComponent(root Shape, segs []PathSeg) bool {
 		c = &elements.Cases[i]
 		fields = c.Fields
 	}
-	return slices.Contains(c.Key, segs[n-1].Field)
+	return c != nil && slices.Contains(c.Key, segs[len(segs)-1].Field)
 }
 
 // Patch applies d to text. schema is the context of the schema the caller passes root for, context the one the caller says d was made under; they must be equal
@@ -131,14 +128,9 @@ func Patch(text string, root Shape, a []string, g Grammar, schema, context DiffC
 		out.Replaced = append(out.Replaced, e.Path)
 	}
 	for _, p := range out.Replaced {
-		before, err := SourceSpan(text, root, p, a)
-		if err != nil {
-			return nil, err
-		}
-		after, err := SourceSpan(out.Text, root, p, a)
-		if err != nil {
-			return nil, err
-		}
+		// (these cannot fail: the checks above found the position and the edit replaced the scalar that is there)
+		before, _ := SourceSpan(text, root, p, a)
+		after, _ := SourceSpan(out.Text, root, p, a)
 		out.Spans = append(out.Spans, PatchSpan{Path: p, Before: before, After: after})
 	}
 	return out, nil

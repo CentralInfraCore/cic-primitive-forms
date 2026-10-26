@@ -13,8 +13,8 @@ use crate::access::Grammar;
 use crate::diff::{DiffContext, DiffEvent, EventKind};
 use crate::editscalar::{edit_scalar, refuse_invalid};
 use crate::error::{Error, Location, Phase, Violation};
-use crate::listitem::Elements;
-use crate::node::{Node, Pos, Value};
+use crate::listitem::{Case, Elements};
+use crate::node::{Node, Pos};
 use crate::parse::parse;
 use crate::pathtext::{parse_path, resolve_path, PathSeg};
 use crate::sourcespan::{locate, path_failure, source_span, SourceSpan};
@@ -88,11 +88,11 @@ fn failure(code: &'static str, path: &str, at: Option<Pos>) -> Error {
     }])
 }
 
-/// Whether `segs` ends at a key field of a list element.
+/// Whether `segs`, the path of a scalar position, ends at a key field of a list element: the element selector is the segment before the last one, and the
+/// last one names a field of the key of the case it selects.
 fn is_key_component(root: &Shape, segs: &[PathSeg]) -> bool {
-    let n = segs.len();
-    let last = match segs.last() {
-        Some(PathSeg::Field(name)) if n >= 2 => name,
+    let (last, prefix) = match segs.split_last() {
+        Some((PathSeg::Field(name), prefix)) => (name, prefix),
         _ => return false,
     };
     let mut fields: &[(String, Shape)] = match &root.shape_type {
@@ -100,8 +100,9 @@ fn is_key_component(root: &Shape, segs: &[PathSeg]) -> bool {
         _ => &[],
     };
     let mut elements: Option<&Elements> = None;
-    let mut key: &[String] = &[];
-    for s in &segs[..n - 1] {
+    let mut case: Option<&Case> = None;
+    for s in prefix {
+        case = None;
         match s {
             PathSeg::Field(name) => {
                 if let Some((_, shape)) = fields.iter().find(|(f, _)| f == name) {
@@ -114,18 +115,18 @@ fn is_key_component(root: &Shape, segs: &[PathSeg]) -> bool {
             }
             PathSeg::Item(comps) => {
                 let names: Vec<&String> = comps.iter().map(|c| &c.name).collect();
-                if let Some(case) = elements.and_then(|e| {
+                case = elements.and_then(|e| {
                     e.cases
                         .iter()
                         .find(|c| c.key.iter().collect::<Vec<_>>() == names)
-                }) {
-                    fields = &case.fields;
-                    key = &case.key;
+                });
+                if let Some(c) = case {
+                    fields = &c.fields;
                 }
             }
         }
     }
-    matches!(segs[n - 2], PathSeg::Item(_)) && key.contains(last)
+    case.is_some_and(|c| c.key.contains(last))
 }
 
 /// Applies `d` to `text`. `schema` is the context of the schema the caller passes `root` for, `context` the one the caller says `d` was made under; they must be
@@ -148,11 +149,13 @@ pub fn patch(
         return Err(failure(PATCH_CONTEXT_MISMATCH, "", None));
     }
     let mut parsed = Vec::with_capacity(d.changes.len());
+    let mut nexts: Vec<&Node> = Vec::with_capacity(d.changes.len());
     let mut unresolved = Vec::new();
     for e in &d.changes {
         // (a value change that does not carry both values is not the event section 2 describes)
-        if e.kind != EventKind::ValueChange || e.previous.is_none() || e.next.is_none() {
-            return Err(failure(PATCH_UNSUPPORTED_EVENT, &e.path, None));
+        match (e.kind, &e.previous, &e.next) {
+            (EventKind::ValueChange, Some(_), Some(next)) => nexts.push(next),
+            _ => return Err(failure(PATCH_UNSUPPORTED_EVENT, &e.path, None)),
         }
         match parse_path(&e.path).and_then(|segs| resolve_path(root, &segs).map(|r| (segs, r))) {
             Ok((segs, res)) => {
@@ -186,12 +189,8 @@ pub fn patch(
     }
     let mut out = text.to_string();
     let mut replaced = Vec::with_capacity(d.changes.len());
-    for e in &d.changes {
-        let next = e
-            .next
-            .clone()
-            .unwrap_or_else(|| Node::new(crate::node::Value::Null));
-        out = edit_scalar(&out, root, &e.path, a, &next)?.text;
+    for (e, next) in d.changes.iter().zip(&nexts) {
+        out = edit_scalar(&out, root, &e.path, a, next)?.text;
         replaced.push(e.path.clone());
     }
     let mut spans = Vec::with_capacity(replaced.len());

@@ -1232,3 +1232,87 @@ fn patch_the_context_and_the_earlier_phases() {
         );
     }
 }
+
+#[test]
+fn patch_an_event_of_another_kind_that_carries_both_values_is_still_refused() {
+    for kind in [
+        EventKind::Added,
+        EventKind::Removed,
+        EventKind::PolicyDeclarationChange,
+        EventKind::SetChange,
+    ] {
+        let e = PatchEvent {
+            kind,
+            path: "$.mtu".into(),
+            previous: Some(int(1)),
+            next: Some(int(2)),
+        };
+        let v = patch_refusal(PATCH_DOC, vec![e]);
+        assert_eq!(
+            (v.code, v.logical_path.as_deref()),
+            ("PATCH_UNSUPPORTED_EVENT", Some("$.mtu")),
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn patch_a_position_with_no_value_in_the_document_is_absent() {
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "n".to_string(),
+            shape(ShapeType::Scalar(ScalarType::String), true),
+        )]),
+        false,
+    );
+    let c = DiffContext::default();
+    let d = PatchDiff {
+        version: 1,
+        changes: vec![vc("$.n", Node::new(Value::Null), string("x"))],
+    };
+    match patch("n:\n", &top, &a(), grammar(), &c, &c, &d) {
+        Err(Error::Contract(vs)) => assert_eq!(
+            (vs[0].code, at(&vs[0])),
+            ("PATCH_TARGET_ABSENT", "1:1:0".to_string())
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn patch_a_key_name_below_an_element_is_not_a_key_component() {
+    let inner = shape(
+        ShapeType::Composite(vec![("id".to_string(), scalar(ScalarType::String))]),
+        false,
+    );
+    let mut key = scalar(ScalarType::String);
+    key.presence = Presence::Mandatory;
+    let top = shape(
+        ShapeType::Composite(vec![(
+            "l".to_string(),
+            list(
+                false,
+                vec![case("e", &["id"], vec![("id", key), ("c", inner)])],
+                false,
+            ),
+        )]),
+        false,
+    );
+    let text = "l:\n  - id: a\n    c:\n      id: x\n";
+    let c = DiffContext::default();
+    let apply = |path: &str, previous: &str| {
+        let d = PatchDiff {
+            version: 1,
+            changes: vec![vc(path, string(previous), string("y"))],
+        };
+        patch(text, &top, &a(), grammar(), &c, &c, &d)
+    };
+    assert!(
+        apply(r#"$.l[{id="a"}].c.id"#, "x").is_ok(),
+        "a field that is called like the key, one level down"
+    );
+    assert_eq!(
+        apply(r#"$.l[{id="a"}].id"#, "a").unwrap_err().code(),
+        "PATCH_UNSUPPORTED_EVENT"
+    );
+}
