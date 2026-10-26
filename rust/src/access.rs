@@ -148,6 +148,7 @@ fn invalid(code: &'static str, node: &Node) -> Violation {
         location: node.pos.map_or(Location::Unavailable, Location::At),
         logical_path: None,
         path_offset: None,
+        operand: None,
     }
 }
 

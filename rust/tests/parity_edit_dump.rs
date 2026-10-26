@@ -109,6 +109,7 @@ fn phase(p: Phase) -> &'static str {
         Phase::PathFormat => "path_format",
         Phase::PathResolve => "path_resolve",
         Phase::Edit => "edit",
+        Phase::Diff => "diff",
     }
 }
 
@@ -119,6 +120,7 @@ fn tree(n: &Node) -> Json {
         Value::Bool(b) => json!({"boolean": b}),
         Value::Int(i) => json!({"integer": i}),
         Value::Str(s) => json!({"string": s}),
+        Value::Unsupported(s) => json!({"unsupported": s}),
         Value::Seq(items) => json!({"seq": items.iter().map(tree).collect::<Vec<_>>()}),
         Value::Map(entries) => {
             json!({"map": entries.iter().map(|e| json!([e.key, tree(&e.value)])).collect::<Vec<_>>()})

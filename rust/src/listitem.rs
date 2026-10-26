@@ -150,6 +150,7 @@ fn fail(code: &'static str, path: &Path) -> Error {
         location: Location::Unavailable,
         logical_path: logical_path(path),
         path_offset: None,
+        operand: None,
     }])
 }
 

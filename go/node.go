@@ -30,6 +30,10 @@ const (
 	KindStr
 	KindSeq
 	KindMap
+	// KindUnsupported is a number the document model does not carry: a float, or an integer beyond signed 64 bits. Parse never
+	// produces it (it refuses such a spelling); only a caller that builds a view from another source can, and the diff refuses it
+	// (DIFF_UNSUPPORTED_VALUE). Str holds its spelling.
+	KindUnsupported
 )
 
 // Entry is one mapping entry. Keys are the text of their scalar.
@@ -63,7 +67,7 @@ func (n *Node) Same(o *Node) bool {
 		return n.Bool == o.Bool
 	case KindInt:
 		return n.Int == o.Int
-	case KindStr:
+	case KindStr, KindUnsupported:
 		return n.Str == o.Str
 	case KindSeq:
 		if len(n.Items) != len(o.Items) {

@@ -16,6 +16,8 @@ pub enum Phase {
     PathResolve,
     /// The phase of a source-preserving edit and of the span it works on (ADR 0012).
     Edit,
+    /// The phase of `diff` itself (ADR 0008): the contexts of the views differ, or a view holds a value the diff refuses.
+    Diff,
 }
 
 impl Phase {
@@ -30,6 +32,7 @@ impl Phase {
             Phase::PathFormat => "path_format",
             Phase::PathResolve => "path_resolve",
             Phase::Edit => "edit",
+            Phase::Diff => "diff",
         }
     }
 }
@@ -58,6 +61,8 @@ pub struct Violation {
     /// The offset in code points of the offending character in the path text, for phase `path_parse` only (ADR 0007): it is
     /// present there, `0` included, and never invented for another phase.
     pub path_offset: Option<usize>,
+    /// `a` or `b` when the error concerns one view of a diff (ADR 0008), and `None` for every other error.
+    pub operand: Option<&'static str>,
 }
 
 /// A failure. Only [`Error::Contract`] is the ADR 0007 machine response; the others are

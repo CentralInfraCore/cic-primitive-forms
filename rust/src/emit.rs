@@ -39,7 +39,8 @@ fn inline(node: &Node) -> String {
         Value::Int(i) => i.to_string(),
         Value::Str(s) => string(s),
         Value::Seq(_) => "[]".to_string(),
-        Value::Map(_) => "{}".to_string(),
+        // (a number the model does not carry is never emitted: it is written as the empty mapping, as the Go peer does)
+        Value::Map(_) | Value::Unsupported(_) => "{}".to_string(),
     }
 }
 

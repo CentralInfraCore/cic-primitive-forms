@@ -95,6 +95,7 @@ fn mismatch() -> Error {
         location: Location::NotApplicable,
         logical_path: None,
         path_offset: None,
+        operand: None,
     }])
 }
 
@@ -325,6 +326,7 @@ impl Walker<'_> {
                         location: location(e.key_pos),
                         logical_path: logical_path(&p),
                         path_offset: None,
+                        operand: None,
                     }]));
                 }
                 Some((_, shape)) => {

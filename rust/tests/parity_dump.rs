@@ -20,6 +20,8 @@ fn tree(n: &Node) -> Json {
         Value::Bool(b) => json!({"t": "bool", "v": b}),
         Value::Int(i) => json!({"t": "int", "v": i}),
         Value::Str(s) => json!({"t": "str", "v": s}),
+        // (the parser never produces it; it is dumped as itself so that a defect cannot hide)
+        Value::Unsupported(s) => json!({"t": "unsupported", "v": s}),
         Value::Seq(items) => json!({"t": "seq", "v": items.iter().map(tree).collect::<Vec<_>>()}),
         Value::Map(entries) => json!({
             "t": "map",

@@ -11,10 +11,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use cic_primitive_forms::{
-    collapse_position, edit_parsed, edit_scalar, emit, expand_position, format_path, parse,
-    parse_path, path_of, recognize, resolve_path, source_span, Case, Class, Elements, Error,
-    KeyComp, KeyValue, Location, Node, PathSeg, Phase, Position, Presence, ScalarType, Shape,
-    ShapeType, Step, Value, Violation,
+    collapse_position, diff, edit_parsed, edit_scalar, emit, expand_position, format_path, parse,
+    parse_path, path_of, recognize, resolve_path, source_span, Case, Class, Context, DiffContext,
+    DiffView, Elements, Error, KeyComp, KeyValue, Location, Node, PathSeg, Phase, Position,
+    Presence, ScalarType, Shape, ShapeType, Step, Value, Violation,
 };
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
@@ -148,6 +148,7 @@ fn wire(v: &Violation) -> Wire {
         Phase::PathFormat => "path_format",
         Phase::PathResolve => "path_resolve",
         Phase::Edit => "edit",
+        Phase::Diff => "diff",
     };
     let loc = match v.location {
         Location::Unavailable => "unavailable".to_string(),
@@ -656,6 +657,7 @@ fn typed(node: &Node) -> (&'static str, String) {
         Value::Str(s) => ("string", s.clone()),
         Value::Seq(_) => ("list", "[]".into()),
         Value::Map(_) => ("map", "{}".into()),
+        Value::Unsupported(s) => ("unsupported", s.clone()),
     }
 }
 
@@ -800,6 +802,7 @@ fn the_run_and_not_run_accounting_is_exact() {
                 || is_p2_run(kind)
                 || kind == "source_span"
                 || kind == "edit"
+                || is_diff_run(kind)
             {
                 *run.entry(key).or_default() += 1;
             } else {
@@ -1817,4 +1820,211 @@ fn edit_cases_match_the_corpus() {
         }
     }
     assert_eq!(ran, 44, "the 44 edit cases of corpus/edit");
+}
+
+// ---------------------------------------------------------------------------
+// diff and diff_stability (ADR 0008): the difference of two logical views, as exact canonical bytes.
+
+/// The two kinds of ADR 0008.
+fn is_diff_run(kind: &str) -> bool {
+    kind == "diff" || kind == "diff_stability"
+}
+
+/// A corpus value as an operand of a diff: like [`node_of`], and a number the document model does not carry (a float, an integer beyond 64
+/// bits) becomes the unsupported kind.
+fn diff_node(y: &YamlOwned) -> Node {
+    match y {
+        YamlOwned::Value(ScalarOwned::FloatingPoint(f)) => {
+            Node::new(Value::Unsupported(f.to_string()))
+        }
+        YamlOwned::Value(ScalarOwned::Integer(_) | ScalarOwned::String(_)) => node_of(y),
+        YamlOwned::Sequence(items) => Node::new(Value::Seq(items.iter().map(diff_node).collect())),
+        YamlOwned::Mapping(m) => Node::new(Value::Map(
+            m.iter()
+                .map(|(k, v)| cic_primitive_forms::Entry {
+                    key: text(k, "mapping key").to_string(),
+                    key_pos: None,
+                    value: diff_node(v),
+                })
+                .collect(),
+        )),
+        other => node_of(other),
+    }
+}
+
+/// `null` is a value of an opaque position in the cases of ADR 0008 (Absent to null is an appearance), and the tree notation of the corpus
+/// does not spell nullability.
+fn nullable_opaque(shape: &Shape) -> Shape {
+    let mut out = shape.clone();
+    out.shape_type = match &shape.shape_type {
+        ShapeType::Opaque => {
+            out.nullable = true;
+            ShapeType::Opaque
+        }
+        ShapeType::Composite(fields) => ShapeType::Composite(
+            fields
+                .iter()
+                .map(|(n, s)| (n.clone(), nullable_opaque(s)))
+                .collect(),
+        ),
+        ShapeType::DeclaredList {
+            min_items,
+            elements,
+        } => ShapeType::DeclaredList {
+            min_items: *min_items,
+            elements: Elements {
+                choice: elements.choice,
+                cases: elements
+                    .cases
+                    .iter()
+                    .map(|c| Case {
+                        name: c.name.clone(),
+                        fields: c
+                            .fields
+                            .iter()
+                            .map(|(n, s)| (n.clone(), nullable_opaque(s)))
+                            .collect(),
+                        key: c.key.clone(),
+                    })
+                    .collect(),
+            },
+        },
+        other => other.clone(),
+    };
+    out
+}
+
+fn diff_operand(case: &YamlOwned, key: &str) -> Node {
+    match get(case, &format!("{key}_yaml")) {
+        Some(src) => parse(text(src, "operand text")).expect("operand text"),
+        None => diff_node(get(case, key).expect("operand")),
+    }
+}
+
+fn diff_context(case: &YamlOwned, key: &str) -> DiffContext {
+    let schema = get(case, key)
+        .or_else(|| get(case, "schema"))
+        .expect("schema");
+    DiffContext {
+        schema: text(
+            get(get(schema, "synthetic").expect("synthetic"), "tree").expect("tree"),
+            "tree",
+        )
+        .to_string(),
+        ..DiffContext::default()
+    }
+}
+
+/// What `diff` says for one pair of operands: the canonical bytes, or the wire form of its one error and its operand.
+fn diff_run(
+    id: &str,
+    suite: &YamlOwned,
+    case: &YamlOwned,
+    a_doc: &Node,
+    b_doc: &Node,
+) -> (String, Vec<Wire>, String) {
+    let tree = text(
+        get(
+            get(get(case, "schema").expect("schema"), "synthetic").expect("synthetic"),
+            "tree",
+        )
+        .expect("tree"),
+        "tree",
+    );
+    let root = nullable_opaque(&path_shape(
+        ShapeType::Composite(tree_fields(
+            get(get(suite, "trees").expect("trees"), tree).expect("tree"),
+            &[],
+        )),
+        true,
+    ));
+    let scope: Option<Vec<String>> = get(case, "scope").map(|s| {
+        s.as_vec()
+            .expect("scope")
+            .iter()
+            .map(|p| text(p, "scope path").to_string())
+            .collect()
+    });
+    let view = |doc, key| DiffView {
+        doc,
+        context: diff_context(case, key),
+        trust: Context::default(),
+    };
+    match diff(
+        &view(a_doc, "schema"),
+        &view(b_doc, "schema_b"),
+        &root,
+        &a(),
+        bound_grammar(),
+        scope.as_deref(),
+    ) {
+        Ok(r) => (r.canonical(), Vec::new(), String::new()),
+        Err(Error::Contract(vs)) => (
+            String::new(),
+            vs.iter().map(wire).collect(),
+            vs[0].operand.unwrap_or_default().to_string(),
+        ),
+        Err(other) => panic!("{id}: outside the contract: {other:?}"),
+    }
+}
+
+fn expected_diff(expect: &YamlOwned) -> (String, Vec<Wire>, String) {
+    if let Some(c) = get(expect, "canonical") {
+        return (text(c, "canonical").to_string(), Vec::new(), String::new());
+    }
+    let errors = get(expect, "errors")
+        .and_then(YamlOwned::as_vec)
+        .expect("errors");
+    assert_eq!(errors.len(), 1, "one error per diff response");
+    let operand =
+        get(&errors[0], "operand").map_or_else(String::new, |o| text(o, "operand").to_string());
+    // (the operand is a field of the error that expected_wire does not know: read it above, then compare the rest)
+    let mut rest = errors[0].clone();
+    if let YamlOwned::Mapping(m) = &mut rest {
+        m.retain(|k, _| k.as_str() != Some("operand"));
+    }
+    (String::new(), vec![expected_wire(&rest)], operand)
+}
+
+#[test]
+fn diff_cases_match_the_corpus() {
+    let mut ran = 0;
+    for (name, suite) in suites() {
+        if name != "diff" {
+            continue;
+        }
+        for case in get(&suite, "cases")
+            .and_then(YamlOwned::as_vec)
+            .expect("cases")
+        {
+            let id = text(get(case, "id").expect("id"), "id");
+            let kind = text(get(case, "kind").expect("kind"), "kind");
+            ran += 1;
+            let want = expected_diff(get(case, "expect").expect("expect"));
+            let variants: Vec<YamlOwned> = if kind == "diff_stability" {
+                get(case, "variants")
+                    .and_then(YamlOwned::as_vec)
+                    .expect("variants")
+                    .iter()
+                    .map(|v| {
+                        let mut v = v.clone();
+                        if let YamlOwned::Mapping(m) = &mut v {
+                            m.insert(
+                                YamlOwned::Value(ScalarOwned::String("schema".into())),
+                                get(case, "schema").expect("schema").clone(),
+                            );
+                        }
+                        v
+                    })
+                    .collect()
+            } else {
+                vec![case.clone()]
+            };
+            for (i, v) in variants.iter().enumerate() {
+                let got = diff_run(id, &suite, v, &diff_operand(v, "a"), &diff_operand(v, "b"));
+                assert_eq!(got, want, "{id} (variant {i})");
+            }
+        }
+    }
+    assert_eq!(ran, 66, "the corpus has 62 diff and 4 diff_stability cases");
 }
