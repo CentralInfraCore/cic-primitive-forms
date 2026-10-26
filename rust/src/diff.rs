@@ -270,8 +270,9 @@ fn seg_of(s: &PathSeg) -> Seg {
 /// The scope as canonical paths, without the entries that lie inside another one and the repeated ones. `None` is the whole document; a scope
 /// that is given and empty compares nothing.
 fn scope_entries(root: &Shape, scope: Option<&[String]>) -> Result<Vec<Path>, Error> {
-    let Some(scope) = scope else {
-        return Ok(vec![Vec::new()]);
+    let scope = match scope {
+        Some(scope) => scope,
+        None => return Ok(vec![Vec::new()]),
     };
     let mut all: Vec<Path> = Vec::with_capacity(scope.len());
     for text in scope {
@@ -318,6 +319,20 @@ impl<'a> Slot<'a> {
     }
 }
 
+/// The elements and the items of the list a position holds, if it holds one.
+fn list_items(s: Slot<'_>) -> Option<(&Elements, &[Node])> {
+    match (s.place, entry(s.node, VALUE).map(|v| &v.value)) {
+        (
+            Place::Position(Shape {
+                shape_type: ShapeType::DeclaredList { elements, .. },
+                ..
+            }),
+            Some(Value::Seq(items)),
+        ) => Some((elements, items)),
+        _ => None,
+    }
+}
+
 /// Walks `path` below `slot` in an expanded tree. `Ok(None)` is a place the tree does not have; a place below a value that cannot hold it is
 /// refused, not guessed.
 fn descend<'a>(slot: Slot<'a>, path: &[Seg], a: &[String]) -> Result<Option<Slot<'a>>, Error> {
@@ -325,17 +340,13 @@ fn descend<'a>(slot: Slot<'a>, path: &[Seg], a: &[String]) -> Result<Option<Slot
     for s in path {
         match s {
             Seg::Item(id) => {
-                let (Place::Position(shape), Some(list)) = (at.place, entry(at.node, VALUE)) else {
-                    return Err(Error::Unsupported(
-                        "a list element below a value that is not a list".into(),
-                    ));
-                };
-                let (ShapeType::DeclaredList { elements, .. }, Value::Seq(items)) =
-                    (&shape.shape_type, &list.value)
-                else {
-                    return Err(Error::Unsupported(
-                        "a list element below a value that is not a list".into(),
-                    ));
+                let (elements, items) = match list_items(at) {
+                    Some(found) => found,
+                    None => {
+                        return Err(Error::Unsupported(
+                            "a list element below a value that is not a list".into(),
+                        ))
+                    }
                 };
                 let found = items.iter().find_map(|it| match identify(it, elements, a) {
                     Ok((case, got)) if got == *id => Some(Slot {
@@ -350,21 +361,23 @@ fn descend<'a>(slot: Slot<'a>, path: &[Seg], a: &[String]) -> Result<Option<Slot
                 }
             }
             Seg::Field(name) => {
-                let Some((rec, fields)) = at.fields() else {
-                    return Err(Error::Unsupported(
-                        "a path below a value that is not a mapping".into(),
-                    ));
+                let (rec, fields) = match at.fields() {
+                    Some(found) => found,
+                    None => {
+                        return Err(Error::Unsupported(
+                            "a path below a value that is not a mapping".into(),
+                        ))
+                    }
                 };
-                let Some(e) = entry(rec, name) else {
-                    return Ok(None);
-                };
-                let Some((_, shape)) = fields.iter().find(|(n, _)| n == name) else {
-                    return Ok(None);
-                };
-                at = Slot {
-                    node: e,
-                    place: Place::Position(shape),
-                };
+                match entry(rec, name).zip(fields.iter().find(|(n, _)| n == name)) {
+                    Some((e, (_, shape))) => {
+                        at = Slot {
+                            node: e,
+                            place: Place::Position(shape),
+                        }
+                    }
+                    None => return Ok(None),
+                }
             }
             Seg::Index(_) => return Ok(None),
         }
@@ -396,8 +409,9 @@ impl Element<'_, '_> {
 }
 
 fn elements<'n, 'c>(list: &'n Node, els: &'c Elements, a: &[String]) -> Vec<Element<'n, 'c>> {
-    let Value::Seq(items) = &list.value else {
-        return Vec::new();
+    let items: &[Node] = match &list.value {
+        Value::Seq(items) => items,
+        _ => &[],
     };
     items
         .iter()
@@ -434,10 +448,11 @@ fn compare_scalars(x: &Node, y: &Node) -> Ordering {
 }
 
 fn sorted_scalars(list: &Node) -> Vec<Node> {
-    let Value::Seq(items) = &list.value else {
-        return Vec::new();
+    let items: &[Node] = match &list.value {
+        Value::Seq(items) => items,
+        _ => &[],
     };
-    let mut out: Vec<Node> = items.clone();
+    let mut out: Vec<Node> = items.to_vec();
     out.sort_by(compare_scalars);
     out.dedup_by(|x, y| compare_scalars(x, y) == Ordering::Equal);
     out
@@ -556,10 +571,12 @@ impl Differ<'_> {
     fn position(&mut self, shape: &Shape, na: &Node, nb: &Node, path: &Path) -> Result<(), Error> {
         let text = path_text(path)?;
         let mut changed: Vec<DeclChange> = Vec::new();
-        for k in self.a.iter().filter(|k| *k != VALUE) {
-            let (Some(pa), Some(pb)) = (entry(na, k), entry(nb, k)) else {
-                continue;
-            };
+        for (k, pa, pb) in self
+            .a
+            .iter()
+            .filter(|k| *k != VALUE)
+            .filter_map(|k| entry(na, k).zip(entry(nb, k)).map(|(pa, pb)| (k, pa, pb)))
+        {
             if !pa.same(pb) {
                 changed.push(DeclChange {
                     field: k.clone(),
@@ -583,10 +600,10 @@ impl Differ<'_> {
                 order: path.clone(),
             });
         }
-        let (Some(va), Some(vb)) = (entry(na, VALUE), entry(nb, VALUE)) else {
-            return Ok(());
-        };
-        self.value(shape, va, vb, &text, path)
+        match entry(na, VALUE).zip(entry(nb, VALUE)) {
+            Some((va, vb)) => self.value(shape, va, vb, &text, path),
+            None => Ok(()),
+        }
     }
 
     /// What two positions hold.
@@ -675,8 +692,9 @@ impl Differ<'_> {
     /// The expanded logical fragment of a position: its wrapper, with what it holds in the order of ADR 0008 (the elements of a list by
     /// identity, the elements of a set sorted).
     fn position_fragment(&self, n: &Node, shape: &Shape) -> Node {
-        let Value::Map(entries) = &n.value else {
-            return n.clone();
+        let entries: &[Entry] = match &n.value {
+            Value::Map(entries) => entries,
+            _ => return n.clone(),
         };
         Node::new(Value::Map(
             entries
@@ -766,10 +784,13 @@ pub fn diff(
     }
     let (ea, pa) = read_view(va, root, a, g, "a")?;
     let (eb, pb) = read_view(vb, root, a, g, "b")?;
-    let ShapeType::Composite(fields) = &root.shape_type else {
-        return Err(Error::Unsupported(
-            "the root of a document is a composite".into(),
-        ));
+    let fields = match &root.shape_type {
+        ShapeType::Composite(fields) => fields,
+        _ => {
+            return Err(Error::Unsupported(
+                "the root of a document is a composite".into(),
+            ))
+        }
     };
     let mut d = Differ {
         a,
