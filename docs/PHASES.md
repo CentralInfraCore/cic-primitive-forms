@@ -32,7 +32,7 @@ fault or vector that demonstrably turns it red.
 
 | Phase | Content | Exit criterion | State |
 |---|---|---|---|
-| P0 | Contract, minimal schema model, shared corpus, the open decisions | No basic YAML construct is interpreted differently by the two implementations | done (ADRs accepted); ADR 0000 stays `draft` for one item, the upstream type decision of the symbolic `inherit` (cic-primitives #17); what P0 left to later phases is mapped in `docs/P0-CARRY-OVER.md` |
+| P0 | Contract, minimal schema model, shared corpus, the open decisions | No basic YAML construct is interpreted differently by the two implementations | done (ADRs accepted); ADR 0000 stays `draft` until the owner closes issue #3 (box 8, the type of the symbolic `inherit`, was waiting for cic-primitives #17, which D-018 has since settled) and decides the status of three provisional codes; what P0 left to later phases is mapped in `docs/P0-CARRY-OVER.md` |
 | P1 | Semantic parse / emit / validate, resource limits, fuzzing | Stable on both languages with shared negative tests; validation changes no input byte | done: parse, recognize, emit, access-policy reading, schema-bound validation, list-element identity, path text |
 | P2 | Recursive expand / collapse, symbolic defaults | Short, mixed and expanded forms round-trip; explicit policy overrides survive. **Architecture review stop.** | done and reviewed; post-merge evidence complete |
 | P3 | Normalize: defaults, `inherit: true/false/0` | Same input and schema give the same fully resolved result in both languages | done: the four units (#44, #45, #49, #53) and the closing round (#55, #56, #57) are merged; `docs/P3-EXIT-CRITERIA.md` has the evidence, among it a full run of the whole gate on the merged main |

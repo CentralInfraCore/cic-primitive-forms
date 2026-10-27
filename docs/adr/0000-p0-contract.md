@@ -28,9 +28,10 @@ or Go conformance.
 | [0012](0012-source-preserving-edit.md) | source-preserving edit of one scalar (P3b, first unit) | accepted (2026-10-22) | - |
 | [0013](0013-patch-first-unit.md) | patch, the first unit (P4) | accepted (2026-10-23) | - |
 
-What still prevents P0 from closing (one item; the grammar identity and the coverage method are done):
-
-1. the upstream type decision behind point 8 (cic-primitives #17).
+What still prevents P0 from closing. The upstream type decision behind point 8 (cic-primitives #17, closed on 2026-10-18)
+was settled by D-018 and adopted in the amendment of ADR 0004, so no upstream decision is outstanding. What is left is the
+owner's: ticking box 8 of issue #3 and closing it, and deciding whether `INVALID_ACCESS_VALUE`, `INVALID_CERT_PATTERN` and
+`INVALID_INHERIT` become `stable` (ADR 0004, amendment, finding 3). Until then this ADR stays `draft`.
 
 Everything else is a P1 proof obligation or a later-phase item, recorded in each ADR's
 acceptance record and in `docs/reviews/p0-acceptance-review.md`. Where each of those items went, and which are still open, is
@@ -51,8 +52,8 @@ mapped in [`docs/P0-CARRY-OVER.md`](../P0-CARRY-OVER.md). ADRs 0011 to 0013 were
 
 This is the original question list as it stood when P0 started. It is kept as a record.
 **The current status of each point is the Decision index above**, not the wording below;
-points 1 to 7, 9 and 10 are decided and accepted; 8 is accepted only as a
-reading contract, with the upstream type decision open.
+points 1 to 7, 9 and 10 are decided and accepted; 8 was accepted as a
+reading contract, and the upstream type decision it waited for (cic-primitives #17) has since been settled by D-018 (the amendment of ADR 0004).
 
 1. **Partial expanded form.** A map with some but not all declared keys: an
    explicit error (current proposal), or accepted as a partial override?
