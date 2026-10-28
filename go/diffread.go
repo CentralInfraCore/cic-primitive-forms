@@ -36,6 +36,7 @@ const (
 	ReadNoChange       = "no_change"          // an event that describes no change
 	ReadNotCanonical   = "not_canonical"      // valid, but not the writing ADR 0008 fixes
 	readMaxDepth       = 64
+	maxVersion         = 1<<31 - 1
 	readVersion        = 1
 	readRepresentation = "representation_change"
 )
@@ -63,223 +64,211 @@ func (c CanonicalDiff) PatchDiff() PatchDiff {
 }
 
 type jsonReader struct {
-	b   []byte
-	at  int
-	err *DiffReadError
+	b  []byte
+	at int
 }
 
-func (r *jsonReader) fail(reason string) *Node {
-	if r.err == nil {
-		r.err = &DiffReadError{Reason: reason, Offset: r.at}
+func (r *jsonReader) fail(reason string) *DiffReadError {
+	return &DiffReadError{Reason: reason, Offset: r.at}
+}
+
+func (r *jsonReader) peek() int {
+	if r.at < len(r.b) {
+		return int(r.b[r.at])
 	}
-	return nil
+	return -1
 }
 
-func (r *jsonReader) more() bool { return r.err == nil && r.at < len(r.b) }
-
-func (r *jsonReader) value(depth int) *Node {
+func (r *jsonReader) value(depth int) (*Node, *DiffReadError) {
 	if depth > readMaxDepth {
-		return r.fail(ReadDepth)
+		return nil, r.fail(ReadDepth)
 	}
-	if !r.more() {
-		return r.fail(ReadSyntax)
-	}
-	switch c := r.b[r.at]; {
+	switch c := r.peek(); {
 	case c == '{':
 		return r.object(depth)
 	case c == '[':
 		return r.array(depth)
 	case c == '"':
-		s, ok := r.str()
-		if !ok {
-			return nil
-		}
-		return &Node{Kind: KindStr, Str: s}
+		s, err := r.str()
+		return &Node{Kind: KindStr, Str: s}, err
 	case c == '-' || (c >= '0' && c <= '9'):
 		return r.number()
 	}
-	for lit, n := range map[string]*Node{"true": {Kind: KindBool, Bool: true}, "false": {Kind: KindBool}, "null": {Kind: KindNull}} {
-		if strings.HasPrefix(string(r.b[r.at:min(len(r.b), r.at+len(lit))]), lit) {
-			r.at += len(lit)
-			return n
+	for _, lit := range []struct {
+		text string
+		node Node
+	}{{"true", Node{Kind: KindBool, Bool: true}}, {"false", Node{Kind: KindBool}}, {"null", Node{Kind: KindNull}}} {
+		if strings.HasPrefix(string(r.b[r.at:]), lit.text) {
+			r.at += len(lit.text)
+			n := lit.node
+			return &n, nil
 		}
 	}
-	return r.fail(ReadSyntax)
+	return nil, r.fail(ReadSyntax)
 }
 
-func (r *jsonReader) number() *Node {
+func (r *jsonReader) number() (*Node, *DiffReadError) {
 	start := r.at
-	if r.b[r.at] == '-' {
+	if r.peek() == '-' {
 		r.at++
 	}
 	digits := r.at
-	for r.at < len(r.b) && r.b[r.at] >= '0' && r.b[r.at] <= '9' {
+	for c := r.peek(); c >= '0' && c <= '9'; c = r.peek() {
 		r.at++
 	}
 	if r.at == digits {
-		return r.fail(ReadSyntax)
+		return nil, r.fail(ReadSyntax)
 	}
-	if r.at < len(r.b) && (r.b[r.at] == '.' || r.b[r.at] == 'e' || r.b[r.at] == 'E') {
-		return r.fail(ReadNumber)
+	if c := r.peek(); c == '.' || c == 'e' || c == 'E' {
+		return nil, r.fail(ReadNumber)
 	}
 	text := string(r.b[start:r.at])
-	if (r.b[digits] == '0' && r.at-digits > 1) || text == "-0" {
-		return r.fail(ReadNumber)
-	}
 	n, err := strconv.ParseInt(text, 10, 64)
-	if err != nil {
-		return r.fail(ReadNumber)
+	if err != nil || (r.b[digits] == '0' && r.at-digits > 1) || text == "-0" {
+		return nil, r.fail(ReadNumber)
 	}
-	return &Node{Kind: KindInt, Int: n}
+	return &Node{Kind: KindInt, Int: n}, nil
 }
 
-func (r *jsonReader) str() (string, bool) {
-	r.at++ // the opening quote
-	var b strings.Builder
-	for r.more() {
-		c := r.b[r.at]
-		switch {
-		case c == '"':
-			r.at++
-			return b.String(), true
-		case c < 0x20:
-			r.fail(ReadSyntax)
-			return "", false
-		case c != '\\':
-			b.WriteByte(c)
-			r.at++
-			continue
-		}
-		r.at++
-		if !r.more() {
-			break
-		}
-		esc := r.b[r.at]
-		r.at++
-		switch esc {
-		case '"', '\\', '/':
-			b.WriteByte(esc)
-		case 'b':
-			b.WriteByte('\b')
-		case 'f':
-			b.WriteByte('\f')
-		case 'n':
-			b.WriteByte('\n')
-		case 'r':
-			b.WriteByte('\r')
-		case 't':
-			b.WriteByte('\t')
-		case 'u':
-			code, ok := r.hex4()
-			if !ok || (code >= 0xdc00 && code < 0xe000) {
-				r.fail(ReadSyntax)
-				return "", false
-			}
-			if code >= 0xd800 { // a high surrogate must be followed by a low one; the pair is valid JSON for one character that ADR 0008 writes literally, so the escape is never the canonical writing and is refused at once
-				if !(r.at+1 < len(r.b) && r.b[r.at] == '\\' && r.b[r.at+1] == 'u') {
-					r.fail(ReadSyntax)
-					return "", false
-				}
-				r.at += 2
-				if low, ok := r.hex4(); ok && low >= 0xdc00 && low < 0xe000 {
-					r.fail(ReadNotCanonical)
-				} else {
-					r.fail(ReadSyntax)
-				}
-				return "", false
-			}
-			b.WriteRune(code)
-		default:
-			r.fail(ReadSyntax)
-			return "", false
-		}
-	}
-	r.fail(ReadSyntax)
-	return "", false
-}
-
+// hex4 reads the four hexadecimal digits of a \u escape.
 func (r *jsonReader) hex4() (rune, bool) {
 	if r.at+4 > len(r.b) {
 		return 0, false
 	}
-	n, err := strconv.ParseUint(string(r.b[r.at:r.at+4]), 16, 32)
-	if err != nil {
-		return 0, false
-	}
+	n, err := strconv.ParseUint(string(r.b[r.at:r.at+4]), 16, 16)
 	r.at += 4
-	return rune(n), true
+	return rune(n), err == nil
 }
 
-func (r *jsonReader) array(depth int) *Node {
+func (r *jsonReader) str() (string, *DiffReadError) {
+	r.at++ // the opening quote
+	var b strings.Builder
+	for {
+		c := r.peek()
+		r.at++
+		switch {
+		case c < 0:
+			return "", r.fail(ReadSyntax)
+		case c == '"':
+			return b.String(), nil
+		case c < 0x20:
+			return "", r.fail(ReadSyntax)
+		case c != '\\':
+			b.WriteByte(byte(c))
+		default:
+			ch, err := r.escape()
+			if err != nil {
+				return "", err
+			}
+			b.WriteRune(ch)
+		}
+	}
+}
+
+func (r *jsonReader) escape() (rune, *DiffReadError) {
+	esc := r.peek()
+	r.at++
+	switch esc {
+	case '"', '\\', '/':
+		return rune(esc), nil
+	case 'b':
+		return '\b', nil
+	case 'f':
+		return '\f', nil
+	case 'n':
+		return '\n', nil
+	case 'r':
+		return '\r', nil
+	case 't':
+		return '\t', nil
+	case 'u':
+		return r.unicode()
+	}
+	return 0, r.fail(ReadSyntax)
+}
+
+func (r *jsonReader) unicode() (rune, *DiffReadError) {
+	code, ok := r.hex4()
+	switch {
+	case !ok || (code >= 0xdc00 && code < 0xe000):
+		return 0, r.fail(ReadSyntax)
+	case code >= 0xd800 && code < 0xdc00:
+		// a high surrogate must be followed by a low one; the pair is valid JSON for one character that ADR 0008 writes literally, so the escape is never
+		// the canonical writing and is refused at once (the character it stands for would change nothing)
+		if !strings.HasPrefix(string(r.b[r.at:]), "\\u") {
+			return 0, r.fail(ReadSyntax)
+		}
+		r.at += 2
+		if low, ok := r.hex4(); ok && low >= 0xdc00 && low < 0xe000 {
+			return 0, r.fail(ReadNotCanonical)
+		}
+		return 0, r.fail(ReadSyntax)
+	}
+	return code, nil
+}
+
+func (r *jsonReader) array(depth int) (*Node, *DiffReadError) {
 	r.at++
 	out := &Node{Kind: KindSeq, Items: []*Node{}}
-	if r.more() && r.b[r.at] == ']' {
+	if r.peek() == ']' {
 		r.at++
-		return out
+		return out, nil
 	}
-	for r.more() {
-		it := r.value(depth + 1)
-		if it == nil {
-			return nil
+	for {
+		it, err := r.value(depth + 1)
+		if err != nil {
+			return nil, err
 		}
 		out.Items = append(out.Items, it)
-		if !r.more() {
-			break
-		}
-		switch r.b[r.at] {
+		switch r.peek() {
 		case ',':
 			r.at++
 		case ']':
 			r.at++
-			return out
+			return out, nil
 		default:
-			return r.fail(ReadSyntax)
+			return nil, r.fail(ReadSyntax)
 		}
 	}
-	return r.fail(ReadSyntax)
 }
 
-func (r *jsonReader) object(depth int) *Node {
+func (r *jsonReader) object(depth int) (*Node, *DiffReadError) {
 	r.at++
 	out := &Node{Kind: KindMap, Entries: []Entry{}}
-	if r.more() && r.b[r.at] == '}' {
+	if r.peek() == '}' {
 		r.at++
-		return out
+		return out, nil
 	}
-	for r.more() {
-		if r.b[r.at] != '"' {
-			return r.fail(ReadSyntax)
+	for {
+		if r.peek() != '"' {
+			return nil, r.fail(ReadSyntax)
 		}
-		key, ok := r.str()
-		if !ok {
-			return nil
+		key, err := r.str()
+		if err != nil {
+			return nil, err
 		}
 		if slices.ContainsFunc(out.Entries, func(e Entry) bool { return e.Key == key }) {
-			return r.fail(ReadDuplicateKey)
+			return nil, r.fail(ReadDuplicateKey)
 		}
-		if !r.more() || r.b[r.at] != ':' {
-			return r.fail(ReadSyntax)
+		if r.peek() != ':' {
+			return nil, r.fail(ReadSyntax)
 		}
 		r.at++
-		v := r.value(depth + 1)
-		if v == nil {
-			return nil
+		v, err := r.value(depth + 1)
+		if err != nil {
+			return nil, err
 		}
 		out.Entries = append(out.Entries, Entry{Key: key, Value: v})
-		if !r.more() {
-			break
-		}
-		switch r.b[r.at] {
+		switch r.peek() {
 		case ',':
 			r.at++
 		case '}':
 			r.at++
-			return out
+			return out, nil
 		default:
-			return r.fail(ReadSyntax)
+			return nil, r.fail(ReadSyntax)
 		}
 	}
-	return r.fail(ReadSyntax)
 }
 
 func readFail(reason string) (CanonicalDiff, error) {
@@ -288,7 +277,7 @@ func readFail(reason string) (CanonicalDiff, error) {
 
 // members is the map of a node with exactly the given keys, or nil.
 func members(n *Node, keys ...string) map[string]*Node {
-	if n == nil || n.Kind != KindMap || len(n.Entries) != len(keys) {
+	if n.Kind != KindMap || len(n.Entries) != len(keys) {
 		return nil
 	}
 	out := map[string]*Node{}
@@ -301,7 +290,7 @@ func members(n *Node, keys ...string) map[string]*Node {
 	return out
 }
 
-func isString(n *Node) bool { return n != nil && n.Kind == KindStr }
+func isString(n *Node) bool { return n.Kind == KindStr }
 
 // pathOrder is the key of a canonical, non-root path in the order of ADR 0007, or ok false.
 func pathOrder(text string) (order []string, ok bool) {
@@ -325,15 +314,15 @@ func strictlySorted(items []*Node) bool {
 }
 
 func eventOf(n *Node) (DiffEvent, string) {
-	kindNode := (*Node)(nil)
-	if n != nil && n.Kind == KindMap {
+	var kindNode *Node
+	if n.Kind == KindMap {
 		for _, e := range n.Entries {
 			if e.Key == "kind" {
 				kindNode = e.Value
 			}
 		}
 	}
-	if !isString(kindNode) {
+	if kindNode == nil || kindNode.Kind != KindStr {
 		return DiffEvent{}, ReadShape
 	}
 	e := DiffEvent{Kind: kindNode.Str}
@@ -396,12 +385,12 @@ func ReadDiff(b []byte) (CanonicalDiff, error) {
 		return readFail(ReadNotUTF8)
 	}
 	r := &jsonReader{b: b}
-	root := r.value(0)
-	if root != nil && r.at != len(b) {
-		r.fail(ReadSyntax)
+	root, rerr := r.value(0)
+	if rerr != nil {
+		return CanonicalDiff{}, rerr
 	}
-	if r.err != nil {
-		return CanonicalDiff{}, r.err
+	if r.at != len(b) {
+		return CanonicalDiff{}, r.fail(ReadSyntax)
 	}
 	if root.Kind != KindMap {
 		return readFail(ReadShape)
@@ -412,7 +401,7 @@ func ReadDiff(b []byte) (CanonicalDiff, error) {
 			version = e.Value
 		}
 	}
-	if version == nil || version.Kind != KindInt || version.Int < 0 || version.Int > int64(^uint32(0)>>1) {
+	if version == nil || version.Kind != KindInt || version.Int < 0 || version.Int > maxVersion {
 		return readFail(ReadShape)
 	}
 	var generic strings.Builder

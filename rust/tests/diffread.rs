@@ -232,3 +232,72 @@ fn the_error_says_its_reason_and_where() {
     );
     assert_eq!(text, "diff not read: syntax at byte 1");
 }
+
+#[test]
+fn the_edges_of_the_reader() {
+    let bs = "\\";
+    let wrap_next = |next: &str| {
+        wrap(&format!(
+            r#"{{"kind":"value_change","next":{next},"path":"$.mtu","previous":"x"}}"#
+        ))
+    };
+    let quoted = |escape: &str| wrap_next(&format!("\"{escape}\""));
+    let nested = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+    let cases: Vec<(&str, String, &str)> = vec![
+        // the depth: the document is at 0, the list of changes at 1, an event at 2, its value at 3
+        ("62 lists nested in a value are read", wrap_next(&nested(62)), ""),
+        ("63 lists nested in a value are too deep", wrap_next(&nested(63)), "depth"),
+        ("a minus sign alone", wrap_next("-"), "syntax"),
+        ("a capital E exponent", wrap_next("1E3"), "unsupported_number"),
+        ("a colon is not the start of a value", wrap_next(":"), "syntax"),
+        ("a slash is not the start of a value", wrap_next("/"), "syntax"),
+        ("the largest integer", wrap_next("9223372036854775807"), ""),
+        ("the smallest integer", wrap_next("-9223372036854775808"), ""),
+        ("one beyond the smallest", wrap_next("-9223372036854775809"), "unsupported_number"),
+        ("a zero", wrap_next("0"), ""),
+        ("a truncated escape", wrap_next(&format!("\"{bs}")), "syntax"),
+        ("a truncated unicode escape", quoted(&format!("{bs}u00")), "syntax"),
+        ("the first high surrogate with a low one", quoted(&format!("{bs}ud800{bs}udc00")), "not_canonical"),
+        ("the last high surrogate with a low one", quoted(&format!("{bs}udbff{bs}udfff")), "not_canonical"),
+        ("a high surrogate with the character before the low range", quoted(&format!("{bs}ud800{bs}udbff")), "syntax"),
+        ("a high surrogate with the character after the low range", quoted(&format!("{bs}ud800{bs}ue000")), "syntax"),
+        ("a high surrogate at the end of the string", quoted(&format!("{bs}ud800")), "syntax"),
+        ("the first low surrogate", quoted(&format!("{bs}udc00")), "syntax"),
+        ("the last low surrogate", quoted(&format!("{bs}udfff")), "syntax"),
+        ("the first character after the surrogates", quoted(&format!("{bs}ue000")), "not_canonical"),
+        ("the last character of the basic plane", quoted(&format!("{bs}uffff")), "not_canonical"),
+        ("a character beyond the signed 16 bits", quoted(&format!("{bs}u8000")), "not_canonical"),
+        ("an unknown escape", quoted(&format!("{bs}x")), "syntax"),
+        ("version 0 is read for its version", r#"{"version":0}"#.to_string(), ""),
+        ("the largest version", r#"{"version":2147483647}"#.to_string(), ""),
+        ("one beyond the largest version", r#"{"version":2147483648}"#.to_string(), "shape"),
+        ("an event kind that is not a string", r#"{"changes":[{"kind":1,"next":2,"path":"$.mtu","previous":"x"}],"representation":[],"version":1}"#.to_string(), "shape"),
+        ("representation that is not a list", r#"{"changes":[],"representation":{},"version":1}"#.to_string(), "shape"),
+        ("a declaration change whose changed is a list", r#"{"changes":[{"changed":[],"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}"#.to_string(), "shape"),
+        ("a set change whose added is not a list", r#"{"changes":[{"added":{},"kind":"set_change","path":"$.ip.addresses","removed":[]}],"representation":[],"version":1}"#.to_string(), "shape"),
+        ("a set change whose removed is not a list", r#"{"changes":[{"added":[],"kind":"set_change","path":"$.ip.addresses","removed":{}}],"representation":[],"version":1}"#.to_string(), "shape"),
+        ("a set change whose added is sorted but whose removed is not", r#"{"changes":[{"added":["a"],"kind":"set_change","path":"$.ip.addresses","removed":["c","b"]}],"representation":[],"version":1}"#.to_string(), "shape"),
+        ("a representation entry whose kind is not a string", r#"{"changes":[],"representation":[{"kind":1,"next":"short","path":"$.mtu","previous":"expanded"}],"version":1}"#.to_string(), "shape"),
+        ("a representation entry whose path is not a string", r#"{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":1,"previous":"expanded"}],"version":1}"#.to_string(), "shape"),
+        ("a representation entry whose next is not a string", r#"{"changes":[],"representation":[{"kind":"representation_change","next":1,"path":"$.mtu","previous":"expanded"}],"version":1}"#.to_string(), "shape"),
+        ("a representation entry whose previous is not a string", r#"{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":"$.mtu","previous":1}],"version":1}"#.to_string(), "shape"),
+        ("a representation entry whose previous is not a writing", r#"{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":"$.mtu","previous":"long"}],"version":1}"#.to_string(), "shape"),
+        ("an object where a key is expected", "{1:2}".to_string(), "syntax"),
+        ("an object without a colon", r#"{"a" 1}"#.to_string(), "syntax"),
+        ("a list without a separator", wrap_next("[1 2]"), "syntax"),
+        ("an object without a separator", wrap_next(r#"{"a":1 "b":2}"#), "syntax"),
+        ("a literal cut short", wrap_next("tru"), "syntax"),
+    ];
+    for (name, input, want) in cases {
+        let got = reason(input.as_bytes());
+        // an accepted example is one the reader does not refuse for its form; a value that is read but not written back as it is can still be "not_canonical"
+        let ok = if want.is_empty() {
+            got.is_empty() || got == "not_canonical"
+        } else {
+            got == want
+        };
+        assert!(ok, "{name}: reason {got:?}, want {want:?} ({:.80})", input);
+    }
+    // 62 nested lists are canonical JSON: they are read, not just not refused for their depth
+    assert_eq!(reason(wrap_next(&nested(62)).as_bytes()), "");
+}

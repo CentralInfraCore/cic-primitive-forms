@@ -7,6 +7,7 @@ package forms_test
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
@@ -285,5 +286,80 @@ func TestReadDiffTheErrorSaysItsReasonAndWhere(t *testing.T) {
 	_, err := forms.ReadDiff([]byte("["))
 	if err == nil || err.Error() != "diff not read: syntax at byte 1" {
 		t.Errorf("%v", err)
+	}
+}
+
+func TestReadDiffTheEdgesOfTheReader(t *testing.T) {
+	wrap := func(next string) string {
+		return `{"changes":[{"kind":"value_change","next":` + next + `,"path":"$.mtu","previous":"x"}],"representation":[],"version":1}`
+	}
+	str := func(escape string) string { return `"` + escape + `"` }
+	nested := func(n int) string { return strings.Repeat("[", n) + strings.Repeat("]", n) }
+	cases := []struct{ name, in, reason string }{
+		// the depth: the document is at 0, the list of changes at 1, an event at 2, its value at 3
+		{"62 lists nested in a value are read", wrap(nested(62)), "not_canonical_is_not_expected"},
+		{"63 lists nested in a value are too deep", wrap(nested(63)), "depth"},
+		// the numbers
+		{"a minus sign alone", wrap(`-`), "syntax"},
+		{"a capital E exponent", wrap(`1E3`), "unsupported_number"},
+		{"a colon is not the start of a value", wrap(`:`), "syntax"},
+		{"a slash is not the start of a value", wrap(`/`), "syntax"},
+		{"the largest integer", wrap(`9223372036854775807`), "ok"},
+		{"the smallest integer", wrap(`-9223372036854775808`), "ok"},
+		{"one beyond the smallest", wrap(`-9223372036854775809`), "unsupported_number"},
+		{"a zero", wrap(`0`), "ok"},
+		// the escapes
+		{"a truncated escape", wrap(`"` + bs), "syntax"},
+		{"a truncated unicode escape", wrap(str(bs + "u00")), "syntax"},
+		{"a unicode escape at the very end", `{"version":1}` + `"` + bs + "u0041", "syntax"},
+		{"the first high surrogate with a low one", wrap(str(bs + "ud800" + bs + "udc00")), "not_canonical"},
+		{"the last high surrogate with a low one", wrap(str(bs + "udbff" + bs + "udfff")), "not_canonical"},
+		{"a high surrogate with the character before the low range", wrap(str(bs + "ud800" + bs + "udbff")), "syntax"},
+		{"a high surrogate with the character after the low range", wrap(str(bs + "ud800" + bs + "ue000")), "syntax"},
+		{"a high surrogate at the end of the string", wrap(str(bs + "ud800")), "syntax"},
+		{"the first low surrogate", wrap(str(bs + "udc00")), "syntax"},
+		{"the last low surrogate", wrap(str(bs + "udfff")), "syntax"},
+		{"the first character after the surrogates", wrap(str(bs + "ue000")), "not_canonical"},
+		{"the last character of the basic plane", wrap(str(bs + "uffff")), "not_canonical"},
+		{"a character beyond the signed 16 bits", wrap(str(bs + "u8000")), "not_canonical"},
+		{"an unknown escape", wrap(str(bs + "x")), "syntax"},
+		// the versions
+		{"version 0 is read for its version", `{"version":0}`, "ok"},
+		{"the largest version", `{"version":2147483647}`, "ok"},
+		{"one beyond the largest version", `{"version":2147483648}`, "shape"},
+		// the shape
+		{"an event kind that is not a string", `{"changes":[{"kind":1,"next":2,"path":"$.mtu","previous":"x"}],"representation":[],"version":1}`, "shape"},
+		{"representation that is not a list", `{"changes":[],"representation":{},"version":1}`, "shape"},
+		{"a declaration change whose changed is a list", `{"changes":[{"changed":[],"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[],"version":1}`, "shape"},
+		{"a set change whose added is not a list", `{"changes":[{"added":{},"kind":"set_change","path":"$.ip.addresses","removed":[]}],"representation":[],"version":1}`, "shape"},
+		{"a set change whose removed is not a list", `{"changes":[{"added":[],"kind":"set_change","path":"$.ip.addresses","removed":{}}],"representation":[],"version":1}`, "shape"},
+		{"a set change whose added is sorted but whose removed is not", `{"changes":[{"added":["a"],"kind":"set_change","path":"$.ip.addresses","removed":["c","b"]}],"representation":[],"version":1}`, "shape"},
+		{"a representation entry whose kind is not a string", `{"changes":[],"representation":[{"kind":1,"next":"short","path":"$.mtu","previous":"expanded"}],"version":1}`, "shape"},
+		{"a representation entry whose path is not a string", `{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":1,"previous":"expanded"}],"version":1}`, "shape"},
+		{"a representation entry whose next is not a string", `{"changes":[],"representation":[{"kind":"representation_change","next":1,"path":"$.mtu","previous":"expanded"}],"version":1}`, "shape"},
+		{"a representation entry whose previous is not a string", `{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":"$.mtu","previous":1}],"version":1}`, "shape"},
+		{"a representation entry whose previous is not a writing", `{"changes":[],"representation":[{"kind":"representation_change","next":"short","path":"$.mtu","previous":"long"}],"version":1}`, "shape"},
+		{"an object where a key is expected", `{1:2}`, "syntax"},
+		{"an object without a colon", `{"a" 1}`, "syntax"},
+		{"a list without a separator", wrap(`[1 2]`), "syntax"},
+		{"an object without a separator", wrap(`{"a":1 "b":2}`), "syntax"},
+		{"a literal cut short", wrap(`tru`), "syntax"},
+	}
+	for _, c := range cases {
+		got := readReason(t, c.in)
+		switch c.reason {
+		case "ok":
+			if got != "" && got != "not_canonical" { // the value is any JSON; an accepted example is one the reader does not refuse for its form
+				t.Errorf("%s: reason %q, want it read", c.name, got)
+			}
+		case "not_canonical_is_not_expected":
+			if got != "" {
+				t.Errorf("%s: reason %q, want it read", c.name, got)
+			}
+		default:
+			if got != c.reason {
+				t.Errorf("%s: reason %q, want %q (%.80s)", c.name, got, c.reason, c.in)
+			}
+		}
 	}
 }
