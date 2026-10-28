@@ -70,5 +70,51 @@ class Executors(unittest.TestCase):
         self.check("mutation_reduced_exec.sh", {"CIC_MUTATION_RUN": "^TestA$"}, False)
 
 
+class DiffExecutorQuestion(unittest.TestCase):
+    """The diff executor asks diff_gate.py whether a mutant is in the diff; an answer of "could not tell" is `unknown` (exit 3), never `offdiff` (the review of #108).
+    This runs no test, so it needs no Go."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        os.makedirs(os.path.join(d, "go"))
+        self.original = os.path.join(d, "go", "a.go")
+        self.changed = os.path.join(d, "a.go.mutant")
+        with open(self.original, "w") as fh:
+            fh.write(SRC)
+        with open(self.changed, "w") as fh:
+            fh.write(MUTANTS["killed"])
+        self.ledger = os.path.join(d, "ledger")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_exec(self, lines, list_only=False):
+        open(self.ledger, "w").close()
+        env = dict(os.environ, MUTATE_CHANGED=self.changed, MUTATE_ORIGINAL=self.original, MUTATE_PACKAGE="x", CIC_MUTATION_SHARD="0/1",
+                   CIC_MUTATION_LEDGER=self.ledger, CIC_DIFF_LINES=lines, CIC_REPO_ROOT=self.tmp.name, **({"CIC_MUTATION_LIST_ONLY": "1"} if list_only else {}))
+        r = subprocess.run(["bash", os.path.join(TOOLS, "mutation_diff_exec.sh")], env=env, capture_output=True, text=True)
+        with open(self.ledger) as fh:
+            return r.returncode, [row.split("\t")[3] for row in fh.read().splitlines()]
+
+    def lines(self, text):
+        p = os.path.join(self.tmp.name, "lines.json")
+        with open(p, "w") as fh:
+            fh.write(text)
+        return p
+
+    def test_a_mutant_outside_the_diff_is_offdiff(self):
+        self.assertEqual(self.run_exec(self.lines('{"go/a.go": [[1, 3]]}')), (2, ["offdiff"]))
+
+    def test_a_question_that_could_not_be_answered_is_unknown_and_not_offdiff(self):
+        self.assertEqual(self.run_exec(self.lines("{not json")), (3, ["unknown"]))                           # a list that cannot be read
+        self.assertEqual(self.run_exec(os.path.join(self.tmp.name, "absent.json")), (3, ["unknown"]))        # no list at all
+
+    def test_in_list_mode_a_question_that_could_not_be_answered_still_exits_3(self):
+        # list mode writes no ledger, so the exit status is all that tells go-mutesting (it prints `UNKOWN exit code for`, which go_list_count.py refuses)
+        self.assertEqual(self.run_exec(self.lines("{not json"), list_only=True), (3, []))
+        self.assertEqual(self.run_exec(self.lines('{"go/a.go": [[1, 30]]}'), list_only=True), (0, []))      # in the diff: counted, nothing written
+
+
 if __name__ == "__main__":
     unittest.main()
