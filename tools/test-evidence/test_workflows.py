@@ -243,7 +243,8 @@ class LightPushTests(unittest.TestCase):
         # a push is light unless the caller forces full (the FULL after a change of this workflow, nightly.yml)
         self.assertIn('[ "$EVENT" = "push" ] && [ "$FORCE_FULL" != "true" ] && mode=light', self.text)
         self.assertIn("diff_gate.py scope", self.text)
-        self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}", "fuzz_matrix": "${{ steps.s.outputs.fuzz_matrix }}"})
+        self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}", "engine": "${{ steps.s.outputs.engine }}",
+                                                         "fuzz_matrix": "${{ steps.s.outputs.fuzz_matrix }}"})
 
     def test_the_heavy_jobs_do_not_run_on_a_light_push(self):
         for name in ("seeded-defects", "evidence-selftest"):
@@ -283,8 +284,8 @@ class ShardPlanTests(unittest.TestCase):
         self.assertNotIn("RUST_SHARDS: 6", self.text)
 
     def test_the_gate_wants_the_plan_to_have_succeeded_in_full_and_skipped_in_diff(self):
-        self.assertIn('full) test "$PLAN" = success', self.text)
-        self.assertIn('diff) test "$PLAN" = skipped', self.text)
+        self.assertIn('fast_not && test "$PLAN" = success', self.text)      # the classic full; the fast full has no plan
+        self.assertIn('diff) fast_not && test "$PLAN" = skipped', self.text)
 
 
 @unittest.skipIf(yaml is None, "no PyYAML")
@@ -301,7 +302,7 @@ class DiffShardTests(unittest.TestCase):
             self.assertIn("diff-plan", _needs(self.jobs[name]), name)
             self.assertEqual(self.jobs[name]["strategy"]["matrix"]["shard"], "${{ fromJSON(needs.diff-plan.outputs.%s_shards) }}" % lang, name)
         self.assertIn("diff-plan", _needs(self.jobs["quality"]))
-        self.assertIn('diff) test "$PLAN" = skipped && test "$DIFF_PLAN" = success', self.text)
+        self.assertIn('diff) fast_not && test "$PLAN" = skipped && test "$DIFF_PLAN" = success', self.text)
         self.assertIn('test "$DIFF_PLAN" = skipped && test "$DIFF_RUST" = skipped', self.text)   # and skipped in full
 
     def test_every_diff_shard_report_is_read_against_the_one_list(self):
@@ -378,3 +379,71 @@ def _needs(job):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(yaml is None, "no PyYAML")
+class FastFullTests(unittest.TestCase):
+    """p1.yml (docs/FAST-FULL.md): the full run of a pull request is measured by cargo-gamma and go-mutants, the nightly FULL by the classic tools."""
+
+    FAST = ("fast-list", "fast-mutation-rust", "fast-mutation-go")
+    CLASSIC = ("plan", "quality-mutation-rust", "quality-mutation-go")
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.jobs = self.p1["jobs"]
+
+    def test_only_a_pull_request_in_full_mode_is_measured_by_the_fast_tools(self):
+        self.assertIn('[ "$mode" = full ] && [ "$EVENT" = pull_request ] && engine=fast', self.text)
+        for name in self.FAST:
+            self.assertEqual(self.jobs[name]["if"], "${{ needs.scope.outputs.engine == 'fast' }}", name)
+        for name in self.CLASSIC:
+            self.assertIn("mode == 'full' && needs.scope.outputs.engine == 'classic'", self.jobs[name]["if"], name)
+
+    def test_the_gate_reads_the_reports_of_the_engine_that_ran(self):
+        gate = next(st for st in self.jobs["quality"]["steps"] if st.get("name", "").startswith("Gate, the pull request's full run"))
+        self.assertIn("engine == 'fast'", gate["if"])
+        for flag in ("--gamma-reports", "--gamma-listed", "--gomutants-reports"):
+            self.assertIn(flag, gate["run"])
+        self.assertNotIn("--rust-mutants", gate["run"])
+        for name in self.FAST:
+            self.assertIn(name, _needs(self.jobs["quality"]), name)
+        # each engine must find the other's jobs skipped, not merely successful or absent
+        self.assertIn('fast_ran && test "$PLAN" = skipped', self.text)
+        self.assertIn('fast_not && test "$PLAN" = success', self.text)
+
+    def test_every_shard_the_gate_expects_has_a_matrix_entry(self):
+        env = self.p1["env"]
+        self.assertEqual(self.jobs["fast-mutation-rust"]["strategy"]["matrix"]["shard"], list(range(int(env["GAMMA_SHARDS"]))))
+        self.assertEqual(self.jobs["fast-mutation-go"]["strategy"]["matrix"]["shard"], list(range(1, int(env["GOMUTANTS_SHARDS"]) + 1)))
+        self.assertIn('--shard-count "$GAMMA_SHARDS"', self.text)
+        self.assertIn('"$GOMUTANTS_SHARDS"', self.jobs["fast-mutation-go"]["steps"][-2]["run"])
+
+    def test_the_fast_tools_are_pinned_and_the_shard_report_must_exist(self):
+        self.assertIn("cargo-gamma@0.3.0", self.text)
+        self.assertRegex(self.text, r"go-mutants/cmd/go-mutants@v0\.0\.0-\d{14}-[0-9a-f]{12}")
+        for name in ("fast-mutation-rust", "fast-mutation-go"):
+            up = self.jobs[name]["steps"][-1]
+            self.assertEqual(up["with"]["if-no-files-found"], "error", name)    # a shard that wrote no report is red, never a smaller sample
+        self.assertNotIn("|| true", "\n".join(st.get("run", "") for st in self.jobs["fast-mutation-rust"]["steps"]))
+
+    def test_the_nightly_shadow_gates_nothing(self):
+        shadow = self.jobs["shadow-gamma"]
+        self.assertTrue(shadow["continue-on-error"])
+        self.assertIn("engine == 'classic'", shadow["if"])
+        self.assertNotIn("shadow-gamma", _needs(self.jobs["quality"]))
+
+    def test_the_seeded_proof_of_the_fast_full_weakens_the_tests_and_wants_both_scores_red(self):
+        proof = next(st for st in self.jobs["quality"]["steps"] if st.get("name", "").startswith("Seeded proof, weakened tests turn the mutation score red (cargo-gamma"))
+        self.assertIn("engine == 'fast'", proof["if"])
+        self.assertIn("--include-test subset", proof["run"])
+        self.assertIn("FAIL rust mutation score .*BELOW_THRESHOLD", proof["run"])
+        self.assertIn("FAIL go mutation score .*BELOW_THRESHOLD", proof["run"])
+
+    def test_the_diff_gamma_is_a_shadow_that_runs_in_diff_mode_only(self):
+        job = self.jobs["diff-gamma"]
+        self.assertTrue(job["continue-on-error"])
+        self.assertEqual(job["if"], "${{ needs.scope.outputs.mode == 'diff' }}")
+        self.assertNotIn("diff-gamma", _needs(self.jobs["quality"]))
+        run = "\n".join(st.get("run", "") for st in job["steps"])
+        self.assertIn("--in-diff", run)
+        self.assertIn("--mutators all", run)

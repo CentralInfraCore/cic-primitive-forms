@@ -19,6 +19,13 @@ Reports:
   --go-mutants    go-mutesting stdout                    (score = passed / (passed + failed))
   --go-ledgers    one tools/mutation_shard_exec.sh ledger per shard of a sharded go-mutesting run
   --go-expected   the number of Go mutants the plan counted (#94): the ledgers must give exactly that many a verdict
+  --gamma-reports cargo-gamma gamma-report.json, one per shard   (the pull request's full run; instead of --rust-mutants)
+  --gamma-listed  `cargo gamma list mutants --json`               the mutants there are; every one must be measured by exactly one shard
+  --gomutants-reports  go-mutants mutation.json, one per shard    (the pull request's full run; instead of --go-mutants and --go-ledgers)
+                  Both write a mutation-testing-elements report. Killed is killed; Survived, NoCoverage and Timeout (gamma writes its timeouts and
+                  memory-limit stops as Survived) are not; Ignored, a mutant nobody could judge (flaky, inconclusive), is not killed either and stays
+                  in the denominator, so it can only lower the score; CompileError (unviable) is left out and printed. A go-mutants shard report names
+                  the other shards' mutants too, as Ignored "another shard ..."; those are the catalogue, not a verdict.
 Unviable mutants (Rust) and skipped or duplicated ones (Go) are not counted either way. Their share of the mutants the tool listed is printed under each
 mutation score ("not in the denominator: N of M mutants"): information only, no threshold, so that a growing share cannot go unseen. For Go it is everything in
 the total of go-mutesting that is neither killed nor escaped (skipped and errors); the duplicates are not in that total and are named next to it.
@@ -270,6 +277,71 @@ def go_mutants(path):
     return counted["passed"], counted["passed"] + counted["failed"]
 
 
+STRYKER_VERDICTS = {"Killed": "killed", "Survived": "survived", "NoCoverage": "survived", "Timeout": "survived",
+                    "Ignored": "unresolved", "CompileError": "unviable"}
+OTHER_SHARD = "another shard of this run measured this"
+AGAINST = {}   # per language: mutants without a verdict that the score still counts against (information, printed under the score)
+
+
+def _stryker(path):
+    """(measured {id: verdict}, catalogue {id}) of one mutation-testing-elements report. A mutant that another shard measured is in the catalogue only."""
+    try:
+        files = json.loads(read(path))["files"]
+        measured, catalogue = {}, set()
+        for f in files.values():
+            for m in f["mutants"]:
+                mid, status = m["id"], m["status"]
+                if not isinstance(mid, str) or not isinstance(status, str):
+                    raise TypeError
+                if mid in catalogue:
+                    raise Refused("INCOMPLETE_SHARDS", "%s: mutant %s twice in one report" % (path, mid))
+                catalogue.add(mid)
+                if status == "Ignored" and str(m.get("statusReason", "")).startswith(OTHER_SHARD):
+                    continue
+                if status not in STRYKER_VERDICTS:
+                    raise Refused("REPORT_INCONSISTENT", "%s: mutant %s has no known verdict (%r)" % (path, mid, status))
+                measured[mid] = STRYKER_VERDICTS[status]
+    except (ValueError, KeyError, TypeError, AttributeError):
+        raise Refused("REPORT_FORMAT", "%s: not a mutation-testing-elements report" % path)
+    return measured, catalogue
+
+
+def _gamma_listed(path):
+    try:
+        ids = [m["id"] for m in json.loads(read(path))]
+        if not ids or not all(isinstance(i, str) for i in ids) or len(set(ids)) != len(ids):
+            raise TypeError
+    except (ValueError, KeyError, TypeError):
+        raise Refused("REPORT_FORMAT", "%s: not a `cargo gamma list mutants --json` list" % path)
+    return set(ids)
+
+
+def stryker_mutants(paths, language, listed=None, allow_empty=False):
+    """The score of a sharded cargo-gamma or go-mutants run. The mutants there are come from `listed` (gamma, whose shard reports hold only their own
+    mutants) or from the catalogue of the reports (go-mutants, whose every shard names every mutant): each must be measured by exactly one shard.
+    A mutant nobody could judge counts against the score; an unviable one is left out."""
+    reports = [_stryker(p) for p in paths]
+    if listed is None and len(paths) > 1 and language == "rust":
+        raise Refused("INCOMPLETE_SHARDS", "%d shard reports and no list of the mutants to check them against" % len(paths))
+    want = _gamma_listed(listed) if listed else reports[0][1]
+    if not listed and any(cat != want for _, cat in reports):
+        raise Refused("INCOMPLETE_SHARDS", "the shards disagree on which mutants there are")
+    verdicts = {}
+    for measured, _ in reports:
+        for mid, v in measured.items():
+            if mid in verdicts:
+                raise Refused("INCOMPLETE_SHARDS", "mutant %s was measured by two shards" % mid)
+            verdicts[mid] = v
+    missing, extra = want - set(verdicts), set(verdicts) - want
+    if (missing or extra) and not (allow_empty and not want and not verdicts):
+        raise Refused("INCOMPLETE_SHARDS", "%d not measured, %d not in the list (first: %s)" % (len(missing), len(extra), sorted(missing | extra)[0]))
+    counts = {k: sum(1 for v in verdicts.values() if v == k) for k in ("killed", "survived", "unresolved", "unviable")}
+    note_excluded(language, {"unviable": counts["unviable"]}, len(verdicts))
+    if counts["unresolved"]:
+        AGAINST[language] = AGAINST.get(language, 0) + counts["unresolved"]
+    return counts["killed"], counts["killed"] + counts["survived"] + counts["unresolved"]
+
+
 def judge(name, measure, path):
     covered, total = measure()
     if total == 0:
@@ -297,15 +369,25 @@ def judge_diff(name, measure, path):
 
 def check(args):
     diff = getattr(args, "diff", False)
-    rust_m = args.rust_mutants if isinstance(args.rust_mutants, list) else [args.rust_mutants]
-    go_m = ((lambda: go_ledgers(args.go_ledgers, allow_empty=diff, expected=getattr(args, "go_expected", None))) if args.go_ledgers
-            else (lambda: go_mutants(args.go_mutants)))
+    gamma, gom = getattr(args, "gamma_reports", None), getattr(args, "gomutants_reports", None)
+    if gamma:
+        rust_gate = (lambda: stryker_mutants(gamma, "rust", getattr(args, "gamma_listed", None), allow_empty=diff), " ".join(gamma))
+    else:
+        rust_m = args.rust_mutants if isinstance(args.rust_mutants, list) else [args.rust_mutants]
+        rust_gate = (lambda: rust_mutants(rust_m, args.rust_listed, allow_empty=diff), " ".join(rust_m))
+    if gom:
+        go_gate = (lambda: stryker_mutants(gom, "go", allow_empty=diff), " ".join(gom))
+    elif args.go_ledgers:
+        go_gate = (lambda: go_ledgers(args.go_ledgers, allow_empty=diff, expected=getattr(args, "go_expected", None)), " ".join(args.go_ledgers))
+    else:
+        go_gate = (lambda: go_mutants(args.go_mutants), args.go_mutants)
     gates = [("rust line coverage", lambda: rust_lines(args.rust_lines), args.rust_lines),
              ("go statement coverage", lambda: go_lines(args.go_lines), args.go_lines),
-             ("rust mutation score", lambda: rust_mutants(rust_m, args.rust_listed, allow_empty=diff), " ".join(rust_m)),
-             ("go mutation score", go_m, " ".join(args.go_ledgers) if args.go_ledgers else args.go_mutants)]
+             ("rust mutation score", *rust_gate),
+             ("go mutation score", *go_gate)]
     failed = 0
     EXCLUDED.clear()
+    AGAINST.clear()
     for name, measure, path in gates:
         try:
             ok, line = (judge_diff if diff and "mutation" in name else judge)(name, measure, path)
@@ -316,9 +398,12 @@ def check(args):
         print(("ok   " if ok else "FAIL ") + line + ("" if ok else "  BELOW_THRESHOLD"))
         failed += 0 if ok else 1
         if "mutation" in name:
-            note = excluded_line("rust" if name.startswith("rust") else "go")
+            lang = "rust" if name.startswith("rust") else "go"
+            note = excluded_line(lang)
             if note:
                 print(note)
+            if AGAINST.get(lang):
+                print("     counted against the score, no verdict (flaky or inconclusive): %d mutants" % AGAINST[lang])
     print("QUALITY GATE: %s" % ("PASS" if failed == 0 else "FAIL (%d)" % failed))
     return 0 if failed == 0 else 1
 
@@ -539,11 +624,72 @@ def selftest():
     diffcase("diff: rust list is empty and nothing ran", None, rm=rshard([]), rust_listed="[]")
     diffcase("diff: rust ran a mutant that is not listed", "INCOMPLETE_SHARDS",
              rm=rshard(["m00"]), rust_listed="[]")
+    # the reports of cargo-gamma and go-mutants (the pull request's full run): every way they can mislead, and the sharded completeness
+    fast_cases = []
+
+    def sreport(statuses, start=0, others=(), other_reason=OTHER_SHARD + " (shard 0 of 2)"):
+        mutants = [{"id": "x%03d" % (start + i), "status": st} for i, st in enumerate(statuses)]
+        mutants += [{"id": "x%03d" % i, "status": "Ignored", "statusReason": other_reason} for i in others]
+        return json.dumps({"schemaVersion": "2", "files": {"a.rs": {"mutants": mutants}}})
+
+    def slisting(n):
+        return json.dumps([{"id": "x%03d" % i} for i in range(n)])
+
+    K, S, I = "Killed", "Survived", "Ignored"
+    ok95 = sreport([K] * 95 + [S] * 5)
+
+    def fast(title, want, gamma=None, listed=None, gom=None, expect=()):
+        nonlocal bad
+        with tempfile.TemporaryDirectory() as d:
+            ns = argparse.Namespace(rust_lines=_w(d, "rl", _rust_cov(95, 100)), go_lines=_w(d, "gl", _go_cov(95, 100)),
+                                    gamma_reports=[_w(d, "g%d" % i, t) for i, t in enumerate(gamma or [ok95])],
+                                    gamma_listed=_w(d, "gl2", listed) if listed else None,
+                                    gomutants_reports=[_w(d, "o%d" % i, t) for i, t in enumerate(gom or [ok95])],
+                                    rust_mutants=None, go_mutants=None, go_ledgers=None)
+            rc, text = _capture(check, ns)
+        got = None if rc == 0 else next((r for r in REASONS if r in text), "?")
+        seen.add(got)
+        good_ = got == want and all(e in text for e in expect)
+        bad += 0 if good_ else 1
+        fast_cases.append(title)
+        print("  %s %-48s -> %s" % ("ok " if good_ else "BAD", title, got or "pass"))
+
+    half = lambda lo, hi, **kw: sreport([K] * (hi - lo), start=lo, others=[i for i in range(100) if not lo <= i < hi], **kw)
+    fast("gamma: one complete report", None)
+    fast("gamma: exactly 90% is red", "BELOW_THRESHOLD", gamma=[sreport([K] * 90 + [S] * 10)])
+    fast("gamma: flaky mutants count against the score", "BELOW_THRESHOLD", gamma=[sreport([K] * 85 + [I] * 15)])
+    fast("gamma: flaky mutants are named under a passing score", None, gamma=[sreport([K] * 95 + [I] * 5)],
+         expect=["counted against the score, no verdict (flaky or inconclusive): 5 mutants"])
+    fast("gamma: unviable mutants are left out and named", None, gamma=[sreport([K] * 95 + [S] * 5 + ["CompileError"] * 40)],
+         expect=["not in the denominator: 40 of 140 mutants (28.57%) (unviable 40)"])
+    fast("gamma: a verdict nobody knows (Pending)", "REPORT_INCONSISTENT", gamma=[sreport([K] * 95 + ["Pending"] * 5)])
+    fast("gamma: the report is not JSON", "REPORT_FORMAT", gamma=["oops"])
+    fast("gamma: the report has no mutants key", "REPORT_FORMAT", gamma=[json.dumps({"files": {"a.rs": {}}})])
+    fast("gamma: a measurement of nothing", "MEASUREMENT_EMPTY", gamma=[sreport([])])
+    fast("gamma: a mutant twice in one report", "INCOMPLETE_SHARDS", gamma=[sreport([K] * 5 + [K]).replace("x005", "x004")])
+    fast("gamma shards: complete", None, gamma=[sreport([K] * 48 + [S] * 2), sreport([K] * 48 + [S] * 2, start=50)], listed=slisting(100))
+    fast("gamma shards: a shard did not run", "INCOMPLETE_SHARDS", gamma=[sreport([K] * 50)], listed=slisting(100))
+    fast("gamma shards: a mutant measured by two shards", "INCOMPLETE_SHARDS",
+         gamma=[sreport([K] * 51), sreport([K] * 50, start=50)], listed=slisting(100))
+    fast("gamma shards: a mutant that is not listed", "INCOMPLETE_SHARDS",
+         gamma=[sreport([K] * 50), sreport([K] * 50, start=50), sreport([K], start=500)], listed=slisting(100))
+    fast("gamma shards: several reports and no list", "INCOMPLETE_SHARDS", gamma=[sreport([K] * 50), sreport([K] * 50, start=50)])
+    fast("gamma shards: the list is not a list of mutants", "REPORT_FORMAT", gamma=[ok95], listed="{}")
+    fast("go-mutants shards: complete", None, gom=[half(0, 50), half(50, 100)])
+    fast("go-mutants shards: a shard did not run", "INCOMPLETE_SHARDS", gom=[half(0, 50)])
+    fast("go-mutants shards: a mutant measured by none", "INCOMPLETE_SHARDS", gom=[half(0, 50), half(50, 99)])
+    fast("go-mutants shards: the shards disagree on the mutants", "INCOMPLETE_SHARDS",
+         gom=[half(0, 50), half(50, 100).replace('{"id": "x099", "status": "Killed"}', '{"id": "x777", "status": "Killed"}')])
+    fast("go-mutants shards: a mutant measured by two shards", "INCOMPLETE_SHARDS", gom=[half(0, 51), half(50, 100)])
+    fast("go-mutants: timeouts are not kills", "BELOW_THRESHOLD", gom=[sreport([K] * 80 + ["Timeout"] * 20)])
+    fast("go-mutants: an inconclusive mutant counts against", "BELOW_THRESHOLD",
+         gom=[sreport([K] * 85 + [I] * 15).replace(OTHER_SHARD, "x")])
+    fast("go-mutants: the other shards' mutants are not verdicts", None, gom=[half(0, 100)])
     missing = set(REASONS) - seen
     if missing:
         print("  BAD reasons without a fault: %s" % sorted(missing))
         bad += 1
-    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 2 + 17 + 15, len(set(REASONS) & seen), len(REASONS))
+    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 2 + 17 + 15 + len(fast_cases), len(set(REASONS) & seen), len(REASONS))
           if bad == 0 else "self-test FAILED (%d)" % bad)
     return 0 if bad == 0 else 1
 
@@ -563,15 +709,23 @@ def main():
     c = sub.add_parser("check")
     for flag in ("rust-lines", "go-lines"):
         c.add_argument("--" + flag, required=True)
-    c.add_argument("--rust-mutants", required=True, nargs="+")
+    c.add_argument("--rust-mutants", nargs="+")
+    c.add_argument("--gamma-reports", nargs="+")
+    c.add_argument("--gamma-listed")
+    c.add_argument("--gomutants-reports", nargs="+")
     c.add_argument("--rust-listed")
     c.add_argument("--diff", action="store_true", help="the mutation scores are those of the mutants in the diff of a pull request")
-    group = c.add_mutually_exclusive_group(required=True)
+    group = c.add_mutually_exclusive_group()
     group.add_argument("--go-mutants")
     group.add_argument("--go-ledgers", nargs="+")
     c.add_argument("--go-expected", type=int, help="with --go-ledgers: the number of Go mutants the plan counted")
     sub.add_parser("selftest")
     a = ap.parse_args()
+    if a.cmd == "check":
+        if bool(a.rust_mutants) == bool(a.gamma_reports):
+            ap.error("exactly one of --rust-mutants and --gamma-reports")
+        if sum(bool(x) for x in (a.go_mutants, a.go_ledgers, a.gomutants_reports)) != 1:
+            ap.error("exactly one of --go-mutants, --go-ledgers and --gomutants-reports")
     return check(a) if a.cmd == "check" else selftest()
 
 
