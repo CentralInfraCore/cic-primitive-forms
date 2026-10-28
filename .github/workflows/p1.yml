@@ -479,7 +479,7 @@ jobs:
   # and the Rust list is the one the shards are dealt from and checked against.
   diff-plan:
     needs: scope
-    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    if: ${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -544,7 +544,7 @@ jobs:
 
   diff-mutation-rust:
     needs: [scope, diff-plan]
-    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    if: ${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -600,7 +600,7 @@ jobs:
 
   diff-mutation-go:
     needs: [scope, diff-plan]
-    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    if: ${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -653,7 +653,7 @@ jobs:
   # in the summary of the run and in the artifact (docs/FAST-FULL.md).
   diff-gamma:
     needs: scope
-    if: ${{ needs.scope.outputs.mode == 'diff' }}
+    if: ${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -871,7 +871,7 @@ jobs:
           case "$MODE" in
             full)
               if [ "$ENGINE" = fast ]; then
-                fast_ran && test "$PLAN" = skipped && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped && test "$DIFF_PLAN" = skipped && test "$DIFF_RUST" = skipped && test "$DIFF_GO" = skipped
+                fast_ran && test "$PLAN" = skipped && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped && test "$DIFF_PLAN" = success && test "$DIFF_RUST" = success && test "$DIFF_GO" = success
               else
                 fast_not && test "$PLAN" = success && test "$FULL_RUST" = success && test "$FULL_GO" = success && test "$DIFF_PLAN" = skipped && test "$DIFF_RUST" = skipped && test "$DIFF_GO" = skipped
               fi ;;
@@ -926,8 +926,10 @@ jobs:
           name: quality-listed
           path: ${{ runner.temp }}/q/rust-listed.json
           if-no-files-found: warn
+      # In a diff, and in the pull request's full run too: the classic tools measure the lines the pull request changes, so that the evidence on changed code at merge
+      # time is the one it always was; only the whole-tree measurement moves to the fast tools (docs/FAST-FULL.md).
       - name: Gate, the diff (docs/DELTA-DIFF-GATE.md, section 2)
-        if: ${{ needs.scope.outputs.mode == 'diff' }}
+        if: ${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}
         env:
           GO_MUTANTS: ${{ needs.diff-plan.outputs.go_mutants }}
         run: |

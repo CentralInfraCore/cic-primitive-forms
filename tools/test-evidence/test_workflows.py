@@ -441,14 +441,26 @@ class FastFullTests(unittest.TestCase):
         self.assertIn("FAIL rust mutation score .*BELOW_THRESHOLD", proof["run"])
         self.assertIn("FAIL go mutation score .*BELOW_THRESHOLD", proof["run"])
 
-    def test_the_diff_gamma_is_a_shadow_that_runs_in_diff_mode_only(self):
+    def test_the_diff_gamma_is_a_shadow_that_runs_where_a_diff_is_measured(self):
         job = self.jobs["diff-gamma"]
         self.assertTrue(job["continue-on-error"])
-        self.assertEqual(job["if"], "${{ needs.scope.outputs.mode == 'diff' }}")
+        self.assertEqual(job["if"], "${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}")
         self.assertNotIn("diff-gamma", _needs(self.jobs["quality"]))
         run = "\n".join(st.get("run", "") for st in job["steps"])
         self.assertIn("--in-diff", run)
         self.assertIn("--mutators all", run)
+
+    def test_the_full_run_of_a_pull_request_measures_its_diff_with_the_classic_tools_too(self):
+        # the evidence on the code a pull request changes is the one it always was; only the whole-tree measurement moves to the fast tools
+        both = "${{ needs.scope.outputs.mode == 'diff' || needs.scope.outputs.engine == 'fast' }}"
+        for name in ("diff-plan", "diff-mutation-rust", "diff-mutation-go", "diff-gamma"):
+            self.assertEqual(self.jobs[name]["if"], both, name)
+        gate = next(st for st in self.jobs["quality"]["steps"] if st.get("name", "").startswith("Gate, the diff"))
+        self.assertEqual(gate["if"], both)
+        self.assertIn("--diff", gate["run"])
+        # and the gate wants them to have run, not merely not failed
+        self.assertIn('fast_ran && test "$PLAN" = skipped && test "$FULL_RUST" = skipped && test "$FULL_GO" = skipped && test "$DIFF_PLAN" = success '
+                      '&& test "$DIFF_RUST" = success && test "$DIFF_GO" = success', self.text)
 
 
 @unittest.skipIf(yaml is None, "no PyYAML")

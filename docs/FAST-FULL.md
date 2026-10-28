@@ -9,8 +9,8 @@ step, 40 allowed) was close to its time limit. This note says what changed, what
 | Run | Rust | Go |
 |---|---|---|
 | Pull request, **diff** mode (the gate is unchanged) | cargo-mutants on the lines of the diff | go-mutesting on the lines of the diff |
-| Pull request, diff mode, beside the gate | cargo-gamma on the lines of the diff, **every** family, a *shadow* (`diff-gamma`): gates nothing, survivors in the run summary | none yet (go-mutants' `--changed` selected no mutant in the layout of this repository, see below) |
-| Pull request, **full** mode (`scope` says `engine=fast`) | cargo-gamma 0.3.0, every family but `literal`, `stmt`, `loop`, 6 shards | go-mutants (pinned commit), profile `all`, 3 shards |
+| Pull request, diff mode or full mode, beside the gate | cargo-gamma on the lines of the diff, **every** family, a *shadow* (`diff-gamma`): gates nothing, survivors in the run summary. Promoting it to a gate is a separate decision, after it has run on enough pull requests to show its noise | none yet (go-mutants' `--changed` selected no mutant in the layout of this repository, see below) |
+| Pull request, **full** mode (`scope` says `engine=fast`) | cargo-gamma 0.3.0, every family but `literal`, `stmt`, `loop`, 6 shards; **and** the classic diff jobs (cargo-mutants) on the changed lines, as in a diff | go-mutants (pinned commit), profile `all`, 3 shards; **and** the classic diff jobs (go-mutesting) on the changed lines |
 | **Nightly** FULL, a run by hand, the FULL after a change of `p1.yml` (`engine=classic`) | cargo-mutants, whole tree (as before) | go-mutesting, whole tree (as before) |
 | Nightly FULL, beside it | cargo-gamma with **every** family, 8 shards, a *shadow*: gates nothing, its failure is not the FULL's | none |
 
@@ -56,6 +56,10 @@ they found survivors in new code (the diff of #107), which is why the diff mode 
 
 ## What this does not claim
 
+* **At merge time the classic evidence on the code a pull request changes is kept.** The classic diff jobs (cargo-mutants and go-mutesting on the changed lines) run in the
+  pull request's full run too, and `quality` wants them to have run; only the whole-tree measurement moved to the fast tools. What the full run of a pull request no longer
+  does is the classic whole-tree measurement, and go-mutants does not make go-mutesting's operand-level mutations (`a && b` to `true && b`, a constant moved by one, `break`
+  to `continue`, a returned value dropped: 14 of go-mutesting's 33 survivors on nine past pull requests are of these kinds). Those are found by the nightly FULL, after the merge.
 * The classic tools stay the nightly's reference. The two sets of mutants are different (cargo-gamma makes about 4.3 times as many as cargo-mutants), so their scores are
   not comparable; the overlap of what they find is partial in both directions (go-mutesting 33 survivors on nine past pull requests, go-mutants 26 balanced / 47 `all`;
   19 of the 33 on the same line).
@@ -70,5 +74,9 @@ they found survivors in new code (the diff of #107), which is why the diff mode 
 
 ## Required checks
 
-New job names: `seeded-defects-shard (0..7)` (the joining job `seeded-defects` is the required one and keeps its name), `diff-gamma` (a shadow, diff mode), `fast-list`, `fast-mutation-rust (0..5)`, `fast-mutation-go (1..3)` (and `shadow-gamma (0..7)` on the nightly). The ruleset of `main` and the nightly profile of
-cic-factory list required job names by hand: adding them is the owner's.
+The required checks stay the ones that exist whatever the mode is: `quality`, `seeded-defects`, `fuzz`, and the always-present jobs (`tools/test-evidence/required-checks.json`).
+**The jobs of this change must not be required by name**: `fast-list`, `fast-mutation-rust (0..5)`, `fast-mutation-go (1..3)`, `seeded-defects-shard (0..7)`, `diff-gamma`
+and `shadow-gamma` exist only in some modes (a ruleset that required them would wait for a check that a diff-mode pull request never creates). They are covered by
+`quality`, which is required and which is red unless exactly the jobs of the chosen mode and engine ran and passed (`fast_ran`, `fast_not` in its first step), and by
+`seeded-defects`, which joins its shards. `diff-proof` and `patch-proof` are always there and remain the owner's question for the ruleset and the cic-factory nightly
+profile; nothing in this change depends on them.
