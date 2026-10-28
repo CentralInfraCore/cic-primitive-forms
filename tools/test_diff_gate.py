@@ -160,6 +160,22 @@ class Scope(unittest.TestCase):
         for rel in ("tools/shard_count.py", "tools/shard_budget.json", "tools/fuzz_matrix.py", "tools/seeded_defects.py"):
             self.assertEqual(diff_gate.kind(rel), "build", rel)
 
+    def test_a_new_go_test_file_that_changes_how_every_test_runs_is_full(self):
+        # the review of #108: a new test file is an addition only if it can only add kills; TestMain can end the process before a single test, init sets the world
+        head = 'package forms_test\n\nimport (\n\t"os"\n\t"testing"\n)\n\nvar _ = os.Exit\nvar _ testing.TB\n\n'
+        for body in ("func TestMain(m *testing.M) {\n\tos.Exit(0)\n}\n", 'func init() {\n\tos.Setenv("A", "b")\n}\n'):
+            self.git("reset", "-q", "--hard", self.base)
+            self.write("go/m_test.go", head + body)
+            self.assertEqual(self.mode(), "full", body)
+
+    def test_testmain_added_to_an_existing_go_test_file_is_full_too(self):
+        self.write("go/a_test.go", GO_TEST + "\nfunc TestMain(m *testing.M) {\n\tm.Run()\n}\n")
+        self.assertEqual(self.mode(), "full")
+
+    def test_a_new_go_test_file_of_ordinary_tests_is_still_an_addition(self):
+        self.write("go/n_test.go", GO_TEST.replace("TestOne", "TestTwo"))
+        self.assertEqual(self.mode(), "diff")
+
     def test_a_change_of_the_gate_workflow_alone_is_diff_with_a_note(self):
         # the pull request stays fast; a FULL runs in the background after the merge (nightly.yml)
         self.write(".github/workflows/p1.yml", "name: p1\n")
@@ -315,6 +331,37 @@ class Narrowing(unittest.TestCase):
         self.assertEqual(diff_gate.merge_ranges([[5, 6], [1, 2], [3, 3], [9, 9]]), [[1, 3], [5, 6], [9, 9]])
         self.assertEqual(diff_gate.merge_ranges([[1, 4], [2, 3], [5, 5]]), [[1, 5]])
         self.assertEqual(diff_gate.to_ranges({4, 2, 3, 7}), [[2, 4], [7, 7]])
+
+
+class InDiffAnswers(unittest.TestCase):
+    """`diff_gate.py in-diff` answers 0 (the mutant changes a line of the diff), 1 (it does not) or 2 (it could not tell): a crash is not "outside the diff"."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        self.paths = {}
+        for name, text in (("orig", "a\nb\nc\nd\n"), ("in", "a\nB\nc\nd\n"), ("out", "a\nb\nc\nD\n"), ("lines", json.dumps({"go/x.go": [[2, 3]]})), ("bad", "{not json")):
+            self.paths[name] = os.path.join(d, name)
+            with open(self.paths[name], "w") as fh:
+                fh.write(text)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def ask(self, lines, changed, original=None):
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "diff_gate.py")
+        r = subprocess.run([sys.executable, script, "in-diff", "--lines", lines, "--path", "go/x.go", "--original", original or self.paths["orig"], "--changed", changed],
+                           capture_output=True, text=True)
+        return r.returncode
+
+    def test_in_the_diff_outside_it_and_could_not_tell(self):
+        p = self.paths
+        self.assertEqual(self.ask(p["lines"], p["in"]), 0)
+        self.assertEqual(self.ask(p["lines"], p["out"]), 1)
+        self.assertEqual(self.ask(os.path.join(self.tmp.name, "absent"), p["in"]), 2)      # no list of changed lines
+        self.assertEqual(self.ask(p["bad"], p["in"]), 2)                                  # a list that is not JSON
+        self.assertEqual(self.ask(p["lines"], os.path.join(self.tmp.name, "absent")), 2)  # no mutant file
+        self.assertEqual(self.ask(p["lines"], p["in"], original=os.path.join(self.tmp.name, "absent")), 2)
 
 
 if __name__ == "__main__":

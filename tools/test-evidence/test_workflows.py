@@ -494,3 +494,28 @@ class SeededDefectsShardTests(unittest.TestCase):
         step = next(st for st in shard["steps"] if "seeded_defects.py" in st.get("run", ""))
         self.assertEqual(step["env"]["SHARD"], "${{ matrix.shard }}/${{ needs.scope.outputs.seeded_n }}")
         self.assertEqual(step["run"].count('--shard "$SHARD"'), 2)       # the diff and the full command both take their slice
+
+
+@unittest.skipIf(yaml is None, "no PyYAML")
+class FailClosedPlanTests(unittest.TestCase):
+    """p1.yml, diff-plan (the review of #108): a mutant listing that failed is not "no mutants in the diff"."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        step = next(st for st in self.p1["jobs"]["diff-plan"]["steps"] if st.get("id") == "c")
+        self.run = step["run"]
+
+    def test_a_failed_rust_listing_fails_the_job(self):
+        self.assertIn("set -e", self.run)
+        self.assertNotIn("|| echo 0", self.run)                       # the old fallback that turned a failed count into zero
+        self.assertNotIn("2>/dev/null", self.run)
+        self.assertIn('if [ -s "$S/rust.patch" ]; then', self.run)    # only an empty diff has nothing to list (cargo-mutants prints nothing for it)
+        self.assertIn("assert isinstance(d, list)", self.run)
+
+    def test_the_go_count_is_believed_only_from_a_finished_run(self):
+        self.assertNotIn("grep -c", self.run)
+        self.assertIn("go=$(python3 tools/go_list_count.py", self.run)
+        # the one `|| true` left is on go-mutesting itself, whose exit status is not the answer; its output is, and the counter refuses a missing summary
+        ors = [line for line in self.run.splitlines() if "|| true" in line]
+        self.assertEqual(len(ors), 1)
+        self.assertIn("go-list.out", ors[0])

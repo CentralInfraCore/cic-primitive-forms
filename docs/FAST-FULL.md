@@ -25,6 +25,26 @@ makes it longer. A full run now cuts the defects into 8 shards (`seeded_defects.
 defect exactly once); a diff runs the defects of the files it changes in one. The list of shards and their count are written together in the `scope` job, and a test
 checks they agree. The job that the required checks list, `seeded-defects`, stays and joins the shards: it is red when any shard is not green, and never skipped.
 
+## Measurement plumbing that fails closed (the review of this pull request)
+
+A review of the tools around the gate found five places where a measurement that failed looked like a measurement of nothing, or a change that was not only an
+addition looked like one. Each is fixed here, with a test that was seen to fail on the old code:
+
+* **`diff-plan` listed mutants with `|| true`, `2>/dev/null || echo 0` and `grep -c ... || true`**, so a cargo-mutants or go-mutesting that failed gave "no mutants in the
+  diff", which the diff gate accepts. Now a diff with Rust code must give a JSON list from a listing that succeeded (an empty diff has nothing to list: cargo-mutants prints
+  nothing for it, and the list is written as `[]`), and the Go count comes from `tools/go_list_count.py`, which believes a count, zero included, only from a run that ended
+  with go-mutesting's summary line and had no mutant the executor could not place.
+* **`mutation_diff_exec.sh` took "the question could not be answered" for "the mutant is outside the diff"**: `diff_gate.py in-diff` exited 1 for both. It now answers 0, 1 or 2
+  (could not tell), and the executor writes `unknown` (exit 3) for the third, which the gate refuses as an unreadable ledger line.
+* **`nightly_last_full.py` counted any one green job of `p1` as a measured FULL** (`scope` is green seconds in). Only the verdict of the `quality` job, which joins every
+  measurement, counts now (success or failure; a failed FULL is not repeated, its incident is open); a cancelled or shut-down run is measured again.
+* **A new Go test file was always "an addition"**, but `TestMain` or `init` changes how every test of the package runs. A new or extended Go test file that adds either is `full`.
+* **The Rust line coverage took every file whose path contains `/src/`.** It takes `/rust/src/`.
+
+Not here, because they are decisions of the contract and not of the plumbing: `Patch` does not refuse two events on the same path (the checks of `previous` all run on the
+original, so both pass and the second replaces the first; `ReadDiff` already refuses such a diff, a hand-built `PatchDiff` is not), and `Patch` parses the document again
+for every event (about 4N+1 parses for N edits). The first needs a decision in ADR 0013 (which refusal code), the second a measurement before an optimization.
+
 ## What the gate does with the reports
 
 `tools/quality_gate.py check --gamma-reports ... --gamma-listed ... --gomutants-reports ...` reads the `mutation-testing-elements` reports of both tools. It fails

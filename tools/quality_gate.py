@@ -79,7 +79,7 @@ def rust_lines(path):
         files = data["data"][0]["files"]
         covered = total = 0
         for f in files:
-            if "/src/" not in f["filename"]:  # own sources only; tests are not measured code
+            if "/rust/src/" not in f["filename"]:  # the sources of rust/ only: tests are not measured code, nor is a /src/ of anything else
                 continue
             covered += f["summary"]["lines"]["covered"]
             total += f["summary"]["lines"]["count"]
@@ -457,6 +457,8 @@ def selftest():
         ("go profile counts statements, not blocks", dict(gl=_go_cov(95, 100)), None),
         ("a test file is not measured code", dict(gl=_go_cov(95, 100) + "x/a_test.go:9.1,9.2 50 0\n"), None),
         ("rust files outside src are not counted", dict(rl=_rust_cov(95, 100).replace("]}]}", ',{"filename":"/r/rust/tests/t.rs","summary":{"lines":{"covered":0,"count":900}}}]}]}')), None),
+        ("a foreign /src/ directory is not measured code", dict(rl=_rust_cov(0, 100).replace("]}]}", ',{"filename":"/x/dep/src/lib.rs","summary":{"lines":{"covered":2000,"count":2000}}}]}]}')), "BELOW_THRESHOLD"),
+        ("a rust/src path of a nested crate is measured code", dict(rl=_rust_cov(95, 100, name="/home/runner/work/r/r/rust/src/a.rs")), None),
         ("rust mutation score exactly 90 is red", dict(rm=_mut(90, 10)), "BELOW_THRESHOLD"),
         ("timeouts count as caught", dict(rm=_mut(80, 10, timeout=10)), "BELOW_THRESHOLD"),
         ("go mutation below", dict(gm=_gomut(10, 90)), "BELOW_THRESHOLD"),

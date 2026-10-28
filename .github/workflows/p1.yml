@@ -521,15 +521,23 @@ jobs:
           set -e
           S="$RUNNER_TEMP/scope"
           mkdir -p "$RUNNER_TEMP/dp"
-          (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json --in-diff "$S/rust.patch") > "$RUNNER_TEMP/dp/rust-listed.json" || true
-          rust=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$RUNNER_TEMP/dp/rust-listed.json" 2>/dev/null || echo 0)
-          [ "$rust" = 0 ] && echo '[]' > "$RUNNER_TEMP/dp/rust-listed.json"
+          # Fail closed: a listing that failed is not "no mutants in the diff". A diff with no Rust code has nothing to list (cargo-mutants prints nothing for an empty
+          # diff, so the list is written here); a diff with Rust code must give a JSON list, of any length, from a listing that succeeded (set -e).
+          if [ -s "$S/rust.patch" ]; then
+            (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json --in-diff "$S/rust.patch") > "$RUNNER_TEMP/dp/rust-listed.json"
+          else
+            echo '[]' > "$RUNNER_TEMP/dp/rust-listed.json"
+          fi
+          rust=$(python3 -c 'import json,sys; d = json.load(open(sys.argv[1])); assert isinstance(d, list); print(len(d))' "$RUNNER_TEMP/dp/rust-listed.json")
           # the Go mutants of the diff, counted by the diff executor in its list mode: no test runs
           files=$(python3 -c 'import json,sys; print(" ".join(p[len("go/"):] for p in json.load(open(sys.argv[1]))))' "$S/diff-lines.json")
           go=0
           if [ -n "$files" ]; then
-            go=$(cd go && CIC_MUTATION_LIST_ONLY=1 CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER=/dev/null CIC_DIFF_LINES="$S/diff-lines.json" CIC_REPO_ROOT="$GITHUB_WORKSPACE" \
-              go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_diff_exec.sh" $files 2>/dev/null | grep -c '^PASS ' || true)
+            # The exit status of go-mutesting is not the answer; its output is, and tools/go_list_count.py believes a count (zero included) only from a run that finished
+            # with its summary line and had no mutant the executor could not place.
+            (cd go && CIC_MUTATION_LIST_ONLY=1 CIC_MUTATION_SHARD=0/1 CIC_MUTATION_LEDGER=/dev/null CIC_DIFF_LINES="$S/diff-lines.json" CIC_REPO_ROOT="$GITHUB_WORKSPACE" \
+              go-mutesting --exec "$GITHUB_WORKSPACE/tools/mutation_diff_exec.sh" $files) > "$RUNNER_TEMP/dp/go-list.out" 2>&1 || true
+            go=$(python3 tools/go_list_count.py "$RUNNER_TEMP/dp/go-list.out")
           fi
           echo "mutants in the diff: rust $rust, go $go"
           echo "rust_mutants=$rust" >> "$GITHUB_OUTPUT"
