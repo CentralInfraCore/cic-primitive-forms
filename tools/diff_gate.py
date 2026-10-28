@@ -3,7 +3,7 @@
 """The scope of the diff gate of a pull request (docs/DELTA-DIFF-GATE.md).
 
     diff_gate.py scope --base REV --head REV --out DIR [--root DIR] [--measure]    classify the change and write the files the mutation jobs read
-    diff_gate.py in-diff --lines FILE --path REL --original F --changed F    exit 0 if the mutant changes a line of the diff, 1 if not
+    diff_gate.py in-diff --lines FILE --path REL --original F --changed F    exit 0 if the mutant changes a line of the diff, 1 if not, 2 if it could not tell
 
 `scope` compares two commits (for a pull request: the first parent of the merge candidate and the merge candidate itself) and decides
 whether the mutation run may be limited to the code the change touches (`mode` = `diff`) or has to be the whole one (`mode` = `full`).
@@ -48,6 +48,9 @@ GATE_WORKFLOW = ".github/workflows/p1.yml"
 BUILD_CONFIG_PREFIX = ("rust/.cargo/", ".github/actions/", "tools/mutation_", "coverage/")
 DATA_PREFIX = ("testdata/", "corpus/")
 STARTS_GO = ("func ", "type ", "var ", "const ", "//", "import ", "package ")
+# A Go test file with one of these changes how EVERY test of its package runs (TestMain can end the process before a single test, init can set the world they
+# run in), so it is not a mere addition of tests that can only add kills.
+RUNS_ALL_TESTS = re.compile(r"^func\s+(TestMain|init)\s*\(")
 STARTS_RUST = ("#[test]", "#[cfg", "#[derive", "#[allow", "fn ", "pub fn ", "use ", "//", "struct ", "impl ", "proptest!", "mod ", "const ", "static ", "type ")
 
 
@@ -355,6 +358,9 @@ def classify(root, base, head):
             if f["status"] == "deleted":
                 full("%s (a test or its data) is deleted" % path)
                 continue
+            if k == "test-go" and any(RUNS_ALL_TESTS.match(line) for h in f["hunks"] for line in h[5]):
+                full("%s adds TestMain or init: it changes how every test of the package runs" % path)
+                continue
             if f["status"] == "new":
                 notes.append("%s: a new file, an addition" % path)
                 continue
@@ -470,7 +476,13 @@ def main():
     i.add_argument("--changed", required=True)
     a = ap.parse_args()
     if a.cmd == "in-diff":
-        return 0 if in_diff(a.lines, a.path, a.original, a.changed) else 1
+        # three answers, never two: 0 the mutant changes a line of the diff, 1 it does not, 2 the question could not be answered (a missing or unreadable file, a
+        # bug). The caller must not take 2 for 1: a mutant that could not be placed is not a mutant outside the diff.
+        try:
+            return 0 if in_diff(a.lines, a.path, a.original, a.changed) else 1
+        except Exception as e:  # noqa: BLE001 - whatever went wrong, the answer is "could not tell"
+            print("in-diff could not tell: %s" % e, file=sys.stderr)
+            return 2
     verdict, pr, pg = classify(a.root, a.base, a.head)
     if a.measure and verdict["widen"]:
         verdict = narrowed(verdict, lambda: measure(a.root, a.base, a.head, verdict["widen"], pr, pg))

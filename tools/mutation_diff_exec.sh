@@ -26,11 +26,14 @@ if [ "$owner" != "$shard" ]; then
 	ledger offshard
 	exit 2
 fi
-rel=$(realpath --relative-to="$CIC_REPO_ROOT" "$MUTATE_ORIGINAL")
-if ! python3 "$HERE/diff_gate.py" in-diff --lines "$CIC_DIFF_LINES" --path "$rel" --original "$MUTATE_ORIGINAL" --changed "$MUTATE_CHANGED"; then
-	ledger offdiff
-	exit 2
-fi
+rel=$(realpath --relative-to="$CIC_REPO_ROOT" "$MUTATE_ORIGINAL") || { ledger unknown; exit 3; }
+# three answers: 0 the mutant changes a line of the diff, 1 it does not, anything else (2: the question could not be answered) is `unknown`, never `offdiff`
+python3 "$HERE/diff_gate.py" in-diff --lines "$CIC_DIFF_LINES" --path "$rel" --original "$MUTATE_ORIGINAL" --changed "$MUTATE_CHANGED"
+case $? in
+0) ;;
+1) ledger offdiff; exit 2 ;;
+*) ledger unknown; exit 3 ;;
+esac
 [ "${CIC_MUTATION_LIST_ONLY:-}" = 1 ] && exit 0
 
 diff_out=$(diff -u "$MUTATE_ORIGINAL" "$MUTATE_CHANGED")

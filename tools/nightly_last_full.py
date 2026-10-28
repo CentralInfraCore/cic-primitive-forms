@@ -4,8 +4,9 @@
 
     nightly_last_full.py --repo OWNER/REPO --head SHA --current RUN_ID    prints run=true or run=false (for $GITHUB_OUTPUT)
 
-The nightly FULL measures the head of main. It is needed when the last nightly whose `p1` ran (succeeded or failed: a failed FULL of
-a commit is not repeated, its incident is open) measured another commit. A 48-hour window ran the FULL on two nights for one commit;
+The nightly FULL measures the head of main. It is needed when the last nightly whose `p1` reached its verdict (the job `quality`, which joins every
+measurement, succeeded or failed: a failed FULL of a commit is not repeated, its incident is open) measured another commit. One job of `p1` that
+succeeded does not make a measurement: `scope` is green seconds after the start, and a run cancelled after it, or whose runner was shut down, measured nothing. A 48-hour window ran the FULL on two nights for one commit;
 a comparison with the measured commit does not, and it does not depend on when a scheduled run starts. Any doubt - no such run, an
 API error - answers `run=true`: a FULL too many costs time, one too few hides a failure.
 """
@@ -14,15 +15,15 @@ import json
 import subprocess
 import sys
 
-FULL_JOB_PREFIX = "p1 / "   # the jobs of the called p1 workflow, as the nightly run names them
+FULL_JOB = "p1 / quality"   # the job of the called p1 workflow that joins every measurement, as the nightly run names it
 
 
 def last_full(runs, jobs_of, current):
-    """The head commit of the newest completed nightly run (other than `current`) in which a p1 job succeeded or failed, or None."""
+    """The head commit of the newest completed nightly run (other than `current`) in which the quality job of p1 succeeded or failed, or None."""
     for r in runs:
         if r["id"] == current or r.get("status") != "completed":
             continue
-        if any(j["name"].startswith(FULL_JOB_PREFIX) and j.get("conclusion") in ("success", "failure") for j in jobs_of(r["id"])):
+        if any(j["name"] == FULL_JOB and j.get("conclusion") in ("success", "failure") for j in jobs_of(r["id"])):
             return r["head_sha"]
     return None
 
