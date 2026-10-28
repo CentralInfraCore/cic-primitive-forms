@@ -13,6 +13,7 @@ pub mod access;
 pub mod composed;
 pub mod defaults;
 pub mod diff;
+pub mod diffread;
 pub mod editscalar;
 pub mod emit;
 pub mod error;
@@ -41,6 +42,7 @@ pub use defaults::{apply_defaults, Defaulted, ValueOrigin, VALUE_AUTHORED, VALUE
 pub use diff::{
     diff, DeclChange, DiffContext, DiffEvent, DiffResult, DiffView, EventKind, RepresentationChange,
 };
+pub use diffread::{read_diff, CanonicalDiff, DiffReadError};
 pub use editscalar::{edit_parsed, edit_scalar, EditResult};
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
