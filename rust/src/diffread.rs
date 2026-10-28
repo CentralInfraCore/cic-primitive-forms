@@ -207,17 +207,16 @@ impl Reader<'_> {
         };
         let code = match first {
             0xd800..=0xdbff => {
-                // a surrogate pair is one character; a lone one is no character
+                // a high surrogate must be followed by a low one; the pair is valid JSON for one character that ADR 0008 writes literally, so the
+                // escape is never the canonical writing and is refused at once (the character it stands for would change nothing)
                 if !self.b[self.at..].starts_with(b"\\u") {
                     return self.fail(READ_SYNTAX);
                 }
                 self.at += 2;
-                match self.hex4() {
-                    Some(low @ 0xdc00..=0xdfff) => {
-                        0x10000 + ((first - 0xd800) << 10) + (low - 0xdc00)
-                    }
-                    _ => return self.fail(READ_SYNTAX),
-                }
+                return match self.hex4() {
+                    Some(0xdc00..=0xdfff) => self.fail(READ_NOT_CANONICAL),
+                    _ => self.fail(READ_SYNTAX),
+                };
             }
             0xdc00..=0xdfff => return self.fail(READ_SYNTAX),
             other => other,

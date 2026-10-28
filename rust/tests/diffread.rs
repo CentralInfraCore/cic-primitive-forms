@@ -173,3 +173,62 @@ fn no_mutation_of_a_valid_diff_is_accepted_unless_it_is_written_back_as_it_is() 
     }
     assert!(checked > 700, "only {checked} mutations");
 }
+
+#[test]
+fn every_canonical_escape_is_read_and_written_back() {
+    let bs = "\\";
+    // the escapes the writer uses: the short ones, and \u00xx in lowercase for the other control characters
+    let body = format!("a{bs}b{bs}f{bs}n{bs}r{bs}t{bs}\"{bs}{bs}{bs}u0001{bs}u001fz");
+    let input = wrap(&format!(
+        r#"{{"kind":"value_change","next":"{body}","path":"$.mtu","previous":"x"}}"#
+    ));
+    let got = read_diff(input.as_bytes()).expect("canonical escapes");
+    assert_eq!(got.changes.len(), 1);
+    let again = DiffResult {
+        changes: got.changes,
+        representation: got.representation,
+    }
+    .canonical();
+    assert_eq!(again, input);
+}
+
+#[test]
+fn a_surrogate_pair_is_valid_json_and_not_the_canonical_writing() {
+    let bs = "\\";
+    let pair = wrap(&format!(
+        r#"{{"kind":"value_change","next":"{bs}ud83d{bs}ude00","path":"$.mtu","previous":"x"}}"#
+    ));
+    assert_eq!(reason(pair.as_bytes()), "not_canonical");
+    let high_then_plain = wrap(&format!(
+        r#"{{"kind":"value_change","next":"{bs}ud800x","path":"$.mtu","previous":"x"}}"#
+    ));
+    assert_eq!(reason(high_then_plain.as_bytes()), "syntax");
+    let high_then_high = wrap(&format!(
+        r#"{{"kind":"value_change","next":"{bs}ud800{bs}ud800","path":"$.mtu","previous":"x"}}"#
+    ));
+    assert_eq!(reason(high_then_high.as_bytes()), "syntax");
+    let bad_hex = wrap(&format!(
+        r#"{{"kind":"value_change","next":"{bs}u00zz","path":"$.mtu","previous":"x"}}"#
+    ));
+    assert_eq!(reason(bad_hex.as_bytes()), "syntax");
+}
+
+#[test]
+fn nesting_of_objects_is_bounded_too() {
+    let deep = r#"{"a":"#.repeat(100);
+    let input = format!(
+        r#"{{"changes":[{{"kind":"added","next":{deep}1,"path":"$.mtu"}}],"representation":[],"version":1}}"#
+    );
+    assert_eq!(reason(input.as_bytes()), "depth");
+}
+
+#[test]
+fn the_error_says_its_reason_and_where() {
+    let e = read_diff(b"[").expect_err("a truncated document");
+    let text = format!("{e}");
+    assert!(
+        text.contains(e.reason) && text.contains(&e.offset.to_string()),
+        "{text}"
+    );
+    assert_eq!(text, "diff not read: syntax at byte 1");
+}

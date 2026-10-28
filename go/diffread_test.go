@@ -242,3 +242,48 @@ func TestReadDiffNoMutationOfAValidDiffIsAcceptedUnlessItIsTheSameBytes(t *testi
 		t.Fatalf("only %d mutations", checked)
 	}
 }
+
+func TestReadDiffEveryCanonicalEscapeIsReadAndWrittenBack(t *testing.T) {
+	body := "a" + bs + "b" + bs + "f" + bs + "n" + bs + "r" + bs + "t" + bs + `"` + bs + bs + bs + "u0001" + bs + "u001fz"
+	input := `{"changes":[{"kind":"value_change","next":"` + body + `","path":"$.mtu","previous":"x"}],"representation":[],"version":1}`
+	got, err := forms.ReadDiff([]byte(input))
+	if err != nil || len(got.Changes) != 1 {
+		t.Fatalf("%v", err)
+	}
+	if again := (&forms.DiffResult{Changes: got.Changes, Representation: got.Representation}).Canonical(); again != input {
+		t.Errorf("written back as %s", again)
+	}
+}
+
+func TestReadDiffASurrogatePairIsValidJSONAndNotTheCanonicalWriting(t *testing.T) {
+	wrap := func(escape string) string {
+		return `{"changes":[{"kind":"value_change","next":"` + escape + `","path":"$.mtu","previous":"x"}],"representation":[],"version":1}`
+	}
+	for escape, want := range map[string]string{
+		bs + "ud83d" + bs + "ude00": "not_canonical",
+		bs + "ud800x":               "syntax",
+		bs + "ud800" + bs + "ud800": "syntax",
+		bs + "u00zz":                "syntax",
+	} {
+		if got := readReason(t, wrap(escape)); got != want {
+			t.Errorf("%q: reason %q, want %q", escape, got, want)
+		}
+	}
+}
+
+func TestReadDiffNestingOfObjectsIsBoundedToo(t *testing.T) {
+	deep := ""
+	for i := 0; i < 100; i++ {
+		deep += `{"a":`
+	}
+	if r := readReason(t, `{"changes":[{"kind":"added","next":`+deep+`1,"path":"$.mtu"}],"representation":[],"version":1}`); r != "depth" {
+		t.Errorf("reason %q", r)
+	}
+}
+
+func TestReadDiffTheErrorSaysItsReasonAndWhere(t *testing.T) {
+	_, err := forms.ReadDiff([]byte("["))
+	if err == nil || err.Error() != "diff not read: syntax at byte 1" {
+		t.Errorf("%v", err)
+	}
+}

@@ -171,20 +171,21 @@ func (r *jsonReader) str() (string, bool) {
 			b.WriteByte('\t')
 		case 'u':
 			code, ok := r.hex4()
-			if ok && code >= 0xd800 && code < 0xe000 { // a surrogate pair is one character; a lone one is no character
-				low, second := rune(0), r.at+1 < len(r.b) && r.b[r.at] == '\\' && r.b[r.at+1] == 'u'
-				if second {
-					r.at += 2
-					low, ok = r.hex4()
-				}
-				if !ok || code >= 0xdc00 || !second || low < 0xdc00 || low >= 0xe000 {
+			if !ok || (code >= 0xdc00 && code < 0xe000) {
+				r.fail(ReadSyntax)
+				return "", false
+			}
+			if code >= 0xd800 { // a high surrogate must be followed by a low one; the pair is valid JSON for one character that ADR 0008 writes literally, so the escape is never the canonical writing and is refused at once
+				if !(r.at+1 < len(r.b) && r.b[r.at] == '\\' && r.b[r.at+1] == 'u') {
 					r.fail(ReadSyntax)
 					return "", false
 				}
-				code = 0x10000 + (code-0xd800)<<10 + (low - 0xdc00)
-			}
-			if !ok {
-				r.fail(ReadSyntax)
+				r.at += 2
+				if low, ok := r.hex4(); ok && low >= 0xdc00 && low < 0xe000 {
+					r.fail(ReadNotCanonical)
+				} else {
+					r.fail(ReadSyntax)
+				}
 				return "", false
 			}
 			b.WriteRune(code)
