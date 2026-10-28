@@ -18,8 +18,10 @@ import (
 // canonical text and the order of the paths, and that no event describes no change. Representation entries are returned apart and are never events of a patch
 // (PatchDiff does not carry them); an event kind the patch does not apply is returned like any other, for the patch to refuse by name.
 //
-// A diff of another version cannot be interpreted: its bytes must still be canonical JSON with an integer `version`, and the result holds the version and no events,
-// which is what the patch needs to refuse it (PATCH_CONTEXT_MISMATCH).
+// ReadDiff reads a diff of version 1 and nothing else, so that the equation above holds for every success. A diff of another version cannot be interpreted: it is
+// refused with the reason "version". Which version it is, is a different question, and ReadDiffVersion answers it: it reads one canonical JSON object with an
+// integer `version` and says nothing about the rest. That is what a caller needs to refuse such a diff by name (the patch: PATCH_CONTEXT_MISMATCH, with
+// PatchDiff{Version: v}) and to tell it from bytes that are no diff at all.
 //
 // The error is a *DiffReadError. Its Reason is one of the constants below; they are reasons of this reader, not codes of the registry of ADR 0007.
 // The Rust peer is rust/src/diffread.rs.
@@ -36,6 +38,7 @@ const (
 	ReadOrder          = "order"              // events or entries not strictly in the order of ADR 0008, or one (path, kind) twice
 	ReadNoChange       = "no_change"          // an event that describes no change
 	ReadNotCanonical   = "not_canonical"      // valid, but not the writing ADR 0008 fixes
+	ReadVersion        = "version"            // canonical JSON with an integer version, but not the version this reader interprets (ReadDiffVersion says which)
 	readMaxDepth       = 64
 	maxVersion         = 1<<31 - 1
 	readVersion        = 1
@@ -384,18 +387,19 @@ func noChange(e DiffEvent) bool {
 	return false
 }
 
-// ReadDiff reads the canonical bytes of a diff. See the comment at the top of the file.
-func ReadDiff(b []byte) (CanonicalDiff, error) {
+// readRoot is what ReadDiff and ReadDiffVersion share and what does not depend on the version: valid UTF-8, one JSON value that is an object with an integer
+// `version` in range, and exactly the canonical writing of that value.
+func readRoot(b []byte) (*Node, int64, error) {
 	if !utf8.Valid(b) {
-		return readFail(ReadNotUTF8)
+		return nil, 0, &DiffReadError{Reason: ReadNotUTF8}
 	}
 	r := &jsonReader{b: b}
 	root, rerr := r.value(0)
 	if rerr != nil {
-		return CanonicalDiff{}, rerr
+		return nil, 0, rerr
 	}
 	if r.at != len(b) {
-		return CanonicalDiff{}, r.fail(ReadSyntax)
+		return nil, 0, r.fail(ReadSyntax)
 	}
 	var version *Node
 	for _, e := range root.Entries {
@@ -404,15 +408,34 @@ func ReadDiff(b []byte) (CanonicalDiff, error) {
 		}
 	}
 	if version == nil || version.Kind != KindInt || version.Int < 0 || version.Int > maxVersion {
-		return readFail(ReadShape)
+		return nil, 0, &DiffReadError{Reason: ReadShape}
 	}
 	var generic strings.Builder
 	writeCanonical(&generic, root)
 	if generic.String() != string(b) {
-		return readFail(ReadNotCanonical)
+		return nil, 0, &DiffReadError{Reason: ReadNotCanonical}
 	}
-	if version.Int != readVersion {
-		return CanonicalDiff{Version: int(version.Int)}, nil
+	return root, version.Int, nil
+}
+
+// ReadDiffVersion reads the version of a diff and nothing else: the bytes must be one canonical JSON object with an integer `version` from 0 to 2^31-1. It says
+// nothing about the rest of the object, so a diff of another version, which ReadDiff refuses with the reason "version", can be named and refused by its caller.
+func ReadDiffVersion(b []byte) (int, error) {
+	_, version, err := readRoot(b)
+	if err != nil {
+		return 0, err
+	}
+	return int(version), nil
+}
+
+// ReadDiff reads the canonical bytes of a diff of version 1. See the comment at the top of the file.
+func ReadDiff(b []byte) (CanonicalDiff, error) {
+	root, version, err := readRoot(b)
+	if err != nil {
+		return CanonicalDiff{}, err
+	}
+	if version != readVersion {
+		return readFail(ReadVersion)
 	}
 	top := members(root, "changes", "representation", "version")
 	if top == nil || top["changes"].Kind != KindSeq || top["representation"].Kind != KindSeq {

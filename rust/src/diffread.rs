@@ -6,8 +6,10 @@
 //! Representation entries are returned apart and are never events of a patch (`PatchDiff` does not carry them); an event kind the patch does not apply is
 //! returned like any other, for the patch to refuse by name.
 //!
-//! A diff of another version cannot be interpreted: its bytes must still be canonical JSON with an integer `version`, and the result holds the version and
-//! no events, which is what the patch needs to refuse it (`PATCH_CONTEXT_MISMATCH`).
+//! `read_diff` reads a diff of version 1 and nothing else, so that the equation above holds for every success. A diff of another version cannot be
+//! interpreted: it is refused with the reason `"version"`. Which version it is, is a different question, and [`read_diff_version`] answers it: it reads one
+//! canonical JSON object with an integer `version` and says nothing about the rest. That is what a caller needs to refuse such a diff by name (the patch:
+//! `PATCH_CONTEXT_MISMATCH`, with a `PatchDiff` of that version) and to tell it from bytes that are no diff at all.
 //!
 //! The error is a [`DiffReadError`]; its `reason` is one of the constants below. They are reasons of this reader, not codes of the registry of ADR 0007.
 //! The Go peer is go/diffread.go.
@@ -40,6 +42,8 @@ pub const READ_ORDER: &str = "order";
 pub const READ_NO_CHANGE: &str = "no_change";
 /// Valid, but not the writing ADR 0008 fixes.
 pub const READ_NOT_CANONICAL: &str = "not_canonical";
+/// Canonical JSON with an integer version, but not the version this reader interprets ([`read_diff_version`] says which).
+pub const READ_VERSION: &str = "version";
 
 const MAX_DEPTH: usize = 64;
 
@@ -374,10 +378,15 @@ fn event_of(n: &Node) -> Result<DiffEvent, &'static str> {
         EventKind::SetChange => &["added", "kind", "path", "removed"],
     };
     let m = members(n, keys).ok_or(READ_SHAPE)?;
-    let path = m[keys.iter().position(|k| *k == "path").unwrap_or(0)];
-    let path_text = text(path).ok_or(READ_SHAPE)?;
+    // `members` returns the nodes in the order of `keys`; a key that is not in the list is a mistake of this function, not of the input
+    let at = |key: &str| {
+        m[keys
+            .iter()
+            .position(|k| *k == key)
+            .expect("a key of the list")]
+    };
+    let path_text = text(at("path")).ok_or(READ_SHAPE)?;
     let mut e = blank(kind, path_text, Vec::new());
-    let at = |key: &str| m[keys.iter().position(|k| *k == key).unwrap_or(0)];
     match kind {
         EventKind::Added => e.next = Some(at("next").clone()),
         EventKind::Removed => e.previous = Some(at("previous").clone()),
@@ -460,9 +469,7 @@ fn changes_of(list: &[Node]) -> Result<Vec<DiffEvent>, &'static str> {
             return Err(READ_NO_CHANGE);
         }
         let overlap = e.added.iter().any(|x| e.removed.iter().any(|y| x.same(y)));
-        if e.kind == EventKind::SetChange
-            && (!strictly_sorted(&e.added) || !strictly_sorted(&e.removed) || overlap)
-        {
+        if !strictly_sorted(&e.added) || !strictly_sorted(&e.removed) || overlap {
             return Err(READ_SHAPE);
         }
         out.push(e);
@@ -489,7 +496,9 @@ fn representation_list(list: &[Node]) -> Result<Vec<RepresentationChange>, &'sta
 ///
 /// # Errors
 /// A [`DiffReadError`] with the reason the bytes are not exactly the canonical writing of a diff of ADR 0008.
-pub fn read_diff(b: &[u8]) -> Result<CanonicalDiff, DiffReadError> {
+/// What `read_diff` and `read_diff_version` share and what does not depend on the version: valid UTF-8, one JSON value that is an object with an integer
+/// `version` in range, and exactly the canonical writing of that value.
+fn read_root(b: &[u8]) -> Result<(Node, i64), DiffReadError> {
     if std::str::from_utf8(b).is_err() {
         return Err(whole(READ_NOT_UTF8));
     }
@@ -507,12 +516,26 @@ pub fn read_diff(b: &[u8]) -> Result<CanonicalDiff, DiffReadError> {
     if generic.as_bytes() != b {
         return Err(whole(READ_NOT_CANONICAL));
     }
+    Ok((root, version))
+}
+
+/// Reads the version of a diff and nothing else: the bytes must be one canonical JSON object with an integer `version` from 0 to 2^31-1. It says nothing about
+/// the rest of the object, so a diff of another version, which [`read_diff`] refuses with the reason `"version"`, can be named and refused by its caller.
+///
+/// # Errors
+/// The reason is one of the `READ_*` constants; the offset is where the reader stood, 0 when the refusal is about the whole document.
+pub fn read_diff_version(b: &[u8]) -> Result<i64, DiffReadError> {
+    read_root(b).map(|(_, version)| version)
+}
+
+/// Reads the canonical bytes of a diff of version 1. See the comment at the top of the file.
+///
+/// # Errors
+/// The reason is one of the `READ_*` constants; the offset is where the reader stood, 0 when the refusal is about the whole document.
+pub fn read_diff(b: &[u8]) -> Result<CanonicalDiff, DiffReadError> {
+    let (root, version) = read_root(b)?;
     if version != 1 {
-        return Ok(CanonicalDiff {
-            version,
-            changes: Vec::new(),
-            representation: Vec::new(),
-        });
+        return Err(whole(READ_VERSION));
     }
     let top = members(&root, &["changes", "representation", "version"]).ok_or(whole(READ_SHAPE))?;
     let changes = items(top[0])

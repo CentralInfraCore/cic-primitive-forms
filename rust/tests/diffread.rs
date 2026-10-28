@@ -3,7 +3,7 @@
 //! (every canonical string reads and writes back to itself; the patch gives the same answer from the bytes as from the events of a vector) are in
 //! tests/corpus.rs. The Go peer is go/diffread_test.go.
 
-use cic_primitive_forms::{read_diff, DiffResult};
+use cic_primitive_forms::{read_diff, read_diff_version, DiffResult};
 
 fn reason(input: &[u8]) -> &'static str {
     match read_diff(input) {
@@ -123,11 +123,46 @@ fn nesting_is_bounded() {
 }
 
 #[test]
-fn a_diff_of_another_version_is_read_for_its_version_only() {
-    let got = read_diff(br#"{"version":2}"#).expect("version 2");
-    assert!(got.version == 2 && got.changes.is_empty() && got.representation.is_empty());
-    assert_eq!(reason(br#"{"version": 2}"#), "syntax");
-    assert_eq!(reason(br#"{"b":1,"version":2,"a":0}"#), "not_canonical");
+fn a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version() {
+    // read_diff reads version 1 only, so what it accepts is always written back as it was read: any other version is refused by name, whatever else the object holds
+    for input in [
+        r#"{"version":2}"#,
+        r#"{"foo":1,"version":2}"#,
+        r#"{"a":[1,2,{"b":null}],"version":7}"#,
+        r#"{"version":0}"#,
+        r#"{"version":2147483647}"#,
+    ] {
+        assert_eq!(reason(input.as_bytes()), "version", "{input}");
+    }
+    // read_diff_version says which version, from canonical JSON with an integer version and nothing else
+    for (input, want) in [
+        (r#"{"version":2}"#, 2),
+        (r#"{"foo":1,"version":2}"#, 2),
+        (r#"{"version":0}"#, 0),
+        (r#"{"version":2147483647}"#, 2_147_483_647),
+        (r#"{"changes":[],"representation":[],"version":1}"#, 1),
+    ] {
+        assert_eq!(
+            read_diff_version(input.as_bytes()).ok(),
+            Some(want),
+            "{input}"
+        );
+    }
+    for (input, want) in [
+        (&br#"{"version": 2}"#[..], "syntax"),
+        (&br#"{"b":1,"version":2,"a":0}"#[..], "not_canonical"),
+        (&br#"{"version":2147483648}"#[..], "shape"),
+        (&br#"{"version":-1}"#[..], "shape"),
+        (&br#"{"foo":1}"#[..], "shape"),
+        (&b"[2]"[..], "shape"),
+        (&b"{\"version\":2}\xff"[..], "not_utf8"),
+    ] {
+        assert_eq!(
+            read_diff_version(input).map_err(|e| e.reason),
+            Err(want),
+            "{input:?}"
+        );
+    }
 }
 
 #[test]
@@ -268,8 +303,8 @@ fn the_edges_of_the_reader() {
         ("the last character of the basic plane", quoted(&format!("{bs}uffff")), "not_canonical"),
         ("a character beyond the signed 16 bits", quoted(&format!("{bs}u8000")), "not_canonical"),
         ("an unknown escape", quoted(&format!("{bs}x")), "syntax"),
-        ("version 0 is read for its version", r#"{"version":0}"#.to_string(), ""),
-        ("the largest version", r#"{"version":2147483647}"#.to_string(), ""),
+        ("version 0 is refused for its version", r#"{"version":0}"#.to_string(), "version"),
+        ("the largest version", r#"{"version":2147483647}"#.to_string(), "version"),
         ("one beyond the largest version", r#"{"version":2147483648}"#.to_string(), "shape"),
         ("an event kind that is not a string", r#"{"changes":[{"kind":1,"next":2,"path":"$.mtu","previous":"x"}],"representation":[],"version":1}"#.to_string(), "shape"),
         ("representation that is not a list", r#"{"changes":[],"representation":{},"version":1}"#.to_string(), "shape"),

@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use cic_primitive_forms::{read_diff, DiffResult, EventKind, Node, Value};
+use cic_primitive_forms::{read_diff, read_diff_version, DiffResult, EventKind, Node, Value};
 use saphyr::{LoadableYamlNode, ScalarOwned, YamlOwned};
 
 fn repo_root() -> PathBuf {
@@ -94,14 +94,19 @@ fn every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself() {
     let all = canonical_diffs();
     assert!(all.len() >= 120, "only {} canonical strings", all.len());
     for s in &all {
-        let got = read_diff(s.as_bytes()).unwrap_or_else(|e| panic!("{s}: {e}"));
-        if got.version == 1 {
-            let again = DiffResult {
-                changes: got.changes,
-                representation: got.representation,
+        // ReadDiff succeeds exactly for version 1; another version is refused by name and ReadDiffVersion says which
+        let version = read_diff_version(s.as_bytes()).unwrap_or_else(|e| panic!("{s}: {e}"));
+        match read_diff(s.as_bytes()) {
+            Ok(got) => {
+                assert_eq!(version, 1, "{s}");
+                let again = DiffResult {
+                    changes: got.changes,
+                    representation: got.representation,
+                }
+                .canonical();
+                assert_eq!(&again, s);
             }
-            .canonical();
-            assert_eq!(&again, s);
+            Err(e) => assert!(version != 1 && e.reason == "version", "{s}: {e}"),
         }
     }
 }
@@ -119,16 +124,17 @@ fn the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists() {
         {
             let id = text(get(case, "id").expect("id"), "id");
             let diff = get(case, "diff").expect("diff");
-            let read =
-                read_diff(text(get(diff, "canonical").expect("canonical"), "canonical").as_bytes())
-                    .unwrap_or_else(|e| panic!("{id}: {e}"));
+            let bytes = text(get(diff, "canonical").expect("canonical"), "canonical").as_bytes();
             let Some(changes) = get(diff, "changes").and_then(YamlOwned::as_vec) else {
+                // a diff of another version: refused by read_diff, named by read_diff_version
+                let version = read_diff_version(bytes).unwrap_or_else(|e| panic!("{id}: {e}"));
                 assert!(
-                    read.version != 1 && read.changes.is_empty(),
-                    "{id}: another version is read for its version only"
+                    version != 1 && read_diff(bytes).is_err_and(|e| e.reason == "version"),
+                    "{id}: another version is refused by name"
                 );
                 continue;
             };
+            let read = read_diff(bytes).unwrap_or_else(|e| panic!("{id}: {e}"));
             ran += 1;
             assert_eq!(read.changes.len(), changes.len(), "{id}");
             for (e, c) in read.changes.iter().zip(changes) {

@@ -57,14 +57,18 @@ func TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself(t *te
 	}
 	for _, s := range diffs {
 		got, err := forms.ReadDiff([]byte(s))
-		if err != nil {
-			t.Errorf("%s: %v", s, err)
+		if v, verr := forms.ReadDiffVersion([]byte(s)); verr != nil || (v == 1) != (err == nil) {
+			t.Errorf("%s: version %d (%v), read as %v: ReadDiff succeeds exactly for version 1", s, v, verr, err)
 			continue
 		}
-		if got.Version == 1 {
-			if again := (&forms.DiffResult{Changes: got.Changes, Representation: got.Representation}).Canonical(); again != s {
-				t.Errorf("not written back as it was read:\n  %s\n  %s", s, again)
+		if err != nil {
+			if re, ok := err.(*forms.DiffReadError); !ok || re.Reason != "version" {
+				t.Errorf("%s: %v", s, err)
 			}
+			continue // a diff of another version: named by ReadDiffVersion, refused by ReadDiff
+		}
+		if again := (&forms.DiffResult{Changes: got.Changes, Representation: got.Representation}).Canonical(); again != s {
+			t.Errorf("not written back as it was read:\n  %s\n  %s", s, again)
 		}
 	}
 }
@@ -76,14 +80,15 @@ func TestReadDiffGivesThePatchTheEventsOfTheVector(t *testing.T) {
 		id := c["id"].(string)
 		diff := c["diff"].(obj)
 		read, err := forms.ReadDiff([]byte(diff["canonical"].(string)))
-		if err != nil {
-			t.Errorf("%s: %v", id, err)
+		if _, ok := diff["changes"]; !ok { // a diff of another version: refused by ReadDiff, named by ReadDiffVersion
+			v, verr := forms.ReadDiffVersion([]byte(diff["canonical"].(string)))
+			if re, isRead := err.(*forms.DiffReadError); !isRead || re.Reason != "version" || verr != nil || v == 1 {
+				t.Errorf("%s: ReadDiff gave %v, ReadDiffVersion %d (%v)", id, err, v, verr)
+			}
 			continue
 		}
-		if _, ok := diff["changes"]; !ok { // a diff of another version: the version and nothing else
-			if read.Version == 1 || len(read.Changes) != 0 {
-				t.Errorf("%s: version %d, %d events", id, read.Version, len(read.Changes))
-			}
+		if err != nil {
+			t.Errorf("%s: %v", id, err)
 			continue
 		}
 		want := patchEvents(t, diff)
@@ -205,17 +210,32 @@ func TestReadDiffNestingIsBounded(t *testing.T) {
 	}
 }
 
-func TestReadDiffADiffOfAnotherVersionIsReadForItsVersionOnly(t *testing.T) {
-	got, err := forms.ReadDiff([]byte(`{"version":2}`))
-	if err != nil || got.Version != 2 || len(got.Changes) != 0 || len(got.Representation) != 0 {
-		t.Errorf("version 2: %+v %v", got, err)
+func TestReadDiffRefusesADiffOfAnotherVersionAndReadDiffVersionNamesIt(t *testing.T) {
+	// ReadDiff reads version 1 only, so that what it accepts is always written back as it was read: any other version is refused by name, whatever else the object holds
+	for _, in := range []string{`{"version":2}`, `{"foo":1,"version":2}`, `{"a":[1,2,{"b":null}],"version":7}`, `{"version":0}`, `{"version":2147483647}`} {
+		if r := readReason(t, in); r != "version" {
+			t.Errorf("%s: reason %q", in, r)
+		}
 	}
-	// it must still be canonical JSON
-	if r := readReason(t, `{"version": 2}`); r != "syntax" {
-		t.Errorf("whitespace: %q", r)
+	// ReadDiffVersion says which version, from canonical JSON with an integer version and nothing else
+	for in, want := range map[string]int{`{"version":2}`: 2, `{"foo":1,"version":2}`: 2, `{"version":0}`: 0, `{"version":2147483647}`: 2147483647, `{"changes":[],"representation":[],"version":1}`: 1} {
+		if got, err := forms.ReadDiffVersion([]byte(in)); err != nil || got != want {
+			t.Errorf("%s: version %d, %v", in, got, err)
+		}
 	}
-	if r := readReason(t, `{"b":1,"version":2,"a":0}`); r != "not_canonical" {
-		t.Errorf("order: %q", r)
+	for in, want := range map[string]string{
+		`{"version": 2}`:            "syntax",
+		`{"b":1,"version":2,"a":0}`: "not_canonical",
+		`{"version":2147483648}`:    "shape",
+		`{"version":-1}`:            "shape",
+		`{"foo":1}`:                 "shape",
+		`[2]`:                       "shape",
+		"{\"version\":2}\xff":       "not_utf8",
+	} {
+		_, err := forms.ReadDiffVersion([]byte(in))
+		if re, ok := err.(*forms.DiffReadError); !ok || re.Reason != want {
+			t.Errorf("%q: %v, want %s", in, err, want)
+		}
 	}
 }
 
@@ -324,8 +344,8 @@ func TestReadDiffTheEdgesOfTheReader(t *testing.T) {
 		{"a character beyond the signed 16 bits", wrap(str(bs + "u8000")), "not_canonical"},
 		{"an unknown escape", wrap(str(bs + "x")), "syntax"},
 		// the versions
-		{"version 0 is read for its version", `{"version":0}`, "ok"},
-		{"the largest version", `{"version":2147483647}`, "ok"},
+		{"version 0 is refused for its version", `{"version":0}`, "version"},
+		{"the largest version", `{"version":2147483647}`, "version"},
 		{"one beyond the largest version", `{"version":2147483648}`, "shape"},
 		// the shape
 		{"an event kind that is not a string", `{"changes":[{"kind":1,"next":2,"path":"$.mtu","previous":"x"}],"representation":[],"version":1}`, "shape"},
