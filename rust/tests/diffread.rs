@@ -150,7 +150,7 @@ fn no_mutation_of_a_valid_diff_is_accepted_unless_it_is_written_back_as_it_is() 
     let mut checked = 0;
     for seed in &seeds {
         for i in 0..seed.len() {
-            for repl in [b' ', b'x', b'0', b'}'] {
+            for repl in *b" x0}" {
                 let mut m = seed.clone().into_bytes();
                 m[i] = repl;
                 checked += 1;
