@@ -148,14 +148,10 @@ impl Reader<'_> {
 
     fn hex4(&mut self) -> Option<u32> {
         let digits = self.b.get(self.at..self.at + 4)?;
-        let text = std::str::from_utf8(digits).ok()?;
-        let n = if text.bytes().all(|c| c.is_ascii_hexdigit()) {
-            u32::from_str_radix(text, 16).ok()
-        } else {
-            None
-        };
-        self.at += 4;
-        n
+        self.at += 4; // the four bytes are consumed whether they are digits or not, as in the Go reader
+        digits
+            .iter()
+            .try_fold(0u32, |n, c| Some(n * 16 + char::from(*c).to_digit(16)?))
     }
 
     fn string(&mut self) -> Parsed<String> {
