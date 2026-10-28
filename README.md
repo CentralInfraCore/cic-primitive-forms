@@ -37,7 +37,7 @@ primitive is:
 - normalize: the declared defaults of absent fields, with the origin (authored or default) of every value kept, and the way back
   (`apply_defaults`, `normalize`, `renormalize`, `denormalize`) - **implemented**; the effective access and modify rule of every position
   (`PolicyResolution`, `resolve_rule`) - **implemented**, cross-checked against the 86 pinned reference vectors
-- structural and semantic diff (`diff`, ADR 0008) - **implemented** in both languages, all 66 corpus vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4 D3b); targeted patch (`patch`, ADR 0013, the first unit: `value_change` on existing scalars) - **implemented** in both languages, its 60 vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4-3); other events - later
+- structural and semantic diff (`diff`, ADR 0008) - **implemented** in both languages, all 66 corpus vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4 D3b); targeted patch (`patch`, ADR 0013, the first unit: `value_change` on existing scalars) - **implemented** in both languages, its 60 vectors run, plus a Rust/Go/model differential, planted defects and fuzzing (P4-3); the canonical bytes of a diff of version 1 read back into events (`read_diff` / `ReadDiff`, strict, any other version named by `read_diff_version`) - **implemented** in both languages, with a table of reasons and offsets that both read; other events - later
 - later: resolve references from a supplied snapshot, and materialize for the engine
 
 ## Principles
