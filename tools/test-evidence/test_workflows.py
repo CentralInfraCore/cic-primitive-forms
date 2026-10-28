@@ -244,12 +244,14 @@ class LightPushTests(unittest.TestCase):
         self.assertIn('[ "$EVENT" = "push" ] && [ "$FORCE_FULL" != "true" ] && mode=light', self.text)
         self.assertIn("diff_gate.py scope", self.text)
         self.assertEqual(self.jobs["scope"]["outputs"], {"mode": "${{ steps.s.outputs.mode }}", "engine": "${{ steps.s.outputs.engine }}",
+                                                         "seeded_shards": "${{ steps.s.outputs.seeded_shards }}", "seeded_n": "${{ steps.s.outputs.seeded_n }}",
                                                          "fuzz_matrix": "${{ steps.s.outputs.fuzz_matrix }}"})
 
     def test_the_heavy_jobs_do_not_run_on_a_light_push(self):
-        for name in ("seeded-defects", "evidence-selftest"):
+        for name in ("seeded-defects-shard", "evidence-selftest"):
             self.assertIn("scope", _needs(self.jobs[name]), name)
             self.assertEqual(self.jobs[name]["if"], "${{ needs.scope.outputs.mode != 'light' }}", name)
+        self.assertIn("mode != 'light'", self.jobs["seeded-defects"]["if"])      # the joining job, which keeps the name the required checks list
         # the fuzz targets: one job each, and none on a light push (the matrix is empty there as well); `fuzz` joins them under the name that is required
         self.assertIn("mode != 'light'", self.jobs["fuzz-target"]["if"])
         self.assertIn("fuzz_matrix != '[]'", self.jobs["fuzz-target"]["if"])
@@ -447,3 +449,36 @@ class FastFullTests(unittest.TestCase):
         run = "\n".join(st.get("run", "") for st in job["steps"])
         self.assertIn("--in-diff", run)
         self.assertIn("--mutators all", run)
+
+
+@unittest.skipIf(yaml is None, "no PyYAML")
+class SeededDefectsShardTests(unittest.TestCase):
+    """p1.yml: the seeded defects of a full run are cut into shards (one serial job took 33 of its 40 minutes); one job keeps the name that is required."""
+
+    def setUp(self):
+        self.p1, self.text = load("p1.yml")
+        self.jobs = self.p1["jobs"]
+
+    def test_the_shard_list_and_the_shard_count_are_written_together(self):
+        m = re.search(r"seeded='(\[[0-9,]*\])'; seeded_n=(\d+); else seeded='(\[[0-9,]*\])'; seeded_n=(\d+)", self.text)
+        self.assertIsNotNone(m)
+        full, full_n, diff, diff_n = json.loads(m.group(1)), int(m.group(2)), json.loads(m.group(3)), int(m.group(4))
+        self.assertEqual(full, list(range(full_n)))      # every shard K of N, each once: together they cover every defect exactly once
+        self.assertEqual(diff, list(range(diff_n)))
+        self.assertGreater(full_n, 1)
+        self.assertEqual(diff_n, 1)
+
+    def test_the_joining_job_is_red_when_a_shard_is_not_green_and_never_skipped(self):
+        join = self.jobs["seeded-defects"]
+        self.assertIn("always()", join["if"])
+        self.assertEqual(set(_needs(join)), {"scope", "seeded-defects-shard"})
+        run = join["steps"][0]["run"]
+        self.assertIn('test "$RESULT" = success', run)
+        self.assertIn("exit 1", run)
+
+    def test_every_shard_runs_its_slice_of_the_same_count(self):
+        shard = self.jobs["seeded-defects-shard"]
+        self.assertEqual(shard["strategy"]["matrix"]["shard"], "${{ fromJSON(needs.scope.outputs.seeded_shards) }}")
+        step = next(st for st in shard["steps"] if "seeded_defects.py" in st.get("run", ""))
+        self.assertEqual(step["env"]["SHARD"], "${{ matrix.shard }}/${{ needs.scope.outputs.seeded_n }}")
+        self.assertEqual(step["run"].count('--shard "$SHARD"'), 2)       # the diff and the full command both take their slice

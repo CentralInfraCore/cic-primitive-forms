@@ -182,6 +182,8 @@ jobs:
     outputs:
       mode: ${{ steps.s.outputs.mode }}
       engine: ${{ steps.s.outputs.engine }}
+      seeded_shards: ${{ steps.s.outputs.seeded_shards }}
+      seeded_n: ${{ steps.s.outputs.seeded_n }}
       fuzz_matrix: ${{ steps.s.outputs.fuzz_matrix }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -254,6 +256,12 @@ jobs:
           engine=classic
           [ "$mode" = full ] && [ "$EVENT" = pull_request ] && engine=fast
           echo "engine=$engine" >> "$GITHUB_OUTPUT"
+          # the seeded defects (tools/seeded_defects.py --shard K/N): a full run cuts them into shards, because one serial job took 33 minutes of the 40 it is allowed and
+          # every pull request that adds defects makes it longer; a diff runs only the defects of the files it changes, in one. The list of shards and their count are
+          # written together here, and nowhere else.
+          if [ "$mode" = full ]; then seeded='[0,1,2,3,4,5,6,7]'; seeded_n=8; else seeded='[0]'; seeded_n=1; fi
+          echo "seeded_shards=$seeded" >> "$GITHUB_OUTPUT"
+          echo "seeded_n=$seeded_n" >> "$GITHUB_OUTPUT"
           # the fuzz targets this run needs (tools/fuzz_matrix.py): all of them in full, none on a push, in a diff those of the language the diff touches
           python3 tools/fuzz_matrix.py --mode "$mode" --rust-ranges "$rr" --go-ranges "$gr" --changed $changed --github-output "$GITHUB_OUTPUT" | tee -a "$S/report.txt"
           { echo "### Mutation scope: $mode"; echo; echo '```'; cat "$S/report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
@@ -1111,11 +1119,15 @@ jobs:
   # Tests must be shown to fail on a wrong implementation, not only to pass on a right one: each
   # deliberate defect (a coerced 0, a silent default version, an unverified pin, a loose CertPattern, ...)
   # is applied to a copy and the suites must turn red.
-  seeded-defects:
+  seeded-defects-shard:
     needs: scope
     if: ${{ needs.scope.outputs.mode != 'light' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.scope.outputs.seeded_shards) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: ./.github/actions/upstream-pinned
@@ -1132,12 +1144,28 @@ jobs:
           path: ${{ runner.temp }}/scope
       - env:
           MODE: ${{ needs.scope.outputs.mode }}
+          SHARD: ${{ matrix.shard }}/${{ needs.scope.outputs.seeded_n }}
         run: |
           if [ "$MODE" = diff ]; then
-            python3 tools/seeded_defects.py all --changed-from "$RUNNER_TEMP/scope/scope.json"
+            python3 tools/seeded_defects.py all --changed-from "$RUNNER_TEMP/scope/scope.json" --shard "$SHARD"
           else
-            python3 tools/seeded_defects.py all
+            python3 tools/seeded_defects.py all --shard "$SHARD"
           fi
+
+  # The one name the required checks list for the seeded defects: it passes only when every shard did. A shard that failed or never ran is red here, not skipped.
+  seeded-defects:
+    needs: [scope, seeded-defects-shard]
+    if: ${{ always() && needs.scope.outputs.mode != 'light' }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULT: ${{ needs.seeded-defects-shard.result }}
+          SCOPE: ${{ needs.scope.result }}
+          SHARDS: ${{ needs.scope.outputs.seeded_shards }}
+        run: |
+          test "$SCOPE" = success
+          test "$RESULT" = success || { echo "a shard of the seeded defects did not pass ($RESULT)"; exit 1; }
+          echo "seeded defects: every shard passed: $SHARDS"
 
   # Rust against Go on the same 30 005 generated inputs (tools/parity): the complete outcome of `parse`
   # (tree and positions, contract violations, refusal) is compared. A divergence that is not in the

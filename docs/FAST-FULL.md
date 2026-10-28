@@ -18,6 +18,13 @@ The choice is made in one place, the `scope` job: `engine=fast` only for a pull 
 gate itself (`tools/quality_gate.py`, `tools/seeded_defects.py`, `tools/fuzz_matrix.py`), an existing test line, or the shared data (`diff_gate.py scope` says why).
 The `quality` job checks that exactly the jobs of the chosen engine ran and that the other engine's did not.
 
+## The seeded defects are sharded
+
+`seeded-defects` was one serial step: 33 minutes 44 seconds of the 40 the job is allowed in a full run, and every pull request that adds planted defects (46 in P4)
+makes it longer. A full run now cuts the defects into 8 shards (`seeded_defects.py --shard K/N`: every N-th defect of each language from K, so the shards cover every
+defect exactly once); a diff runs the defects of the files it changes in one. The list of shards and their count are written together in the `scope` job, and a test
+checks they agree. The job that the required checks list, `seeded-defects`, stays and joins the shards: it is red when any shard is not green, and never skipped.
+
 ## What the gate does with the reports
 
 `tools/quality_gate.py check --gamma-reports ... --gamma-listed ... --gomutants-reports ...` reads the `mutation-testing-elements` reports of both tools. It fails
@@ -63,5 +70,5 @@ they found survivors in new code (the diff of #107), which is why the diff mode 
 
 ## Required checks
 
-New job names: `diff-gamma` (a shadow, diff mode), `fast-list`, `fast-mutation-rust (0..5)`, `fast-mutation-go (1..3)` (and `shadow-gamma (0..7)` on the nightly). The ruleset of `main` and the nightly profile of
+New job names: `seeded-defects-shard (0..7)` (the joining job `seeded-defects` is the required one and keeps its name), `diff-gamma` (a shadow, diff mode), `fast-list`, `fast-mutation-rust (0..5)`, `fast-mutation-go (1..3)` (and `shadow-gamma (0..7)` on the nightly). The ruleset of `main` and the nightly profile of
 cic-factory list required job names by hand: adding them is the owner's.
