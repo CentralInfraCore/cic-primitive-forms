@@ -51,6 +51,11 @@ STARTS_GO = ("func ", "type ", "var ", "const ", "//", "import ", "package ")
 # A Go test file with one of these changes how EVERY test of its package runs (TestMain can end the process before a single test, init can set the world they
 # run in), so it is not a mere addition of tests that can only add kills.
 RUNS_ALL_TESTS = re.compile(r"^func\s+(TestMain|init)\s*\(")
+# So does a package-level `var` (its initializer runs before any test, `var _ = func() int { os.Exit(0); return 0 }()`) and an import for its side effects
+# (`import _ "x"`, `import . "x"` run the init of another package).
+RUNS_ON_LOAD = re.compile(r'^var\b|^\s*import\s+[_.]\s+"|^\s+[_.]\s+"[^"]+"\s*$')
+# The one data file that is not a test input but a list of accepted differences: a new line in it turns a failing parity check into a passing one.
+ACCEPTANCE_LISTS = ("testdata/p1/parity-known.txt",)
 STARTS_RUST = ("#[test]", "#[cfg", "#[derive", "#[allow", "fn ", "pub fn ", "use ", "//", "struct ", "impl ", "proptest!", "mod ", "const ", "static ", "type ")
 
 
@@ -113,6 +118,31 @@ def balanced(lines):
         code = re.sub(r'"(?:\\.|[^"\\])*"|`[^`]*`|\'(?:\\.|[^\'\\])\'', "", ln.split("//")[0])
         depth += code.count("{") - code.count("}") + code.count("(") - code.count(")") + code.count("[") - code.count("]")
     return depth == 0
+
+
+def cfg_test_modules(lines):
+    """[(first, last)] 1-based line ranges of the `#[cfg(test)] mod x { ... }` items of a Rust source, or None when one cannot be closed.
+    Code after the closing brace is production code again."""
+    mods, i = [], 0
+    while i < len(lines):
+        if lines[i].strip() != "#[cfg(test)]":
+            i += 1
+            continue
+        depth, seen, j = 0, False, i + 1
+        while j < len(lines):
+            code = re.sub(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'', "", lines[j].split("//")[0])
+            depth += code.count("{") - code.count("}")
+            seen = seen or "{" in code
+            if seen and depth <= 0:
+                break
+            if not seen and code.rstrip().endswith(";"):   # `#[cfg(test)] mod x;` or a use: no body here
+                break
+            j += 1
+        if j >= len(lines):
+            return None
+        mods.append((i + 1, j + 1))
+        i = j + 1
+    return mods
 
 
 def top_level_addition(path, head_lines, hunk, starts, indented=False):
@@ -361,6 +391,12 @@ def classify(root, base, head):
             if k == "test-go" and any(RUNS_ALL_TESTS.match(line) for h in f["hunks"] for line in h[5]):
                 full("%s adds TestMain or init: it changes how every test of the package runs" % path)
                 continue
+            if k == "test-go" and any(RUNS_ON_LOAD.match(line) for h in f["hunks"] if not h[4] for line in h[5]):
+                full("%s adds a package-level var or a side-effect import: it runs before any test of the package" % path)
+                continue
+            if path in ACCEPTANCE_LISTS:
+                full("%s is a list of accepted differences: a line added to it can turn a failing check into a passing one" % path)
+                continue
             if f["status"] == "new":
                 notes.append("%s: a new file, an addition" % path)
                 continue
@@ -381,16 +417,16 @@ def classify(root, base, head):
             continue
         # product code
         head_lines = read_head(root, head, path)
-        test_from = None
+        test_mods = []
         if k == "product-rust":
-            for i, ln in enumerate(head_lines):
-                if ln.strip() == "#[cfg(test)]":
-                    test_from = i + 1
-                    break
+            test_mods = cfg_test_modules(head_lines)
+            if test_mods is None:
+                full("%s: a #[cfg(test)] module that cannot be delimited" % path)
+                continue
         ranges = []
         for h in f["hunks"]:
             old_start, old_len, new_start, new_len, removed, added = h
-            in_tests = test_from is not None and new_start >= test_from
+            in_tests = any(a <= new_start and new_start + max(new_len, 1) - 1 <= b for a, b in test_mods)
             if in_tests:
                 if removed or not top_level_addition(path, head_lines, h, STARTS_RUST, indented=True):
                     narrow(path, "test-rust", h, "%s:%d changes the test module of the source file outside a test function" % (path, new_start))
