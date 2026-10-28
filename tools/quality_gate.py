@@ -20,7 +20,8 @@ Reports:
   --go-ledgers    one tools/mutation_shard_exec.sh ledger per shard of a sharded go-mutesting run
   --go-expected   the number of Go mutants the plan counted (#94): the ledgers must give exactly that many a verdict
 Unviable mutants (Rust) and skipped or duplicated ones (Go) are not counted either way. Their share of the mutants the tool listed is printed under each
-mutation score ("not in the denominator: N of M mutants"): information only, no threshold, so that a growing share cannot go unseen.
+mutation score ("not in the denominator: N of M mutants"): information only, no threshold, so that a growing share cannot go unseen. For Go it is everything in
+the total of go-mutesting that is neither killed nor escaped (skipped and errors); the duplicates are not in that total and are named next to it.
 
 A mutation report carries its result twice, as totals and as one verdict per mutant. The score is read from the
 verdicts, and totals that disagree with them are REPORT_INCONSISTENT, red: a report that contradicts itself
@@ -110,18 +111,25 @@ RUST_VERDICTS = {"CaughtMutant": "caught", "MissedMutant": "missed", "Timeout": 
 EXCLUDED = {}
 
 
-def note_excluded(language, left_out, listed):
-    got = EXCLUDED.setdefault(language, [0, 0])
-    got[0] += left_out
+def note_excluded(language, parts, listed, duplicated=0):
+    """`parts` is {what: count} of the mutants the tool listed that are not in the denominator; `listed` is the number the tool listed (the total of its own
+    summary); `duplicated` are mutants the tool dropped as repeats: they are not in `listed` and are reported next to it, not added to it."""
+    got = EXCLUDED.setdefault(language, [{}, 0, 0])
+    for k, n in parts.items():
+        got[0][k] = got[0].get(k, 0) + n
     got[1] += listed
+    got[2] += duplicated
 
 
 def excluded_line(language):
-    left_out, listed = EXCLUDED.get(language, (0, 0))
+    parts, listed, duplicated = EXCLUDED.get(language, [{}, 0, 0])
     if listed == 0:
         return None
-    return "     not in the denominator: %d of %d mutants (%.2f%%), %s" % (
-        left_out, listed, 100.0 * left_out / listed, "unviable: they do not compile" if language == "rust" else "skipped or uncompilable: they do not compile")
+    left_out = sum(parts.values())
+    detail = ", ".join("%s %d" % (k, n) for k, n in parts.items() if n)
+    return "     not in the denominator: %d of %d mutants (%.2f%%)%s%s" % (
+        left_out, listed, 100.0 * left_out / listed, " (" + detail + ")" if detail else "",
+        "; %d more dropped as duplicates, not in that total" % duplicated if duplicated else "")
 
 
 def _rust_outcome(path, need_names):
@@ -141,7 +149,7 @@ def _rust_outcome(path, need_names):
             raise Refused("REPORT_INCONSISTENT", "%s: mutant %s has no verdict (%r)" % (path, name, s))
         counted[RUST_VERDICTS[s]] += 1
     counted["total_mutants"] = len(mutants)
-    note_excluded("rust", counted["unviable"], counted["total_mutants"])
+    note_excluded("rust", {"unviable": counted["unviable"]}, counted["total_mutants"])
     wrong = ["%s %d, counted %d" % (k, totals[k], counted[k]) for k in totals if totals[k] != counted[k]]
     if wrong:
         raise Refused("REPORT_INCONSISTENT", "%s: the totals disagree with the mutant outcomes (%s)" % (path, "; ".join(wrong)))
@@ -229,7 +237,7 @@ def go_ledgers(paths, allow_empty=False, expected=None):
         survived += owned[0] == "survived"
         uncompilable += owned[0] == "uncompilable"
         tested += owned[0] in ("killed", "survived", "uncompilable")
-    note_excluded("go", uncompilable, tested)
+    note_excluded("go", {"uncompilable": uncompilable}, tested)
     if expected is not None and tested != expected:
         raise Refused("INCOMPLETE_SHARDS", "%d Go mutants have a verdict, the plan counted %d" % (tested, expected))
     return killed, killed + survived
@@ -251,11 +259,14 @@ def go_mutants(path):
         raise Refused("REPORT_FORMAT", "%s: no go-mutesting summary line" % path)
     lines = [r.group(1) for r in GO_RESULT_LINE.finditer(text)]
     summary = {"passed": int(m.group(1)), "failed": int(m.group(2)), "skipped": int(m.group(4)), "total": int(m.group(5))}
+    duplicated = int(m.group(3))
     counted = {"passed": lines.count("PASS"), "failed": lines.count("FAIL"), "skipped": lines.count("SKIP"), "total": len(lines)}
     wrong = ["%s %d, counted %d" % (k, summary[k], counted[k]) for k in summary if summary[k] != counted[k]]
     if wrong:
         raise Refused("REPORT_INCONSISTENT", "%s: the summary line disagrees with the result lines (%s)" % (path, "; ".join(wrong)))
-    note_excluded("go", counted["skipped"], counted["total"])
+    # the total of go-mutesting is killed + escaped + skipped + errors: what is neither killed nor escaped is out of the denominator
+    note_excluded("go", {"skipped": counted["skipped"], "errors": counted["total"] - counted["passed"] - counted["failed"] - counted["skipped"]},
+                  counted["total"], duplicated)
     return counted["passed"], counted["passed"] + counted["failed"]
 
 
@@ -341,14 +352,14 @@ def _mut(caught, missed, timeout=0, unviable=5, claim=None, extra=()):
     return json.dumps(d)
 
 
-def _gomut(passed, failed, skipped=3, claim=None):
+def _gomut(passed, failed, skipped=3, claim=None, errors=0, duplicated=0):
     """go-mutesting stdout: a result line per mutant, exec-script noise, and the summary line, unless `claim` overrides it."""
     rows = ['%s "/tmp/go-mutesting-1/a.go.%d" with checksum %032x' % (k, i, i)
-            for i, k in enumerate(["PASS"] * passed + ["FAIL"] * failed + ["SKIP"] * skipped)]
+            for i, k in enumerate(["PASS"] * passed + ["FAIL"] * failed + ["SKIP"] * skipped + ["UNKOWN exit code for"] * errors)]
     s = dict(passed=passed, failed=failed, skipped=skipped, total=len(rows))
     s.update(claim or {})
-    return "PASS\nok  \tx\t0.1s\n%s\nThe mutation score is 0.0 (%d passed, %d failed, 0 duplicated, %d skipped, total is %d)\n" % (
-        "\n".join(rows), s["passed"], s["failed"], s["skipped"], s["total"])
+    return "PASS\nok  \tx\t0.1s\n%s\nThe mutation score is 0.0 (%d passed, %d failed, %d duplicated, %d skipped, total is %d)\n" % (
+        "\n".join(rows), s["passed"], s["failed"], duplicated, s["skipped"], s["total"])
 
 
 def selftest():
@@ -417,16 +428,21 @@ def selftest():
         seen.add("REPORT_MISSING" if ok else "?")
         bad += 0 if ok else 1
         print("  %s %-48s -> %s" % ("ok " if ok else "BAD", "a report is absent", "REPORT_MISSING" if ok else "?"))
-    # the share of mutants the score leaves out of its denominator is printed under the score, per language, and decides nothing
-    with tempfile.TemporaryDirectory() as d:
-        files = {k: _w(d, names[k], v) for k, v in good.items()}
-        ns = argparse.Namespace(rust_lines=files["rl"], go_lines=files["gl"], rust_mutants=[files["rm"]], rust_listed=None,
-                                go_mutants=files["gm"], go_ledgers=None)
-        rc, text = _capture(check, ns)
-        ok = (rc == 0 and "not in the denominator: 5 of 105 mutants (4.76%), unviable" in text
-              and "not in the denominator: 3 of 103 mutants (2.91%), skipped" in text)
+    # the share of mutants the score leaves out of its denominator is printed under the score, per language, and decides nothing; for Go it counts what is
+    # neither killed nor escaped in the total of go-mutesting (skipped AND errors), and names the duplicates next to the total, not inside it
+    for title, over, want in (
+            ("the share left out of the denominator is printed", {},
+             ["not in the denominator: 5 of 105 mutants (4.76%) (unviable 5)", "not in the denominator: 3 of 103 mutants (2.91%) (skipped 3)"]),
+            ("Go errors and duplicates are not lost from it", dict(gm=_gomut(95, 5, skipped=3, errors=1, duplicated=2)),
+             ["not in the denominator: 4 of 104 mutants (3.85%) (skipped 3, errors 1); 2 more dropped as duplicates, not in that total"])):
+        with tempfile.TemporaryDirectory() as d:
+            files = {k: _w(d, names[k], v) for k, v in dict(good, **over).items()}
+            ns = argparse.Namespace(rust_lines=files["rl"], go_lines=files["gl"], rust_mutants=[files["rm"]], rust_listed=None,
+                                    go_mutants=files["gm"], go_ledgers=None)
+            rc, text = _capture(check, ns)
+        ok = rc == 0 and all(w in text for w in want)
         bad += 0 if ok else 1
-        print("  %s %-48s -> %s" % ("ok " if ok else "BAD", "the share left out of the denominator is printed", "printed" if ok else "missing"))
+        print("  %s %-48s -> %s" % ("ok " if ok else "BAD", title, "printed" if ok else "missing or wrong"))
     # sharded measurements: the merged score, and every way a shard set can be incomplete
     def rshard(names, missed=()):
         outs = [{"scenario": "Baseline", "summary": "Success"}] + [
@@ -527,7 +543,7 @@ def selftest():
     if missing:
         print("  BAD reasons without a fault: %s" % sorted(missing))
         bad += 1
-    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 1 + 17 + 15, len(set(REASONS) & seen), len(REASONS))
+    print("self-test: %d faults, %d of %d reasons covered, the gate can fail for every reason" % (len(cases) + 1 + 2 + 17 + 15, len(set(REASONS) & seen), len(REASONS))
           if bad == 0 else "self-test FAILED (%d)" % bad)
     return 0 if bad == 0 else 1
 
