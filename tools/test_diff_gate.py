@@ -125,7 +125,33 @@ class Scope(unittest.TestCase):
         self.assertEqual(v["mode"], "diff", v["reasons"])
         self.assertEqual(pr, {})
 
+    def test_production_code_after_a_test_module_is_still_the_diff(self):
+        self.write("rust/src/w.rs", RUST_SRC_WITH_TESTS + "\npub fn mul(a: i32, b: i32) -> i32 {\n    a * b\n}\n")
+        v, pr, pg = self.scope()
+        self.assertEqual(v["mode"], "diff", v["reasons"])
+        self.assertEqual(pr["rust/src/w.rs"][0], [[len(RUST_SRC_WITH_TESTS.splitlines()) + 1, len(RUST_SRC_WITH_TESTS.splitlines()) + 4]])
+
+    def test_a_test_module_that_cannot_be_closed_is_full(self):
+        self.write("rust/src/w.rs", RUST_SRC_WITH_TESTS[:-2] + "\npub fn mul() {}\n")
+        self.assertEqual(self.mode(), "full")
+
     # ---- the full cases ---------------------------------------------------------------------------------------------------------
+    def test_a_new_go_test_file_with_a_package_level_var_is_full(self):
+        self.write("go/b_test.go", "package forms_test\n\nimport \"os\"\n\nvar _ = func() int { os.Exit(0); return 0 }()\n")
+        self.assertEqual(self.mode(), "full")
+
+    def test_a_new_go_test_file_with_a_side_effect_import_is_full(self):
+        self.write("go/b_test.go", "package forms_test\n\nimport _ \"example.com/x\"\n")
+        self.assertEqual(self.mode(), "full")
+
+    def test_a_line_added_to_the_list_of_accepted_parity_differences_is_full(self):
+        self.write("testdata/p1/parity-known.txt", "a\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "list")
+        self.base = self.git("rev-parse", "HEAD").strip()
+        self.write("testdata/p1/parity-known.txt", "a\nb\n")
+        self.assertEqual(self.mode(), "full")
+
     def test_a_modified_assert_is_full(self):
         self.write("go/a_test.go", GO_TEST.replace("1 != 1", "1 != 2"))
         self.assertEqual(self.mode(), "full")
