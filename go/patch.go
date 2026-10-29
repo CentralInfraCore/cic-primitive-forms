@@ -17,6 +17,7 @@ import "slices"
 const (
 	CodePatchContextMismatch  = "PATCH_CONTEXT_MISMATCH"
 	CodePatchUnsupportedEvent = "PATCH_UNSUPPORTED_EVENT"
+	CodePatchDuplicateTarget  = "PATCH_DUPLICATE_TARGET"
 	CodePatchTargetAbsent     = "PATCH_TARGET_ABSENT"
 	CodePatchConflict         = "PATCH_CONFLICT"
 )
@@ -103,6 +104,14 @@ func Patch(text string, root Shape, a []string, g Grammar, schema, context DiffC
 			}
 		}
 		parsed[i], unresolved[i] = segs, perr
+	}
+	// (row 3a: a path that two events name is refused whatever the events say; the paths are canonical, so the text is the position)
+	seen := make(map[string]struct{}, len(d.Changes))
+	for _, e := range d.Changes {
+		if _, dup := seen[e.Path]; dup {
+			return nil, patchFailure(CodePatchDuplicateTarget, e.Path, nil)
+		}
+		seen[e.Path] = struct{}{}
 	}
 	for _, perr := range unresolved {
 		if perr != nil {

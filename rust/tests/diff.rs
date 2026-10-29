@@ -1378,3 +1378,83 @@ fn patch_a_key_component_of_a_list_below_a_composite() {
         "PATCH_UNSUPPORTED_EVENT"
     );
 }
+
+#[test]
+fn patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values() {
+    let dup = |a: i64, b: i64| vec![vc("$.mtu", int(1), int(a)), vc("$.mtu", int(1), int(b))];
+    // both match A and both are replacements the first unit applies: it is the pair that is refused, the later one is named, nothing is applied
+    for (a, b) in [(2, 3), (2, 2)] {
+        let v = patch_refusal(PATCH_DOC, dup(a, b));
+        assert_eq!(
+            (v.code, v.phase, v.logical_path.as_deref(), at(&v).as_str()),
+            (
+                "PATCH_DUPLICATE_TARGET",
+                Phase::Patch,
+                Some("$.mtu"),
+                "not_applicable"
+            )
+        );
+    }
+    // a repeated path between other events, in a list element
+    let element = || vc(r#"$.ports[{port=9}].label"#, string("y"), string("z"));
+    let v = patch_refusal(
+        PATCH_DOC,
+        vec![element(), vc("$.name", string("a"), string("b")), element()],
+    );
+    assert_eq!(
+        (v.code, v.logical_path.as_deref()),
+        ("PATCH_DUPLICATE_TARGET", Some(r#"$.ports[{port=9}].label"#))
+    );
+    // the order: after the unsupported event (row 3, over all events), before the path error, the absence and the conflict (rows 4-6)
+    let unsupported = PatchEvent {
+        kind: EventKind::SetChange,
+        path: "$.ip.addrs".into(),
+        previous: None,
+        next: None,
+    };
+    let mut events = dup(2, 3);
+    events.push(unsupported);
+    let v = patch_refusal(PATCH_DOC, events);
+    assert_eq!(
+        (v.code, v.logical_path.as_deref()),
+        ("PATCH_UNSUPPORTED_EVENT", Some("$.ip.addrs"))
+    );
+    let v = patch_refusal(
+        PATCH_DOC,
+        vec![vc("$.nope", int(1), int(2)), vc("$.nope", int(1), int(3))],
+    );
+    assert_eq!(
+        (v.code, v.phase, v.logical_path.as_deref()),
+        ("PATCH_DUPLICATE_TARGET", Phase::Patch, Some("$.nope"))
+    );
+    let v = patch_refusal(
+        PATCH_DOC,
+        vec![vc("$.mtu", int(9), int(2)), vc("$.mtu", int(9), int(3))],
+    );
+    assert_eq!(v.code, "PATCH_DUPLICATE_TARGET");
+    let v = patch_refusal(
+        PATCH_DOC,
+        vec![
+            vc(
+                r#"$.nics[{name="zz",zone="z"}].subnet"#,
+                string("s"),
+                string("t"),
+            ),
+            vc(
+                r#"$.nics[{name="zz",zone="z"}].subnet"#,
+                string("s"),
+                string("u"),
+            ),
+        ],
+    );
+    assert_eq!(v.code, "PATCH_DUPLICATE_TARGET");
+    // different paths are not a duplicate, and one path in two events of another kind is the unsupported event, as before
+    assert!(run_patch(
+        PATCH_DOC,
+        vec![
+            vc("$.mtu", int(1), int(2)),
+            vc("$.name", string("a"), string("b"))
+        ]
+    )
+    .is_ok());
+}

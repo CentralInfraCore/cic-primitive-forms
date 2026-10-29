@@ -141,6 +141,11 @@ def diff_field(events, reprs=()):
     return "diff: " + q({"changes": events, "representation": reprs, "canonical": canonical(events, reprs)})
 
 
+def direct_field(events):
+    """A diff handed to the patch directly (ADR 0013, the amendment of 2026-10-29): events and version, no canonical bytes. It is the one way to hold a path twice."""
+    return "diff: " + q({"changes": events, "version": 1})
+
+
 CASES = []
 
 
@@ -296,6 +301,29 @@ def render():
         [vc("$.name", "alpha", "beta")], "PATCH_CONTEXT_MISMATCH", "patch", "not_applicable", extra=["context: {synthetic: {tree: other}}"])
     bad("unknown-version-of-the-diff", "a diff of a version the patch does not know", D1, 'diff: {"canonical": "{\\"changes\\":[],\\"representation\\":[],\\"version\\":2}"}',
         "PATCH_CONTEXT_MISMATCH", "patch", "not_applicable")
+    # ---- refusals: one path, one event (ADR 0013, the amendment of 2026-10-29; the diff is handed to the patch directly) -----------------------------------
+    bad("duplicate-target-the-later-overwrites", "two events replace the same scalar with different values: both match A, and the later would silently win", D1,
+        direct_field([vc("$.count", 3, 4), vc("$.count", 3, 5)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.count")
+    bad("duplicate-target-the-same-event-twice", "the same event twice is a duplicate too: it is not collapsed", D1,
+        direct_field([vc("$.count", 3, 4), vc("$.count", 3, 4)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.count")
+    bad("duplicate-target-in-a-list-element", "the path names a list element by its identity", LIST,
+        direct_field([vc('$.routes[{to="b"}].metric', 2, 7), vc('$.routes[{to="b"}].metric', 2, 8)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", '$.routes[{to="b"}].metric')
+    bad("duplicate-target-between-other-events", "the repeated path is not next to its first event; the later one is named", D1,
+        direct_field([vc("$.count", 3, 4), vc("$.enabled", True, False), vc("$.count", 3, 5)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.count")
+    bad("duplicate-target-leaves-nothing-applied", "the first event would apply: there is an error and no text", D1,
+        direct_field([vc("$.name", "alpha", "beta"), vc("$.name", "alpha", "gamma")]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.name")
+    bad("duplicate-target-comes-before-the-conflict", "the repeated path also conflicts with A: row 3a is decided before the values are compared (row 6)", D1,
+        direct_field([vc("$.count", 9, 4), vc("$.count", 9, 5)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.count")
+    bad("duplicate-target-comes-before-the-path-error", "the repeated path does not resolve against the schema: row 3a is decided before the paths are resolved (row 4)", D1,
+        direct_field([vc("$.zzz", "a", "b"), vc("$.zzz", "a", "c")]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.zzz")
+    bad("duplicate-target-comes-before-the-absent-target", "the repeated path is a field A does not hold: row 3a is decided before row 5", "name: alpha\n",
+        direct_field([vc("$.count", 3, 4), vc("$.count", 3, 5)]), "PATCH_DUPLICATE_TARGET", "patch", "not_applicable", "$.count")
+    bad("unsupported-event-comes-before-the-duplicate", "an event the first unit does not apply is row 3 and is decided over every event first: it is named, not the duplicate", D1,
+        direct_field([vc("$.count", 3, 4), vc("$.count", 3, 5), vc("$.ip", "a", "b")]), "PATCH_UNSUPPORTED_EVENT", "patch", "not_applicable", "$.ip")
+    bad("context-mismatch-comes-before-the-duplicate", "the context is row 2", D1, direct_field([vc("$.count", 3, 4), vc("$.count", 3, 5)]),
+        "PATCH_CONTEXT_MISMATCH", "patch", "not_applicable", extra=["context: {synthetic: {tree: other}}"])
+    bad("earlier-phase-validate-comes-before-the-duplicate", "A does not validate: the validate phase is first", "bogus: 1\n",
+        direct_field([vc("$.count", 3, 4), vc("$.count", 3, 5)]), "UNKNOWN_FIELD", "validate", 0, "$.bogus")
     # ---- refusals of the earlier phases keep their own code and phase ---------------------------------------------------------------------------------
     bad("earlier-phase-a-parse-error", "A does not parse: the error of the parse phase, with its own code", "name: a\nname: b\n", [vc("$.name", "a", "b")], "DUPLICATE_KEY", "parse", 8)
     bad("earlier-phase-a-document-that-does-not-validate", "A does not validate: the violation of the validate phase, never a patch error", "bogus: 1\n", [vc("$.name", "a", "b")],

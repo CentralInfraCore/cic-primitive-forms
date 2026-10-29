@@ -255,3 +255,41 @@ func TestPatchAKeyComponentOfAListBelowAComposite(t *testing.T) {
 		t.Errorf("the key: %v", err)
 	}
 }
+
+func TestPatchTwoEventsOnOnePathAreRefusedBeforeAnythingIsDecidedAboutTheValues(t *testing.T) {
+	dup := func(a, b int64) []forms.DiffEvent {
+		return []forms.DiffEvent{vc("$.mtu", ival(1), ival(a)), vc("$.mtu", ival(1), ival(b))}
+	}
+	// both match A and both are replacements the first unit applies: it is the pair that is refused, the later one is named, nothing is applied
+	for _, p := range [][2]int64{{2, 3}, {2, 2}} {
+		if w := patchRefusal(t, patchDoc, dup(p[0], p[1])...); w.code != "PATCH_DUPLICATE_TARGET" || w.phase != "patch" || w.path != "$.mtu" || w.loc != "not_applicable" {
+			t.Errorf("%v", w)
+		}
+	}
+	// a repeated path between other events, in a list element
+	element := func() forms.DiffEvent { return vc("$.ports[{port=9}].label", sval("y"), sval("z")) }
+	if w := patchRefusal(t, patchDoc, element(), vc("$.name", sval("a"), sval("b")), element()); w.code != "PATCH_DUPLICATE_TARGET" || w.path != "$.ports[{port=9}].label" {
+		t.Errorf("%v", w)
+	}
+	// the order: after the unsupported event (row 3, over all events), before the path error, the absence and the conflict (rows 4-6)
+	unsupported := forms.DiffEvent{Kind: forms.EventSetChange, Path: "$.ip.addrs"}
+	if w := patchRefusal(t, patchDoc, append(dup(2, 3), unsupported)...); w.code != "PATCH_UNSUPPORTED_EVENT" || w.path != "$.ip.addrs" {
+		t.Errorf("%v", w)
+	}
+	if w := patchRefusal(t, patchDoc, vc("$.nope", ival(1), ival(2)), vc("$.nope", ival(1), ival(3))); w.code != "PATCH_DUPLICATE_TARGET" || w.phase != "patch" || w.path != "$.nope" {
+		t.Errorf("%v", w)
+	}
+	if w := patchRefusal(t, patchDoc, vc("$.mtu", ival(9), ival(2)), vc("$.mtu", ival(9), ival(3))); w.code != "PATCH_DUPLICATE_TARGET" {
+		t.Errorf("%v", w)
+	}
+	absent := func(next string) forms.DiffEvent {
+		return vc(`$.nics[{name="zz",zone="z"}].subnet`, sval("s"), sval(next))
+	}
+	if w := patchRefusal(t, patchDoc, absent("t"), absent("u")); w.code != "PATCH_DUPLICATE_TARGET" {
+		t.Errorf("%v", w)
+	}
+	// different paths are not a duplicate
+	if _, err := runPatch(t, patchDoc, vc("$.mtu", ival(1), ival(2)), vc("$.name", sval("a"), sval("b"))); err != nil {
+		t.Errorf("%v", err)
+	}
+}

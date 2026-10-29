@@ -2066,6 +2066,12 @@ fn patch_events(diff: &YamlOwned) -> Vec<PatchEvent> {
 
 /// The version the canonical bytes of the diff say.
 fn patch_version(diff: &YamlOwned) -> i64 {
+    // (a diff handed to the patch directly has no bytes: it carries its version)
+    if get(diff, "canonical").is_none() {
+        return get(diff, "version")
+            .and_then(YamlOwned::as_integer)
+            .expect("version");
+    }
     let bytes = text(get(diff, "canonical").expect("canonical"), "canonical");
     let json: serde_json::Value =
         serde_json::from_str(bytes).expect("the canonical bytes of a diff");
@@ -2183,5 +2189,5 @@ fn patch_cases_match_the_corpus() {
             }
         }
     }
-    assert_eq!(ran, 60, "the 60 patch cases of corpus/patch");
+    assert_eq!(ran, 71, "the 71 patch cases of corpus/patch");
 }

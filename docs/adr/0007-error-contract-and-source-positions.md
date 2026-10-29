@@ -261,7 +261,7 @@ retained by the parser to replace a scalar is the subject of ADR 0012. A positio
 
 ## Amendment: the phase `patch` (ADR 0013, 2026-10-23)
 
-A tenth phase, `patch`, is added after `edit`. It runs after the earlier phases have accepted the document (`parse`, `validate`) and reports **one** error: the first failing condition of the fixed order of ADR 0013, section 3. It has four codes, `PATCH_CONTEXT_MISMATCH`, `PATCH_UNSUPPORTED_EVENT`, `PATCH_TARGET_ABSENT` and `PATCH_CONFLICT`
+A tenth phase, `patch`, is added after `edit`. It runs after the earlier phases have accepted the document (`parse`, `validate`) and reports **one** error: the first failing condition of the fixed order of ADR 0013, section 3. It has five codes, `PATCH_CONTEXT_MISMATCH`, `PATCH_UNSUPPORTED_EVENT`, `PATCH_DUPLICATE_TARGET` (added 2026-10-29, ADR 0013), `PATCH_TARGET_ABSENT` and `PATCH_CONFLICT`
 (the anchors are in ADR 0013, section 6: `not_applicable`, `parent` and `value`). A document that does not validate, a path that does not resolve against the schema and a refusal of the replacement itself are **not** patch errors: they are reported with the code and the phase of the phase that refuses them (`validate`, `path_resolve`, `edit`).
 `PATCH_CONTEXT_MISMATCH` is raised only for what the patch can check, and does not say under which context a diff was made.
 

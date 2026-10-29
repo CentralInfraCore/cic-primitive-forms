@@ -242,6 +242,11 @@ codes:
     phases: {patch: none}
     meaning: The diff holds an event or a target the first unit of patch does not apply; the whole patch is refused and nothing is applied in part (ADR 0013 section 2).
     trigger: An added, removed, policy_declaration_change or set_change event; a value_change on an opaque position, a composite, a list, or a key component of a list element.
+  PATCH_DUPLICATE_TARGET:
+    status: stable
+    phases: {patch: none}
+    meaning: Two events of the diff name the same path; the patch is refused as a whole and nothing is applied (ADR 0013 section 3, row 3a). Each of the two is an event the first unit applies; it is the pair that contradicts itself.
+    trigger: A diff handed to the patch directly, with one path in two value_change events (the bytes of such a diff are refused by ReadDiff with the reason order); the error names the path of the later event.
   PATCH_TARGET_ABSENT:
     status: stable
     phases: {patch: parent}

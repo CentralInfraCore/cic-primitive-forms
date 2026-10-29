@@ -33,6 +33,15 @@ func patchEvents(t *testing.T, diff obj) []forms.DiffEvent {
 // patchVersion is the version the canonical bytes of the diff say.
 func patchVersion(t *testing.T, diff obj) int {
 	t.Helper()
+	// (a diff handed to the patch directly has no bytes: it carries its version)
+	switch v := diff["version"].(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	}
 	var d struct {
 		Version int `json:"version"`
 	}
@@ -129,7 +138,7 @@ func TestPatchCasesMatchTheCorpus(t *testing.T) {
 			}
 		}
 	}
-	if ran != 60 {
-		t.Fatalf("the 60 patch cases of corpus/patch, ran %d", ran)
+	if ran != 71 {
+		t.Fatalf("the 71 patch cases of corpus/patch, ran %d", ran)
 	}
 }
