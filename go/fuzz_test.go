@@ -11,6 +11,7 @@ package forms_test
 // requires the run to be red. It is test code; the product has no such switch.
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"slices"
@@ -679,6 +680,64 @@ func FuzzPatch(f *testing.F) {
 		}
 		if empty, err := forms.Patch(a, root, keySet, g, ctx, ctx, forms.PatchDiff{Version: 1}); err != nil || empty.Text != a {
 			t.Fatalf("the empty diff did not give A back: %v", err)
+		}
+	})
+}
+
+// FuzzReadDiff (P4, after #107 and the differential): the bytes handed to ReadDiff. The reader never panics; a refusal names a reason of the closed set and an offset
+// that is not beyond the input, and ReadDiffVersion refuses with the same reason and offset when it refuses at all, and names a version other than 1 exactly when
+// ReadDiff refuses with the reason "version". A diff that is read is valid UTF-8, has version 1, is written back as the bytes it was read from, reads again to the
+// same writing, and gives the patch as many events as it has changes. CIC_FUZZ_CANARY works as in FuzzParse. The Rust peer is rust/fuzz/fuzz_targets/read_diff.rs.
+func FuzzReadDiff(f *testing.F) {
+	for _, seed := range []string{
+		`{"changes":[],"representation":[],"version":1}`,
+		`{"changes":[{"kind":"value_change","next":1600,"path":"$.mtu","previous":1500}],"representation":[],"version":1}`,
+		`{"changes":[{"changed":{"access":{"next":["OU=ops"],"previous":"inherit"}},"kind":"policy_declaration_change","path":"$.mtu"}],"representation":[{"kind":"representation_change","next":"expanded","path":"$.mtu","previous":"short"}],"version":1}`,
+		`{"changes":[{"added":[2],"kind":"set_change","path":"$.tags","removed":[]}],"representation":[],"version":1}`,
+		`{"changes":[],"representation":[],"version":2}`,
+		`{"changes":[],"representation":null,"version":1}`, `{}`, ``, "\xff",
+	} {
+		f.Add([]byte(seed))
+	}
+	reasons := []string{forms.ReadNotUTF8, forms.ReadSyntax, forms.ReadDepth, forms.ReadDuplicateKey, forms.ReadNumber, forms.ReadShape, forms.ReadPath, forms.ReadOrder,
+		forms.ReadNoChange, forms.ReadNotCanonical, forms.ReadVersion}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && bytes.HasPrefix(data, []byte("CANARY")) {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		version, verr := forms.ReadDiffVersion(data)
+		d, err := forms.ReadDiff(data)
+		if err != nil {
+			var re *forms.DiffReadError
+			if !errors.As(err, &re) || !slices.Contains(reasons, re.Reason) || re.Offset < 0 || re.Offset > len(data) {
+				t.Fatalf("a refusal outside the contract: %v %q", err, data)
+			}
+			if verr != nil {
+				var ve *forms.DiffReadError
+				if !errors.As(verr, &ve) || ve.Reason != re.Reason || ve.Offset != re.Offset {
+					t.Fatalf("ReadDiff refuses with %v and ReadDiffVersion with %v: %q", err, verr, data)
+				}
+			} else if (version != 1) != (re.Reason == forms.ReadVersion) {
+				t.Fatalf("version %d and the reason %s: %q", version, re.Reason, data)
+			}
+			return
+		}
+		if verr != nil || version != 1 || d.Version != 1 || !utf8.Valid(data) {
+			t.Fatalf("a diff was read and the version is %d (%v), valid UTF-8 %v: %q", version, verr, utf8.Valid(data), data)
+		}
+		if got := len(d.PatchDiff().Changes); got != len(d.Changes) {
+			t.Fatalf("%d events for the patch, %d changes: %q", got, len(d.Changes), data)
+		}
+		written := (&forms.DiffResult{Changes: d.Changes, Representation: d.Representation}).Canonical()
+		if written != string(data) {
+			t.Fatalf("not written back as it was read: %q %q", data, written)
+		}
+		again, err := forms.ReadDiff([]byte(written))
+		if err != nil {
+			t.Fatalf("the writing of a diff does not read again: %v %q", err, written)
+		}
+		if twice := (&forms.DiffResult{Changes: again.Changes, Representation: again.Representation}).Canonical(); twice != written {
+			t.Fatalf("read twice, written differently: %q %q", written, twice)
 		}
 	})
 }

@@ -1,0 +1,1 @@
+{"changes":[{"added":["c"],"kind":"set_change","path":"$.ip.addresses","removed":["b"]},{"kind":"value_change","next":"b","path":"$.nics[{name=\"n1\",zone=\"z\"}].subnet","previous":"a"}],"representation":[],"version":1}

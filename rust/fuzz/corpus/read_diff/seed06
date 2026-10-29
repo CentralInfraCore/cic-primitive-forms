@@ -1,0 +1,1 @@
+{"changes":[{"kind":"added","next":{"access":"inherit","conformance":"implemented","default_injection":null,"inherit":true,"modify":"inherit","value":"g"},"path":"$.ip.gateway"}],"representation":[],"version":1}

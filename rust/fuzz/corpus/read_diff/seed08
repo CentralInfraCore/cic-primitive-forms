@@ -1,0 +1,1 @@
+{"changes":[{"changed":{"access":{"next":["OU=a"],"previous":"inherit"}},"kind":"policy_declaration_change","path":"$.mtu"},{"kind":"value_change","next":2,"path":"$.mtu","previous":1}],"representation":[],"version":1}
