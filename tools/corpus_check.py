@@ -613,6 +613,28 @@ def _canonical_only(text, where, vs):
         vs.append(Violation("PATCH_INPUT", where, "a diff given only as canonical bytes carries a version other than 1 (the case of an unknown version)"))
 
 
+def _direct_diff(d, where, vs):
+    """A diff handed to the patch directly (ADR 0013, the amendment of 2026-10-29): the events and the version, with no canonical bytes, because the bytes of
+    such a diff would be refused by ReadDiff. The events are held to every rule of ADR 0008 except the order; the form exists to carry a path twice."""
+    if d["version"] != 1 or type(d["version"]) is not int:
+        vs.append(Violation("PATCH_INPUT", where, "a direct diff has version 1 (another version is given as canonical bytes alone)"))
+    ch = d["changes"]
+    if not isinstance(ch, list):
+        vs.append(Violation("DIFF_EVENT", where, "changes is a list"))
+        return
+    try:
+        text = json.dumps({"version": 1, "changes": [native_event(e) for e in ch], "representation": []}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    except (KeyError, TypeError, AttributeError):
+        vs.append(Violation("DIFF_EVENT", where, "malformed events"))
+        return
+    inner = []
+    check_diff_expect({"changes": ch, "representation": [], "canonical": text}, where, inner)
+    vs.extend(v for v in inner if v.rule not in ("DIFF_ORDER", "DIFF_CANONICAL"))
+    paths = [e.get("path") for e in ch if isinstance(e, dict)]
+    if len(set(paths)) == len(paths):
+        vs.append(Violation("PATCH_INPUT", where, "a direct diff exists to carry a path twice: without that it is given in the canonical form"))
+
+
 def check_patch_inputs(case, where, vs):
     """ADR 0013, section 7: the source, the diff (the structured events of ADR 0008 and their canonical bytes), the optional context and the optional round-trip operand."""
     forms = [f for f in ("input_yaml", "input_hex") if f in case]
@@ -627,6 +649,8 @@ def check_patch_inputs(case, where, vs):
         vs.append(Violation("PATCH_INPUT", where, "diff is the diff of ADR 0008: changes, representation and canonical"))
     elif set(d) == {"canonical"}:
         _canonical_only(d["canonical"], where + ".diff", vs)
+    elif set(d) == {"changes", "version"}:
+        _direct_diff(d, where + ".diff", vs)
     else:
         check_diff_expect(d, where + ".diff", vs)
     rt = case.get("round_trip")
@@ -685,6 +709,10 @@ def check_patch_expect(case, expect, where, vs):
         return
     d = case.get("diff") if isinstance(case.get("diff"), dict) else {}
     changes = d.get("changes") if isinstance(d.get("changes"), list) else []
+    direct = set(d) == {"changes", "version"}
+    if direct and "errors" not in expect:
+        vs.append(Violation("PATCH_INPUT", where, "a direct diff holds a path twice: the patch refuses it, it is never a success"))
+        return
     if "errors" in expect:
         if "round_trip" in case:
             vs.append(Violation("PATCH_INPUT", where, "a round trip belongs to a success case: a failure returns no text"))
@@ -694,8 +722,10 @@ def check_patch_expect(case, expect, where, vs):
             return
         e = errs[0] if isinstance(errs[0], dict) else {}
         paths = [c.get("path") for c in changes if isinstance(c, dict)]
-        if e.get("code") in ("PATCH_UNSUPPORTED_EVENT", "PATCH_TARGET_ABSENT", "PATCH_CONFLICT") and e.get("logical_path") not in paths:
+        if e.get("code") in ("PATCH_UNSUPPORTED_EVENT", "PATCH_DUPLICATE_TARGET", "PATCH_TARGET_ABSENT", "PATCH_CONFLICT") and e.get("logical_path") not in paths:
             vs.append(Violation("PATCH_BYTES", where, "%s names the path of an event of the diff" % e.get("code")))
+        if e.get("code") == "PATCH_DUPLICATE_TARGET" and (not direct or paths.count(e.get("logical_path")) < 2):
+            vs.append(Violation("PATCH_BYTES", where, "PATCH_DUPLICATE_TARGET names a path that two events of a direct diff both hold"))
         if e.get("code") == "PATCH_CONTEXT_MISMATCH" and "logical_path" in e:
             vs.append(Violation("PATCH_BYTES", where, "PATCH_CONTEXT_MISMATCH is about the context, not about a path"))
         return

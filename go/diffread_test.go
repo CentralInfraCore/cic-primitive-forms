@@ -50,7 +50,9 @@ func canonicalsOf(t *testing.T) (diffs []string, patches []obj) {
 func TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself(t *testing.T) {
 	diffs, patches := canonicalsOf(t)
 	for _, p := range patches {
-		diffs = append(diffs, p["diff"].(obj)["canonical"].(string))
+		if s, ok := p["diff"].(obj)["canonical"].(string); ok { // (a diff handed to the patch directly has no bytes)
+			diffs = append(diffs, s)
+		}
 	}
 	if len(diffs) < 120 {
 		t.Fatalf("only %d canonical strings", len(diffs))
@@ -79,6 +81,9 @@ func TestReadDiffGivesThePatchTheEventsOfTheVector(t *testing.T) {
 	for _, c := range patches {
 		id := c["id"].(string)
 		diff := c["diff"].(obj)
+		if _, ok := diff["canonical"]; !ok { // a diff handed to the patch directly has no bytes to read
+			continue
+		}
 		read, err := forms.ReadDiff([]byte(diff["canonical"].(string)))
 		if _, ok := diff["changes"]; !ok { // a diff of another version: refused by ReadDiff, named by ReadDiffVersion
 			v, verr := forms.ReadDiffVersion([]byte(diff["canonical"].(string)))

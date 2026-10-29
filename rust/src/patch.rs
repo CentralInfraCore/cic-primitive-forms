@@ -24,6 +24,8 @@ use crate::validate::{Shape, ShapeType};
 pub const PATCH_CONTEXT_MISMATCH: &str = "PATCH_CONTEXT_MISMATCH";
 /// The code for an event or a target the first unit does not apply.
 pub const PATCH_UNSUPPORTED_EVENT: &str = "PATCH_UNSUPPORTED_EVENT";
+/// The code for two events of one diff that name the same path (ADR 0013, section 3, row 3a).
+pub const PATCH_DUPLICATE_TARGET: &str = "PATCH_DUPLICATE_TARGET";
 /// The code for a position the schema has and the document does not.
 pub const PATCH_TARGET_ABSENT: &str = "PATCH_TARGET_ABSENT";
 /// The code for a value the document holds that is not the `previous` of the event.
@@ -170,6 +172,13 @@ pub fn patch(
                 unresolved.push(perr);
                 parsed.push(Vec::new());
             }
+        }
+    }
+    // (row 3a: a path that two events name is refused whatever the events say; the paths are canonical, so the text is the position)
+    let mut seen = std::collections::HashSet::with_capacity(d.changes.len());
+    for e in &d.changes {
+        if !seen.insert(e.path.as_str()) {
+            return Err(failure(PATCH_DUPLICATE_TARGET, &e.path, None));
         }
     }
     if let Some(perr) = unresolved.into_iter().next() {

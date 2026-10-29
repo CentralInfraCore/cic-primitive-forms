@@ -56,7 +56,7 @@ pub use normalize::{denormalize, normalize, renormalize, NormalizationResult};
 pub use parse::{parse, parse_with, Limits};
 pub use patch::{
     patch, PatchDiff, PatchEvent, PatchResult, PatchSpan, PATCH_CONFLICT, PATCH_CONTEXT_MISMATCH,
-    PATCH_TARGET_ABSENT, PATCH_UNSUPPORTED_EVENT,
+    PATCH_DUPLICATE_TARGET, PATCH_TARGET_ABSENT, PATCH_UNSUPPORTED_EVENT,
 };
 pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use policy::{read_policy_surface, PolicyRule, PolicySurface, SurfaceRule};

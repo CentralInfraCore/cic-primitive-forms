@@ -124,7 +124,11 @@ fn the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists() {
         {
             let id = text(get(case, "id").expect("id"), "id");
             let diff = get(case, "diff").expect("diff");
-            let bytes = text(get(diff, "canonical").expect("canonical"), "canonical").as_bytes();
+            // (a diff handed to the patch directly has no bytes to read)
+            let Some(canonical) = get(diff, "canonical") else {
+                continue;
+            };
+            let bytes = text(canonical, "canonical").as_bytes();
             let Some(changes) = get(diff, "changes").and_then(YamlOwned::as_vec) else {
                 // a diff of another version: refused by read_diff, named by read_diff_version
                 let version = read_diff_version(bytes).unwrap_or_else(|e| panic!("{id}: {e}"));

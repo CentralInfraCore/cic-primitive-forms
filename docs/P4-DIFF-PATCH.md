@@ -89,6 +89,7 @@ A new phase `patch` after `diff` (ADR 0007 gets a tenth phase when ADR 0013 is a
 |---|---|
 | `PATCH_CONFLICT` | the value A holds at the path is not `previous` (this is also what a second application of a diff with effective changes is; a diff with no changes never conflicts) |
 | `PATCH_UNSUPPORTED_EVENT` | an event kind or a target the first unit does not apply (the list of section 4) |
+| `PATCH_DUPLICATE_TARGET` | two events of the diff name the same path (added 2026-10-29, ADR 0013 section 3, row 3a) |
 | `PATCH_TARGET_ABSENT` | the path does not address a position that A holds |
 | `PATCH_CONTEXT_MISMATCH` | only what the patch can check: A is not readable under the context the caller gave, or the diff's version is unknown. It does **not** mean that the diff was made under another context: nothing in the inputs can show that |
 
@@ -172,3 +173,13 @@ ADR 0013 lets the patch take a diff as events "or its canonical bytes read back 
 * **Evidence.** Every canonical string of the corpus (the positive `diff` cases and the diff of each `patch` case; 121 strings) reads and writes back to itself in both languages (the ones of another version are refused with `version` and named by `ReadDiffVersion`, which the tests check for every string: `ReadDiff` succeeds exactly for version 1); the events read from the bytes of each patch vector are the events it lists, and in Go the patch gives the same answer from the bytes as from the events; a table of more than 50 refusals (each with its reason, the same in both languages, with the same precedence when an event has two defects); over 5000 single-byte mutations of valid diffs, none is accepted unless it is written back as it is.
 
 Not in this step: fuzz targets and a Rust/Go differential for the reader (a separate change, because they touch the gate's own tooling), and reading the events of a diff of another version, which this contract does not have (its bytes are named by `ReadDiffVersion`, not interpreted).
+
+## 15. One path, one event (`PATCH_DUPLICATE_TARGET`, 2026-10-29)
+
+A check before this step showed that both implementations accepted a diff with two `value_change` events on one path: both passed the conflict check, because `previous` is compared with A and not with the result of the event before, and the later replacement silently won (`$.mtu` 1 to 2 and 1 to 3 gave `mtu: 3`, with `replaced` listing the path twice). Run in Rust on `1a41018`; in Go read from the code (no Go toolchain was available for the check), and the new Go tests run in CI.
+
+* **The contract.** ADR 0013, the amendment of 2026-10-29: row 3a of section 3, the code `PATCH_DUPLICATE_TARGET` (anchor `not_applicable`, the path of the later event), decided over all events after row 3 and before any path is resolved. A new code and not `PATCH_UNSUPPORTED_EVENT`: each of the two events is one the first unit applies, it is the pair that contradicts itself. The paths are canonical (ADR 0006), so the text of the path is the position; there is no second spelling to normalise.
+* **Where it can happen.** Not through `ReadDiff`: the bytes of a diff with a path twice are refused there with the reason `order`. Only a `PatchDiff` that a caller builds directly.
+* **The vectors.** 11 cases (the corpus has 71 now). A diff with a path twice cannot be a canonical diff, so the cases carry it as `diff: {changes, version}` with no canonical bytes ("handed to the patch directly"); `tools/corpus_check.py` holds the events to every rule of ADR 0008 except the order, requires the repeated path, forbids it in a success, and four seeded faults show those rules can fail. They fix the place of the row: after the unsupported event and the context, before the path error, the absence and the conflict, and after an invalid document.
+* **Evidence.** Rust: the new unit test and the corpus fail on the code of `1a41018` and pass with the check. Go: the same tests, run by CI only.
+* **Not done.** The order of the events in a `PatchDiff` is still not checked (the input contract says canonical order; a list in another order applies and `replaced` follows the list). The generated differential and the fuzz targets do not produce a repeated path, so they do not exercise this code; the mutation run is what shows whether the tests pin the check.

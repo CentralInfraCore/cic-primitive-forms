@@ -433,6 +433,106 @@ cases:
     diff: {"canonical": "{\"changes\":[],\"representation\":[],\"version\":2}"}
     codes_status: stable
     expect: {errors: [{code: PATCH_CONTEXT_MISMATCH, phase: patch, source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-the-later-overwrites
+    kind: patch
+    polarity: negative
+    description: "two events replace the same scalar with different values: both match A, and the later would silently win"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.count", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-the-same-event-twice
+    kind: patch
+    polarity: negative
+    description: "the same event twice is a duplicate too: it is not collapsed"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.count", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-in-a-list-element
+    kind: patch
+    polarity: negative
+    description: "the path names a list element by its identity"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "routes:\n  - to: a\n    metric: 1\n  - to: b\n    metric: 2\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.routes[{to=\"b\"}].metric", "previous": {"type": "integer", "value": 2}, "next": {"type": "integer", "value": 7}}, {"kind": "value_change", "path": "$.routes[{to=\"b\"}].metric", "previous": {"type": "integer", "value": 2}, "next": {"type": "integer", "value": 8}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.routes[{to=\"b\"}].metric", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-between-other-events
+    kind: patch
+    polarity: negative
+    description: "the repeated path is not next to its first event; the later one is named"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.enabled", "previous": {"type": "boolean", "value": true}, "next": {"type": "boolean", "value": false}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.count", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-leaves-nothing-applied
+    kind: patch
+    polarity: negative
+    description: "the first event would apply: there is an error and no text"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.name", "previous": {"type": "string", "value": "alpha"}, "next": {"type": "string", "value": "beta"}}, {"kind": "value_change", "path": "$.name", "previous": {"type": "string", "value": "alpha"}, "next": {"type": "string", "value": "gamma"}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.name", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-comes-before-the-conflict
+    kind: patch
+    polarity: negative
+    description: "the repeated path also conflicts with A: row 3a is decided before the values are compared (row 6)"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 9}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 9}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.count", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-comes-before-the-path-error
+    kind: patch
+    polarity: negative
+    description: "the repeated path does not resolve against the schema: row 3a is decided before the paths are resolved (row 4)"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.zzz", "previous": {"type": "string", "value": "a"}, "next": {"type": "string", "value": "b"}}, {"kind": "value_change", "path": "$.zzz", "previous": {"type": "string", "value": "a"}, "next": {"type": "string", "value": "c"}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.zzz", source_location: {state: not_applicable}}]}
+  - id: patch.duplicate-target-comes-before-the-absent-target
+    kind: patch
+    polarity: negative
+    description: "the repeated path is a field A does not hold: row 3a is decided before row 5"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_DUPLICATE_TARGET, phase: patch, logical_path: "$.count", source_location: {state: not_applicable}}]}
+  - id: patch.unsupported-event-comes-before-the-duplicate
+    kind: patch
+    polarity: negative
+    description: "an event the first unit does not apply is row 3 and is decided over every event first: it is named, not the duplicate"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}, {"kind": "value_change", "path": "$.ip", "previous": {"type": "string", "value": "a"}, "next": {"type": "string", "value": "b"}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_UNSUPPORTED_EVENT, phase: patch, logical_path: "$.ip", source_location: {state: not_applicable}}]}
+  - id: patch.context-mismatch-comes-before-the-duplicate
+    kind: patch
+    polarity: negative
+    description: "the context is row 2"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "name: alpha\ncount: 3\nenabled: true\n"
+    context: {synthetic: {tree: other}}
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: PATCH_CONTEXT_MISMATCH, phase: patch, source_location: {state: not_applicable}}]}
+  - id: patch.earlier-phase-validate-comes-before-the-duplicate
+    kind: patch
+    polarity: negative
+    description: "A does not validate: the validate phase is first"
+    schema: {synthetic: {tree: doc}}
+    input_yaml: "bogus: 1\n"
+    diff: {"changes": [{"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 4}}, {"kind": "value_change", "path": "$.count", "previous": {"type": "integer", "value": 3}, "next": {"type": "integer", "value": 5}}], "version": 1}
+    codes_status: stable
+    expect: {errors: [{code: UNKNOWN_FIELD, phase: validate, logical_path: "$.bogus", source_location: {line: 1, column: 1, offset: 0}}]}
   - id: patch.earlier-phase-a-parse-error
     kind: patch
     polarity: negative

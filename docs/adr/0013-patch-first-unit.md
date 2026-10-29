@@ -34,12 +34,13 @@ Each condition belongs to **exactly one** phase and one code; a failure is repor
 | 1 | A does not parse, or does not validate against the schema | the error of the earlier phase (`parse`, `validate`) with its own code and violations; **never** `PATCH_CONTEXT_MISMATCH` |
 | 2 | the `context` the caller passed does not match the `schema` it passed (the schema identity or digest, the grammar commit or digest, or the surface), or the version of the diff is not `1` | `PATCH_CONTEXT_MISMATCH` |
 | 3 | an event or a target that section 2 does not apply (the first in the canonical order of ADR 0008) | `PATCH_UNSUPPORTED_EVENT` |
+| 3a | two events of the diff name the **same path** (text equality: paths are canonical, ADR 0006, so one position has one spelling); the error names the path of the later of the two | `PATCH_DUPLICATE_TARGET` |
 | 4 | the path of an event does not resolve against the **schema** (an unknown field, a component that names no declared key) | the error of the path operations (`path_resolve`), as it is today; **not** `PATCH_TARGET_ABSENT` |
 | 5 | the path resolves against the schema, but **A does not hold** that position (the field is absent, or the list has no element of that identity) | `PATCH_TARGET_ABSENT` |
 | 6 | A holds the position and its value is not `previous`, type-strict (`0` is not `false`, `null` is not absent) | `PATCH_CONFLICT` |
 | 7 | a replacement is refused by `edit_scalar` | the code and phase `edit` of ADR 0012 |
 
-Rows 4-6 are taken per event in the canonical order of ADR 0008, and a row for an earlier event comes before the rows of a later one. Rows 1-6 are all decided **before the first byte is changed**; row 7 happens during the replacements, on a working copy, and if it (or anything else) fails the response is the error and **no text is returned**. The replacements are applied in the canonical order, each by `edit_scalar` on the result of the one before. Positions that are independent commute (ADR 0012, guarantee 6); a change to the key field of a list element is not among the applied events, so no application changes the address of another.
+Row 3a is decided over all events after row 3 has passed every event, and before any path is resolved: it does not depend on the document or on the schema. Rows 4-6 are taken per event in the canonical order of ADR 0008, and a row for an earlier event comes before the rows of a later one. Rows 1-6 are all decided **before the first byte is changed**; row 7 happens during the replacements, on a working copy, and if it (or anything else) fails the response is the error and **no text is returned**. The replacements are applied in the canonical order, each by `edit_scalar` on the result of the one before. Positions that are independent commute (ADR 0012, guarantee 6); a change to the key field of a list element is not among the applied events, so no application changes the address of another.
 
 ### 4. What a success guarantees: checked on every call, and proved from outside
 
@@ -77,6 +78,7 @@ ADR 0007's phase list gets a tenth phase, `patch`, which runs after the earlier 
 |---|---|---|
 | `PATCH_CONTEXT_MISMATCH` | the context does not match the schema given, or the version of the diff is unknown (section 3, row 2) | `not_applicable` |
 | `PATCH_UNSUPPORTED_EVENT` | an event or a target that section 2 does not apply | `not_applicable`, the path of the event |
+| `PATCH_DUPLICATE_TARGET` | two events of the diff name the same path (section 3, row 3a) | `not_applicable`, the path of the later event |
 | `PATCH_TARGET_ABSENT` | the path resolves against the schema but A does not hold the position (section 3, row 5) | `parent` of the position |
 | `PATCH_CONFLICT` | the value A holds at the path is not `previous` | `value` of the position |
 
@@ -96,6 +98,12 @@ Applying `added` and `removed` (insertion and deletion), `set_change`, `policy_d
 * ADR 0007 is amended in one place (the phase list); ADR 0005 in one place (the kind `patch`). ADR 0008 and ADR 0012 are not changed.
 * The patch reuses the proved scalar replacement; its own new code is the checks and the order, which is what the proof pass (P4-3) has to make fail.
 * The first unit is deliberately narrow; what it refuses it refuses with a code and a vector.
+
+## Amendment: one path, one event (2026-10-29)
+
+The first unit did not say what a diff with two events on one path is, and the implementations (Rust and Go) accepted it: both events passed row 6, because `previous` is compared with A and not with the result of the event before, and the replacements ran one after the other, so the later one silently overwrote the earlier and `replaced` listed the path twice. A diff that ADR 0008 defines cannot hold this (its events are strictly ordered, one per path and kind, and `ReadDiff` refuses the bytes); only a `PatchDiff` that a caller builds directly can. The contract now refuses it, as a whole, before anything is applied: section 3 gets row 3a and section 6 the code `PATCH_DUPLICATE_TARGET` (anchor `not_applicable`, the path of the later event). It is a new code and not `PATCH_UNSUPPORTED_EVENT` because each of the two events is one the first unit applies; it is the pair that is contradictory.
+
+The input contract of `Patch` is unchanged: a `PatchDiff` holds its events in the canonical order of ADR 0008, and the patch does not check that order (a list in another order applies, and `replaced` follows the list). Only the repeated path is a refusal.
 
 ## Acceptance record
 
