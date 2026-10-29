@@ -596,7 +596,9 @@ jobs:
             (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json --in-diff "$RUNNER_TEMP/scope/rust.patch" -F "$(cat "$Q/re.txt")") > "$Q/selected.json"
             python3 tools/shard_plan.py verify --names "$Q/names.json" --selected "$Q/selected.json"
             # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
-            (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants --in-diff "$RUNNER_TEMP/scope/rust.patch" -F "$(cat "$Q/re.txt")" \
+            # A mutant that moves the reader backwards can grow memory until the runner kills the whole job ("The operation was canceled", no verdict): the cap turns
+            # that into a failed allocation, so the mutant is caught and the shard ends. 6 GB of address space is what the build and the tests of the whole diff need (measured locally).
+            (ulimit -v 6291456; cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants --in-diff "$RUNNER_TEMP/scope/rust.patch" -F "$(cat "$Q/re.txt")" \
               --output "$Q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
             cp "$Q/mut-rust/mutants.out/outcomes.json" "$Q/out/outcomes.json"
           fi
@@ -605,6 +607,13 @@ jobs:
           name: rust-diff-mutants-${{ matrix.shard }}
           path: ${{ runner.temp }}/q/out
           if-no-files-found: error
+      # the per-mutant log, also when the shard is cancelled: it says which mutant was running
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        with:
+          name: rust-diff-mutants-log-${{ matrix.shard }}
+          path: ${{ runner.temp }}/q/mut-rust
+          if-no-files-found: ignore
 
   diff-mutation-go:
     needs: [scope, diff-plan]

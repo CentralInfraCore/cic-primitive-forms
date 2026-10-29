@@ -101,7 +101,7 @@ pub struct DiffEvent {
     pub changed: Vec<DeclChange>,
     pub added: Vec<Node>,
     pub removed: Vec<Node>,
-    order: Path,
+    pub(crate) order: Path,
 }
 
 /// A writing difference that is not a difference: a position present in both views that was written short in one and expanded in the other.
@@ -110,7 +110,7 @@ pub struct RepresentationChange {
     pub path: String,
     pub previous: &'static str,
     pub next: &'static str,
-    order: Path,
+    pub(crate) order: Path,
 }
 
 /// The result of [`diff`]. The views are logically equal exactly when `changes` is empty.
@@ -260,7 +260,7 @@ fn read_view(
     expand(v.doc, root, a, g, &v.trust).map_err(|e| for_operand(e, operand))
 }
 
-fn seg_of(s: &PathSeg) -> Seg {
+pub(crate) fn seg_of(s: &PathSeg) -> Seg {
     match s {
         PathSeg::Field(f) => Seg::Field(f.clone()),
         PathSeg::Item(id) => Seg::Item(id.clone()),
@@ -430,7 +430,7 @@ fn elements<'n, 'c>(list: &'n Node, els: &'c Elements, a: &[String]) -> Vec<Elem
 }
 
 /// The order of ADR 0008 for set elements: by kind rank (null, booleans, integers, strings), then by value.
-fn compare_scalars(x: &Node, y: &Node) -> Ordering {
+pub(crate) fn compare_scalars(x: &Node, y: &Node) -> Ordering {
     fn rank(n: &Node) -> u8 {
         match n.value {
             Value::Null => 0,
@@ -903,7 +903,7 @@ impl DiffResult {
     }
 }
 
-fn write_canonical(out: &mut String, n: &Node) {
+pub(crate) fn write_canonical(out: &mut String, n: &Node) {
     match &n.value {
         Value::Null => out.push_str("null"),
         Value::Bool(b) => out.push_str(&b.to_string()),
