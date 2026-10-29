@@ -1285,6 +1285,21 @@ jobs:
           python3 tools/parity/compare_patch.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_patch.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
 
+      # And for the reader of the canonical bytes of a diff (ReadDiff / read_diff, #107): 20 000 generated inputs, fixed seed: the corpus diffs, valid diffs composed from
+      # their events, the same after one edit of the structure or of the writing (so that the reader meets the order, the repeated path, the empty change, the shape),
+      # numbers, nesting past the depth, strings and bytes. The two readers must give the same reason and offset or the same diff written back, there is no list of known
+      # differences, and the comparison checks the promises of the reader on its own and that every reason is reached. Its self-test breaks the dumps in 13 ways.
+      - name: ReadDiff differential, generate, dump with both languages, compare, self-test
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-diffread"
+          mkdir -p "$P"
+          python3 tools/parity/gen_diffread.py "$P/in.jsonl" --count 20000
+          (cd rust && PARITY_DIFFREAD_IN="$P/in.jsonl" PARITY_DIFFREAD_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_diffread_dump)
+          (cd go && PARITY_DIFFREAD_IN="$P/in.jsonl" PARITY_DIFFREAD_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpDiffReadOutcomes$' .)
+          python3 tools/parity/compare_diffread.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_diffread.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
   edit-proof:
