@@ -438,7 +438,8 @@ func ReadDiff(b []byte) (CanonicalDiff, error) {
 		return readFail(ReadVersion)
 	}
 	top := members(root, "changes", "representation", "version")
-	if top == nil || top["changes"].Kind != KindSeq || top["representation"].Kind != KindSeq {
+	// (the parts are read in the order of the canonical document, `changes` before `representation`: the first part that is wrong gives the reason, as in Rust)
+	if top == nil || top["changes"].Kind != KindSeq {
 		return readFail(ReadShape)
 	}
 	out := CanonicalDiff{Version: readVersion, Changes: []DiffEvent{}, Representation: []RepresentationChange{}}
@@ -466,6 +467,9 @@ func ReadDiff(b []byte) (CanonicalDiff, error) {
 		}
 		e.order, last, lastKind = order, order, e.Kind
 		out.Changes = append(out.Changes, e)
+	}
+	if top["representation"].Kind != KindSeq {
+		return readFail(ReadShape)
 	}
 	var lastRep []string
 	for _, raw := range top["representation"].Items {
