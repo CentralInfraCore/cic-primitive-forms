@@ -92,3 +92,10 @@ path = "fuzz_targets/patch.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "read_diff"
+path = "fuzz_targets/read_diff.rs"
+test = false
+doc = false
+bench = false
