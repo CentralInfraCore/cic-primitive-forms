@@ -264,8 +264,23 @@ class LightPushTests(unittest.TestCase):
             self.assertIn("mode == 'diff'", self.jobs[name]["if"], name)
 
     def test_the_cheap_checks_run_whatever_the_mode_is(self):
+        # No mode skips them. The one thing that may is a push whose tree a pull request was already checked on (inherit.yml, tools/inherited_tree.py), and it is
+        # that gate and nothing else: exactly this condition, which runs them when the answer is anything but "true" or when it could not be given at all.
+        gate = "${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}"
         for name in ("rust", "go", "branch-coverage", "quality-gate-selftest", "quality-lines", "parity"):
-            self.assertNotIn("if", self.jobs[name], name)
+            self.assertEqual(self.jobs[name].get("if"), gate, name)
+            self.assertIn("inherit", _needs(self.jobs[name]), name)
+            self.assertNotIn("mode", self.jobs[name]["if"], name)
+
+    def test_the_inherit_job_asks_only_on_a_push_and_only_for_its_own_workflow(self):
+        job = self.jobs["inherit"]
+        self.assertEqual(job["if"], "${{ github.event_name == 'push' }}")
+        self.assertEqual(job["uses"], "./.github/workflows/inherit.yml")
+        self.assertEqual(job["with"], {"caller": "p1", "workflows": "p1.yml,corpus.yml"})
+        # the nightly calls p1 with the whole gate: the name of the calling workflow is then "nightly", and the answer is false (inherit.yml compares it)
+        text = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".github", "workflows", "inherit.yml"), encoding="utf-8").read()
+        self.assertIn('[ "$CALLER" != "$ASKED" ]', text)
+        self.assertIn('[ "$REF" != refs/heads/main ]', text)
 
 
 @unittest.skipIf(yaml is None, "no PyYAML")
