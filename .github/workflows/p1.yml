@@ -404,12 +404,21 @@ jobs:
       - name: Mutation, Rust (cargo-mutants), one shard
         run: |
           # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
-          (cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants -F "$(cat "$RUNNER_TEMP/q/re.txt")" --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+          # The cap is the one of the diff shards (diff-mutation-rust): a mutant that moves the reader backwards can grow memory until the runner kills the whole job
+          # ("The operation was canceled", no verdict; FULL 40841623917, shards 10 and 11); under the cap the allocation fails and the mutant is caught.
+          (ulimit -v 6291456; cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants -F "$(cat "$RUNNER_TEMP/q/re.txt")" --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rust-mutants-${{ matrix.shard }}
           path: ${{ runner.temp }}/q/mut-rust/mutants.out/outcomes.json
           if-no-files-found: error
+      # the per-mutant log, also when the shard is cancelled: it says which mutant was running
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        with:
+          name: rust-mutants-log-${{ matrix.shard }}
+          path: ${{ runner.temp }}/q/mut-rust
+          if-no-files-found: ignore
       # The part of the execution environment this job is responsible for (docs/EVIDENCE-PRODUCTION.md). Evidence is
       # gathered on the side: if this fails the measurement and its gate are not affected, and there is no record.
       - name: Environment for the evidence record
