@@ -1,0 +1,55 @@
+name: inherit
+# Is this push to main the very tree a pull request has already been checked on? (tools/inherited_tree.py)
+#
+# A pull request is checked, then merged. When the commit that lands on main has exactly the tree of the head that was checked (a squash or a merge of a
+# branch that was up to date: `git diff` between them is empty), the checks that a push to main runs are the same checks on the same bytes: running them again
+# says nothing new, so they are skipped (the jobs of p1 and of corpus that run on a push wait for this one and are skipped when it says `true`).
+#
+# Not covered, and it stays so: the nightly FULL (it measures main with the classic tools, a lane of its own; this workflow answers `false` when it is called
+# from the nightly, because the name of the calling workflow is not the one asked for), a push that is not the merge of a pull request, and a pull request run
+# that did not succeed. Any doubt (an API error, a rerun still running, an object that cannot be read) answers `false`: the checks run, as they did before.
+on:
+  workflow_call:
+    inputs:
+      caller:
+        description: "the name of the workflow that may be skipped (github.workflow of the caller)"
+        type: string
+        required: true
+      workflows:
+        description: "workflow files whose pull request run must have succeeded on the head"
+        type: string
+        required: true
+    outputs:
+      inherited:
+        description: "true when the push is the tree of a checked pull request head"
+        value: ${{ jobs.decide.outputs.inherited }}
+permissions:
+  contents: read
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      inherited: ${{ steps.d.outputs.inherited }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - id: d
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          CALLER: ${{ github.workflow }}
+          ASKED: ${{ inputs.caller }}
+          WORKFLOWS: ${{ inputs.workflows }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -e
+          if [ "$EVENT" != push ] || [ "$REF" != refs/heads/main ] || [ "$CALLER" != "$ASKED" ]; then
+            echo "not a push to main of $ASKED itself (event $EVENT, ref $REF, called from $CALLER): the checks run"
+            echo "inherited=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 tools/inherited_tree.py --repo "$REPO" --sha "$SHA" --workflows "$WORKFLOWS" >> "$GITHUB_OUTPUT"

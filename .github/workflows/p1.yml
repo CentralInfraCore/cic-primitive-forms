@@ -26,7 +26,19 @@ env:
   GAMMA_SHARDS: "6"
   GOMUTANTS_SHARDS: "3"
 jobs:
+  # Is this push the tree of a pull request head that was already checked? Then the checks of a push would repeat themselves (tools/inherited_tree.py,
+  # .github/workflows/inherit.yml). The jobs that a push runs wait for this one; a skipped or failed answer is "no", and they run.
+  inherit:
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/inherit.yml
+    with:
+      caller: p1
+      workflows: p1.yml,corpus.yml
+    permissions:
+      contents: read
   quality-gate-selftest:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -64,6 +76,8 @@ jobs:
       - run: python3 tools/test-evidence/seeded.py --parallel 4
       - run: CIC_REQUIRE_GH_ATTESTATION=1 python3 tools/test-evidence/evidence.py check-gh
   rust:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -79,6 +93,8 @@ jobs:
       - run: cargo +"$RUST_TOOLCHAIN" test --locked
         working-directory: rust
   go:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -96,6 +112,8 @@ jobs:
       # the go-mutesting executors give a mutant the verdict its test run earns: one that does not build is not killed (#94)
       - run: python3 -W error::ResourceWarning -m unittest tools/test_mutation_exec.py
   branch-coverage:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -272,6 +290,8 @@ jobs:
           if-no-files-found: error
 
   quality-lines:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -1200,6 +1220,8 @@ jobs:
   # allow list of known open ones turns the job red; the shared regression corpus (parity.json) runs in
   # the `rust` and `go` jobs above.
   parity:
+    needs: inherit
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

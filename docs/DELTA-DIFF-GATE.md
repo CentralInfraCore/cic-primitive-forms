@@ -106,6 +106,16 @@ Consequences for the tools, done in step S: the post-merge profile (`tools/ci-re
 only the light set, and `land-chain.sh` waits for that set, not for `quality` and the mutation shards. Until S the full `p1` still runs on
 every push, and the profile is the old one.
 
+### 4.1a A push to `main` that is the tree of a checked pull request runs nothing
+
+The light run of 4.1 (the unit tests, the corpus, the coverage, the parity; 125 to 172 seconds on the pushes of 2026-10-29) repeats, on `main`, checks that the pull request already passed. When the commit that lands on `main` has exactly the tree of the head that was checked (`git diff` between them is empty), it repeats them on the same bytes, and says nothing new.
+
+`.github/workflows/inherit.yml` (called by `p1.yml` and `corpus.yml` on a push) asks `tools/inherited_tree.py`, which answers `true` only when: the commit is the merge commit of exactly one merged pull request into `main`; its tree is the tree of that pull request's head; and the newest pull request run of `p1.yml` and of `corpus.yml` on that head succeeded. The jobs that a push runs wait for that answer and are skipped when it is `true`; any doubt (an API error, a rerun still running, an object that cannot be read) is `false` and they run as before. The `scope` job still runs (it only fixes the mode).
+
+What it does not touch: the nightly FULL (a lane of its own, measured with the classic tools; the answer is `false` when called from the nightly), a push that is not the merge of a pull request, and the workflows that run on a push only for their own paths (`branchcov`, `c0-selftest`). A run whose jobs were all skipped has the conclusion `skipped`, not `success`: to verify `main` after a merge, read the pull request run of the head and the equality of the trees (`inherited_tree.py` prints both), not the push run.
+
+Checked on the real merges: the last fourteen first-parent commits of `main` (squash merges of branches that were up to date) all answer `true`. The cases that must answer `false` (a tree that differs, a failed or running or missing run, a newest run that failed after an older success, a run of another head or event, two pull requests, an unmerged one) are in `tools/test_inherited_tree.py`, and eleven mutations of the decision each turn it red.
+
 ### 4.2 A change of the gate workflow (`p1.yml`): the pull request is fast, a FULL runs in the background
 
 Owner's decision, 2026-10-23. A change of `.github/workflows/p1.yml` used to make the pull request run `full` (it changes how the gate
