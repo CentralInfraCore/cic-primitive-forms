@@ -459,13 +459,10 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
     late.map_or(Ok(()), Err)
 }
 
-/// Whether the `:` at `i` follows another `:` (a value indicator) after at least one space.
+/// Whether the last character before `i` that is not a space is a `:`. The caller has found that a scalar can start at `i` (`starts_scalar`), which for
+/// a `:` before it means a value indicator with a space after it.
 fn follows_value_indicator(c: &[char], i: usize) -> bool {
-    let mut j = i;
-    while j > 0 && c[j - 1] == ' ' {
-        j -= 1;
-    }
-    j < i && j > 0 && c[j - 1] == ':'
+    c[..i].iter().rev().find(|&&x| x != ' ') == Some(&':')
 }
 
 /// A line that is not inside a block scalar: a directive, or a document marker. Inside a quoted
