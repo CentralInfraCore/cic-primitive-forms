@@ -8,19 +8,7 @@ on:
 permissions:
   contents: read
 jobs:
-  # Is this push the tree of a pull request head that was already checked? Then the checks of a push would repeat themselves (tools/inherited_tree.py,
-  # .github/workflows/inherit.yml). The jobs that a push runs wait for this one; a skipped or failed answer is "no", and they run.
-  inherit:
-    if: ${{ github.event_name == 'push' }}
-    uses: ./.github/workflows/inherit.yml
-    with:
-      caller: corpus
-      workflows: p1.yml,corpus.yml
-    permissions:
-      contents: read
   corpus:
-    needs: inherit
-    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
