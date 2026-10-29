@@ -644,6 +644,25 @@ fn markers_and_directives_outside_content_are_refused() {
     }
 }
 
+/// A `:` inside a flow collection that follows another value indicator leaves a value without a node: yaml.v3 and PyYAML refuse it, saphyr read
+/// `:4` as a plain scalar. In block context the same `:4` is a plain scalar for all of them. The refusal is a syntax error and is reported after
+/// the refusals of the text scan (a tag later in the text wins), like any syntax error.
+#[test]
+fn a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error() {
+    for text in [
+        "ip: {gateway: g1, prefix: :4}\n",
+        "{a: : b}\n",
+        "x: [a: :4]\n",
+        "a: {b: {c: :d}}\n",
+    ] {
+        assert_eq!(class_of(parse(text)), "syntax", "{text:?}");
+    }
+    for text in ["a: :4\n", "a: {b: x:4}\n", "a: {b: 'x'}\n", "- :4\n"] {
+        assert_eq!(class_of(parse(text)), "ok", "{text:?}");
+    }
+    assert_eq!(class_of(parse("{a: :4, b: !t 1}\n")), "unsupported");
+}
+
 // The order in which the problems of a text are reported, whatever else the text holds:
 // 1. a size over the limit; 2. U+0085, U+2028, U+2029; 3. the text scan, which comes before the YAML
 // reader: control characters, tabs, a BOM inside the text, then in text order directives, document

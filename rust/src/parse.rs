@@ -375,6 +375,7 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
     // Depth of the flow collections: `[`, `{` and `,` only separate words inside one (`a[&` is one plain
     // scalar in block context).
     let mut flow = 0;
+    let mut late = None;
     let mut i = 0;
     while i < c.len() {
         if line_start {
@@ -440,12 +441,31 @@ fn scan_words(c: &[char]) -> Result<(), Error> {
                     return Err(Error::Unsupported("explicit mapping key".into()))
                 }
                 '&' | '*' if !blank => return Err(Error::Unsupported("anchor or alias".into())),
+                // yaml.v3 and PyYAML read a `:` inside a flow collection as a value indicator wherever a token can start; one that follows
+                // another (`{a: :4}`) leaves a value without a node and is a syntax error; saphyr reads `:4` as a plain scalar.
+                // (a syntax error is reported after the scan, as the reader reports it: a refusal of this scan anywhere in the text comes first)
+                ':' if flow > 0 && follows_value_indicator(c, i) => {
+                    late.get_or_insert_with(|| {
+                        Error::Syntax(
+                            "a value indicator where the node of a value should be".into(),
+                        )
+                    });
+                }
                 _ => {}
             }
         }
         i += 1;
     }
-    Ok(())
+    late.map_or(Ok(()), Err)
+}
+
+/// Whether the `:` at `i` follows another `:` (a value indicator) after at least one space.
+fn follows_value_indicator(c: &[char], i: usize) -> bool {
+    let mut j = i;
+    while j > 0 && c[j - 1] == ' ' {
+        j -= 1;
+    }
+    j < i && j > 0 && c[j - 1] == ':'
 }
 
 /// A line that is not inside a block scalar: a directive, or a document marker. Inside a quoted
