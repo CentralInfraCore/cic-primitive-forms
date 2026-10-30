@@ -56,6 +56,7 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_engine_vectors.py
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_gen_canonical.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_gen_materialize.py
       - run: python3 tools/p5/engine_vectors.py --own
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_materialize_cases.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
@@ -1364,6 +1365,32 @@ jobs:
           (cd go && PARITY_CANONICAL_IN="$P/in.jsonl" PARITY_CANONICAL_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpCanonicalOutcomes$' .)
           python3 tools/parity/compare_canonical.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_canonical.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
+      # And for the flat materialization (P5-2): 6 000 generated cases, fixed seed, each with the answer of a reference that is built from the case's own structure and
+      # reads neither the schema nor the document text (tools/parity/gen_materialize.py). Both languages must answer as the reference and as each other, with no list of
+      # known differences; the self-test breaks the dumps in 16 ways. Then the ENGINE is the third reader: for every accepted case it builds its own MaterializedObject
+      # from what each language wrote, under the key set the generator declared, and its digest must be the one the language gave (engine harnesses, pinned commit).
+      - id: engine
+        run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: CentralInfraCore/cic-primitive-engine
+          ref: ${{ steps.engine.outputs.commit }}
+          path: upstream/cic-primitive-engine
+      - name: Flat materialization differential, generate, dump with both languages, compare, self-test, the engine as the third reader
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-materialize"
+          mkdir -p "$P"
+          python3 tools/parity/gen_materialize.py "$P/in.jsonl" --count 6000
+          (cd rust && PARITY_MATERIALIZE_IN="$P/in.jsonl" PARITY_MATERIALIZE_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_materialize_dump)
+          (cd go && PARITY_MATERIALIZE_IN="$P/in.jsonl" PARITY_MATERIALIZE_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpMaterializeOutcomes$' .)
+          python3 tools/parity/compare_materialize.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_materialize.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+          for l in rust go; do
+            cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- differential "$P/in.jsonl" "$P/$l.jsonl"
+            (cd tools/p5/engine-harness-go && go run . differential "$P/in.jsonl" "$P/$l.jsonl")
+          done
 
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
