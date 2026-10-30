@@ -62,6 +62,7 @@ OWN = [
     ("own_empty_containers", "a: []\nb: {}\nc: ''\n", "empty sequence, empty map, empty string"),
     ("own_sequence_order_kept", "v: [3, 1, 2]\n", "A6: a sequence is written as given"),
     ("own_key_order_is_bytes", "z: 1\nB: 2\na: 3\n\u00e9: 4\n\u00ff: 5\n", "A2: raw UTF-8 byte order, uppercase before lowercase, multibyte after ASCII"),
+    ("own_key_order_is_bytes_not_utf16", '"\\U0001f600": 1\n"\\ue000": 2\n', "A2: a character beyond the BMP sorts after a private-use one by UTF-8 bytes, before it by UTF-16 code units"),
     ("own_no_unicode_normalization", "a: \u00e9\nb: e\u0301\n", "A4: precomposed and decomposed stay different bytes"),
     ("own_literal_non_ascii", "v: \u00fc\u20ac\U0001f600\n", "A4: everything else is written literally"),
     ("own_del_and_slash_literal", 'v: "\\x7f/"\n', "DEL and the slash are not escaped"),

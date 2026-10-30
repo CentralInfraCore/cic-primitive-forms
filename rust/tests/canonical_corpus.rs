@@ -62,7 +62,7 @@ fn every_in_range_vector_gives_its_bytes_and_digest_and_every_other_is_outside_t
             outside += 1;
         }
     }
-    assert_eq!((ranged, outside), (20, 6));
+    assert_eq!((ranged, outside), (21, 6));
 }
 
 #[test]
