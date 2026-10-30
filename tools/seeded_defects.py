@@ -638,6 +638,10 @@ DEFECTS = [
      [("\tslices.Sort(expected)\n", "")]),
     ("go", "materialize: the capability is dropped from the projection", "materialize.go",
      [('\t\t\t{Key: "capability", Value: textNode(f.Capability)},\n', "")]),
+    ("go", "materialize: a nil node is handed to the defaults", "materialize.go",
+     [("\t\tif hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}", "\t\tif false && hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}")]),
+    ("go", "materialize: a nil node below a value is not looked for", "materialize.go",
+     [("\tfor _, item := range n.Items {\n\t\tif hasNilNode(item) {", "\tfor _, item := range n.Items[:0] {\n\t\tif hasNilNode(item) {")]),
     ("go", "materialize: the undeclared capability keys are checked in map order", "materialize.go",
      [("\tslices.Sort(given)\n", "")]),
 ]

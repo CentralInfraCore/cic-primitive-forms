@@ -196,3 +196,36 @@ func TestMaterializeFieldNameThatCannotBeAPath(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// A nil node is a representation the Go API can be handed and Rust cannot hold. The validation reads a nil value as an absent one and ApplyDefaults would then
+// dereference it, so it is refused first, naming the top-level field that holds it, wherever it is.
+func TestMaterializeNilNodeIsRefusedNotAPanic(t *testing.T) {
+	optional := Shape{Kind: ShapeScalar, Scalar: ScalarString, Presence: Optional}
+	opaque := Shape{Kind: ShapeOpaque, Presence: Optional}
+	root := Shape{Kind: ShapeComposite, Fields: []NamedShape{{Name: "a", Shape: optional}, {Name: "b", Shape: opaque}}}
+	caps := map[string]string{"a": "implemented", "b": "implemented"}
+	one := &Node{Kind: KindInt, Int: 1}
+	for name, doc := range map[string]*Node{
+		"a nil value of an optional field": {Kind: KindMap, Entries: []Entry{{Key: "a", Value: nil}}},
+		"a nil item of a sequence":         {Kind: KindMap, Entries: []Entry{{Key: "b", Value: &Node{Kind: KindSeq, Items: []*Node{one, nil}}}}},
+		"a nil item of a root sequence":    {Kind: KindSeq, Items: []*Node{nil}},
+		"a nil value of a nested mapping":  {Kind: KindMap, Entries: []Entry{{Key: "b", Value: &Node{Kind: KindMap, Entries: []Entry{{Key: "k", Value: one}, {Key: "n", Value: nil}}}}}},
+	} {
+		want := map[bool]string{true: "a", false: "b"}[name == "a nil value of an optional field"]
+		if name == "a nil item of a root sequence" {
+			want = ""
+		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panic: %v", name, r)
+				}
+			}()
+			_, err := MaterializeFlat(doc, root, []string{"__a"}, caps)
+			me, ok := err.(*MaterializeError)
+			if !ok || me.Reason != MaterializeNilNode || me.Field != want {
+				t.Errorf("%s: got %v", name, err)
+			}
+		}()
+	}
+}

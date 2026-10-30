@@ -25,9 +25,12 @@ import (
 //     it is the same as a field the author did not write, and the provenance is part of the digested claim. Only a field that is written, or filled by its
 //     schema default, is materialized.
 //   - A document the validation refuses is invalid_document; one the defaults cannot be applied to is unsupported; none at all is no_document.
+//   - A nil node anywhere in the document is nil_node, naming the top-level field that holds it ("" for a nil at the root, which is no_document). It is checked
+//     before the defaults are applied: the validation reads a nil value as an absent one, and ApplyDefaults would then dereference it. A nil pointer is a
+//     representation the Go API can be handed and Rust cannot hold, as for CanonicalBytes (canonical.go); there is no Rust peer of this check.
 //
 // The order of the checks is part of the contract (the two languages must give the same first reason): the schema, then the capability map (undeclared keys in
-// byte order, then the declared fields in schema order), then the document, then the fields in schema order, then the canonical bytes.
+// byte order, then the declared fields in schema order), then the document (none, then a nil node in Go), then the fields in schema order, then the canonical bytes.
 //
 // ExpectedKeys is the declared top-level field names read from the schema, in byte order. It is what the engine's try_new is given as the key set to be
 // complete against. It is derived here from the schema directly, not from the fields that were built, so that a field lost on the way is not lost twice; the
@@ -37,6 +40,7 @@ import (
 const (
 	MaterializeNoDocument           = "no_document"
 	MaterializeInvalidDocument      = "invalid_document"
+	MaterializeNilNode              = "nil_node"
 	MaterializeUnsupported          = "unsupported"
 	MaterializeNotFlat              = "not_flat"
 	MaterializeSet                  = "set"
@@ -127,6 +131,14 @@ func MaterializeFlat(doc *Node, root Shape, a []string, capabilities map[string]
 	if doc == nil {
 		return nil, &MaterializeError{MaterializeNoDocument, ""}
 	}
+	for _, e := range doc.Entries {
+		if hasNilNode(e.Value) {
+			return nil, &MaterializeError{MaterializeNilNode, e.Key}
+		}
+	}
+	if hasNilNode(doc) {
+		return nil, &MaterializeError{MaterializeNilNode, ""}
+	}
 	defaulted, err := ApplyDefaults(doc, root, a)
 	if err != nil {
 		return nil, &MaterializeError{MaterializeUnsupported, ""}
@@ -188,4 +200,22 @@ func projectionNode(fields []MaterializedField) *Node {
 		}})
 	}
 	return &Node{Kind: KindMap, Entries: []Entry{{Key: "fields", Value: &Node{Kind: KindSeq, Items: items}}}}
+}
+
+// hasNilNode reports whether n, or a node below it, is nil.
+func hasNilNode(n *Node) bool {
+	if n == nil {
+		return true
+	}
+	for _, item := range n.Items {
+		if hasNilNode(item) {
+			return true
+		}
+	}
+	for _, e := range n.Entries {
+		if hasNilNode(e.Value) {
+			return true
+		}
+	}
+	return false
 }
