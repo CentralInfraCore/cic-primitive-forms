@@ -196,9 +196,9 @@ Read at the engine commit `93c793a`: `engine/src/materialized.rs`, `digest_proje
 **Proof.** `testdata/p5/materialize.json` is written by `tools/p5/materialize_cases.py`, which computes every expected projection and digest itself (Python's JSON writer and `hashlib`, a third reader that has seen neither implementation); 6 accepted and 13 refused cases. Rust and Go compare against it (`rust/tests/materialize_corpus.rs`, `go/materialize_corpus_test.go`, plus hand-built shapes for what a compiled schema cannot give). Two harnesses build the **engine's own** object from the same file and compute its digest: `tools/p5/engine-harness-rust` (`MaterializedObject::try_new`, `materialized_object_digest`) and `tools/p5/engine-harness-go` (`NewMaterializedObject`, `MaterializedObjectDigest`), both against the pinned engine in CI. They also refuse one key more and one key less (`E_INCOMPLETE_OBJECT`) and see a changed value, capability or provenance change the digest. The first run of the Python-computed digests against both engines agreed. 26 planted defects (12 for Rust, 14 for Go).
 
 **What this does not prove yet.**
-* The library's output is compared to the engine **through the file**, not field by field on generated documents: the differential with the engine as the third reader, on generated flat documents, is the next step of P5-2.
-* The independence of `expected_keys` is one way so far: the case file lists them from the generator's side. The generated differential is where a key lost on both sides would be seen.
-* No fuzz target yet on the new input.
+* *(Closed by section 13.)* The library's output is compared to the engine **through the file**, not field by field on generated documents: the differential with the engine as the third reader, on generated flat documents, is the next step of P5-2.
+* *(Closed by section 13.)* The independence of `expected_keys` is one way so far: the case file lists them from the generator's side. The generated differential is where a key lost on both sides would be seen.
+* No fuzz target yet on the new input (still open, see section 13).
 
 ## 13. P5-2: the generated differential (2026-10-30)
 
