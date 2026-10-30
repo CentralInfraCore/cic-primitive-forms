@@ -41,7 +41,7 @@ class TableChecks(unittest.TestCase):
         self.assertTrue(ev.check_own(rows))
 
     def test_the_reference_escapes_the_five_go_characters(self):
-        self.assertEqual(ev.reference("<>&  "), '"\\u003c\\u003e\\u0026\\u2028\\u2029"')
+        self.assertEqual(ev.reference("<>&\u2028\u2029"), '"\\u003c\\u003e\\u0026\\u2028\\u2029"')
 
     def test_the_reader_of_expected_yaml_takes_a_colon_in_the_prose(self):
         e = ev.read_expected("outcome: accepted\ncanonical: '{\"v\":1}'\nwhy: A4: a colon\n")

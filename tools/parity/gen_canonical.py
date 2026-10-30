@@ -25,9 +25,9 @@ import random
 I64_MIN, I64_MAX = -(2**63), 2**63 - 1
 
 # 0x7f, the pair of a surrogate and the separators are here on purpose: a character the writer must leave alone, and the five it must not.
-CHARS = ["a", "Z", "0", " ", "\"", "\\", "/", "\b", "\t", "\n", "\f", "\r", "\x00", "\x01", "\x1f", "\x7f", "<", ">", "&", " ", " ",
+CHARS = ["a", "Z", "0", " ", "\"", "\\", "/", "\b", "\t", "\n", "\f", "\r", "\x00", "\x01", "\x1f", "\x7f", "<", ">", "&", "\u2028", "\u2029",
          "é", "é", "ü", "€", "\U0001f600", "ÿ", "�", "\u0080", "߿", "ࠀ", "￿", "'", "-", "_"]
-KEYS = ["a", "b", "z", "B", "A", "_", "-", "0", "10", "9", "a<b", "é", "ÿ", "€", "\U0001f600", " ", "", "a b", "a\"b", "a\\b", "\x00", "\x7f",
+KEYS = ["a", "b", "z", "B", "A", "_", "-", "0", "10", "9", "a<b", "é", "ÿ", "€", "\U0001f600", "\u2028", "", "a b", "a\"b", "a\\b", "\x00", "\x7f",
         "￿", "ﬁ", "é́"]
 
 
@@ -41,7 +41,7 @@ def esc(s):
             out.append("\\\\")
         elif ch in "\b\t\n\f\r":
             out.append({"\b": "\\b", "\t": "\\t", "\n": "\\n", "\f": "\\f", "\r": "\\r"}[ch])
-        elif o < 0x20 or ch in "<>&  ":
+        elif o < 0x20 or ch in "<>&\u2028\u2029":
             out.append("\\u%04x" % o)
         else:
             out.append(ch)

@@ -57,8 +57,8 @@ func TestEveryInRangeVectorGivesItsBytesAndDigestAndEveryOtherIsOutsideTheValue(
 		}
 		ranged++
 	}
-	if ranged != 20 || outside != 6 {
-		t.Errorf("table has %d in range and %d outside, want 20 and 6", ranged, outside)
+	if ranged != 21 || outside != 6 {
+		t.Errorf("table has %d in range and %d outside, want 21 and 6", ranged, outside)
 	}
 }
 

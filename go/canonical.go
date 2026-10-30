@@ -115,7 +115,7 @@ func writeValueString(b *strings.Builder, s string) error {
 			b.WriteString(`\f`)
 		case '\r':
 			b.WriteString(`\r`)
-		case '<', '>', '&', ' ', ' ':
+		case '<', '>', '&', '\u2028', '\u2029':
 			writeValueEscape(b, r)
 		default:
 			if r < 0x20 {

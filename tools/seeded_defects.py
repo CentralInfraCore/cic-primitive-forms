@@ -547,6 +547,48 @@ DEFECTS = [
      [("\t\tout.Replaced = append(out.Replaced, e.Path)\n\t}", "\t\tout.Replaced = append(out.Replaced, e.Path)\n\t\tbreak\n\t}")]),
     ("go", "patch: every event is applied to the original text", "patch.go",
      [("r, err := EditScalar(out.Text, root, e.Path, a, e.Next)", "r, err := EditScalar(text, root, e.Path, a, e.Next)")]),
+    # P5-1: the canonical bytes (go/canonical.go, rust/src/canonical.rs). The table testdata/p5/canonical-vectors.tsv and the unit tests must turn red on each.
+    ("rust", "canonical: the keys of an object are not sorted", "src/canonical.rs",
+     [("            sorted.sort_by(|a, b| a.key.as_bytes().cmp(b.key.as_bytes()));\n", "")]),
+    ("rust", "canonical: the keys are sorted by UTF-16 code unit, not by byte of the UTF-8", "src/canonical.rs",
+     [("a.key.as_bytes().cmp(b.key.as_bytes())", "a.key.encode_utf16().cmp(b.key.encode_utf16())")]),
+    ("rust", "canonical: a repeated key is not refused", "src/canonical.rs",
+     [("if sorted.windows(2).any(|w| w[0].key == w[1].key) {", "if false {")]),
+    ("rust", "canonical: a value the library does not hold is written as null", "src/canonical.rs",
+     [("        Value::Unsupported(_) => {\n            return Err(CanonicalError {\n                reason: CANONICAL_UNSUPPORTED_VALUE,\n            })\n        }", "        Value::Unsupported(_) => out.extend_from_slice(b\"null\"),")]),
+    ("rust", "canonical: the less-than sign is not escaped", "src/canonical.rs",
+     [("| '<' | '>'", "| '>'")]),
+    ("rust", "canonical: the line separator is not escaped", "src/canonical.rs",
+     [(r"| '\u{2028}' |", "|")]),
+    ("rust", "canonical: the last control character below U+0020 is written raw", "src/canonical.rs",
+     [(r"'\u{00}'..='\u{1F}'", r"'\u{00}'..'\u{1F}'")]),
+    ("rust", "canonical: the newline gets the six-character escape", "src/canonical.rs",
+     [("            '\\u{0A}' => out.extend_from_slice(b\"\\\\n\"),\n", "")]),
+    ("rust", "canonical: the digest has no sha256 prefix", "src/canonical.rs",
+     [('format!("sha256:{}", sha256_hex(bytes))', "sha256_hex(bytes)")]),
+    ("rust", "canonical: a sequence is written in reverse", "src/canonical.rs",
+     [("for (i, item) in items.iter().enumerate() {", "for (i, item) in items.iter().rev().enumerate() {")]),
+    ("go", "canonical: the keys of an object are not sorted", "canonical.go",
+     [("\t\tslices.SortStableFunc(sorted, func(x, y Entry) int { return strings.Compare(x.Key, y.Key) })\n", "")]),
+    ("go", "canonical: the keys are sorted by UTF-16 code unit, not by byte of the UTF-8", "canonical.go",
+     [("return strings.Compare(x.Key, y.Key) })", "return slices.Compare(utf16.Encode([]rune(x.Key)), utf16.Encode([]rune(y.Key))) })"),
+      ('import (\n\t"slices"', 'import (\n\t"unicode/utf16"\n\t"slices"')]),
+    ("go", "canonical: a repeated key is not refused", "canonical.go",
+     [("\t\t\tif sorted[i-1].Key == sorted[i].Key {", "\t\t\tif false {")]),
+    ("go", "canonical: a value the library does not hold is written as null", "canonical.go",
+     [("\tdefault:\n\t\treturn &CanonicalError{CanonicalUnsupportedValue}", "\tdefault:\n\t\tb.WriteString(\"null\")")]),
+    ("go", "canonical: the less-than sign is not escaped", "canonical.go",
+     [("case '<', '>', '&',", "case '>', '&',")]),
+    ("go", "canonical: the line separator is not escaped", "canonical.go",
+     [(r"'&', '\u2028', '\u2029':", r"'&', '\u2029':")]),
+    ("go", "canonical: the last control character below U+0020 is written raw", "canonical.go",
+     [("if r < 0x20 {", "if r < 0x1f {")]),
+    ("go", "canonical: the newline gets the six-character escape", "canonical.go",
+     [("\t\tcase '\\n':\n\t\t\tb.WriteString(`\\n`)\n", "")]),
+    ("go", "canonical: the digest has no sha256 prefix", "canonical.go",
+     [('return "sha256:" + SHA256Hex(b)', "return SHA256Hex(b)")]),
+    ("go", "canonical: a string that is not UTF-8 is written", "canonical.go",
+     [("\tif !utf8.ValidString(s) {", "\tif !utf8.ValidString(s) && false {")]),
 ]
 
 
@@ -572,7 +614,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus"]
     return ["go", "test", "-count=1", "./..."]
 
 

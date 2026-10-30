@@ -129,7 +129,7 @@ C: proved by a targeted verifier test. D: one identity per language accepted. E:
 `canonical_bytes` / `canonical_digest` (Rust, `rust/src/canonical.rs`) and `CanonicalBytes` / `CanonicalDigest` (Go, `go/canonical.go`): engine section A (A1-A7) over the value of this library, within the range of decision G.
 A float, an integer beyond 64 bits, a repeated key (and, in Go, a string that is not UTF-8) have no canonical bytes: the refusal is a `CanonicalError` with the reason `unsupported_value`, `duplicate_key` or `not_utf8`; none is a code of the registry of ADR 0007.
 
-**Proved:** the table `testdata/p5/canonical-vectors.tsv` (26 lines) is read by both languages. Its 7 in-range lines from the engine's `conformance/canonicalize` are checked against the engine at the pinned commit
+**Proved:** the table `testdata/p5/canonical-vectors.tsv` (27 lines) is read by both languages. Its 7 in-range lines from the engine's `conformance/canonicalize` are checked against the engine at the pinned commit
 (`testdata/p5/engine-pin.txt`, `tools/p5/engine_vectors.py`, a step of the `rust` job); a new engine vector fails that check until it is classified, so the range is never widened or narrowed unseen. Its 13 own lines are checked against a
 reference written apart in that tool (a third reader). The 6 engine vectors outside the range are listed by name as `out_of_range`, and both languages assert that the parser refuses them. The Rust side passed the table and 23 of 23 mutants of `canonical.rs`
 (run locally); the Go side has not been run here (no Go toolchain), so its first run is CI.
@@ -140,4 +140,6 @@ also fixes which fault is met first (a repeated key of a map before its members,
 that are one line of valid UTF-8 (JSON, in Go), carry the digest of A7, and are unchanged by `emit` and `parse`. Run here: the differential agrees on all 20 000 and its self-test turns red on all 12 breaks; the Go fuzz target ran 296 000
 executions without a failure; the Rust target's logic ran on its seeds as a test (no nightly toolchain here for `cargo fuzz`, so CI is its first real run).
 
-**Not yet:** planted defects for the canonical bytes in `tools/seeded_defects.py` (the diff and the patch have them), and the engine's `digest` function checked beyond the empty mapping. The order of a set (decision H) is not touched: a sequence is written as given.
+**Planted defects (2026-10-30):** 20 entries "canonical:" in `tools/seeded_defects.py` (10 per language: keys unsorted, sorted by UTF-16 code unit, a repeated key not refused, an unsupported value written as null, `<` and U+2028 not escaped, the last control character raw, the newline escaped as `\u000a`, the digest without its prefix, a sequence reversed or, in Go, a non-UTF-8 string written). Each turned the table and the unit tests red (the first run showed one Go entry that did not build, an unused import; it is fixed). The UTF-16 entry needed a vector the table did not have: `own_key_order_is_bytes_not_utf16`.
+
+**Not yet:** the engine's `digest` function checked beyond the empty mapping, and `CanonicalBytes(nil)` in Go, which panics (an API decision, not taken). The order of a set (decision H) is not touched: a sequence is written as given.
