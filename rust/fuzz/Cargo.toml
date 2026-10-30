@@ -99,3 +99,10 @@ path = "fuzz_targets/read_diff.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "canonical"
+path = "fuzz_targets/canonical.rs"
+test = false
+doc = false
+bench = false
