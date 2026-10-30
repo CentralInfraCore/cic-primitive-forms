@@ -109,8 +109,9 @@ pub fn materialize_flat(
     a: &[String],
     capabilities: &BTreeMap<String, String>,
 ) -> Result<Materialized, MaterializeError> {
-    let ShapeType::Composite(declared) = &root.shape_type else {
-        return Err(refuse(MATERIALIZE_NOT_FLAT, ""));
+    let declared = match &root.shape_type {
+        ShapeType::Composite(declared) => declared,
+        _ => return Err(refuse(MATERIALIZE_NOT_FLAT, "")),
     };
     for (name, shape) in declared {
         match shape.shape_type {
@@ -140,16 +141,15 @@ pub fn materialize_flat(
     }
     let defaulted =
         apply_defaults(doc, root, a).map_err(|_| refuse(MATERIALIZE_UNSUPPORTED, ""))?;
-    let Some(document) = defaulted.document else {
-        return Err(refuse(MATERIALIZE_INVALID_DOCUMENT, ""));
-    };
-    let Value::Map(entries) = &document.value else {
-        return Err(refuse(MATERIALIZE_INVALID_DOCUMENT, ""));
+    let entries = match defaulted.document.map(|d| d.value) {
+        Some(Value::Map(entries)) => entries,
+        _ => return Err(refuse(MATERIALIZE_INVALID_DOCUMENT, "")),
     };
     let mut fields = Vec::with_capacity(declared.len());
     for (name, _) in declared {
-        let Some(entry) = entries.iter().find(|e| e.key == *name) else {
-            return Err(refuse(MATERIALIZE_OMITTED_OPTIONAL, name));
+        let entry = match entries.iter().find(|e| e.key == *name) {
+            Some(entry) => entry,
+            None => return Err(refuse(MATERIALIZE_OMITTED_OPTIONAL, name)),
         };
         if matches!(entry.value.value, Value::Map(_) | Value::Seq(_)) {
             return Err(refuse(MATERIALIZE_NOT_FLAT, name));
