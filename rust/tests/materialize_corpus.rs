@@ -190,3 +190,35 @@ mod hand_built {
         );
     }
 }
+
+mod unwritable_name {
+    use cic_primitive_forms::{
+        materialize_flat, Entry, Node, Presence, ScalarType, Shape, ShapeType, Value,
+    };
+    use std::collections::BTreeMap;
+
+    // A field whose name cannot be written as a path (here the empty name) has no origin of its own: two such fields would share the key "" and the provenance
+    // of the second would be read from the first. It is refused, with the field named.
+    #[test]
+    fn a_field_name_that_cannot_be_a_path_is_refused() {
+        let leaf = Shape {
+            shape_type: ShapeType::Scalar(ScalarType::String),
+            presence: Presence::Mandatory,
+            nullable: false,
+            has_default: false,
+            default: None,
+        };
+        let root = Shape {
+            shape_type: ShapeType::Composite(vec![(String::new(), leaf.clone())]),
+            ..leaf
+        };
+        let doc = Node::new(Value::Map(vec![Entry {
+            key: String::new(),
+            key_pos: None,
+            value: Node::new(Value::Str("v".to_string())),
+        }]));
+        let caps = BTreeMap::from([(String::new(), "implemented".to_string())]);
+        let e = materialize_flat(Some(&doc), &root, &["__a".to_string()], &caps).unwrap_err();
+        assert_eq!((e.reason, e.field.as_str()), ("unsupported", ""));
+    }
+}

@@ -605,7 +605,7 @@ DEFECTS = [
     ("rust", "materialize: an omitted optional field is skipped, not refused", "src/materialize.rs",
      [("            None => return Err(refuse(MATERIALIZE_OMITTED_OPTIONAL, name)),", "            None => continue,")]),
     ("rust", "materialize: a default is reported as authored", "src/materialize.rs",
-     [("Some(VALUE_DEFAULT) => PROVENANCE_SCHEMA_DEFAULT,", "Some(VALUE_DEFAULT) => PROVENANCE_AUTHORED,")]),
+     [("            PROVENANCE_SCHEMA_DEFAULT\n        } else {", "            PROVENANCE_AUTHORED\n        } else {")]),
     ("rust", "materialize: the provenance of a default is spelled default", "src/materialize.rs",
      [('const PROVENANCE_SCHEMA_DEFAULT: &str = "schema_default";', 'const PROVENANCE_SCHEMA_DEFAULT: &str = "default";')]),
     ("rust", "materialize: the fields are not sorted by key", "src/materialize.rs",

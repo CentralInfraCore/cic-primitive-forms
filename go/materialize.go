@@ -131,7 +131,7 @@ func MaterializeFlat(doc *Node, root Shape, a []string, capabilities map[string]
 	if err != nil {
 		return nil, &MaterializeError{MaterializeUnsupported, ""}
 	}
-	if defaulted.Document == nil || defaulted.Document.Kind != KindMap {
+	if defaulted.Document == nil {
 		return nil, &MaterializeError{MaterializeInvalidDocument, ""}
 	}
 	fields := make([]MaterializedField, 0, len(declared))
@@ -141,19 +141,19 @@ func MaterializeFlat(doc *Node, root Shape, a []string, capabilities map[string]
 			return nil, &MaterializeError{MaterializeOmittedOptional, f.Name}
 		}
 		value := defaulted.Document.Entries[i].Value
-		if value != nil && (value.Kind == KindMap || value.Kind == KindSeq) {
+		if value.Kind == KindMap || value.Kind == KindSeq {
 			return nil, &MaterializeError{MaterializeNotFlat, f.Name}
 		}
+		// a field name that cannot be written as a path has no origin of its own: the origins of two such fields would share the key ""
 		path := logicalPath([]seg{{field: f.Name}})
-		j := slices.IndexFunc(defaulted.Origins, func(o ValueOrigin) bool { return o.Path == path })
-		provenance := ""
-		switch {
-		case j >= 0 && defaulted.Origins[j].Origin == ValueOriginAuthored:
-			provenance = provenanceAuthored
-		case j >= 0 && defaulted.Origins[j].Origin == ValueOriginDefault:
-			provenance = provenanceSchemaDefault
-		default:
+		if path == "" {
 			return nil, &MaterializeError{MaterializeUnsupported, f.Name}
+		}
+		provenance := provenanceAuthored
+		for _, o := range defaulted.Origins {
+			if o.Path == path && o.Origin == ValueOriginDefault {
+				provenance = provenanceSchemaDefault
+			}
 		}
 		fields = append(fields, MaterializedField{Key: f.Name, Capability: capabilities[f.Name], Provenance: provenance, Value: value})
 	}

@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use crate::canonical::{canonical_bytes, canonical_digest, CanonicalError};
-use crate::defaults::{apply_defaults, VALUE_AUTHORED, VALUE_DEFAULT};
+use crate::defaults::{apply_defaults, VALUE_DEFAULT};
 use crate::node::{Entry, Node, Value};
 use crate::recognize::{logical_path, Seg};
 use crate::validate::{Shape, ShapeType};
@@ -154,12 +154,19 @@ pub fn materialize_flat(
         if matches!(entry.value.value, Value::Map(_) | Value::Seq(_)) {
             return Err(refuse(MATERIALIZE_NOT_FLAT, name));
         }
+        // a field name that cannot be written as a path has no origin of its own: the origins of two such fields would share the key ""
         let path = logical_path(&vec![Seg::Field(name.clone())]).unwrap_or_default();
-        let origin = defaulted.origins.iter().find(|o| o.path == path);
-        let provenance = match origin.map(|o| o.origin) {
-            Some(VALUE_AUTHORED) => PROVENANCE_AUTHORED,
-            Some(VALUE_DEFAULT) => PROVENANCE_SCHEMA_DEFAULT,
-            _ => return Err(refuse(MATERIALIZE_UNSUPPORTED, name)),
+        if path.is_empty() {
+            return Err(refuse(MATERIALIZE_UNSUPPORTED, name));
+        }
+        let provenance = if defaulted
+            .origins
+            .iter()
+            .any(|o| o.path == path && o.origin == VALUE_DEFAULT)
+        {
+            PROVENANCE_SCHEMA_DEFAULT
+        } else {
+            PROVENANCE_AUTHORED
         };
         fields.push(MaterializedField {
             key: name.clone(),

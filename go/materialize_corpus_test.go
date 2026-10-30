@@ -184,3 +184,15 @@ func TestMaterializeFirstUndeclaredCapabilityIsTheSmallest(t *testing.T) {
 		}
 	}
 }
+
+// A field whose name cannot be written as a path (here the empty name) has no origin of its own: two such fields would share the key "" and the provenance of the
+// second would be read from the first. It is refused, with the field named.
+func TestMaterializeFieldNameThatCannotBeAPath(t *testing.T) {
+	root := Shape{Kind: ShapeComposite, Fields: []NamedShape{{Name: "", Shape: Shape{Kind: ShapeScalar, Scalar: ScalarString}}}}
+	doc := &Node{Kind: KindMap, Entries: []Entry{{Key: "", Value: &Node{Kind: KindStr, Str: "v"}}}}
+	_, err := MaterializeFlat(doc, root, []string{"__a"}, map[string]string{"": "implemented"})
+	me, ok := err.(*MaterializeError)
+	if !ok || me.Reason != MaterializeUnsupported || me.Field != "" {
+		t.Fatalf("got %v", err)
+	}
+}
