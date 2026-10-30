@@ -127,3 +127,15 @@ func TestTheOrderOfTheEntriesGivenDoesNotChangeTheBytesButTheOrderOfASequenceDoe
 		t.Errorf("a sequence was reordered")
 	}
 }
+
+func TestANilNodeIsRefusedAtTheTopAndInsideASequenceAndAMapAndDoesNotPanic(t *testing.T) {
+	if r := reasonOf(t, nil); r != forms.CanonicalNilNode {
+		t.Errorf("top level: reason %s", r)
+	}
+	if r := reasonOf(t, &forms.Node{Kind: forms.KindSeq, Items: []*forms.Node{{Kind: forms.KindNull}, nil}}); r != forms.CanonicalNilNode {
+		t.Errorf("in a sequence: reason %s", r)
+	}
+	if r := reasonOf(t, &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{{Key: "a"}}}); r != forms.CanonicalNilNode {
+		t.Errorf("in a map: reason %s", r)
+	}
+}

@@ -587,6 +587,8 @@ DEFECTS = [
      [("\t\tcase '\\n':\n\t\t\tb.WriteString(`\\n`)\n", "")]),
     ("go", "canonical: the digest has no sha256 prefix", "canonical.go",
      [('return "sha256:" + SHA256Hex(b)', "return SHA256Hex(b)")]),
+    ("go", "canonical: a nil node is not refused", "canonical.go",
+     [("\tif n == nil {\n\t\treturn &CanonicalError{CanonicalNilNode}\n\t}\n", "")]),
     ("go", "canonical: a string that is not UTF-8 is written", "canonical.go",
      [("\tif !utf8.ValidString(s) {", "\tif !utf8.ValidString(s) && false {")]),
 ]
