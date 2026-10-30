@@ -210,6 +210,18 @@ Read at the engine commit `93c793a`: `engine/src/materialized.rs`, `digest_proje
 * Seen to fail: with the sort of the fields removed from the Rust, the comparison reports 1 127 inputs divergent and the engine harness fails; with the last declared key dropped from both the fields and the expected keys, 1 787 divergent, 3 574 broken promises, and the engine harness fails.
 * **What the generated inputs cannot reach:** no document at all, a nil node (Go only) and a value outside the canonical range cannot be written as text; the unit tests cover them. A first run found no difference between the two languages and the reference on any of the 6 000 inputs.
 
+**What this does not prove yet.** Nested, list, set and an omitted optional field stay refusals (sections 11, 12); the differential proves the refusals, not a materialization of them.
+
+## 14. P5-2: the fuzz targets (2026-10-30)
+
+`FuzzMaterialize` (`go/fuzz_test.go`) and the `materialize` target (`rust/fuzz/fuzz_targets/materialize.rs`) hand YAML text, as the document, to `MaterializeFlat` / `materialize_flat` against a fixed flat schema (seven fields: a mandatory string, optional ones with and without a default, two nullable, names that need no escaping and one beyond U+FFFF) and a fixed, complete capability map, so that no refusal of the schema or of the capabilities can occur. **The schema order is not the byte order of the names**, so a materializer that forgets to sort the fields or the expected keys is seen (a first version of the Rust schema had the two orders equal and a removed sort went unseen; found by planting it).
+
+On every input that parses: no panic and the input is left alone; a refusal is one of `invalid_document`, `unsupported`, `omitted_optional`, and `omitted_optional` names a declared optional field with no default that the document does not write; an acceptance has one field per declared name in byte order, the expected keys are the declared names in byte order, a field is `authored` exactly when the document writes it (with that value) and `schema_default` with the declared default when it does not, the projection is one line that holds every key (valid JSON, checked in Go) and the digest is that of its bytes; the same document gives the same answer twice, and written as YAML and read again it gives the same answer. The canary works as in the other targets (`CIC_FUZZ_CANARY`, a committed canary seed in Go, the shared `fuzz/canary/CANARY` in Rust), and `tools/fuzz_matrix.py` lists both.
+
+**What was run.** Go: 40 s of exploration, about a million inputs, no failure; the seeds and the canary are red/green as intended. Rust: `cargo-fuzz` needs a nightly that the local machine does not have, so the body of the target was run, unchanged except for the entry point, over the ten seeds and 3 000 random mutations of each (30 000 inputs): no failure. In both languages, planting a defect (fields not sorted, expected keys not sorted, a default reported as authored, an authored value replaced) turns the properties red. The CI job runs `cargo fuzz` for 60 s per target.
+
+**What a fuzz target here cannot reach:** the schema and capability refusals (fixed away), a nil node (Go only, covered by a unit test) and a nested value of a scalar field (the validation refuses it before the check; the hand-built Opaque tests cover that guard).
+
 **What this does not prove yet.** No fuzz target on `materialize_flat` / `MaterializeFlat`. Nested, list, set and an omitted optional field stay refusals (sections 11, 12); the differential proves the refusals, not a materialization of them.
 
 ## 15. P5-3 pre-check: the receipt (2026-10-30, before any code)

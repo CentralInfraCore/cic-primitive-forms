@@ -1,0 +1,1 @@
+a: {value: x, access: inherit, modify: inherit, inherit: true, default_injection: ~, conformance: implemented}
