@@ -1335,6 +1335,20 @@ jobs:
           python3 tools/parity/compare_diffread.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
           python3 tools/parity/selftest_diffread.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
 
+      # And for the canonical bytes of a processed value (P5-1): 20 000 generated values, fixed seed, each with the answer of a reference written apart from both languages
+      # (tools/parity/gen_canonical.py, from engine section A). Both languages must answer as the reference and as each other, with no list of known differences; the
+      # self-test breaks the dumps in 12 ways.
+      - name: Canonical bytes differential, generate, dump with both languages, compare, self-test
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-canonical"
+          mkdir -p "$P"
+          python3 tools/parity/gen_canonical.py "$P/in.jsonl" --count 20000
+          (cd rust && PARITY_CANONICAL_IN="$P/in.jsonl" PARITY_CANONICAL_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_canonical_dump)
+          (cd go && PARITY_CANONICAL_IN="$P/in.jsonl" PARITY_CANONICAL_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpCanonicalOutcomes$' .)
+          python3 tools/parity/compare_canonical.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_canonical.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
   edit-proof:

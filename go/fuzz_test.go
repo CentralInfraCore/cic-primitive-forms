@@ -12,6 +12,7 @@ package forms_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"slices"
@@ -738,6 +739,47 @@ func FuzzReadDiff(f *testing.F) {
 		}
 		if twice := (&forms.DiffResult{Changes: again.Changes, Representation: again.Representation}).Canonical(); twice != written {
 			t.Fatalf("read twice, written differently: %q %q", written, twice)
+		}
+	})
+}
+
+// FuzzCanonical (P5-1): YAML text handed to Parse and, when it reads, to CanonicalBytes. A parsed value is within the range of the canonical bytes (the parser refuses a
+// float, an integer beyond 64 bits and a repeated key), so CanonicalBytes must not refuse it; the bytes are valid UTF-8 and valid JSON, hold no raw newline,
+// carriage return or tab (a string escapes them), and carry the digest of A7; the same value written as YAML (Emit) and read again has the same bytes.
+// CIC_FUZZ_CANARY works as in FuzzParse. The Rust peer is rust/fuzz/fuzz_targets/canonical.rs.
+func FuzzCanonical(f *testing.F) {
+	for _, seed := range []string{
+		"a: 1\n", "v: \"a<b>&\\u2028\\t\\n\"\n", "z: [3, 1, 2]\nB: {y: null, x: true}\n\u00e9: -9223372036854775808\n", "{}\n", "- a\n- [b, {c: d}]\n- \"\"\n", "e\u0301: e\u0301\n",
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && bytes.HasPrefix(data, []byte("CANARY")) {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.Valid(data) {
+			return
+		}
+		n, err := forms.Parse(string(data))
+		if err != nil {
+			return
+		}
+		b, err := forms.CanonicalBytes(n)
+		if err != nil {
+			t.Fatalf("a parsed value has no canonical bytes: %v %q", err, data)
+		}
+		if !utf8.Valid(b) || !json.Valid(b) || bytes.ContainsAny(b, "\n\r\t") {
+			t.Fatalf("the canonical bytes are not one line of valid JSON: %q from %q", b, data)
+		}
+		if d := forms.CanonicalDigest(b); len(d) != 7+64 || d[:7] != "sha256:" {
+			t.Fatalf("the digest is %q", d)
+		}
+		again, err := forms.Parse(forms.Emit(n))
+		if err != nil {
+			t.Fatalf("an emitted document does not read again: %v %q", err, data)
+		}
+		if b2, err := forms.CanonicalBytes(again); err != nil || !bytes.Equal(b, b2) {
+			t.Fatalf("emit and parse changed the value: %q %q (%v)", b, b2, err)
 		}
 	})
 }

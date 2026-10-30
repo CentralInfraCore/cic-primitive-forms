@@ -134,4 +134,10 @@ A float, an integer beyond 64 bits, a repeated key (and, in Go, a string that is
 reference written apart in that tool (a third reader). The 6 engine vectors outside the range are listed by name as `out_of_range`, and both languages assert that the parser refuses them. The Rust side passed the table and 23 of 23 mutants of `canonical.rs`
 (run locally); the Go side has not been run here (no Go toolchain), so its first run is CI.
 
-**Not yet:** a Rust/Go differential on generated values, a fuzz target, and the engine's `digest` function checked beyond the empty mapping. They are the rest of P5-1, in a pull request of their own. The order of a set (decision H) is not touched: a sequence is written as given.
+**The rest of P5-1 (2026-10-30):** a Rust/Go differential on 20 000 generated values (`tools/parity/gen_canonical.py`, `compare_canonical.py`, `selftest_canonical.py`, the dumps `rust/tests/parity_canonical_dump.rs` and
+`go/parity_canonical_dump_test.go`). Each value comes with the answer of a reference written apart from both implementations, so a defect shared by the two languages is seen too; there is no list of known differences. The reference
+also fixes which fault is met first (a repeated key of a map before its members, then the members in the order of the sorted keys). The fuzz targets `FuzzCanonical` (Go) and `canonical` (Rust): a text that parses has canonical bytes
+that are one line of valid UTF-8 (JSON, in Go), carry the digest of A7, and are unchanged by `emit` and `parse`. Run here: the differential agrees on all 20 000 and its self-test turns red on all 12 breaks; the Go fuzz target ran 296 000
+executions without a failure; the Rust target's logic ran on its seeds as a test (no nightly toolchain here for `cargo fuzz`, so CI is its first real run).
+
+**Not yet:** planted defects for the canonical bytes in `tools/seeded_defects.py` (the diff and the patch have them), and the engine's `digest` function checked beyond the empty mapping. The order of a set (decision H) is not touched: a sequence is written as given.
