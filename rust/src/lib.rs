@@ -10,6 +10,7 @@
 //! The expanded-form key set `A` is never hardcoded: the caller passes it in.
 
 pub mod access;
+pub mod canonical;
 pub mod composed;
 pub mod defaults;
 pub mod diff;
@@ -36,6 +37,10 @@ pub mod validate;
 pub use access::{
     bind_grammar, is_cert_pattern, pinned_grammar_version, read_mode, read_rule, sha256_hex,
     write_mode, Grammar, Mode, Rule, INHERIT_SYMBOL, SUPPORTED_GRAMMARS,
+};
+pub use canonical::{
+    canonical_bytes, canonical_digest, CanonicalError, CANONICAL_DUPLICATE_KEY,
+    CANONICAL_UNSUPPORTED_VALUE,
 };
 pub use composed::{normalize_with_policy, PolicyNormalization};
 pub use defaults::{apply_defaults, Defaulted, ValueOrigin, VALUE_AUTHORED, VALUE_DEFAULT};

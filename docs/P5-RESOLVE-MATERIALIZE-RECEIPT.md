@@ -123,3 +123,15 @@ C: proved by a targeted verifier test. D: one identity per language accepted. E:
 * The mapping of a tree to flat keys may not have a faithful answer for list elements (point 1); that would be a finding about the contract, not a defect to patch around here.
 * `engine_identity` makes two correct receipts of one input differ; a consumer that compares receipts by bytes will see that.
 * No signature: the receipt proves consistency, not authorship (the engine says so). Anything that needs authorship is a separate envelope and another phase.
+
+## 10. P5-1: what is built (2026-10-30)
+
+`canonical_bytes` / `canonical_digest` (Rust, `rust/src/canonical.rs`) and `CanonicalBytes` / `CanonicalDigest` (Go, `go/canonical.go`): engine section A (A1-A7) over the value of this library, within the range of decision G.
+A float, an integer beyond 64 bits, a repeated key (and, in Go, a string that is not UTF-8) have no canonical bytes: the refusal is a `CanonicalError` with the reason `unsupported_value`, `duplicate_key` or `not_utf8`; none is a code of the registry of ADR 0007.
+
+**Proved:** the table `testdata/p5/canonical-vectors.tsv` (26 lines) is read by both languages. Its 7 in-range lines from the engine's `conformance/canonicalize` are checked against the engine at the pinned commit
+(`testdata/p5/engine-pin.txt`, `tools/p5/engine_vectors.py`, a step of the `rust` job); a new engine vector fails that check until it is classified, so the range is never widened or narrowed unseen. Its 13 own lines are checked against a
+reference written apart in that tool (a third reader). The 6 engine vectors outside the range are listed by name as `out_of_range`, and both languages assert that the parser refuses them. The Rust side passed the table and 23 of 23 mutants of `canonical.rs`
+(run locally); the Go side has not been run here (no Go toolchain), so its first run is CI.
+
+**Not yet:** a Rust/Go differential on generated values, a fuzz target, and the engine's `digest` function checked beyond the empty mapping. They are the rest of P5-1, in a pull request of their own. The order of a set (decision H) is not touched: a sequence is written as given.
