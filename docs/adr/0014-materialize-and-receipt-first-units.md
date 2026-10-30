@@ -39,6 +39,11 @@ is a separate envelope, as the engine's schema decides); verify no attestation (
 `engine_identity` and `engine_version` of a receipt name the implementation that materialized the data: this library, one identity per language. Two correct receipts of one input therefore
 differ in these two fields and in nothing else.
 
+### 6. The value range of P5-1
+
+P5-1 covers the values this library holds: null, boolean, signed 64-bit integer, string, sequence, map. The engine's vectors for an integer beyond 64 bits and for a float are out of range and named as such;
+an `Unsupported` value is refused by the canonicalizer with a named code. Widening the data model is not decided here. The order of a set in the canonical form is open and blocks digesting a set (design note, decisions G and H).
+
 ## Not decided here
 
 The `PathBinding` between a receipt path and an object key, and how a position of a tree (a composite member, a list element) becomes a key; the accepted path form of a list element in a receipt;
@@ -53,4 +58,4 @@ derivation rules; coverage (observation side); Unicode normalization of strings 
 
 ## Acceptance record
 
-Proposed. Accepted when the owner merges it, with the decisions A-F of section 8 of the design note answered or deferred in the record.
+Proposed. Accepted when the owner merges it, with the decisions A-H of section 8 of the design note answered or deferred in the record. The record of 2026-10-30 (design note, end of section 8) answers A-G and leaves H open.

@@ -40,7 +40,7 @@ The engine repository holds the contract of the object that crosses into a modul
   array order as given, `sha256:` + lowercase hex of the canonical bytes. `input_digest` is the digest of the canonical form of the **authored input as a processed value, not the raw source
   bytes**; `output_digest` is `materialized_object_digest` of the object, which includes capability, coverage and provenance (B7).
 
-## 3. The five places where the contract and this library do not meet
+## 3. The six places where the contract and this library do not meet
 
 These are found, not guessed; each is a question for section 8, and none is decided here.
 
@@ -59,6 +59,10 @@ These are found, not guessed; each is a question for section 8, and none is deci
 5. **The identifiers (D1).** `grammar_sha256` and `grammar_schema_sha256` are the engine's hashes of two files of a pinned `cic-primitives` release (base64 in the engine's own
    `dependency.yaml`, `sha256:` hex in the receipt: a re-spelling the verifier checks is "equal bytes" and nothing else). This library pins the grammar by commit and a manifest of ten files
    (`corpus/pins.yaml`), another identity. `engine_identity` names "the implementation that materialized the data".
+6. **The value range.** The value of this library holds `null`, a boolean, a signed 64-bit integer, a string, a sequence and a map (`Value` in `rust/src/node.rs`, `Kind` in `go/node.go`); a float or an integer
+   beyond 64 bits is `Unsupported`, which the parser never produces. The engine's canonical form carries both (`Value::BigInt`, `Value::Float`; its vectors `large_integer_beyond_i64`, `float_exact_decimal_tie`,
+   `float_extreme_magnitude`, `negative_zero`, checked at the same commit). P5-1 therefore cannot reproduce all of the engine's `canonicalize` vectors without widening the data model. Also, section A keeps
+   array order "as given": a collection that is a set here has to have a defined order before it is digested, and this note does not know that order yet (decision H).
 
 ## 4. What P5 has to produce, in the engine's terms
 
@@ -104,6 +108,13 @@ not change the engine's contract; where the contract is silent (section 3, point
 | D | `engine_identity` and `engine_version` | the identity of **this** implementation, one per language (`cic-primitive-forms-rust`, `cic-primitive-forms-go`) and its version; the two receipts for one input then differ in these two fields, and the digests do not |
 | E | The grammar identifiers (`grammar_sha256`, `grammar_schema_sha256`, `primitive_*`) | taken from the same pinned release the engine names; where this library's pin (a manifest of ten files) is not that identity, the receipt carries the engine's, and the mapping is written down |
 | F | What a snapshot is, for P5-4 | **Not decided, not needed before P5-3.** A statement that it is out of the first units is what this note and the ADR ask for |
+| G | The value range of P5-1 (point 6) | **Narrow it, with a written limit:** P5-1 covers the values this library holds (null, boolean, `i64`, string, sequence, map). The engine vectors outside it (`BigInt`, float) are listed as out of range, each by name, and a value that is `Unsupported` is refused by the canonicalizer with a named code, never approximated. Widening the data model is a separate decision of its own |
+| H | The order of a set in the canonical form | **Open.** Measure what the engine's vectors and `MaterializedObject` expect, then decide; P5-1 may not digest a set until it is decided |
+
+### Record of the answers (review of PR #117, 2026-10-30)
+
+An external review of this PR answered the decisions; the owner's merge is what accepts them. A: accepted (pinned commit, Rust and Go). B: the engine's contract defines the binding, and it is settled before P5-2/P5-3 are closed.
+C: proved by a targeted verifier test. D: one identity per language accepted. E: same pinned release, with a checked mapping. F: deferred to P5-4. G: as proposed above. H: open.
 
 ## 9. Risks
 
