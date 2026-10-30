@@ -67,8 +67,64 @@ fn digest_of(fields: BTreeMap<String, MaterializedField>, keys: &BTreeSet<String
     materialized_object_digest(&obj).expect("digest")
 }
 
+/// The generated differential (tools/parity/gen_materialize.py): for every case a language accepted, the engine builds its own object from the projection that language
+/// wrote, under the key set the GENERATOR declared (not the one the language reports), and its digest must be the one the language gave. A key that the language lost
+/// from its fields would make `try_new` refuse; a key it lost from its own expected keys is seen by the comparison, and here by the key set being the generator's.
+fn differential(input: &str, output: &str) {
+    let answers: BTreeMap<u64, J> = std::fs::read_to_string(output)
+        .unwrap()
+        .lines()
+        .map(|l| {
+            let a: J = serde_json::from_str(l).unwrap();
+            (a["id"].as_u64().unwrap(), a["r"].clone())
+        })
+        .collect();
+    let mut checked = 0;
+    for line in std::fs::read_to_string(input).unwrap().lines() {
+        let case: J = serde_json::from_str(line).unwrap();
+        let id = case["id"].as_u64().unwrap();
+        let r = &answers[&id];
+        if r[0] != "ok" {
+            continue;
+        }
+        let projection: J = serde_json::from_str(r[2].as_str().unwrap()).unwrap();
+        let keys: BTreeSet<String> = case["keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k.as_str().unwrap().to_string())
+            .collect();
+        let got = digest_of(fields_of(&projection), &keys);
+        assert_eq!(
+            got,
+            r[3].as_str().unwrap(),
+            "#{id}: the engine's digest of what the library wrote"
+        );
+        let mut fewer = keys.clone();
+        if let Some(dropped) = fewer.iter().next().cloned() {
+            fewer.remove(&dropped);
+            let err = MaterializedObject::try_new(fields_of(&projection), &fewer)
+                .expect_err("a key less");
+            assert_eq!(err.code, code::INCOMPLETE_OBJECT, "#{id}: one key less");
+        }
+        checked += 1;
+    }
+    assert!(checked > 0, "no accepted case was checked");
+    println!("engine (rust): {checked} generated accepted cases agree with the engine's try_new and digest");
+}
+
 fn main() {
-    let root = std::env::args().nth(1).expect("usage: engine-harness-rust <forms root>");
+    let mut args = std::env::args().skip(1);
+    let first = args
+        .next()
+        .expect("usage: engine-harness-rust <forms root> | differential <in> <out>");
+    if first == "differential" {
+        let input = args.next().expect("the generated inputs");
+        let output = args.next().expect("the dump of one language");
+        differential(&input, &output);
+        return;
+    }
+    let root = first;
     let text = std::fs::read_to_string(format!("{root}/testdata/p5/materialize.json")).unwrap();
     let file: J = serde_json::from_str(&text).unwrap();
     let mut checked = 0;
@@ -103,17 +159,43 @@ fn main() {
         tampered["fields"][0]["value"] = J::String("tampered".into());
         assert_ne!(digest_of(fields_of(&tampered), &keys), want, "{id}: value");
         let mut tampered = projection.clone();
-        let cap = tampered["fields"][0]["capability"].as_str().unwrap().to_string();
-        tampered["fields"][0]["capability"] =
-            J::String(if cap == "deprecated" { "implemented" } else { "deprecated" }.into());
-        assert_ne!(digest_of(fields_of(&tampered), &keys), want, "{id}: capability");
+        let cap = tampered["fields"][0]["capability"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        tampered["fields"][0]["capability"] = J::String(
+            if cap == "deprecated" {
+                "implemented"
+            } else {
+                "deprecated"
+            }
+            .into(),
+        );
+        assert_ne!(
+            digest_of(fields_of(&tampered), &keys),
+            want,
+            "{id}: capability"
+        );
         let mut tampered = projection.clone();
-        let prov = tampered["fields"][0]["provenance"].as_str().unwrap().to_string();
-        tampered["fields"][0]["provenance"] =
-            J::String(if prov == "authored" { "schema_default" } else { "authored" }.into());
-        assert_ne!(digest_of(fields_of(&tampered), &keys), want, "{id}: provenance");
+        let prov = tampered["fields"][0]["provenance"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        tampered["fields"][0]["provenance"] = J::String(
+            if prov == "authored" {
+                "schema_default"
+            } else {
+                "authored"
+            }
+            .into(),
+        );
+        assert_ne!(
+            digest_of(fields_of(&tampered), &keys),
+            want,
+            "{id}: provenance"
+        );
         checked += 1;
     }
-    assert_eq!(checked, 6, "the accepted cases");
+    assert_eq!(checked, 7, "the accepted cases");
     println!("engine (rust): {checked} accepted cases agree with the engine's try_new and digest");
 }

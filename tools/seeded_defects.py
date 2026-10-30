@@ -642,6 +642,11 @@ DEFECTS = [
      [("\t\tif hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}", "\t\tif false && hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}")]),
     ("go", "materialize: a nil node below a value is not looked for", "materialize.go",
      [("\tfor _, item := range n.Items {\n\t\tif hasNilNode(item) {", "\tfor _, item := range n.Items[:0] {\n\t\tif hasNilNode(item) {")]),
+    ("rust", "materialize: the fields are sorted by UTF-16 code unit, not by byte", "src/materialize.rs",
+     [("    fields.sort_by(|x, y| x.key.cmp(&y.key));\n", "    fields.sort_by(|x, y| x.key.encode_utf16().cmp(y.key.encode_utf16()));\n")]),
+    ("go", "materialize: the fields are sorted by UTF-16 code unit, not by byte", "materialize.go",
+     [("import (\n\t\"slices\"\n\t\"strings\"\n)", "import (\n\t\"slices\"\n\t\"strings\"\n\t\"unicode/utf16\"\n)"),
+      ("return strings.Compare(x.Key, y.Key) })\n\texpected", "return slices.Compare(utf16.Encode([]rune(x.Key)), utf16.Encode([]rune(y.Key))) + strings.Compare(x.Key, y.Key)*0 })\n\texpected")]),
     ("go", "materialize: the undeclared capability keys are checked in map order", "materialize.go",
      [("\tslices.Sort(given)\n", "")]),
 ]

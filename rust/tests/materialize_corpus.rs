@@ -82,7 +82,7 @@ fn the_shared_materialize_cases() {
             );
         }
     }
-    assert_eq!((accepted, refused), (6, 13));
+    assert_eq!((accepted, refused), (7, 13));
 }
 
 #[test]

@@ -91,8 +91,8 @@ func TestSharedMaterializeCases(t *testing.T) {
 			t.Errorf("%s: digest %s, want %s", c.ID, got.OutputDigest, c.Expect.OutputDigest)
 		}
 	}
-	if accepted != 6 || refused != 13 {
-		t.Fatalf("accepted %d refused %d, want 6 and 13", accepted, refused)
+	if accepted != 7 || refused != 13 {
+		t.Fatalf("accepted %d refused %d, want 7 and 13", accepted, refused)
 	}
 }
 

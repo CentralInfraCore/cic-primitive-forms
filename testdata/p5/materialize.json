@@ -12,6 +12,7 @@
   "flat": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n",
   "flat-note": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n",
   "flat-keyed": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: zone\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+  "flat-utf16": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: \"😀\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: \"\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
   "nested": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n            default: 10.0.0.1\n",
   "with-set": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: tags\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        role:\n          authority: config\n        default: [a]\n",
   "with-list": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n"
@@ -143,6 +144,23 @@
     ],
     "projection": "{\"fields\":[{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"},{\"capability\":\"implemented\",\"key\":\"zone\",\"provenance\":\"authored\",\"value\":\"z\"}]}",
     "output_digest": "sha256:a88b00788649674eb1aecd08663f09e3174e1010364c7e4d973e4fa3c121eea4"
+   }
+  },
+  {
+   "id": "flat.names-sort-by-bytes-not-by-utf16",
+   "schema": "flat-utf16",
+   "yaml": "\"😀\": a\n\"\": b\n",
+   "capabilities": {
+    "😀": "not_implemented",
+    "": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "",
+     "😀"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"implemented\",\"key\":\"\",\"provenance\":\"authored\",\"value\":\"b\"},{\"capability\":\"not_implemented\",\"key\":\"😀\",\"provenance\":\"authored\",\"value\":\"a\"}]}",
+    "output_digest": "sha256:0859ac77b37f444f85fb537fd6a4e9a5c8af040bc7cfa1fe82264563e7eb4fd2"
    }
   },
   {

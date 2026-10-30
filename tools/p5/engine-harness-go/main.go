@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/CentralInfraCore/cic-primitive-engine/go/digestprojection"
 	"github.com/CentralInfraCore/cic-primitive-engine/go/materialized"
@@ -25,8 +26,15 @@ func fieldsOf(fs []projField) map[string]materialized.MaterializedField {
 	out := map[string]materialized.MaterializedField{}
 	for _, f := range fs {
 		var v interface{} = f.Value
-		if n, ok := f.Value.(float64); ok {
+		switch n := f.Value.(type) {
+		case float64:
 			v = int64(n)
+		case json.Number:
+			i, err := n.Int64()
+			if err != nil {
+				panic(err)
+			}
+			v = i
 		}
 		var ie materialized.IntentEvidence
 		switch f.Provenance {
@@ -63,9 +71,74 @@ func fail(format string, a ...interface{}) {
 	os.Exit(1)
 }
 
+// differential is the generated differential (tools/parity/gen_materialize.py): for every case a language accepted, the engine builds its own object from the
+// projection that language wrote, under the key set the GENERATOR declared (not the one the language reports), and its digest must be the one the language gave.
+// The numbers are read as json.Number: an integer of 64 bits must not pass through a float.
+func differential(input, output string) {
+	answers := map[json.Number][]interface{}{}
+	out, err := os.ReadFile(output)
+	if err != nil {
+		fail("%v", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		var a struct {
+			ID json.Number   `json:"id"`
+			R  []interface{} `json:"r"`
+		}
+		if err := json.Unmarshal([]byte(line), &a); err != nil {
+			fail("%v", err)
+		}
+		answers[a.ID] = a.R
+	}
+	in, err := os.ReadFile(input)
+	if err != nil {
+		fail("%v", err)
+	}
+	checked := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(in)), "\n") {
+		var c struct {
+			ID   json.Number `json:"id"`
+			Keys []string    `json:"keys"`
+		}
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			fail("%v", err)
+		}
+		r := answers[c.ID]
+		if len(r) == 0 || r[0] != "ok" {
+			continue
+		}
+		var projection struct {
+			Fields []projField `json:"fields"`
+		}
+		dec := json.NewDecoder(strings.NewReader(r[2].(string)))
+		dec.UseNumber()
+		if err := dec.Decode(&projection); err != nil {
+			fail("#%s: %v", c.ID, err)
+		}
+		got, err := digestOf(projection.Fields, c.Keys)
+		if err != nil || got != r[3].(string) {
+			fail("#%s: the engine's digest %q (%v) of what the library wrote, want %v", c.ID, got, err, r[3])
+		}
+		if len(c.Keys) > 0 {
+			if _, err := digestOf(projection.Fields, c.Keys[1:]); err == nil {
+				fail("#%s: one key less was accepted", c.ID)
+			}
+		}
+		checked++
+	}
+	if checked == 0 {
+		fail("no accepted case was checked")
+	}
+	fmt.Printf("engine (go): %d generated accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
+}
+
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "differential" {
+		differential(os.Args[2], os.Args[3])
+		return
+	}
 	if len(os.Args) != 2 {
-		fail("usage: engineharness <forms root>")
+		fail("usage: engineharness <forms root> | differential <in> <out>")
 	}
 	text, err := os.ReadFile(filepath.Join(os.Args[1], "testdata", "p5", "materialize.json"))
 	if err != nil {
@@ -124,8 +197,8 @@ func main() {
 		}
 		checked++
 	}
-	if checked != 6 {
-		fail("checked %d accepted cases, want 6", checked)
+	if checked != 7 {
+		fail("checked %d accepted cases, want 7", checked)
 	}
 	fmt.Printf("engine (go): %d accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
 }
