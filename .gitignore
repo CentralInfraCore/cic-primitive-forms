@@ -5,3 +5,6 @@ __pycache__/
 /go/testdata/rapid/
 # written by go-mutesting into the module directory
 /go/report.json
+# the pinned engine checkout and the build of the harness against it (CI puts the checkout at upstream/cic-primitive-engine)
+/upstream
+/tools/p5/engine-harness-rust/target/
