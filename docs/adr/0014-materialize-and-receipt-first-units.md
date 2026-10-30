@@ -1,6 +1,6 @@
 # ADR 0014: Materialize and receipt - the first units
 
-Status: **proposed** (2026-10-30). It is step P5-0 of `docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md`, which holds the reasoning, the places where the contract and this library do not meet, and the
+Status: **accepted** (2026-10-30; proposed in #117, accepted by its merge, the decisions A-H recorded in the design note). It is step P5-0 of `docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md`, which holds the reasoning, the places where the contract and this library do not meet, and the
 questions that are the owner's. It re-opens none of ADR 0001-0013, changes none of their APIs, and changes nothing in `cic-primitive-engine`. Nothing here is evidence that a producer exists.
 
 ## Context
@@ -63,4 +63,4 @@ derivation rules; coverage (observation side); Unicode normalization of strings 
 
 ## Acceptance record
 
-Proposed. Accepted when the owner merges it, with the decisions A-H of section 8 of the design note answered or deferred in the record. The record of 2026-10-30 (design note, end of section 8) answers A-G; H is decided on 2026-10-30 (section 7: fail closed), and the record of the owner's decisions after P5-1 is in the design note.
+Accepted on 2026-10-30 by the merge of #117, with the decisions A-H of section 8 of the design note answered in the record (design note, end of section 8, and the owner's decisions after P5-1). H is decided as section 7 says: fail closed. B and C need a machine-checked contract each before P5-3 is closed.
