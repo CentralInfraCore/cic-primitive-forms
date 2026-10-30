@@ -82,7 +82,9 @@ HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
 
 def git(root, *args):
-    return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True, check=True).stdout
+    # a text file with a byte that is not UTF-8 (and no NUL) is diffed as text: decoding it strictly crashed the scope job (#115). The bytes survive as
+    # surrogate escapes; such a file is never product code, so its lines are not read, and nothing here writes them back out.
+    return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True, errors="surrogateescape", check=True).stdout
 
 
 def parse_diff(text):
@@ -464,7 +466,7 @@ def write_outputs(out, verdict, product_rust, product_go):
             body = lines[a - 1:b]
             patch.append("@@ -%d,0 +%d,%d @@" % (a - 1, a, len(body)))
             patch += ["+" + x for x in body]
-    with open(os.path.join(out, "rust.patch"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(out, "rust.patch"), "w", encoding="utf-8", errors="surrogateescape") as fh:
         fh.write("\n".join(patch) + ("\n" if patch else ""))
     with open(os.path.join(out, "diff-lines.json"), "w", encoding="utf-8") as fh:
         json.dump({p: r for p, (r, _) in sorted(product_go.items())}, fh, indent=1, sort_keys=True)

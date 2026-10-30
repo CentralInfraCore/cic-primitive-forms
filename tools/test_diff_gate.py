@@ -76,6 +76,33 @@ class Scope(unittest.TestCase):
     def mode(self):
         return self.scope()[0]["mode"]
 
+    def write_bytes(self, rel, data):
+        p = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as fh:
+            fh.write(data)
+
+    # ---- a file whose bytes are not UTF-8 (#115) -------------------------------------------------------------------------------
+    def test_a_text_file_with_a_byte_that_is_not_utf8_does_not_crash_the_gate(self):
+        # no NUL, so git diffs it as text; a fuzz seed of one byte 0xff is exactly this
+        self.write_bytes("rust/fuzz/corpus/read_diff/seed", b"\xff")
+        valid = self.mode()
+        self.assertIn(valid, ("diff", "full"))
+
+    def test_the_verdict_of_a_non_utf8_file_is_that_of_the_same_file_in_utf8(self):
+        self.write_bytes("rust/fuzz/corpus/read_diff/seed", b"\xff")
+        broken = self.scope()[0]
+        self.git("reset", "-q", "--hard", self.base)
+        self.write_bytes("rust/fuzz/corpus/read_diff/seed", b"x")
+        plain = self.scope()[0]
+        self.assertEqual((broken["mode"], broken["reasons"]), (plain["mode"], plain["reasons"]))
+
+    def test_a_non_utf8_file_beside_a_product_change_leaves_the_product_ranges(self):
+        self.write("go/a.go", GO_SRC.replace("a + b", "a + b + 0"))
+        self.write_bytes("rust/fuzz/corpus/read_diff/seed", b"\xff\xfe")
+        v, pr, pg = self.scope()
+        self.assertEqual(pg["go/a.go"][0], [[4, 4]])
+
     # ---- the diff cases -------------------------------------------------------------------------------------------------------
     def test_documentation_only_has_nothing_to_mutate(self):
         self.write("docs/x.md", "doc\nmore\n")
