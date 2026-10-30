@@ -91,7 +91,9 @@ func TestAFloatOrALargeIntegerIsRefusedAndSoIsARepeatedKeyOrANonUTF8String(t *te
 	if r := reasonOf(t, nested); r != forms.CanonicalUnsupportedValue {
 		t.Errorf("reason %s", r)
 	}
-	one := func(k string, v int64) forms.Entry { return forms.Entry{Key: k, Value: &forms.Node{Kind: forms.KindInt, Int: v}} }
+	one := func(k string, v int64) forms.Entry {
+		return forms.Entry{Key: k, Value: &forms.Node{Kind: forms.KindInt, Int: v}}
+	}
 	dup := &forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{one("a", 1), one("b", 2), one("a", 3)}}
 	if r := reasonOf(t, dup); r != forms.CanonicalDuplicateKey {
 		t.Errorf("reason %s", r)
@@ -108,7 +110,9 @@ func TestAFloatOrALargeIntegerIsRefusedAndSoIsARepeatedKeyOrANonUTF8String(t *te
 }
 
 func TestTheOrderOfTheEntriesGivenDoesNotChangeTheBytesButTheOrderOfASequenceDoes(t *testing.T) {
-	one := func(k string, v int64) forms.Entry { return forms.Entry{Key: k, Value: &forms.Node{Kind: forms.KindInt, Int: v}} }
+	one := func(k string, v int64) forms.Entry {
+		return forms.Entry{Key: k, Value: &forms.Node{Kind: forms.KindInt, Int: v}}
+	}
 	a, _ := forms.CanonicalBytes(&forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{one("y", 1), one("x", 2)}})
 	b, _ := forms.CanonicalBytes(&forms.Node{Kind: forms.KindMap, Entries: []forms.Entry{one("x", 2), one("y", 1)}})
 	if string(a) != string(b) {

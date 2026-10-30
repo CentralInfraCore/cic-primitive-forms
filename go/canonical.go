@@ -36,7 +36,7 @@ func (e *CanonicalError) Error() string { return "no canonical bytes: " + e.Reas
 // CanonicalBytes returns the canonical bytes of n (A1-A6).
 func CanonicalBytes(n *Node) ([]byte, error) {
 	var b strings.Builder
-	if err := writeCanonical(&b, n); err != nil {
+	if err := writeValueBytes(&b, n); err != nil {
 		return nil, err
 	}
 	return []byte(b.String()), nil
@@ -45,7 +45,7 @@ func CanonicalBytes(n *Node) ([]byte, error) {
 // CanonicalDigest returns "sha256:" and the lowercase hex of the SHA-256 of b (A7).
 func CanonicalDigest(b []byte) string { return "sha256:" + SHA256Hex(b) }
 
-func writeCanonical(b *strings.Builder, n *Node) error {
+func writeValueBytes(b *strings.Builder, n *Node) error {
 	switch n.Kind {
 	case KindNull:
 		b.WriteString("null")
@@ -54,14 +54,14 @@ func writeCanonical(b *strings.Builder, n *Node) error {
 	case KindInt:
 		b.WriteString(strconv.FormatInt(n.Int, 10))
 	case KindStr:
-		return writeCanonicalString(b, n.Str)
+		return writeValueString(b, n.Str)
 	case KindSeq:
 		b.WriteByte('[')
 		for i, item := range n.Items {
 			if i > 0 {
 				b.WriteByte(',')
 			}
-			if err := writeCanonical(b, item); err != nil {
+			if err := writeValueBytes(b, item); err != nil {
 				return err
 			}
 		}
@@ -79,11 +79,11 @@ func writeCanonical(b *strings.Builder, n *Node) error {
 			if i > 0 {
 				b.WriteByte(',')
 			}
-			if err := writeCanonicalString(b, e.Key); err != nil {
+			if err := writeValueString(b, e.Key); err != nil {
 				return err
 			}
 			b.WriteByte(':')
-			if err := writeCanonical(b, e.Value); err != nil {
+			if err := writeValueBytes(b, e.Value); err != nil {
 				return err
 			}
 		}
@@ -94,7 +94,7 @@ func writeCanonical(b *strings.Builder, n *Node) error {
 	return nil
 }
 
-func writeCanonicalString(b *strings.Builder, s string) error {
+func writeValueString(b *strings.Builder, s string) error {
 	if !utf8.ValidString(s) {
 		return &CanonicalError{CanonicalNotUTF8}
 	}
@@ -116,10 +116,10 @@ func writeCanonicalString(b *strings.Builder, s string) error {
 		case '\r':
 			b.WriteString(`\r`)
 		case '<', '>', '&', ' ', ' ':
-			writeU(b, r)
+			writeValueEscape(b, r)
 		default:
 			if r < 0x20 {
-				writeU(b, r)
+				writeValueEscape(b, r)
 			} else {
 				b.WriteRune(r)
 			}
@@ -129,11 +129,10 @@ func writeCanonicalString(b *strings.Builder, s string) error {
 	return nil
 }
 
-func writeU(b *strings.Builder, r rune) {
+func writeValueEscape(b *strings.Builder, r rune) {
 	const hexDigits = "0123456789abcdef"
 	b.WriteString(`\u`)
 	for shift := 12; shift >= 0; shift -= 4 {
 		b.WriteByte(hexDigits[(r>>shift)&0xf])
 	}
 }
-
