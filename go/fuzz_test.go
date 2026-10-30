@@ -783,3 +783,159 @@ func FuzzCanonical(f *testing.F) {
 		}
 	})
 }
+
+// materializeShape is the flat schema of FuzzMaterialize: a mandatory string and optional fields with and without a default, two nullable. The schema order is NOT the
+// byte order of the names (U+1F600, U+E9, d, U+E000, a, c, b), so a materializer that forgets to sort the fields, or the expected keys, is seen.
+func materializeShape() forms.Shape {
+	scalar := func(t forms.ScalarType, presence forms.Presence, nullable bool, def *forms.Node) forms.Shape {
+		return forms.Shape{Kind: forms.ShapeScalar, Scalar: t, Presence: presence, Nullable: nullable, HasDefault: def != nil, Default: def}
+	}
+	return forms.Shape{Kind: forms.ShapeComposite, Presence: forms.Optional, Fields: []forms.NamedShape{
+		{Name: "\U0001f600", Shape: scalar(forms.ScalarInteger, forms.Optional, false, &forms.Node{Kind: forms.KindInt, Int: -1})},
+		{Name: "\u00e9", Shape: scalar(forms.ScalarString, forms.Optional, false, &forms.Node{Kind: forms.KindStr, Str: "\u00fc"})},
+		{Name: "d", Shape: scalar(forms.ScalarString, forms.Optional, false, nil)},
+		{Name: "\ue000", Shape: scalar(forms.ScalarString, forms.Optional, true, &forms.Node{Kind: forms.KindStr, Str: "<&>"})},
+		{Name: "a", Shape: scalar(forms.ScalarString, forms.Mandatory, false, nil)},
+		{Name: "c", Shape: scalar(forms.ScalarBoolean, forms.Optional, false, &forms.Node{Kind: forms.KindBool, Bool: true})},
+		{Name: "b", Shape: scalar(forms.ScalarInteger, forms.Optional, true, &forms.Node{Kind: forms.KindInt, Int: 7})},
+	}}
+}
+
+// FuzzMaterialize (P5-2): YAML text, the document, against a fixed flat schema and a fixed, complete capability map, so no refusal of the schema or of the capabilities can
+// happen. On every input that parses: MaterializeFlat does not panic and leaves its input alone; a refusal is one of the three the document can cause (invalid_document,
+// unsupported, omitted_optional) and omitted_optional names a declared optional field with no default that the document does not write; an acceptance has one field per
+// declared name, in byte order, the expected keys are the declared names in byte order, a field is authored exactly when the document writes it (with its value) and
+// schema_default with the declared default when it does not, the projection is one line of valid JSON that holds every key, and the digest is that of its bytes; the same
+// document gives the same answer twice, and written as YAML (Emit) and read again it gives the same answer. CIC_FUZZ_CANARY works as in FuzzParse. The Rust peer is
+// rust/fuzz/fuzz_targets/materialize.rs.
+func FuzzMaterialize(f *testing.F) {
+	for _, seed := range []string{
+		"a: x\n", "a: x\nb: ~\nc: false\nd: y\n\"\u00e9\": z\n", "a: \"\"\nb: 0\n\"\\ue000\": ~\n\"\\U0001f600\": 9223372036854775807\n", "a: x\nz: 1\n", "b: 1\n", "a: 1\n",
+		"a: \"a<b>&\\u2028\\t\"\nb: -9223372036854775808\n\"\\ue000\": \"\\U0001f600\"\n", "{}\n", "a: x\nc: [1]\n",
+	} {
+		f.Add(seed)
+	}
+	root := materializeShape()
+	caps := map[string]string{}
+	var names []string
+	for _, nf := range root.Fields {
+		caps[nf.Name] = "implemented"
+		names = append(names, nf.Name)
+	}
+	slices.Sort(names)
+	type answer struct {
+		keys                  []string
+		projection, digest    string
+		reason, field         string
+		accepted              bool
+		fieldKeys, provenance []string
+		fieldValues           []*forms.Node
+	}
+	ask := func(doc *forms.Node) answer {
+		m, err := forms.MaterializeFlat(doc, root, keySet, caps)
+		var me *forms.MaterializeError
+		switch {
+		case err == nil:
+			a := answer{accepted: true, keys: m.ExpectedKeys, projection: m.ProjectionJSON, digest: m.OutputDigest}
+			for _, fd := range m.Fields {
+				a.fieldKeys = append(a.fieldKeys, fd.Key)
+				a.provenance = append(a.provenance, fd.Provenance)
+				a.fieldValues = append(a.fieldValues, fd.Value)
+			}
+			return a
+		case errors.As(err, &me):
+			return answer{reason: me.Reason, field: me.Field}
+		default:
+			panic("an error that is not a MaterializeError: " + err.Error())
+		}
+	}
+	same := func(x, y answer) bool {
+		return x.accepted == y.accepted && slices.Equal(x.keys, y.keys) && x.projection == y.projection && x.digest == y.digest && x.reason == y.reason && x.field == y.field
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		if os.Getenv("CIC_FUZZ_CANARY") != "" && strings.HasPrefix(text, "CANARY") {
+			t.Fatal("canary: the fuzz job reports a failure")
+		}
+		if !utf8.ValidString(text) {
+			return
+		}
+		doc, err := forms.Parse(text)
+		if err != nil {
+			return
+		}
+		before := forms.Emit(doc)
+		first := ask(doc)
+		if forms.Emit(doc) != before {
+			t.Fatalf("%q: the input changed", text)
+		}
+		if !same(first, ask(doc)) {
+			t.Fatalf("%q: the same document gave another answer", text)
+		}
+		again, err := forms.Parse(forms.Emit(doc))
+		if err != nil {
+			t.Fatalf("%q: an emitted document does not read again: %v", text, err)
+		}
+		if !same(first, ask(again)) {
+			t.Fatalf("%q: emit and parse changed the answer", text)
+		}
+		written := map[string]*forms.Node{}
+		if doc.Kind == forms.KindMap {
+			for _, e := range doc.Entries {
+				written[e.Key] = e.Value
+			}
+		}
+		if !first.accepted {
+			switch first.reason {
+			case forms.MaterializeInvalidDocument, forms.MaterializeUnsupported:
+			case forms.MaterializeOmittedOptional:
+				var declared *forms.NamedShape
+				for i := range root.Fields {
+					if root.Fields[i].Name == first.field {
+						declared = &root.Fields[i]
+					}
+				}
+				if declared == nil || declared.Shape.HasDefault || declared.Shape.Presence != forms.Optional {
+					t.Fatalf("%q: omitted_optional names %q", text, first.field)
+				}
+				if _, ok := written[first.field]; ok {
+					t.Fatalf("%q: omitted_optional names a field the document writes", text)
+				}
+			default:
+				t.Fatalf("%q: a refusal that a fixed schema cannot cause: %s", text, first.reason)
+			}
+			return
+		}
+		if !slices.Equal(first.keys, names) {
+			t.Fatalf("%q: the expected keys %q are not the declared names in byte order", text, first.keys)
+		}
+		if !slices.Equal(first.fieldKeys, names) {
+			t.Fatalf("%q: the fields %q are not in byte order of the key", text, first.fieldKeys)
+		}
+		if !utf8.ValidString(first.projection) || !json.Valid([]byte(first.projection)) || strings.ContainsAny(first.projection, "\n\r\t") {
+			t.Fatalf("%q: the projection is not one line of valid JSON: %q", text, first.projection)
+		}
+		if first.digest != forms.CanonicalDigest([]byte(first.projection)) {
+			t.Fatalf("%q: the digest is not that of the projection", text)
+		}
+		for i, name := range first.fieldKeys {
+			if !strings.Contains(first.projection, "\"key\":\""+name+"\"") {
+				t.Fatalf("%q: the key %q is missing from the projection", text, name)
+			}
+			if v, ok := written[name]; ok {
+				if first.provenance[i] != "authored" || !first.fieldValues[i].Same(v) {
+					t.Fatalf("%q: %q is written and is not an authored copy of the written value", text, name)
+				}
+				continue
+			}
+			var def *forms.Node
+			for _, nf := range root.Fields {
+				if nf.Name == name {
+					def = nf.Shape.Default
+				}
+			}
+			if def == nil || first.provenance[i] != "schema_default" || !first.fieldValues[i].Same(def) {
+				t.Fatalf("%q: %q is not written and is not the declared default", text, name)
+			}
+		}
+	})
+}

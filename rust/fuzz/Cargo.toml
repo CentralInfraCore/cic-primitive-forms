@@ -106,3 +106,10 @@ path = "fuzz_targets/canonical.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "materialize"
+path = "fuzz_targets/materialize.rs"
+test = false
+doc = false
+bench = false
