@@ -112,7 +112,7 @@ def tree(rng, depth, keys_from_chars=False):
     ks = set()
     while len(ks) < rng.randint(0, 5):
         ks.add(string(rng, rng.randint(0, 3)) if rng.random() < 0.3 else rng.choice(KEYS))
-    ks = list(ks)
+    ks = sorted(ks, key=lambda k: k.encode("utf-8"))  # a set is walked in a hash-seeded order: the same seed must give the same file
     rng.shuffle(ks)
     return {"m": [[k, tree(rng, depth - 1)] for k in ks]}
 

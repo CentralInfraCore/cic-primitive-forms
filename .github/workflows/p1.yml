@@ -55,6 +55,7 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/test_nightly_last_full.py
       - run: pip install -r tools/requirements.txt
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_engine_vectors.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_gen_canonical.py
       - run: python3 tools/p5/engine_vectors.py --own
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
