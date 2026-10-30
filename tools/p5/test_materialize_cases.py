@@ -23,7 +23,7 @@ class Cases(unittest.TestCase):
             keys = [f["key"] for f in json.loads(e["projection"])["fields"]]
             self.assertEqual(keys, sorted(keys))
             self.assertEqual(keys, e["expected_keys"])
-        self.assertEqual(n, 6)
+        self.assertEqual(n, 7)
 
     def test_the_five_characters_and_controls_are_escaped_as_the_engine_writes_them(self):
         case = next(c for c in mc.build()["cases"] if c["id"] == "flat.escaping")

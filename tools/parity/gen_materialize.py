@@ -28,8 +28,11 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DEFAULTS = json.load(open(os.path.join(ROOT, "testdata", "p1", "defaults.json"), encoding="utf-8"))
 HEAD = DEFAULTS["cases"][0]["schema"].split("    nodes:\n")[0] + "    nodes:\n"
 
-# Names are compared by byte, so the ones that sort differently by byte, by code point and by UTF-16 are here on purpose.
-NAMES = ["alpha", "beta", "gamma", "Zed", "a_b", "b2", "_x", "é", "ÿ", "€", "z", "Z", "a", "B", "10", "9"]
+# Names are compared by byte. The byte order of valid UTF-8 is the code point order, so it is the UTF-16 order that has to differ from it, and it does for exactly one kind
+# of pair: a character from U+E000 to U+FFFF against one beyond U+FFFF (the surrogates 0xD800 to 0xDFFF sort below 0xE000). Both are here on purpose: U+E000 and U+FFFD
+# against U+1F600 and U+10000. A writer that sorts by UTF-16 code unit puts them the other way round.
+NAMES = ["alpha", "beta", "gamma", "Zed", "a_b", "b2", "_x", "é", "ÿ", "€", "z", "Z", "a", "B", "10", "9",
+         "\ue000", "\ufffd", "\U0001f600", "\U00010000"]
 # What a string value may hold: the characters the YAML subset reads back as written, and the five the canonical form escapes.
 CHARS = ["a", "Z", "0", " ", "\"", "\\", "/", "\t", "\n", "<", ">", "&", "\u2028", "\u2029", "é", "ü", "€", "\U0001f600", "'", "-", "_", ":"]
 KINDS = ["string", "integer", "boolean"]

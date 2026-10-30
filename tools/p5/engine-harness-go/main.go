@@ -197,8 +197,8 @@ func main() {
 		}
 		checked++
 	}
-	if checked != 6 {
-		fail("checked %d accepted cases, want 6", checked)
+	if checked != 7 {
+		fail("checked %d accepted cases, want 7", checked)
 	}
 	fmt.Printf("engine (go): %d accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
 }

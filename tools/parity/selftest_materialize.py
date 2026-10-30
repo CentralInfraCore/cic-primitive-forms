@@ -7,12 +7,13 @@
 A comparison that was never seen to fail proves nothing, so the dumps are broken here in the ways a defect of one implementation would break them, and each break must be
 reported: a projection that differs in one language, a digest, an acceptance turned into a refusal and the reverse, a refusal named as another, the field of a refusal
 named wrongly, a reason outside the set, both languages wrong in the same way (only the reference sees that), both languages losing the same key from the expected keys (only
-the generator's own list sees that), a missing or an extra answer, and a generator that stops reaching a kind of answer. Exit status 1 if one break is not noticed, or if the
+the generator's own list sees that), a missing or an extra answer, a record id repeated in the inputs or in a dump, and a generator that stops reaching a kind of answer. Exit status 1 if one break is not noticed, or if the
 unbroken pair is not clean.
 """
 import copy
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import compare_materialize as cm  # noqa: E402
@@ -81,6 +82,24 @@ def breaks(inputs, rust, go):
     return out
 
 
+def repeated_id_is_refused(path, which):
+    """The loader has to refuse a file in which one id appears twice, whether the repeat is identical or differs (the second record would replace the first)."""
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    noticed = []
+    for name, extra in (("identical", lines[0]), ("different", lines[0].replace('"ok"', '"err"', 1) if '"ok"' in lines[0] else lines[0] + " ")):
+        with tempfile.TemporaryDirectory() as d:
+            broken = os.path.join(d, "broken.jsonl")
+            with open(broken, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines + [extra]) + "\n")
+            try:
+                cm.load(broken)
+                noticed.append(False)
+            except cm.DuplicateId:
+                noticed.append(True)
+    return all(noticed)
+
+
 def main():
     inputs, rust, go = cm.load(sys.argv[1]), cm.load(sys.argv[2]), cm.load(sys.argv[3])
     problems, divergences, answers = cm.check(inputs, rust, go)
@@ -94,10 +113,16 @@ def main():
         seen = {"divergent": bool(divergences), "problem": bool(problems), "coverage": any(answers[x] == 0 for x in cm.REACHED)}[want]
         print("  %-66s %s" % (name, "red" if seen else "NOT NOTICED"))
         missed += not seen
+    total = len(all_breaks)
+    for label, path in (("a repeated id in the inputs", sys.argv[1]), ("a repeated id in the dump of rust", sys.argv[2]), ("a repeated id in the dump of go", sys.argv[3])):
+        seen = repeated_id_is_refused(path, label)
+        print("  %-66s %s" % (label, "red" if seen else "NOT NOTICED"))
+        missed += not seen
+        total += 1
     if missed:
-        print("self-test: %d of %d breaks were not noticed" % (missed, len(all_breaks)))
+        print("self-test: %d of %d breaks were not noticed" % (missed, total))
         sys.exit(1)
-    print("self-test: %d breaks, every one turns the comparison red" % len(all_breaks))
+    print("self-test: %d breaks, every one turns the comparison red" % total)
 
 
 if __name__ == "__main__":

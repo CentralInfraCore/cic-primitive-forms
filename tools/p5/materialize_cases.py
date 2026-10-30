@@ -25,6 +25,9 @@ SCALARS = {
     "label": "      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n",
     "maybe": "      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n",
     "note": "      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n",
+    # two names whose byte order is not their UTF-16 order: U+E000 (EE 80 80) sorts before U+1F600 (F0 9F 98 80), but as UTF-16 the surrogate D83D sorts before E000
+    "\ue000": "      - name: \"\ue000\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+    "\U0001f600": "      - name: \"\U0001f600\"\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
     "zone": "      - name: zone\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
 }
 NESTED = {
@@ -42,11 +45,12 @@ SCHEMAS = {
     "flat": schema("type", "enabled", "mtu", "label", "maybe"),
     "flat-note": schema("type", "enabled", "note"),
     "flat-keyed": schema("zone", "type"),
+    "flat-utf16": schema("\U0001f600", "\ue000"),
     "nested": schema("type", "ip"),
     "with-set": schema("type", "tags"),
     "with-list": schema("type", "routes"),
 }
-CAP = {"type": "implemented", "enabled": "not_implemented", "mtu": "deprecated", "label": "implemented", "maybe": "implemented", "note": "implemented", "zone": "implemented", "ip": "implemented", "tags": "implemented", "routes": "implemented"}
+CAP = {"\ue000": "implemented", "\U0001f600": "not_implemented", "type": "implemented", "enabled": "not_implemented", "mtu": "deprecated", "label": "implemented", "maybe": "implemented", "note": "implemented", "zone": "implemented", "ip": "implemented", "tags": "implemented", "routes": "implemented"}
 
 
 def caps(*names, **over):
@@ -87,6 +91,8 @@ CASES = [
         f("enabled", "schema_default", True), f("note", "authored", "n"), f("type", "authored", "t")]),
     ok("flat.keys-sort-by-bytes-not-schema-order", "flat-keyed", "zone: z\ntype: t\n", caps("zone", "type"), [
         f("type", "authored", "t"), f("zone", "authored", "z")]),
+    ok("flat.names-sort-by-bytes-not-by-utf16", "flat-utf16", "\"\U0001f600\": a\n\"\ue000\": b\n", caps("\U0001f600", "\ue000"), [
+        f("\ue000", "authored", "b"), f("\U0001f600", "authored", "a")]),
     no("refused.omitted-optional-without-default", "flat-note", "type: t\n", caps("type", "enabled", "note"), "omitted_optional", "note"),
     no("refused.nested-schema", "nested", "type: t\n", caps("type"), "not_flat", "ip"),
     no("refused.nested-schema-even-when-the-document-is-fine", "nested", "type: t\nip:\n  gateway: g\n", caps("type", "ip"), "not_flat", "ip"),

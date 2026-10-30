@@ -8,7 +8,7 @@ Exit status 1 when the two languages answer differently on any input (there is n
 from the reference of the generator (tools/parity/gen_materialize.py, written from the contract and from the generator's own knowledge of each case, sharing no code
 with either language), when an answer is not of the form ["ok", expected_keys, projection, digest] or ["err", reason, field] with a reason of the closed set, when the
 expected keys of an accepted answer are not the names the generator declared (the engine's try_new is given the generator's list, so a key lost by both languages is
-seen here), or when the inputs do not reach every kind of answer.
+seen here), when a record id is repeated in a file, or when the inputs do not reach every kind of answer.
 """
 import argparse
 import collections
@@ -21,11 +21,17 @@ REASONS = ("no_document", "invalid_document", "unsupported", "not_flat", "set", 
 REACHED = ("ok", "invalid_document", "unsupported", "not_flat", "set", "omitted_optional", "capability_missing", "capability_unknown", "capability_undeclared")
 
 
+class DuplicateId(Exception):
+    """A record id that appears twice in one file: the second would silently replace the first, and a dump of 6 000 unique records could hold a 6 001st."""
+
+
 def load(path):
     out = {}
     with open(path, encoding="utf-8") as f:
-        for line in f:
+        for n, line in enumerate(f, 1):
             d = json.loads(line)
+            if d["id"] in out:
+                raise DuplicateId("%s: line %d repeats the id %r" % (path, n, d["id"]))
             out[d["id"]] = d
     return out
 
@@ -65,7 +71,11 @@ def main():
     ap.add_argument("go")
     ap.add_argument("--show", type=int, default=5)
     args = ap.parse_args()
-    inputs, rust, go = load(args.inputs), load(args.rust), load(args.go)
+    try:
+        inputs, rust, go = load(args.inputs), load(args.rust), load(args.go)
+    except DuplicateId as e:
+        print("PROMISES: %s" % e)
+        sys.exit(1)
     problems, divergences, answers = check(inputs, rust, go)
     bad = False
     print("inputs: %d; answers: %s" % (len(inputs), ", ".join("%s %d" % kv for kv in sorted(answers.items()))))

@@ -196,6 +196,6 @@ fn main() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 6, "the accepted cases");
+    assert_eq!(checked, 7, "the accepted cases");
     println!("engine (rust): {checked} accepted cases agree with the engine's try_new and digest");
 }

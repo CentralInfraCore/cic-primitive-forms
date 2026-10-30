@@ -1368,7 +1368,7 @@ jobs:
 
       # And for the flat materialization (P5-2): 6 000 generated cases, fixed seed, each with the answer of a reference that is built from the case's own structure and
       # reads neither the schema nor the document text (tools/parity/gen_materialize.py). Both languages must answer as the reference and as each other, with no list of
-      # known differences; the self-test breaks the dumps in 16 ways. Then the ENGINE is the third reader: for every accepted case it builds its own MaterializedObject
+      # known differences; the self-test breaks the dumps in 19 ways. Then the ENGINE is the third reader: for every accepted case it builds its own MaterializedObject
       # from what each language wrote, under the key set the generator declared, and its digest must be the one the language gave (engine harnesses, pinned commit).
       - id: engine
         run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
