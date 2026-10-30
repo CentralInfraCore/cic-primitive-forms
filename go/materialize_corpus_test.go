@@ -159,3 +159,28 @@ func TestMaterializeOpaqueValues(t *testing.T) {
 		t.Fatalf("got %q %q", r, f)
 	}
 }
+
+// A Go map is read in a random order. The first undeclared key reported must be the smallest in byte order every time, so the call is repeated with several keys:
+// a function that reads the map unsorted would answer a larger key in all but one run in a million.
+func TestMaterializeFirstUndeclaredCapabilityIsTheSmallest(t *testing.T) {
+	f := loadMaterialize(t)
+	compiled := compileMaterialize(t, f, "flat")
+	doc, err := Parse("type: t\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	caps := map[string]string{}
+	for _, k := range []string{"type", "enabled", "mtu", "label", "maybe"} {
+		caps[k] = "implemented"
+	}
+	for _, k := range []string{"u7", "u3", "u9", "u1", "u5", "u2", "u8", "u4", "u6"} {
+		caps[k] = "implemented"
+	}
+	for i := 0; i < 200; i++ {
+		_, err := MaterializeFlat(doc, compiled.Root, f.AccessKeys, caps)
+		me, ok := err.(*MaterializeError)
+		if !ok || me.Reason != MaterializeCapabilityUndeclared || me.Field != "u1" {
+			t.Fatalf("run %d: got %v", i, err)
+		}
+	}
+}
