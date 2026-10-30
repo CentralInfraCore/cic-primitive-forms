@@ -211,3 +211,45 @@ Read at the engine commit `93c793a`: `engine/src/materialized.rs`, `digest_proje
 * **What the generated inputs cannot reach:** no document at all, a nil node (Go only) and a value outside the canonical range cannot be written as text; the unit tests cover them. A first run found no difference between the two languages and the reference on any of the 6 000 inputs.
 
 **What this does not prove yet.** No fuzz target on `materialize_flat` / `MaterializeFlat`. Nested, list, set and an omitted optional field stay refusals (sections 11, 12); the differential proves the refusals, not a materialization of them.
+
+## 15. P5-3 pre-check: the receipt (2026-10-30, before any code)
+
+Read at the engine commit `93c793a`: `engine/src/receipt.rs` (the verifier), `docs/RECEIPT-SCHEMA.md`, `docs/MATERIALIZATION-SPEC.md` section D, the 36 vectors of `conformance/differential/receipt`; and on this side `corpus/pins.yaml`, `CompiledSchema`, `Grammar`, P5-1 and P5-2. Nothing was run.
+
+**What the engine requires.** A receipt document is `{"materialization": {...}}` with the 15 fields, none optional. The verifier (`verify_receipt(receipt, object, authored_input, binding)`) checks, in this order: shape and form (declared field order), the version (`1`), every digest as `sha256:` and 64 lowercase hex, `applied_defaults` and `derived_values` strictly ascending by `.path` in raw UTF-8 byte order, `derived_values[].inputs` strictly ascending; then `input_digest` = the A7 digest of the canonical form of the authored input it is handed; then `output_digest` = `materialized_object_digest` of the object; then each evidence entry through an **explicit path binding** (receipt path to object key, fail closed with `E_RECEIPT_UNBOUND`): the field must exist, have the provenance the list requires, and its value digest must be the digest of the canonical form of its value; then every defaulted or derived field of the object must be listed. A success establishes **structure and content consistency and nothing more**: not that a default was applied, who produced the receipt, or that any identifier is genuine. `engine_identity` names the implementation that **materialized**, and the spec says it is *supposed* to differ between the Rust and the Go side, so two receipts of the two languages are not byte-equal by design (section G of the engine spec: the value bytes, the receipt without that field, and that field are three different equality questions).
+
+**What this library already gives for the 15 fields.**
+
+| Field | Source here |
+|---|---|
+| `receipt_schema_version` | the constant `1` |
+| `input_digest` | `canonical_digest(canonical_bytes(document))` of the parsed authored document, **before** the defaults (P5-1) |
+| `output_digest` | the `output_digest` of P5-2 |
+| `applied_defaults` | the fields with provenance `schema_default`: path, the literal `schema-default`, the digest of the value |
+| `derived_values` | always `[]` (no derivation exists in this library) |
+| `schema_version` | `identity.version` of the compiled schema |
+| `schema_digest` | the digest of the schema file bytes that `compile_schema` verifies |
+| `schema_name` | `identity.namespace` and `identity.kind` |
+
+**Where they do not meet** (each is a question; none is decided here):
+
+1. **The primitive release identity is not known to the library.** `primitive_release`, `primitive_source_commit` and `primitive_build_hash` name a signed `cic-primitives` release bundle (the tag, its `provenance.source_commit`, its `release.build_hash`). The grammar pin of this repository is a **commit of `devel`** (`73ae469`), not a release, and `corpus/pins.yaml` holds no tag and no build hash. The library cannot state them; whether the pinned commit belongs to any signed release at all is not shown here.
+2. **The two grammar digests are in the pin, not in the library.** `grammar_sha256` (of `check_grammar.py`) and `grammar_schema_sha256` (of `instance-grammar.schema.yaml`) are entries of the pin in `corpus/pins.yaml`; the code knows only the pin **name** (`cic-primitives-73ae469-6a188078`), through a table of profiles. A table of the two digests per pin name in each language would duplicate `pins.yaml`; a test can compare them, but it is a second copy.
+3. **`schema_digest` is a name that the engine does not pin down.** D1.3 says "canonical schema digest (content hash)". The library verifies and holds the digest of the **exact schema file bytes**. Whether the engine means that, or a digest of a canonical form of the schema, is not stated; a YAML file has no section A form without a reader, so the first is the only one this library can state.
+4. **`schema_name` is a convention.** The example is `cic:storage:StorageResource`; the schema has `identity.namespace` (`cic:storage`) and `identity.kind` (`StorageResource`). Joining them with a colon is the obvious reading and is not written anywhere.
+5. **`engine_identity` and `engine_version`.** Two implementations need two identity strings (the spec's own example is `cic-primitive-engine-rust` / `-go`), and a version: the Rust crate is `0.0.0` and the Go module has none. Any version must be one fact for both languages, or the receipts of one materialization differ in two fields instead of one.
+6. **The path of a field.** The verifier requires a `$.`-rooted path whose dot-separated segments are all non-empty, and reads a path only through the explicit binding. A field name that contains a dot, or that the path writing of ADR 0006 escapes, is not a single segment in that form. P5-2 already refuses a name with no path at all (`unsupported`); the dotted and the escaped names are the next case.
+7. **The order is by path, not by key.** `applied_defaults` is ordered by the path text; with a common `$.` prefix this equals the order of the names unless the writing of the path changes the bytes (escapes), so the receipt must sort by path.
+8. **What a receipt proves.** A green `verify_receipt` is a consistency check. It is not evidence that the library did what the receipt says (the `agent_done` is not `done` case once more); the proof must still come from the cases where a wrong receipt is refused.
+
+**Proposed first unit of P5-3** (a proposal, not a decision): a receipt for a **flat** document, the unit of P5-2, in Rust and Go.
+* `Receipt` with the 15 fields; `receipt_flat(materialization, document, schema identity, release identity, grammar identity) -> receipt`, and the receipt document `{"materialization": ...}` as a node and as canonical bytes (and their digest). It takes the identifiers it cannot know as **inputs of the caller, all required, fail closed** (questions L and M), and refuses a field name whose path is not one plain segment (point 6).
+* `input_digest` over the parsed document; `applied_defaults` from the `schema_default` fields, sorted by path; `derived_values` `[]`.
+* **Proof:** the engine's verifier (Rust `verify_receipt` and Go `receipt.Verify`, pinned engine) accepts the receipt of every case; the same receipt with one change is refused with the code the engine gives (a changed input, a changed output, an evidence entry moved, repeated or removed, a changed value digest, a wrong version, an unbound path), seen to fail; the shared cases and the engine's own `receipt` vectors; then a Rust/Go differential of the receipts on the generated cases of section 13, where the two sides are equal **except** `engine_identity` (and `engine_version` only if the two must differ); planted defects; fuzz.
+* Resolve (P5-4) is not touched.
+
+**Questions for the owner**
+* **L.** The release identity (`primitive_release`, `primitive_source_commit`, `primitive_build_hash`) and, if you prefer, the two grammar digests: **inputs of the caller, fail closed when missing** (the proposal, as for the capability), or does the pinned commit have a release that the repository can name?
+* **M.** `engine_identity` as `cic-primitive-forms-rust` / `cic-primitive-forms-go`, and one `engine_version` for both languages from a single file that a test compares with the crate and the module, so that the two receipts differ in the identity field only?
+* **N.** `schema_digest` as the digest of the exact schema file bytes (what the library verifies), and `schema_name` as `namespace:kind`: both as **stated claims**, to be confirmed by the engine side, or ask the engine first?
+* **O.** A field name with a dot or an escaped path: a controlled refusal in the first unit (the proposal), or define the path writing the engine expects before any code?
