@@ -1,6 +1,6 @@
 # ADR 0014: Materialize and receipt - the first units
 
-Status: **proposed** (2026-10-30). It is step P5-0 of `docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md`, which holds the reasoning, the places where the contract and this library do not meet, and the
+Status: **accepted** (2026-10-30; proposed in #117, accepted by its merge, the decisions A-H recorded in the design note). It is step P5-0 of `docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md`, which holds the reasoning, the places where the contract and this library do not meet, and the
 questions that are the owner's. It re-opens none of ADR 0001-0013, changes none of their APIs, and changes nothing in `cic-primitive-engine`. Nothing here is evidence that a producer exists.
 
 ## Context
@@ -44,6 +44,11 @@ differ in these two fields and in nothing else.
 P5-1 covers the values this library holds: null, boolean, signed 64-bit integer, string, sequence, map. The engine's vectors for an integer beyond 64 bits and for a float are out of range and named as such;
 an `Unsupported` value is refused by the canonicalizer with a named code. Widening the data model is not decided here. The order of a set in the canonical form is open and blocks digesting a set (design note, decisions G and H).
 
+### 7. Sets: fail closed (owner's decision of 2026-10-30)
+
+The first unit of P5-2 handles no collection of set topology: the topology of every collection is read from the schema, and a set stops the materialization with a controlled error before a semantic digest is made. A set is never skipped silently,
+because two orders of one set are one logical state and must not get two identities. The order-keeping canonical writer of P5-1 is unchanged. The final rule belongs to the engine's contract and to a separate ADR.
+
 ## Not decided here
 
 The `PathBinding` between a receipt path and an object key, and how a position of a tree (a composite member, a list element) becomes a key; the accepted path form of a list element in a receipt;
@@ -58,4 +63,4 @@ derivation rules; coverage (observation side); Unicode normalization of strings 
 
 ## Acceptance record
 
-Proposed. Accepted when the owner merges it, with the decisions A-H of section 8 of the design note answered or deferred in the record. The record of 2026-10-30 (design note, end of section 8) answers A-G and leaves H open.
+Accepted on 2026-10-30 by the merge of #117, with the decisions A-H of section 8 of the design note answered in the record (design note, end of section 8, and the owner's decisions after P5-1). H is decided as section 7 says: fail closed. B and C need a machine-checked contract each before P5-3 is closed.

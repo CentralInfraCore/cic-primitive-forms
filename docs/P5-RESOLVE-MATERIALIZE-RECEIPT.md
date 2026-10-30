@@ -116,6 +116,16 @@ not change the engine's contract; where the contract is silent (section 3, point
 An external review of this PR answered the decisions; the owner's merge is what accepts them. A: accepted (pinned commit, Rust and Go). B: the engine's contract defines the binding, and it is settled before P5-2/P5-3 are closed.
 C: proved by a targeted verifier test. D: one identity per language accepted. E: same pinned release, with a checked mapping. F: deferred to P5-4. G: as proposed above. H: open.
 
+### Record of the owner's decisions (2026-10-30, after P5-1)
+
+* **H, the order of a set: A, fail closed.** The first unit of P5-2 handles no collection of set topology. It is not enough to leave sets unsorted: two documents that differ only in the order of the elements of a set are one logical state and
+  would get two digests (two identities for one state). So P5-2 must (1) read the topology of every collection from the schema, (2) stop with a controlled error, before any semantic digest is made, at a set, and (3) never skip a set silently.
+  The generic, order-keeping canonical writer (P5-1) is unchanged: byte-level and semantic canonicalization stay apart. The final rule for sets belongs to the engine's contract and to an ADR of its own.
+* **A to G of section 8:** accepted as recorded above. **B and C** need, before P5-3 is closed, a machine-checked contract each: that the verifier accepts a path form is not a proof that the path is bound to the right key.
+* **Go `CanonicalBytes(nil)`:** an error, not a panic: the reason `nil_node`, for a nil node at the top and inside a sequence or a map (not a code of ADR 0007; Rust cannot hold a nil reference). New code relies on no panic.
+* **The nightly FULL on a change of `p1.yml`:** stays as it is (fail closed). Narrowing it needs a classifier that proves a workflow change does not touch the FULL, and runs the FULL when it cannot tell: a task of its own.
+* **#111:** deferred. **#115:** a separate fix, before P5-2 (pull request #121).
+
 ## 9. Risks
 
 * The canonical form (point 3) is a byte-exact contract against a repository that evolves: a change of section A there moves a digest here. The pin and the vectors are the defence; the

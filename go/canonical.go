@@ -15,7 +15,7 @@ import (
 // SHA-256 of those bytes (A7).
 //
 // The range is what this library holds: null, boolean, signed 64-bit integer, string, sequence, map. A float or an integer beyond 64 bits (KindUnsupported) is
-// refused, never approximated, and so is a map that repeats a key (the engine's Map cannot hold one) and a string that is not UTF-8 (a Rust string cannot be).
+// refused, never approximated, and so is a map that repeats a key (the engine's Map cannot hold one), a string that is not UTF-8 (a Rust string cannot be) and a nil node, at the top or inside a sequence or a map (a Rust reference cannot be nil).
 // The vectors of the engine outside this range are out of range here by name (docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md, decision G). The order of a set is not
 // decided (decision H); a sequence is written as given.
 //
@@ -26,6 +26,7 @@ const (
 	CanonicalUnsupportedValue = "unsupported_value"
 	CanonicalDuplicateKey     = "duplicate_key"
 	CanonicalNotUTF8          = "not_utf8"
+	CanonicalNilNode          = "nil_node"
 )
 
 // CanonicalError says why a value has no canonical bytes.
@@ -46,6 +47,9 @@ func CanonicalBytes(n *Node) ([]byte, error) {
 func CanonicalDigest(b []byte) string { return "sha256:" + SHA256Hex(b) }
 
 func writeValueBytes(b *strings.Builder, n *Node) error {
+	if n == nil {
+		return &CanonicalError{CanonicalNilNode}
+	}
 	switch n.Kind {
 	case KindNull:
 		b.WriteString("null")
