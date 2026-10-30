@@ -57,6 +57,7 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_engine_vectors.py
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_gen_canonical.py
       - run: python3 tools/p5/engine_vectors.py --own
+      - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_materialize_cases.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -106,6 +107,10 @@ jobs:
           path: upstream/cic-primitive-engine
       - run: pip install -r tools/requirements.txt
       - run: python3 tools/p5/engine_vectors.py --engine upstream/cic-primitive-engine
+      # P5-2 (ADR 0014, decision A): the engine's own MaterializedObject::try_new and materialized_object_digest on the shared flat-materialization cases,
+      # whose expected values are computed by the script (a third reader), and the script's file is the one that is committed
+      - run: python3 tools/p5/materialize_cases.py
+      - run: cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- .
   go:
     needs: inherit
     if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
@@ -123,6 +128,16 @@ jobs:
         working-directory: go
       - run: go test -race -count=1 -rapid.checks=1000 ./...
         working-directory: go
+      # P5-2: the same cases against the engine's Go module (the Rust peer is in the rust job)
+      - id: engine
+        run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: CentralInfraCore/cic-primitive-engine
+          ref: ${{ steps.engine.outputs.commit }}
+          path: upstream/cic-primitive-engine
+      - run: go run . ../../..
+        working-directory: tools/p5/engine-harness-go
       # the go-mutesting executors give a mutant the verdict its test run earns: one that does not build is not killed (#94)
       - run: python3 -W error::ResourceWarning -m unittest tools/test_mutation_exec.py
   branch-coverage:

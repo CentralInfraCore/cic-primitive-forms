@@ -181,3 +181,21 @@ Read at the engine commit `93c793a`: `engine/src/materialized.rs`, `digest_proje
 * **I.** Capability as a caller input with fail-closed on a missing value (the proposal), or a fixed rule (for example `implemented` for every position not attested, which is the `default` basis of ADR 0010 but writes a non-evidence into a digest)?
 * **J.** A first unit limited to flat documents, with the controlled error for everything nested, or wait for the engine side to define the flat key (decision B) before any code?
 * **K.** The harness inside this repository (a small Rust program with a path dependency on the pinned engine checkout, and a Go program), as decision A already says, or a CI job of the engine that runs against a fixture file this library produces?
+
+## 12. P5-2 first unit: what is built (2026-10-30)
+
+`materialize_flat` / `MaterializeFlat` (`rust/src/materialize.rs`, `go/materialize.go`): the flat document of section 11, with the owner's answers I, J and K. The module comments are the contract; in short:
+
+* **Flat only.** Every declared position of the schema is a top-level scalar. A composite, a list and a declared list are `not_flat`, a set is `set` (decision H); the refusal is of the schema, so a nested position that the document leaves out still refuses.
+* **Capability is the caller's.** A map from field to `implemented`, `not_implemented` or `deprecated`; `capability_missing`, `capability_unknown` (also `unverified`, which the engine does not have), `capability_undeclared`. Nothing is derived from the authored document. The digest records what the caller gave; the caller's entitlement to it is a second claim that the digest does not make.
+* **An omitted optional field with no default is refused** (`omitted_optional`), because the engine's `Authored(None)` is not shown to be the same thing (point 6 of section 11). Provenance is `authored` or `schema_default`; a value written equal to its default is `authored`.
+* **Output:** the fields sorted by key, `expected_keys` (read from the schema, sorted), the projection as canonical JSON and the `output_digest`.
+* **A nil node (Go only).** `nil_node`, naming the top-level field that holds it, wherever it is below it. The Go validation reads a nil value as an absent one and `ApplyDefaults` would then dereference it (a panic found in the review of #124), so it is refused before the defaults. Rust cannot hold a nil reference: there is no Rust peer of this check and no differential case for it; it is a representation of the Go API, as for `CanonicalBytes` (`nil_node`, #122).
+* The reasons are of this module, not codes of ADR 0007. The order of the checks is fixed so that the two languages give the same first reason.
+
+**Proof.** `testdata/p5/materialize.json` is written by `tools/p5/materialize_cases.py`, which computes every expected projection and digest itself (Python's JSON writer and `hashlib`, a third reader that has seen neither implementation); 6 accepted and 13 refused cases. Rust and Go compare against it (`rust/tests/materialize_corpus.rs`, `go/materialize_corpus_test.go`, plus hand-built shapes for what a compiled schema cannot give). Two harnesses build the **engine's own** object from the same file and compute its digest: `tools/p5/engine-harness-rust` (`MaterializedObject::try_new`, `materialized_object_digest`) and `tools/p5/engine-harness-go` (`NewMaterializedObject`, `MaterializedObjectDigest`), both against the pinned engine in CI. They also refuse one key more and one key less (`E_INCOMPLETE_OBJECT`) and see a changed value, capability or provenance change the digest. The first run of the Python-computed digests against both engines agreed. 26 planted defects (12 for Rust, 14 for Go).
+
+**What this does not prove yet.**
+* The library's output is compared to the engine **through the file**, not field by field on generated documents: the differential with the engine as the third reader, on generated flat documents, is the next step of P5-2.
+* The independence of `expected_keys` is one way so far: the case file lists them from the generator's side. The generated differential is where a key lost on both sides would be seen.
+* No fuzz target yet on the new input.

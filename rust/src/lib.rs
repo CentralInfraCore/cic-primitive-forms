@@ -20,6 +20,7 @@ pub mod emit;
 pub mod error;
 pub mod expand;
 pub mod listitem;
+pub mod materialize;
 pub mod node;
 pub mod normalize;
 pub mod parse;
@@ -56,6 +57,13 @@ pub use expand::{
     BASIS_BINDING, ORIGIN_ATTESTATION_MISMATCH,
 };
 pub use listitem::{path_of, Case, Elements, KeyComp, KeyValue, Step};
+pub use materialize::{
+    materialize_flat, MaterializeError, Materialized, MaterializedField,
+    MATERIALIZE_CAPABILITY_MISSING, MATERIALIZE_CAPABILITY_UNDECLARED,
+    MATERIALIZE_CAPABILITY_UNKNOWN, MATERIALIZE_INVALID_DOCUMENT, MATERIALIZE_NOT_FLAT,
+    MATERIALIZE_NO_DOCUMENT, MATERIALIZE_OMITTED_OPTIONAL, MATERIALIZE_SET,
+    MATERIALIZE_UNSUPPORTED,
+};
 pub use node::{Entry, Node, Pos, Value};
 pub use normalize::{denormalize, normalize, renormalize, NormalizationResult};
 pub use parse::{parse, parse_with, Limits};

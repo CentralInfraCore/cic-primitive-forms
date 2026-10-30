@@ -1,0 +1,361 @@
+{
+ "grammar": "cic-primitives-73ae469-6a188078",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "schemas": {
+  "flat": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n",
+  "flat-note": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n",
+  "flat-keyed": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: zone\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n",
+  "nested": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: ip\n        shape_type: composite\n        optional: true\n        nullable: true\n        fields:\n          - name: gateway\n            shape_type: scalar\n            scalar_type: string\n            optional: true\n            default: 10.0.0.1\n",
+  "with-set": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: tags\n        shape_type: collection\n        collection_variant: set\n        item_scalar_type: string\n        optional: true\n        role:\n          authority: config\n        default: [a]\n",
+  "with-list": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: routes\n        shape_type: collection\n        collection_variant: list\n        optional: true\n        item_fields:\n          - name: to\n            shape_type: scalar\n            scalar_type: string\n            role: key\n"
+ },
+ "cases": [
+  {
+   "id": "flat.minimal",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"schema_default\",\"value\":\"x\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"schema_default\",\"value\":\"d\"},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"schema_default\",\"value\":1500},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:f9c6b8f8a235e38903c47d29c07e5b23d548f2990fa23e2080ac15de9cc0f157"
+   }
+  },
+  {
+   "id": "flat.all-written",
+   "schema": "flat",
+   "yaml": "type: t\nenabled: false\nmtu: 0\nlabel: \"\"\nmaybe: ~\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"authored\",\"value\":false},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"authored\",\"value\":\"\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"authored\",\"value\":null},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"authored\",\"value\":0},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:f7d9fcc0c9b14f6ed2947409caac44f6cd8c461648d891eb5ddac8276442059c"
+   }
+  },
+  {
+   "id": "flat.equal-to-default-is-authored",
+   "schema": "flat",
+   "yaml": "type: t\nenabled: true\nmtu: 1500\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"authored\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"schema_default\",\"value\":\"x\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"schema_default\",\"value\":\"d\"},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"authored\",\"value\":1500},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:79d68fa293997017e8c43b6d9c4f7e9f8401163b4dc36b5cd0c1728a7eeecc0b"
+   }
+  },
+  {
+   "id": "flat.escaping",
+   "schema": "flat",
+   "yaml": "type: \"a<b>&c\\u2028\\td\"\nlabel: \"é/ü\"\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"authored\",\"value\":\"é/ü\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"schema_default\",\"value\":\"d\"},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"schema_default\",\"value\":1500},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"a\\u003cb\\u003e\\u0026c\\u2028\\td\"}]}",
+    "output_digest": "sha256:e84cb93bc9f9efee0e3eed3cefdcb317080aaa4ae077b48eee7f0ddacd68e17a"
+   }
+  },
+  {
+   "id": "flat.note-written",
+   "schema": "flat-note",
+   "yaml": "type: t\nnote: n\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "note": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "enabled",
+     "note",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"note\",\"provenance\":\"authored\",\"value\":\"n\"},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:72be05451a9913c2424d8f0d30effdc778115b45884debf037db100ebffd3ae0"
+   }
+  },
+  {
+   "id": "flat.keys-sort-by-bytes-not-schema-order",
+   "schema": "flat-keyed",
+   "yaml": "zone: z\ntype: t\n",
+   "capabilities": {
+    "zone": "implemented",
+    "type": "implemented"
+   },
+   "expect": {
+    "expected_keys": [
+     "type",
+     "zone"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"},{\"capability\":\"implemented\",\"key\":\"zone\",\"provenance\":\"authored\",\"value\":\"z\"}]}",
+    "output_digest": "sha256:a88b00788649674eb1aecd08663f09e3174e1010364c7e4d973e4fa3c121eea4"
+   }
+  },
+  {
+   "id": "refused.omitted-optional-without-default",
+   "schema": "flat-note",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "note": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "omitted_optional",
+     "note"
+    ]
+   }
+  },
+  {
+   "id": "refused.nested-schema",
+   "schema": "nested",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "not_flat",
+     "ip"
+    ]
+   }
+  },
+  {
+   "id": "refused.nested-schema-even-when-the-document-is-fine",
+   "schema": "nested",
+   "yaml": "type: t\nip:\n  gateway: g\n",
+   "capabilities": {
+    "type": "implemented",
+    "ip": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "not_flat",
+     "ip"
+    ]
+   }
+  },
+  {
+   "id": "refused.set-schema",
+   "schema": "with-set",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "set",
+     "tags"
+    ]
+   }
+  },
+  {
+   "id": "refused.list-schema",
+   "schema": "with-list",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "not_flat",
+     "routes"
+    ]
+   }
+  },
+  {
+   "id": "refused.capability-missing",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "capability_missing",
+     "maybe"
+    ]
+   }
+  },
+  {
+   "id": "refused.capability-empty-map",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {},
+   "expect": {
+    "refused": [
+     "capability_missing",
+     "type"
+    ]
+   }
+  },
+  {
+   "id": "refused.capability-unknown-spelling",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "Implemented",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "capability_unknown",
+     "mtu"
+    ]
+   }
+  },
+  {
+   "id": "refused.capability-unverified",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "unverified",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "capability_unknown",
+     "label"
+    ]
+   }
+  },
+  {
+   "id": "refused.capability-undeclared-key",
+   "schema": "flat",
+   "yaml": "type: t\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented",
+    "zzz": "implemented",
+    "aaa": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "capability_undeclared",
+     "aaa"
+    ]
+   }
+  },
+  {
+   "id": "refused.invalid-document-unknown-field",
+   "schema": "flat",
+   "yaml": "type: t\nbogus: 1\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "invalid_document",
+     ""
+    ]
+   }
+  },
+  {
+   "id": "refused.invalid-document-mandatory-missing",
+   "schema": "flat",
+   "yaml": "label: l\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "invalid_document",
+     ""
+    ]
+   }
+  },
+  {
+   "id": "refused.wrong-scalar-type-is-unsupported-by-the-validation",
+   "schema": "flat",
+   "yaml": "type: t\nmtu: big\n",
+   "capabilities": {
+    "type": "implemented",
+    "enabled": "not_implemented",
+    "mtu": "deprecated",
+    "label": "implemented",
+    "maybe": "implemented"
+   },
+   "expect": {
+    "refused": [
+     "unsupported",
+     ""
+    ]
+   }
+  }
+ ]
+}

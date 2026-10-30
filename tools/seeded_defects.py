@@ -591,6 +591,59 @@ DEFECTS = [
      [("\tif n == nil {\n\t\treturn &CanonicalError{CanonicalNilNode}\n\t}\n", "")]),
     ("go", "canonical: a string that is not UTF-8 is written", "canonical.go",
      [("\tif !utf8.ValidString(s) {", "\tif !utf8.ValidString(s) && false {")]),
+    # P5-2: the flat materialization (go/materialize.go, rust/src/materialize.rs). The shared cases testdata/p5/materialize.json and the hand-built shapes must turn red on each.
+    ("rust", "materialize: a set does not stop the materialization", "src/materialize.rs",
+     [("            ShapeType::Set { .. } => return Err(refuse(MATERIALIZE_SET, name)),\n", "            ShapeType::Set { .. } => {}\n")]),
+    ("rust", "materialize: a nested composite is accepted", "src/materialize.rs",
+     [("ShapeType::Composite(_) | ShapeType::List { .. } | ShapeType::DeclaredList { .. } => {", "ShapeType::Composite(_) => {}\n            ShapeType::List { .. } | ShapeType::DeclaredList { .. } => {")]),
+    ("rust", "materialize: a field with no capability is given implemented", "src/materialize.rs",
+     [("            None => return Err(refuse(MATERIALIZE_CAPABILITY_MISSING, name)),\n", "            None => {}\n")]),
+    ("rust", "materialize: a capability of another spelling is not refused", "src/materialize.rs",
+     [("Some(c) if !CAPABILITIES.contains(&c.as_str()) => {", "Some(c) if false && !CAPABILITIES.contains(&c.as_str()) => {")]),
+    ("rust", "materialize: a capability for an undeclared key is not refused", "src/materialize.rs",
+     [("        if !declared.iter().any(|(name, _)| name == key) {", "        if false && !declared.iter().any(|(name, _)| name == key) {")]),
+    ("rust", "materialize: an omitted optional field is skipped, not refused", "src/materialize.rs",
+     [("            None => return Err(refuse(MATERIALIZE_OMITTED_OPTIONAL, name)),", "            None => continue,")]),
+    ("rust", "materialize: a default is reported as authored", "src/materialize.rs",
+     [("            PROVENANCE_SCHEMA_DEFAULT\n        } else {", "            PROVENANCE_AUTHORED\n        } else {")]),
+    ("rust", "materialize: the provenance of a default is spelled default", "src/materialize.rs",
+     [('const PROVENANCE_SCHEMA_DEFAULT: &str = "schema_default";', 'const PROVENANCE_SCHEMA_DEFAULT: &str = "default";')]),
+    ("rust", "materialize: the fields are not sorted by key", "src/materialize.rs",
+     [("    fields.sort_by(|x, y| x.key.cmp(&y.key));\n", "")]),
+    ("rust", "materialize: the expected keys are taken in schema order", "src/materialize.rs",
+     [("    expected_keys.sort();\n", "")]),
+    ("rust", "materialize: the capability is dropped from the projection", "src/materialize.rs",
+     [('                entry("capability", text(&f.capability)),\n', "")]),
+    ("rust", "materialize: a document the validation refuses is accepted as empty", "src/materialize.rs",
+     [("        _ => return Err(refuse(MATERIALIZE_INVALID_DOCUMENT, \"\")),", "        _ => Vec::new(),")]),
+    ("go", "materialize: a set does not stop the materialization", "materialize.go",
+     [("\t\tcase ShapeSet:\n\t\t\treturn nil, &MaterializeError{MaterializeSet, f.Name}\n", "")]),
+    ("go", "materialize: a nested composite is accepted", "materialize.go",
+     [("case ShapeComposite, ShapeList, ShapeDeclaredList:", "case ShapeList, ShapeDeclaredList:")]),
+    ("go", "materialize: a field with no capability is given implemented", "materialize.go",
+     [("\t\tif !ok {\n\t\t\treturn nil, &MaterializeError{MaterializeCapabilityMissing, f.Name}\n\t\t}\n", "\t\t_ = ok\n")]),
+    ("go", "materialize: a capability of another spelling is not refused", "materialize.go",
+     [("if !slices.Contains(materializeCapabilities, c) {", "if false && !slices.Contains(materializeCapabilities, c) {")]),
+    ("go", "materialize: a capability for an undeclared key is not refused", "materialize.go",
+     [("\t\tif !isDeclared(k) {", "\t\tif false && !isDeclared(k) {")]),
+    ("go", "materialize: an omitted optional field is skipped, not refused", "materialize.go",
+     [("\t\t\treturn nil, &MaterializeError{MaterializeOmittedOptional, f.Name}", "\t\t\tcontinue")]),
+    ("go", "materialize: a default is reported as authored", "materialize.go",
+     [("provenance = provenanceSchemaDefault", "provenance = provenanceAuthored")]),
+    ("go", "materialize: the provenance of a default is spelled default", "materialize.go",
+     [('provenanceSchemaDefault = "schema_default"', 'provenanceSchemaDefault = "default"')]),
+    ("go", "materialize: the fields are not sorted by key", "materialize.go",
+     [("return strings.Compare(x.Key, y.Key) })\n\texpected", "return strings.Compare(x.Key, y.Key) * 0 })\n\texpected")]),
+    ("go", "materialize: the expected keys are taken in schema order", "materialize.go",
+     [("\tslices.Sort(expected)\n", "")]),
+    ("go", "materialize: the capability is dropped from the projection", "materialize.go",
+     [('\t\t\t{Key: "capability", Value: textNode(f.Capability)},\n', "")]),
+    ("go", "materialize: a nil node is handed to the defaults", "materialize.go",
+     [("\t\tif hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}", "\t\tif false && hasNilNode(e.Value) {\n\t\t\treturn nil, &MaterializeError{MaterializeNilNode, e.Key}")]),
+    ("go", "materialize: a nil node below a value is not looked for", "materialize.go",
+     [("\tfor _, item := range n.Items {\n\t\tif hasNilNode(item) {", "\tfor _, item := range n.Items[:0] {\n\t\tif hasNilNode(item) {")]),
+    ("go", "materialize: the undeclared capability keys are checked in map order", "materialize.go",
+     [("\tslices.Sort(given)\n", "")]),
 ]
 
 
@@ -616,7 +669,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus"]
     return ["go", "test", "-count=1", "./..."]
 
 
