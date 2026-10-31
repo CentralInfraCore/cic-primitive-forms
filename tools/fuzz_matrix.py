@@ -15,9 +15,9 @@ import json
 import re
 import sys
 
-GO_TARGETS = ("Parse", "Validate", "Access", "ExpandCollapse", "ApplyDefaults", "Normalize", "ResolvePolicy", "SourceSpan", "EditScalar", "Diff", "Patch", "ReadDiff", "Canonical", "Materialize")
-RUST_TARGETS = ("parse", "validate", "access", "expand", "defaults", "normalize", "resolve", "source_span", "edit_scalar", "diff", "patch", "read_diff", "canonical", "materialize")
-GO_OWN = re.compile(r"^go/(fuzz_test\.go$|testdata/fuzz/)")
+GO_TARGETS = ("Parse", "Validate", "Access", "ExpandCollapse", "ApplyDefaults", "Normalize", "ResolvePolicy", "SourceSpan", "EditScalar", "Diff", "Patch", "ReadDiff", "Canonical", "Materialize", "Receipt")
+RUST_TARGETS = ("parse", "validate", "access", "expand", "defaults", "normalize", "resolve", "source_span", "edit_scalar", "diff", "patch", "read_diff", "canonical", "materialize", "receipt")
+GO_OWN = re.compile(r"^go/((receipt_)?fuzz_test\.go$|testdata/fuzz/)")
 RUST_OWN = re.compile(r"^rust/fuzz/")
 SHARED = re.compile(r"^(corpus|testdata)/")
 

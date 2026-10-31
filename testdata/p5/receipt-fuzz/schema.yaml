@@ -1,0 +1,34 @@
+spec:
+  identity:
+    atomic_ref: "cic:core:Identity@v0.2.0"
+    kind: Demo
+    namespace: "cic:demo"
+    version: v1.0.0
+  config_surface:
+    aggregate_ref: "cic:core:ConfigSurface@v0.2.0"
+    nodes:
+      - name: type
+        shape_type: scalar
+        scalar_type: string
+        mandatory: true
+      - name: enabled
+        shape_type: scalar
+        scalar_type: boolean
+        optional: true
+        default: true
+      - name: mtu
+        shape_type: scalar
+        scalar_type: integer
+        optional: true
+        default: 1500
+      - name: label
+        shape_type: scalar
+        scalar_type: string
+        optional: true
+        default: x
+      - name: maybe
+        shape_type: scalar
+        scalar_type: string
+        optional: true
+        nullable: true
+        default: d

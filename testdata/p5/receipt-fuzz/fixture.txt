@@ -1,0 +1,13 @@
+grammar	cic-primitives-73ae469-6a188078
+access_keys	value,access,modify,inherit,default_injection,conformance
+primitive_release	fixture/@v0.0.0
+primitive_source_commit	0000000000000000000000000000000000000000
+primitive_build_hash	sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36
+grammar_sha256	sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51
+grammar_schema_sha256	sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c
+engine_version	0.0.0
+cap:type	implemented
+cap:enabled	not_implemented
+cap:mtu	deprecated
+cap:label	implemented
+cap:maybe	implemented

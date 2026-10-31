@@ -113,3 +113,10 @@ path = "fuzz_targets/materialize.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "receipt"
+path = "fuzz_targets/receipt.rs"
+test = false
+doc = false
+bench = false

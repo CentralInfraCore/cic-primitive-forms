@@ -46,8 +46,10 @@ class TheTablesAreTheCode(unittest.TestCase):
     """A target added to the code and not to the table (or the reverse) would silently never run in diff mode."""
 
     def test_go_targets(self):
-        with open(os.path.join(ROOT, "go", "fuzz_test.go"), encoding="utf-8") as fh:
-            found = re.findall(r"^func Fuzz(\w+)\(", fh.read(), re.M)
+        found = []
+        for name in ("fuzz_test.go", "receipt_fuzz_test.go"):   # the receipt target (P5-3) has its own file, with its property
+            with open(os.path.join(ROOT, "go", name), encoding="utf-8") as fh:
+                found += re.findall(r"^func Fuzz(\w+)\(", fh.read(), re.M)
         self.assertEqual(sorted(found), sorted(fm.GO_TARGETS))
 
     def test_rust_targets(self):
