@@ -4,10 +4,11 @@
 
 use cic_primitive_forms::access::sha256_hex;
 use cic_primitive_forms::{
-    parse, receipt_flat_fixture, EngineIdentity, IdentityFailure, ReceiptError, ReleaseFixture,
-    SchemaInput, MATERIALIZE_CAPABILITY_MISSING, MATERIALIZE_NO_DOCUMENT, RECEIPT_ENGINE_FIELD,
-    RECEIPT_PATH_NOT_ONE_SEGMENT, RECEIPT_RELEASE_FIELD, RECEIPT_SCHEMA_VERSION_EMPTY,
-    SCHEMA_INVALID_IDENTITY, SCHEMA_SOURCE_BINDING,
+    parse, receipt_flat_fixture, EngineIdentity, Entry, IdentityFailure, Node, ReceiptError,
+    ReleaseFixture, SchemaInput, Value, MATERIALIZE_CAPABILITY_MISSING, MATERIALIZE_NO_DOCUMENT,
+    MATERIALIZE_UNSUPPORTED, RECEIPT_ENGINE_FIELD, RECEIPT_PATH_NOT_ONE_SEGMENT,
+    RECEIPT_RELEASE_FIELD, RECEIPT_SCHEMA_VERSION_EMPTY, SCHEMA_INVALID_IDENTITY,
+    SCHEMA_SOURCE_BINDING,
 };
 use serde_json::Value as J;
 use std::collections::BTreeMap;
@@ -400,4 +401,84 @@ fn the_order_of_the_checks_names_the_first_reason() {
         b.run_with(&b.schema, None).unwrap_err(),
         ReceiptError::Materialize(m) if m.reason == MATERIALIZE_NO_DOCUMENT
     ));
+}
+
+#[test]
+fn a_digest_has_only_lowercase_hex_characters_at_every_position() {
+    // `all` taken for `any` accepts a digest with one good character: the wrong one is put at the first, a middle and the last position
+    let mut b = base();
+    for c in ['g', 'A', '/', 'G', ':'] {
+        for at in [0usize, 31, 63] {
+            let mut hex = "a".repeat(64);
+            hex.replace_range(at..=at, &c.to_string());
+            b.release.primitive_build_hash = format!("sha256:{hex}");
+            let (reason, field) = refusal(b.run().unwrap_err());
+            assert_eq!(
+                (reason, field.as_str()),
+                (RECEIPT_RELEASE_FIELD, "primitive_build_hash"),
+                "{c} at {at}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_canonical_errors_of_the_receipt_are_refusals_and_the_unreachable_ones_are_shown_so() {
+    // The canonical bytes can fail on a float, an integer beyond 64 bits or a repeated key.
+    //  * The authored input: a node built by a caller can repeat a key and the materialization does not see it, so the receipt must refuse it itself (a `Canonical`
+    //    error, never a panic). A number the model does not carry is refused earlier, by the materialization (`unsupported`).
+    //  * A default value and the receipt body cannot fail: the defaults come from a compiled schema (text, whose compiler refuses a float or a large integer, below),
+    //    the flat fields are scalars, and the body is made of texts and the integer 1.
+    let b = base();
+    let entry = |k: &str, v: Value| Entry {
+        key: k.to_string(),
+        key_pos: None,
+        value: Node::new(v),
+    };
+    let run = |doc: Node| {
+        let sha = sha256_hex(b.schema.as_bytes());
+        receipt_flat_fixture(
+            &input(&b.schema, &sha, &b.grammar),
+            Some(&doc),
+            &b.a,
+            &b.caps,
+            &b.release,
+            &b.engine,
+        )
+    };
+    let number = vec![
+        entry("type", Value::Str("t".into())),
+        entry("mtu", Value::Unsupported("1.5".into())),
+    ];
+    match run(Node::new(Value::Map(number))) {
+        Err(ReceiptError::Materialize(m)) => assert_eq!(m.reason, MATERIALIZE_UNSUPPORTED),
+        other => panic!("{other:?}"),
+    }
+    let repeated = vec![
+        entry("type", Value::Str("t".into())),
+        entry("mtu", Value::Int(1)),
+        entry("mtu", Value::Int(2)),
+    ];
+    match run(Node::new(Value::Map(repeated))) {
+        Err(ReceiptError::Canonical(e)) => assert_eq!(e.reason, "duplicate_key"),
+        other => panic!("{other:?}"),
+    }
+    // text never gets that far: the parser refuses the spellings, and so does the schema compiler for a default
+    for y in [
+        "type: t\nmtu: 99999999999999999999\n",
+        "type: t\nmtu: 1.5\n",
+        "type: t\nmtu: 1\nmtu: 2\n",
+    ] {
+        assert!(parse(y).is_err(), "{y:?}");
+    }
+    for d in ["99999999999999999999", "1.5"] {
+        let schema = b.schema.replace("default: 1500", &format!("default: {d}"));
+        assert!(
+            matches!(
+                b.run_with(&schema, Some(&b.yaml)).unwrap_err(),
+                ReceiptError::Identity(_)
+            ),
+            "a default of {d}"
+        );
+    }
 }
