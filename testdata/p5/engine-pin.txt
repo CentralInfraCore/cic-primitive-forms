@@ -1,3 +1,3 @@
 # The cic-primitive-engine commit whose canonicalize vectors testdata/p5/canonical-vectors.tsv is checked against (ADR 0014, decision A).
 repo CentralInfraCore/cic-primitive-engine
-commit 93c793aa8cd59ac720af7a85630deaaf88a7d0d6
+commit a6a06806c539882cb94f0159eb177c1b98be54c6
