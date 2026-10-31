@@ -15,8 +15,8 @@
 
 use cic_primitive_forms::access::sha256_hex;
 use cic_primitive_forms::{
-    canonical_bytes, canonical_digest, emit, parse, receipt_flat_fixture, EngineIdentity, Node,
-    ReceiptError, ReleaseFixture, SchemaInput, Value, MATERIALIZE_CAPABILITY_MISSING,
+    canonical_bytes, canonical_digest, emit, parse, receipt_flat_fixture, EngineIdentity, Error,
+    Node, ReceiptError, ReleaseFixture, SchemaInput, Value, MATERIALIZE_CAPABILITY_MISSING,
     MATERIALIZE_CAPABILITY_UNDECLARED, MATERIALIZE_CAPABILITY_UNKNOWN,
     MATERIALIZE_INVALID_DOCUMENT, MATERIALIZE_OMITTED_OPTIONAL, MATERIALIZE_UNSUPPORTED,
     RECEIPT_ENGINE_FIELD, RECEIPT_PATH_NOT_ONE_SEGMENT, RECEIPT_RELEASE_FIELD,
@@ -228,6 +228,25 @@ fn same(a: &Outcome, b: &Outcome) -> bool {
         }
         (Err(x), Err(y)) => format!("{x:?}") == format!("{y:?}"),
         _ => false,
+    }
+}
+
+/// Why an input is left to the parser, as a stable token for the trace of the replay (the comparison with the Go round asks for the Rust reason of the one class of parsers'
+/// difference it lets through): `short`, `not_utf8`, `syntax: ...`, `unsupported: ...`, `limit: ...`, `contract: CODE`, or `parsed` for an input that is not left.
+pub fn left_reason(data: &[u8]) -> String {
+    let Some(rest) = data.get(2..) else {
+        return "short".into();
+    };
+    let Ok(text) = std::str::from_utf8(rest) else {
+        return "not_utf8".into();
+    };
+    match parse(text) {
+        Ok(_) => "parsed".into(),
+        Err(Error::Syntax(m)) => format!("syntax: {m}"),
+        Err(Error::Unsupported(m)) => format!("unsupported: {m}"),
+        Err(Error::Limit(m)) => format!("limit: {m}"),
+        Err(Error::Contract(v)) => format!("contract: {}", v.first().map_or("", |x| x.code)),
+        Err(other) => format!("other: {other:?}"),
     }
 }
 

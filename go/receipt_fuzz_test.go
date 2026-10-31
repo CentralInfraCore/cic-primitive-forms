@@ -222,6 +222,21 @@ func mapsEqual(a, b map[string]string) bool {
 	return true
 }
 
+// receiptFuzzLeftReason says why an input is left to the parser, for the trace of the replay: short, not_utf8, "syntax: ..." with the parser's own message, or parsed for an
+// input that is not left. The comparison with the Rust round uses the Rust reason; this one is for reading.
+func receiptFuzzLeftReason(data []byte) string {
+	if len(data) < 2 {
+		return "short"
+	}
+	if !utf8.Valid(data[2:]) {
+		return "not_utf8"
+	}
+	if _, err := forms.Parse(string(data[2:])); err != nil {
+		return "syntax: " + strings.SplitN(err.Error(), "\n", 2)[0]
+	}
+	return "parsed"
+}
+
 // receiptFuzzCheck runs the property on one input and fails t, with the input in the message, when it does not hold.
 func receiptFuzzCheck(t testing.TB, fx receiptFuzzFixture, data []byte) (receiptEnd, *receiptFuzzMade) {
 	t.Helper()
@@ -549,7 +564,11 @@ func TestReceiptFuzzSeeds(t *testing.T) {
 	for n := 0; n < receiptFuzzRounds; n++ {
 		data := receiptFuzzMutated(all, &rng, n)
 		end, made := receiptFuzzCheck(t, fx, data)
-		fmt.Fprintf(&trace, "%d\t%s\t%x\n", n, end, data)
+		reason := ""
+		if end == endLeft {
+			reason = receiptFuzzLeftReason(data)
+		}
+		fmt.Fprintf(&trace, "%d\t%s\t%x\t%s\n", n, end, data, reason)
 		mutatedEnds[end]++
 		if made != nil && dumped < receiptFuzzDumped {
 			dumped++

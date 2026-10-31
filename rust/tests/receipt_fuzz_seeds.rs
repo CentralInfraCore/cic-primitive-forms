@@ -183,8 +183,13 @@ fn the_seeds_hold_the_property_and_reach_every_end() {
     for n in 0..ROUNDS {
         let data = mutated(&all, &mut rng, n);
         let (ended, made) = check::run(&data);
+        let reason = if ended == Ended::Left {
+            check::left_reason(&data)
+        } else {
+            String::new()
+        };
         trace += &format!(
-            "{n}\t{ended:?}\t{}\n",
+            "{n}\t{ended:?}\t{}\t{reason}\n",
             data.iter().map(|b| format!("{b:02x}")).collect::<String>()
         );
         *mutated_ends.entry(format!("{ended:?}")).or_default() += 1;
