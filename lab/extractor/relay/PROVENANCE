@@ -1,0 +1,8 @@
+# Copied from CentralInfraCore/CIC_Relay at 86eaca2 ("feat(tools): read Go with go/ast in go.meta.gen ..."), unchanged.
+# path in CIC_Relay -> sha256
+tools/goastdump/go.mod  692e1e075c2b5277138b897aa34fa36ca81f1b6e8b4ec5bffdc5b324b3f452c8
+tools/goastdump/main.go  941e74495c8ee5f208d1874fc6a0060bca6bcb257cc480f4c76e54a04531f947
+tools/goastdump/main_test.go  32d23569235bb08837762aeccc5f32cd7b23e74b1d86be2e317cc9064ba17bef
+tools/goastdump/testdata/broken.go.txt  b8afc53682263a6b0fa4c94a1eecc7d3d02c30c6bff24e58d601a01c5ffcf010
+tools/goastdump/testdata/sample.go  ddaf9783759f686a8e7e5dc7b29df194c205a2c5512a435f3c27311802ea9c5b
+tools/go.meta.gen.py  4ab385d3916b6372687ebbb79e03415cda903e71e852f0ec6935212f5ce02d86
