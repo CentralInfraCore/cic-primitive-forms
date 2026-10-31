@@ -1,0 +1,28 @@
+name: lab
+# The verification lab branch (lab/README.md). The gate workflows of main were moved to lab/ci-reference/workflows, so a push or a
+# pull request on this branch runs only what is here. This job only shows that the subject code still builds and passes its tests.
+on:
+  push:
+    branches: ["lab/**"]
+permissions:
+  contents: read
+env:
+  RUST_TOOLCHAIN: "1.99.1"
+jobs:
+  subject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: go/go.sum
+      - run: go test -count=1 ./...
+        working-directory: go
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust -> target
+      - run: cargo +"$RUST_TOOLCHAIN" test --locked
+        working-directory: rust
