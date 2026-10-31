@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "a one-character difference",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

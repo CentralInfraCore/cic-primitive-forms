@@ -32,6 +32,7 @@ pub mod recognize;
 pub mod resolve;
 pub(crate) mod role;
 pub mod schema;
+pub mod schema_identity;
 pub mod sourcespan;
 pub mod validate;
 
@@ -82,5 +83,9 @@ pub use resolve::{
     REASON_RESET_NO_LOCAL_RULE, REASON_UNKNOWN_OPERATION,
 };
 pub use schema::{compile_schema, CompiledSchema, SchemaInput};
+pub use schema_identity::{
+    bind_schema_identity, schema_digest, schema_identity, schema_name, IdentityFailure,
+    SchemaIdentity, SchemaIdentityError, SCHEMA_INVALID_IDENTITY, SCHEMA_SOURCE_BINDING,
+};
 pub use sourcespan::{source_span, SourceSpan, SpanStyle};
 pub use validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType, Validation};

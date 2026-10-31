@@ -1,0 +1,13 @@
+spec:
+  identity:
+    atomic_ref: "cic:core:Identity@v0.2.0"
+    kind: StorageResource
+    namespace: "cic:storage"
+    version: v1.2.1
+  config_surface:
+    aggregate_ref: "cic:core:ConfigSurface@v0.2.0"
+    nodes:
+      - name: type
+        shape_type: scalar
+        scalar_type: string
+        mandatory: true

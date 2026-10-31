@@ -591,6 +591,47 @@ DEFECTS = [
      [("\tif n == nil {\n\t\treturn &CanonicalError{CanonicalNilNode}\n\t}\n", "")]),
     ("go", "canonical: a string that is not UTF-8 is written", "canonical.go",
      [("\tif !utf8.ValidString(s) {", "\tif !utf8.ValidString(s) && false {")]),
+    # P5-3: the schema identity (go/schemaidentity.go, rust/src/schema_identity.rs). The engine's vectors (cic-primitive-engine PR #64) and the binding tests must turn red on each.
+    ("rust", "schema identity: the digest is taken over CRLF-normalized bytes", "src/schema_identity.rs",
+     [("    canonical_digest(source)\n", "    canonical_digest(String::from_utf8_lossy(source).replace(\"\\r\\n\", \"\\n\").as_bytes())\n")]),
+    ("rust", "schema identity: the final newline is dropped before hashing", "src/schema_identity.rs",
+     [("    canonical_digest(source)\n", "    canonical_digest(source.strip_suffix(b\"\\n\").unwrap_or(source))\n")]),
+    ("rust", "schema identity: a digest mismatch is accepted", "src/schema_identity.rs",
+     [("    if claimed != actual {\n", "    if claimed != actual && claimed.is_empty() {\n")]),
+    ("rust", "schema identity: a missing claim is taken as a match", "src/schema_identity.rs",
+     [("        return Err(binding(\"R-SCHEMA-DIGEST-MISSING\"));\n", "        return Ok((schema_name(namespace, kind)?, schema_digest(source)));\n")]),
+    ("rust", "schema identity: a colon in the kind is allowed", "src/schema_identity.rs",
+     [("Some(k) if !k.is_empty() && !k.contains(':') => k,", "Some(k) if !k.is_empty() => k,")]),
+    ("rust", "schema identity: an empty namespace component is allowed", "src/schema_identity.rs",
+     [("Some(n) if !n.is_empty() && !n.split(':').any(str::is_empty) => n,", "Some(n) if !n.is_empty() => n,")]),
+    ("rust", "schema identity: the namespace is trimmed", "src/schema_identity.rs",
+     [("    Ok(format!(\"{namespace}:{kind}\"))\n", "    Ok(format!(\"{}:{kind}\", namespace.trim()))\n")]),
+    ("rust", "schema identity: the kind is case-folded", "src/schema_identity.rs",
+     [("    Ok(format!(\"{namespace}:{kind}\"))\n", "    Ok(format!(\"{namespace}:{}\", kind.to_lowercase()))\n")]),
+    ("rust", "schema identity: the version is not the authored one", "src/schema_identity.rs",
+     [("        schema_version: compiled.version,\n", "        schema_version: String::new(),\n")]),
+    ("rust", "schema identity: the namespace and the kind are swapped", "src/schema_identity.rs",
+     [("        Some(&compiled.namespace),\n        Some(&compiled.kind),\n", "        Some(&compiled.kind),\n        Some(&compiled.namespace),\n")]),
+    ("go", "schema identity: the digest is taken over CRLF-normalized bytes", "schemaidentity.go",
+     [("func SchemaDigest(source []byte) string { return CanonicalDigest(source) }", "func SchemaDigest(source []byte) string {\n\treturn CanonicalDigest([]byte(strings.ReplaceAll(string(source), \"\\r\\n\", \"\\n\")))\n}")]),
+    ("go", "schema identity: the final newline is dropped before hashing", "schemaidentity.go",
+     [("func SchemaDigest(source []byte) string { return CanonicalDigest(source) }", "func SchemaDigest(source []byte) string {\n\treturn CanonicalDigest([]byte(strings.TrimSuffix(string(source), \"\\n\")))\n}")]),
+    ("go", "schema identity: a digest mismatch is accepted", "schemaidentity.go",
+     [("\tif *claimedDigest != actual {\n", "\tif *claimedDigest != actual && *claimedDigest == \"\" {\n")]),
+    ("go", "schema identity: a missing claim is taken as a match", "schemaidentity.go",
+     [("\t\treturn \"\", \"\", bindingIdentity(\"R-SCHEMA-DIGEST-MISSING\")\n", "\t\tn, e := SchemaName(namespace, kind)\n\t\treturn n, SchemaDigest(source), e\n")]),
+    ("go", "schema identity: a colon in the kind is allowed", "schemaidentity.go",
+     [("*kind == \"\" || strings.Contains(*kind, \":\")", "*kind == \"\"")]),
+    ("go", "schema identity: an empty namespace component is allowed", "schemaidentity.go",
+     [("*namespace == \"\" || hasEmptyNamespaceComponent(*namespace)", "*namespace == \"\"")]),
+    ("go", "schema identity: the namespace is trimmed", "schemaidentity.go",
+     [("\treturn *namespace + \":\" + *kind, nil\n", "\treturn strings.TrimSpace(*namespace) + \":\" + *kind, nil\n")]),
+    ("go", "schema identity: the kind is case-folded", "schemaidentity.go",
+     [("\treturn *namespace + \":\" + *kind, nil\n", "\treturn *namespace + \":\" + strings.ToLower(*kind), nil\n")]),
+    ("go", "schema identity: the version is not the authored one", "schemaidentity.go",
+     [("SchemaVersion: compiled.Version,", "SchemaVersion: \"\",")]),
+    ("go", "schema identity: the namespace and the kind are swapped", "schemaidentity.go",
+     [("&claimed, &compiled.Namespace, &compiled.Kind)", "&claimed, &compiled.Kind, &compiled.Namespace)")]),
     # P5-2: the flat materialization (go/materialize.go, rust/src/materialize.rs). The shared cases testdata/p5/materialize.json and the hand-built shapes must turn red on each.
     ("rust", "materialize: a set does not stop the materialization", "src/materialize.rs",
      [("            ShapeType::Set { .. } => return Err(refuse(MATERIALIZE_SET, name)),\n", "            ShapeType::Set { .. } => {}\n")]),
@@ -674,7 +715,7 @@ def prepare(lang, tmp):
 def command(lang):
     if lang == "rust":
         return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus", "--test", "schema_identity_contract"]
     return ["go", "test", "-count=1", "./..."]
 
 

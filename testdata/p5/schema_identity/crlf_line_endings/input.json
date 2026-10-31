@@ -1,0 +1,6 @@
+{
+  "source": "schema.yaml",
+  "claimed_digest": "sha256:b0e97e6fcb7d35585a48514acc92e2ac0145ed02f3207be811bf95d18b27e0d2",
+  "namespace": "cic:storage",
+  "kind": "StorageResource"
+}

@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "both are wrong: the digest binding is the first reason",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

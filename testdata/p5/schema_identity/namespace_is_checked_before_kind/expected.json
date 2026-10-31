@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "both are wrong: the namespace is the first reason",
+  "error": {
+    "code": "E_INVALID_SCHEMA_IDENTITY",
+    "rule": "R-SCHEMA-NAME-NAMESPACE",
+    "path": "$.spec.identity.namespace"
+  }
+}

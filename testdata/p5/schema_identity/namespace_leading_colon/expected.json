@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "empty first component",
+  "error": {
+    "code": "E_INVALID_SCHEMA_IDENTITY",
+    "rule": "R-SCHEMA-NAME-NAMESPACE",
+    "path": "$.spec.identity.namespace"
+  }
+}

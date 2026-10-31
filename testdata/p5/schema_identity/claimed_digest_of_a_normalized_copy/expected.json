@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "the CRLF source claiming the digest of its LF form: a normalized digest never stands in",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}
