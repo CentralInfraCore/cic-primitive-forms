@@ -28,6 +28,7 @@ pub mod patch;
 pub mod pathtext;
 pub mod policy;
 pub mod policyresolution;
+pub mod receipt;
 pub mod recognize;
 pub mod resolve;
 pub(crate) mod role;
@@ -75,6 +76,11 @@ pub use patch::{
 pub use pathtext::{format_path, parse_path, resolve_path, PathError, PathSeg, Resolved};
 pub use policy::{read_policy_surface, PolicyRule, PolicySurface, SurfaceRule};
 pub use policyresolution::{resolve_policy, PolicyEntry, PolicyResolution};
+pub use receipt::{
+    receipt_flat_fixture, EngineIdentity, FlatReceipt, ReceiptError, ReleaseFixture,
+    RECEIPT_ENGINE_FIELD, RECEIPT_PATH_NOT_ONE_SEGMENT, RECEIPT_RELEASE_FIELD,
+    RECEIPT_SCHEMA_VERSION_EMPTY,
+};
 pub use recognize::{recognize, Class, Outcome, Position};
 pub use resolve::{
     resolve_rule, Carrier, EffectiveRule, ObjectPolicy, PolicyGraph, PolicyObject, RuleKind,

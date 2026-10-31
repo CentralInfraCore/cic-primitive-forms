@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/CentralInfraCore/cic-primitive-engine/go/digestprojection"
 	"github.com/CentralInfraCore/cic-primitive-engine/go/materialized"
+	"github.com/CentralInfraCore/cic-primitive-engine/go/receipt"
 )
 
 type projField struct {
@@ -132,6 +134,185 @@ func differential(input, output string) {
 	fmt.Printf("engine (go): %d generated accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
 }
 
+// decode reads JSON with integers kept as json.Number, the form the engine's receipt.Parse and canonical.IsValue take.
+func decode(text string) interface{} {
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber()
+	var v interface{}
+	if err := dec.Decode(&v); err != nil {
+		fail("%v", err)
+	}
+	return v
+}
+
+func clone(v interface{}) interface{} {
+	b, err := json.Marshal(v)
+	if err != nil {
+		fail("%v", err)
+	}
+	return decode(string(b))
+}
+
+func obj(v interface{}) map[string]interface{} { return v.(map[string]interface{}) }
+
+func zeroDigest() string { return "sha256:" + strings.Repeat("0", 64) }
+
+// receipts: the engine's verifier is the gate of the receipts of this library (P5-3). For every accepted flat case the receipt in testdata/p5/receipt.json,
+// with the identity of the Go implementation in its place, is accepted by receipt.Verify against the object built from the shared projection and the authored
+// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it. The
+// expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md). The Rust peer is
+// the receipts function of tools/p5/engine-harness-rust.
+func receipts(root string) {
+	read := func(name string) []byte {
+		b, err := os.ReadFile(filepath.Join(root, "testdata", "p5", name))
+		if err != nil {
+			fail("%v", err)
+		}
+		return b
+	}
+	var materialize struct {
+		Cases []struct {
+			ID     string `json:"id"`
+			Expect struct {
+				ExpectedKeys []string `json:"expected_keys"`
+				Projection   string   `json:"projection"`
+			} `json:"expect"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(read("materialize.json"), &materialize); err != nil {
+		fail("%v", err)
+	}
+	var file struct {
+		Token string `json:"engine_identity_token"`
+		Cases []struct {
+			ID            string            `json:"id"`
+			AuthoredInput string            `json:"authored_input"`
+			Document      string            `json:"document"`
+			Binding       map[string]string `json:"binding"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(read("receipt.json"), &file); err != nil {
+		fail("%v", err)
+	}
+	type want struct{ code, rule string }
+	verify := func(doc, authored interface{}, fs []projField, keys []string, binding map[string]string) *want {
+		o, err := materialized.NewMaterializedObject(fieldsOf(fs), keySet(keys))
+		if err != nil {
+			fail("the object: %v", err)
+		}
+		r, err := receipt.Parse(doc)
+		if err == nil {
+			err = receipt.Verify(r, o, authored, receipt.PathBinding(binding))
+		}
+		if err == nil {
+			return nil
+		}
+		var re *receipt.Error
+		if !errors.As(err, &re) {
+			fail("not an engine error: %v", err)
+		}
+		return &want{re.Code, re.Rule}
+	}
+	accepted, refused := 0, 0
+	for _, c := range file.Cases {
+		var keys []string
+		var projText string
+		for _, m := range materialize.Cases {
+			if m.ID == c.ID {
+				keys, projText = m.Expect.ExpectedKeys, m.Expect.Projection
+			}
+		}
+		var projection struct {
+			Fields []projField `json:"fields"`
+		}
+		if err := json.Unmarshal([]byte(projText), &projection); err != nil {
+			fail("%s: %v", c.ID, err)
+		}
+		doc := decode(strings.ReplaceAll(c.Document, file.Token, "cic-primitive-forms-go"))
+		authored := decode(c.AuthoredInput)
+		if w := verify(doc, authored, projection.Fields, keys, c.Binding); w != nil {
+			fail("%s: the engine verifier refused the receipt of the library: %v", c.ID, *w)
+		}
+		accepted++
+		expect := func(what string, got *want, w want) {
+			if got == nil || *got != w {
+				fail("%s: %s: got %v, want %v", c.ID, what, got, w)
+			}
+			refused++
+		}
+		body := func(d interface{}) map[string]interface{} { return obj(obj(d)["materialization"]) }
+		d := clone(doc)
+		body(d)["receipt_schema_version"] = json.Number("2")
+		expect("a version the verifier does not support", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-VERSION"})
+		d = clone(doc)
+		body(d)["input_digest"] = zeroDigest()
+		expect("a changed input digest", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-INPUT"})
+		a := clone(authored)
+		obj(a)["type"] = "another"
+		expect("another authored input", verify(doc, a, projection.Fields, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-INPUT"})
+		d = clone(doc)
+		body(d)["output_digest"] = zeroDigest()
+		expect("a changed output digest", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		changed := append([]projField{}, projection.Fields...)
+		changed[0].Value = "tampered"
+		expect("another object", verify(doc, authored, changed, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		d = clone(doc)
+		body(d)["schema_version"] = ""
+		expect("an empty schema version", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-SHAPE"})
+		d = clone(doc)
+		body(d)["schema_digest"] = "sha256:ABC"
+		expect("a schema digest of a wrong form", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-DIGEST-FORMAT"})
+		d = clone(doc)
+		delete(body(d), "engine_version")
+		expect("a missing field", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-SHAPE"})
+
+		n := len(body(doc)["applied_defaults"].([]interface{}))
+		if n == 0 {
+			continue
+		}
+		list := func(d interface{}) []interface{} { return body(d)["applied_defaults"].([]interface{}) }
+		d = clone(doc)
+		obj(list(d)[0])["value_digest"] = zeroDigest()
+		expect("a changed value digest", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-VALUE"})
+		d = clone(doc)
+		obj(list(d)[0])["rule"] = "other"
+		expect("a rule that is not the literal", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-EVIDENCE-FORM"})
+		d = clone(doc)
+		body(d)["applied_defaults"] = list(d)[1:]
+		expect("an evidence entry removed", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-MEMBERSHIP"})
+		d = clone(doc)
+		body(d)["applied_defaults"] = append(list(d), list(d)[0])
+		expect("an evidence entry repeated", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-ORDER"})
+		if n > 1 {
+			d = clone(doc)
+			l := list(d)
+			l[0], l[1] = l[1], l[0]
+			expect("two evidence entries swapped", verify(d, authored, projection.Fields, keys, c.Binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-ORDER"})
+		}
+		if _, ok := c.Binding["$.enabled"]; ok {
+			b := map[string]string{}
+			for k, v := range c.Binding {
+				if k != "$.enabled" {
+					b[k] = v
+				}
+			}
+			expect("a path with no binding", verify(doc, authored, projection.Fields, keys, b), want{receipt.CodeReceiptUnbound, "R-RECEIPT-PATH-BINDING"})
+		}
+		plain := append([]projField{}, projection.Fields...)
+		for i := range plain {
+			if plain[i].Provenance == "schema_default" {
+				plain[i].Provenance = "authored"
+			}
+		}
+		// the object then says that no field was defaulted, and its digest no longer matches the receipt: the output binding is what is seen first
+		expect("an object whose provenance was changed", verify(doc, authored, plain, keys, c.Binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+	}
+	if accepted != 7 {
+		fail("%d receipts accepted, want 7", accepted)
+	}
+	fmt.Printf("engine (go): %d receipts accepted by receipt.Verify, %d altered ones refused with the engine's code and rule\n", accepted, refused)
+}
+
 func main() {
 	if len(os.Args) == 4 && os.Args[1] == "differential" {
 		differential(os.Args[2], os.Args[3])
@@ -201,4 +382,5 @@ func main() {
 		fail("checked %d accepted cases, want 7", checked)
 	}
 	fmt.Printf("engine (go): %d accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
+	receipts(os.Args[1])
 }

@@ -1,0 +1,69 @@
+{
+ "engine_identity_token": "ENGINE_IDENTITY_TOKEN",
+ "engine_version": "0.0.0",
+ "release": {
+  "primitive_release": "fixture/@v0.0.0",
+  "primitive_source_commit": "0000000000000000000000000000000000000000",
+  "primitive_build_hash": "sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36",
+  "grammar_sha256": "sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51",
+  "grammar_schema_sha256": "sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c"
+ },
+ "cases": [
+  {
+   "id": "flat.minimal",
+   "authored_input": "{\"type\":\"t\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.label\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:ba2df4903a2c14e86dc3bcca58911b44ac1d2514b7227bf6eb08cfb978f55a1b\"},{\"path\":\"$.maybe\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:3fa5834dc920d385ca9b099c9fe55dcca163a6b256a261f8f147291b0e7cf633\"},{\"path\":\"$.mtu\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:9f69998560dcfd8016442e0a32e959191df095817a164ce844c64ec5a8b0cc1b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab\",\"output_digest\":\"sha256:f9c6b8f8a235e38903c47d29c07e5b23d548f2990fa23e2080ac15de9cc0f157\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {
+    "$.enabled": "enabled",
+    "$.label": "label",
+    "$.maybe": "maybe",
+    "$.mtu": "mtu"
+   }
+  },
+  {
+   "id": "flat.all-written",
+   "authored_input": "{\"enabled\":false,\"label\":\"\",\"maybe\":null,\"mtu\":0,\"type\":\"t\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:630d880252255e85cfd8b7b302eff6f221a1e34c43bdd7ec33a0dfbf1eed0ecc\",\"output_digest\":\"sha256:f7d9fcc0c9b14f6ed2947409caac44f6cd8c461648d891eb5ddac8276442059c\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {}
+  },
+  {
+   "id": "flat.equal-to-default-is-authored",
+   "authored_input": "{\"enabled\":true,\"mtu\":1500,\"type\":\"t\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.label\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:ba2df4903a2c14e86dc3bcca58911b44ac1d2514b7227bf6eb08cfb978f55a1b\"},{\"path\":\"$.maybe\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:3fa5834dc920d385ca9b099c9fe55dcca163a6b256a261f8f147291b0e7cf633\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:6075f715c6ef03b41d53237eaead0056618b9b0d98d1db9626d5c6d63dfad324\",\"output_digest\":\"sha256:79d68fa293997017e8c43b6d9c4f7e9f8401163b4dc36b5cd0c1728a7eeecc0b\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {
+    "$.label": "label",
+    "$.maybe": "maybe"
+   }
+  },
+  {
+   "id": "flat.escaping",
+   "authored_input": "{\"label\":\"é/ü\",\"type\":\"a\\u003cb\\u003e\\u0026c\\u2028\\td\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.maybe\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:3fa5834dc920d385ca9b099c9fe55dcca163a6b256a261f8f147291b0e7cf633\"},{\"path\":\"$.mtu\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:9f69998560dcfd8016442e0a32e959191df095817a164ce844c64ec5a8b0cc1b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:f08e868d231eba33f1295baa6494a0e5ddd996ea7238b8b58d3464789a0da07d\",\"output_digest\":\"sha256:e84cb93bc9f9efee0e3eed3cefdcb317080aaa4ae077b48eee7f0ddacd68e17a\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {
+    "$.enabled": "enabled",
+    "$.maybe": "maybe",
+    "$.mtu": "mtu"
+   }
+  },
+  {
+   "id": "flat.note-written",
+   "authored_input": "{\"note\":\"n\",\"type\":\"t\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:73068bb25de1d9a3856821a6a27670150f0189364e6b05d23c7bf0060c21f3b9\",\"output_digest\":\"sha256:72be05451a9913c2424d8f0d30effdc778115b45884debf037db100ebffd3ae0\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:d4a74d586f32fe05011cf78623053108e714ef804999d138169d0309ffacdb7d\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {
+    "$.enabled": "enabled"
+   }
+  },
+  {
+   "id": "flat.keys-sort-by-bytes-not-schema-order",
+   "authored_input": "{\"type\":\"t\",\"zone\":\"z\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:899dc782f90377b4d4c5bff00c8627804687de314113078984e8e3c1b4b40825\",\"output_digest\":\"sha256:a88b00788649674eb1aecd08663f09e3174e1010364c7e4d973e4fa3c121eea4\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:04fc68df7c0c4e37bd316c9ee8d308ddc44d7b093ddf313b280be4a1cfac30cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {}
+  },
+  {
+   "id": "flat.names-sort-by-bytes-not-by-utf16",
+   "authored_input": "{\"\":\"b\",\"😀\":\"a\"}",
+   "document": "{\"materialization\":{\"applied_defaults\":[],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:7449ab8d8a38ad86aa97fa2439cf1d954a996273adf0fbc762e3633b9a6c0adf\",\"output_digest\":\"sha256:0859ac77b37f444f85fb537fd6a4e9a5c8af040bc7cfa1fe82264563e7eb4fd2\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:9e612797738d2c09bc0eb06853f16bcba8395e1eef252d185c6530673bf805ce\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+   "binding": {}
+  }
+ ]
+}

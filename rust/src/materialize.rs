@@ -188,11 +188,11 @@ pub fn materialize_flat(
     })
 }
 
-fn text(s: &str) -> Node {
+pub(crate) fn text(s: &str) -> Node {
     Node::new(Value::Str(s.to_string()))
 }
 
-fn entry(key: &str, value: Node) -> Entry {
+pub(crate) fn entry(key: &str, value: Node) -> Entry {
     Entry {
         key: key.to_string(),
         key_pos: None,

@@ -8,10 +8,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use cic_primitive_engine::reader::Value;
+use cic_primitive_engine::reader::{Map, Value};
 use cic_primitive_engine::{
-    code, materialized_object_digest, Capability, FieldEvidence, IntentEvidence, MaterializedField,
-    MaterializedObject,
+    code, materialized_object_digest, verify_receipt, Capability, FieldEvidence, IntentEvidence,
+    MaterializedField, MaterializedObject, PathBinding, Receipt,
 };
 use serde_json::Value as J;
 
@@ -22,6 +22,18 @@ fn value(j: &J) -> Value {
         J::Number(n) => Value::Int(n.as_i64().expect("an i64")),
         J::String(s) => Value::Str(s.clone()),
         other => panic!("a value outside the flat range: {other}"),
+    }
+}
+
+/// A JSON value as the engine's reader value (the receipt document and the authored input are plain JSON).
+fn to_value(j: &J) -> Value {
+    match j {
+        J::Object(m) => Value::Map(
+            Map::from_pairs(m.iter().map(|(k, v)| (k.clone(), to_value(v))))
+                .expect("no repeated key"),
+        ),
+        J::Array(a) => Value::Seq(a.iter().map(to_value).collect()),
+        other => value(other),
     }
 }
 
@@ -113,6 +125,220 @@ fn differential(input: &str, output: &str) {
     println!("engine (rust): {checked} generated accepted cases agree with the engine's try_new and digest");
 }
 
+/// The engine's verifier is the gate of the receipts of this library (P5-3): for every accepted flat case the receipt in `testdata/p5/receipt.json`, with the
+/// identity of the Rust implementation in its place, is accepted by `verify_receipt` against the object built from the shared projection and the authored
+/// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it.
+/// The expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md).
+fn body(r: &mut J) -> &mut J {
+    &mut r["materialization"]
+}
+
+fn receipts(root: &str) {
+    let materialize: J = serde_json::from_str(
+        &std::fs::read_to_string(format!("{root}/testdata/p5/materialize.json")).unwrap(),
+    )
+    .unwrap();
+    let file: J = serde_json::from_str(
+        &std::fs::read_to_string(format!("{root}/testdata/p5/receipt.json")).unwrap(),
+    )
+    .unwrap();
+    let token = file["engine_identity_token"].as_str().unwrap();
+    type Outcome = Result<(), (&'static str, &'static str)>;
+    let verify = |receipt: &J,
+                  authored: &J,
+                  projection: &J,
+                  keys: &BTreeSet<String>,
+                  binding: &BTreeMap<String, String>|
+     -> Outcome {
+        let object = MaterializedObject::try_new(fields_of(projection), keys).expect("complete");
+        let receipt = Receipt::from_value(&to_value(receipt)).map_err(|e| (e.code, e.rule))?;
+        let binding: PathBinding = binding.clone();
+        verify_receipt(&receipt, &object, &to_value(authored), &binding)
+            .map_err(|e| (e.code, e.rule))
+    };
+    let (mut accepted, mut refused) = (0, 0);
+    for c in file["cases"].as_array().unwrap() {
+        let id = c["id"].as_str().unwrap();
+        let mc = materialize["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == c["id"])
+            .unwrap();
+        let projection: J =
+            serde_json::from_str(mc["expect"]["projection"].as_str().unwrap()).unwrap();
+        let keys: BTreeSet<String> = mc["expect"]["expected_keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k.as_str().unwrap().to_string())
+            .collect();
+        let document = c["document"]
+            .as_str()
+            .unwrap()
+            .replace(token, "cic-primitive-forms-rust");
+        let receipt: J = serde_json::from_str(&document).unwrap();
+        let authored: J = serde_json::from_str(c["authored_input"].as_str().unwrap()).unwrap();
+        let binding: BTreeMap<String, String> = c["binding"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+            .collect();
+        assert_eq!(
+            verify(&receipt, &authored, &projection, &keys, &binding),
+            Ok(()),
+            "{id}: the engine verifier on the receipt of the library"
+        );
+        accepted += 1;
+
+        let mut expect = |what: &str, got: Outcome, want: (&'static str, &'static str)| {
+            assert_eq!(got, Err(want), "{id}: {what}");
+            refused += 1;
+        };
+        let mut r = receipt.clone();
+        body(&mut r)["receipt_schema_version"] = J::from(2);
+        expect(
+            "a version the verifier does not support",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-VERSION"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["input_digest"] = J::String(format!("sha256:{}", "0".repeat(64)));
+        expect(
+            "a changed input digest",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-INPUT"),
+        );
+        let mut a = authored.clone();
+        a["type"] = J::String("another".into());
+        expect(
+            "another authored input",
+            verify(&receipt, &a, &projection, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-INPUT"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["output_digest"] = J::String(format!("sha256:{}", "0".repeat(64)));
+        expect(
+            "a changed output digest",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        let mut p = projection.clone();
+        p["fields"][0]["value"] = J::String("tampered".into());
+        expect(
+            "another object",
+            verify(&receipt, &authored, &p, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["schema_version"] = J::String(String::new());
+        expect(
+            "an empty schema version",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-SHAPE"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["schema_digest"] = J::String("sha256:ABC".into());
+        expect(
+            "a schema digest of a wrong form",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-DIGEST-FORMAT"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)
+            .as_object_mut()
+            .unwrap()
+            .remove("engine_version");
+        expect(
+            "a missing field",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-SHAPE"),
+        );
+
+        let n = receipt["materialization"]["applied_defaults"]
+            .as_array()
+            .unwrap()
+            .len();
+        if n == 0 {
+            // a receipt that lists nothing for an object that has defaulted fields cannot be made from this case; see the cases with defaults
+            continue;
+        }
+        let mut r = receipt.clone();
+        body(&mut r)["applied_defaults"][0]["value_digest"] =
+            J::String(format!("sha256:{}", "0".repeat(64)));
+        expect(
+            "a changed value digest",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-VALUE"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["applied_defaults"][0]["rule"] = J::String("other".into());
+        expect(
+            "a rule that is not the literal",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-EVIDENCE-FORM"),
+        );
+        let mut r = receipt.clone();
+        body(&mut r)["applied_defaults"]
+            .as_array_mut()
+            .unwrap()
+            .remove(0);
+        expect(
+            "an evidence entry removed",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-MEMBERSHIP"),
+        );
+        let mut r = receipt.clone();
+        let first = body(&mut r)["applied_defaults"][0].clone();
+        body(&mut r)["applied_defaults"]
+            .as_array_mut()
+            .unwrap()
+            .push(first);
+        expect(
+            "an evidence entry repeated",
+            verify(&r, &authored, &projection, &keys, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-ORDER"),
+        );
+        if n > 1 {
+            let mut r = receipt.clone();
+            body(&mut r)["applied_defaults"]
+                .as_array_mut()
+                .unwrap()
+                .swap(0, 1);
+            expect(
+                "two evidence entries swapped",
+                verify(&r, &authored, &projection, &keys, &binding),
+                (code::INVALID_RECEIPT, "R-RECEIPT-ORDER"),
+            );
+        }
+        let mut b = binding.clone();
+        b.remove("$.enabled");
+        let want_unbound = (code::RECEIPT_UNBOUND, "R-RECEIPT-PATH-BINDING");
+        if binding.contains_key("$.enabled") {
+            expect(
+                "a path with no binding",
+                verify(&receipt, &authored, &projection, &keys, &b),
+                want_unbound,
+            );
+        }
+        let mut pr = projection.clone();
+        for f in pr["fields"].as_array_mut().unwrap() {
+            if f["provenance"] == "schema_default" {
+                f["provenance"] = J::String("authored".into());
+            }
+        }
+        // the object then says that no field was defaulted, and its digest no longer matches the receipt: the output binding is what is seen first
+        expect(
+            "an object whose provenance was changed",
+            verify(&receipt, &authored, &pr, &keys, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+    }
+    assert_eq!(accepted, 7, "the accepted receipts");
+    println!("engine (rust): {accepted} receipts accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let first = args
@@ -198,4 +424,5 @@ fn main() {
     }
     assert_eq!(checked, 7, "the accepted cases");
     println!("engine (rust): {checked} accepted cases agree with the engine's try_new and digest");
+    receipts(&root);
 }
