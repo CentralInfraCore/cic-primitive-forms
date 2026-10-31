@@ -1,0 +1,225 @@
+{
+ "data_files": 323,
+ "read_files": 115,
+ "unread_files": 208,
+ "misses": 0,
+ "experiments": [
+  {
+   "path": "go/testdata/fuzz/FuzzEditScalar/canary-seed",
+   "read_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/digest_is_checked_before_identity/schema.yaml",
+   "read_by": 2,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/namespace_trailing_colon/schema.yaml",
+   "read_by": 2,
+   "failed": 2,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/namespace_leading_colon/schema.yaml",
+   "read_by": 2,
+   "failed": 2,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/namespace_is_checked_before_kind/expected.json",
+   "read_by": 2,
+   "failed": 2,
+   "missed": []
+  },
+  {
+   "path": "corpus/patch/vectors.yaml",
+   "read_by": 37,
+   "failed": 37,
+   "missed": []
+  },
+  {
+   "path": "testdata/p1/expand.json",
+   "read_by": 4,
+   "failed": 4,
+   "missed": []
+  },
+  {
+   "path": "go/testdata/fuzz/FuzzCanonical/canary-seed",
+   "read_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/claimed_digest_uppercase_hex/schema.yaml",
+   "read_by": 2,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/claimed_digest_of_a_normalized_copy/schema.yaml",
+   "read_by": 2,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/claimed_digest_of_the_other_variant/schema.yaml",
+   "read_by": 2,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/kind_empty/input.json",
+   "read_by": 2,
+   "failed": 2,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/claimed_digest_empty/schema.yaml",
+   "read_by": 2,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "testdata/p5/schema_identity/namespace_leading_colon/expected.json",
+   "read_by": 2,
+   "failed": 2,
+   "missed": []
+  },
+  {
+   "path": "go/testdata/fuzz/FuzzSourceSpan/canary-seed",
+   "read_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/access/7cb6efb98ba5972a",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/parse/81d3ed8604e65b7d",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/access/11016ba8baadf074",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/parse/490dd9f7a9709bdf",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/parse/5f36b2ea290645ee",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/parse/d9b89b55dae83a63",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/validate/621bbecf05a740a2",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/validate/65d573ae4255734c",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/.gitignore",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/read_diff/seed05",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/parse/66aa56ebac8ce172",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/materialize/s09",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/read_diff/seed11",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/validate/ed0605545b9e3e1d",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "path": "rust/fuzz/corpus/canonical/s05",
+   "read_by": 0,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "dir": "go/testdata/fuzz/FuzzCanonical",
+   "listed_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "dir": "go/testdata/fuzz/FuzzValidate",
+   "listed_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "dir": "go/testdata/fuzz/FuzzEditScalar",
+   "listed_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "dir": "corpus",
+   "listed_by": 18,
+   "failed": 0,
+   "missed": []
+  },
+  {
+   "dir": "go/testdata/fuzz/FuzzResolvePolicy",
+   "listed_by": 1,
+   "failed": 1,
+   "missed": []
+  },
+  {
+   "dir": "go/testdata/fuzz/FuzzReadDiff",
+   "listed_by": 1,
+   "failed": 1,
+   "missed": []
+  }
+ ],
+ "noticed": 15
+}
