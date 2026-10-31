@@ -44,6 +44,7 @@ type Node struct {
 	Test      bool     `json:"test"`
 	SrcSHA256 string   `json:"src_sha256"`
 	Deps      []string `json:"deps"`
+	Entry     bool     `json:"entry,omitempty"` // a test the runner starts: #[test], or a function of a proptest! block
 	nameLine  int      // 0-based line of the defining name
 }
 
@@ -183,6 +184,28 @@ func bodyEnd(src []byte, from int) int {
 		i++
 	}
 	return -1
+}
+
+// hasTestAttr reports whether the attribute and doc lines right above a function's name line include #[test].
+func hasTestAttr(src []byte, nameLine int) bool {
+	lines := strings.Split(string(src), "\n")
+	for l := nameLine - 1; l >= 0 && l >= nameLine-30; l-- {
+		t := strings.TrimSpace(lines[l])
+		switch {
+		case strings.HasPrefix(t, "#[test]"):
+			return true
+		case strings.HasPrefix(t, "#[") || strings.HasPrefix(t, "///") || strings.HasPrefix(t, "//"):
+			continue
+		}
+		return false
+	}
+	return false
+}
+
+// macroTest reports whether a range rust-analyzer gave several items is a proptest! call: its functions are tests.
+func macroTest(src []byte, sp span) bool {
+	off := offset(src, sp.sl, sp.sc)
+	return strings.HasPrefix(strings.TrimSpace(string(src[off:])), "proptest!")
 }
 
 func isIdent(c byte) bool {
@@ -332,6 +355,12 @@ func main() {
 				it.node.Line, it.node.EndLine = nameLine+1, el+1
 				sum := sha256.Sum256(src[off : end+1])
 				it.node.SrcSHA256 = hex.EncodeToString(sum[:])
+				it.node.Entry = macroTest(src, sp)
+			}
+		}
+		for i := range di.items {
+			if n := di.items[i].node; n.Kind == "func" && hasTestAttr(src, n.nameLine) {
+				n.Entry = true
 			}
 		}
 		// test functions a macro made (proptest!): no definition, so a node over their text

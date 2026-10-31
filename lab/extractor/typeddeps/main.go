@@ -48,6 +48,7 @@ type Node struct {
 	SrcSHA256 string   `json:"src_sha256"` // of the declaration's source text (the spec for a type, var or const)
 	Deps      []string `json:"deps"`
 	Opaque    []string `json:"opaque,omitempty"` // why the deps may be incomplete
+	Entry     bool     `json:"entry,omitempty"`  // a test the runner starts: TestX / FuzzX of a _test.go file
 }
 
 // Graph is the output.
@@ -220,6 +221,10 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 	sum := sha256.Sum256(src[pos.Offset:endPos.Offset])
 	n := &Node{ID: id, Kind: kind, File: rel, Line: pos.Line, EndLine: endPos.Line, Test: strings.HasSuffix(rel, "_test.go"),
 		SrcSHA256: hex.EncodeToString(sum[:]), Opaque: opaque}
+	if n.Test && kind == "func" {
+		name := id[strings.LastIndex(id, ".")+1:]
+		n.Entry = strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Fuzz")
+	}
 	b.nodes[id] = n
 	deps := map[string]bool{}
 	for _, w := range walk {

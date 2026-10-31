@@ -43,6 +43,8 @@ jobs:
       - run: lab/measure/run.sh "$RUNNER_TEMP/lab-out"
         env:
           CIC_FORMS_ROOT: ${{ github.workspace }}
+      # the Merkle key moves for exactly the nodes that reach a changed declaration: every node of the graph, one at a time
+      - run: MERKLE_GRAPH="$RUNNER_TEMP/lab-out/typed.json" python3 -m unittest lab/measure/test_merkle.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -63,6 +65,7 @@ jobs:
       - run: lab/measure/run_rust.sh "$RUNNER_TEMP/lab-out"
         env:
           CIC_FORMS_ROOT: ${{ github.workspace }}
+      - run: MERKLE_GRAPH="$RUNNER_TEMP/lab-out/rtyped.json" python3 -m unittest lab/measure/test_merkle.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
