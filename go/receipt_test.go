@@ -344,3 +344,44 @@ func TestADigestHasOnlyLowercaseHexCharacters(t *testing.T) {
 		t.Fatal("a digest")
 	}
 }
+
+// The canonical bytes can fail on a float, an integer beyond 64 bits or a repeated key. The authored input: a node built by a caller can repeat a key and the
+// materialization does not see it, so the receipt must refuse it itself (ReceiptCanonical, never a panic); a number the model does not carry is refused earlier,
+// by the materialization. A default value and the receipt body cannot fail (the defaults come from a compiled schema whose compiler refuses a float or a large
+// integer, the flat fields are scalars, the body is made of texts and the integer 1).
+func TestTheCanonicalErrorsOfTheReceiptAreRefusals(t *testing.T) {
+	b := newReceiptBase(t)
+	text := []byte(b.schema)
+	run := func(entries []Entry) error {
+		doc := &Node{Kind: KindMap, Entries: entries}
+		_, err := ReceiptFlatFixture(SchemaInput{Bytes: text, SHA256: SHA256Hex(text), Grammar: b.grammar, Surface: "config_surface"}, doc, b.a, b.caps, b.release, b.engine)
+		return err
+	}
+	entry := func(k string, v *Node) Entry { return Entry{Key: k, Value: v} }
+	str := func(s string) *Node { return &Node{Kind: KindStr, Str: s} }
+	num := func(i int64) *Node { return &Node{Kind: KindInt, Int: i} }
+
+	err := run([]Entry{entry("type", str("t")), entry("mtu", &Node{Kind: KindUnsupported, Str: "1.5"})})
+	var me *MaterializeError
+	if !errors.As(err, &me) || me.Reason != MaterializeUnsupported {
+		t.Fatalf("a number the model does not carry: %v", err)
+	}
+	err = run([]Entry{entry("type", str("t")), entry("mtu", num(1)), entry("mtu", num(2))})
+	var re *ReceiptError
+	if !errors.As(err, &re) || re.Reason != ReceiptCanonical || re.Cause == nil {
+		t.Fatalf("a repeated key: %v", err)
+	}
+	for _, y := range []string{"type: t\nmtu: 99999999999999999999\n", "type: t\nmtu: 1.5\n", "type: t\nmtu: 1\nmtu: 2\n"} {
+		if _, err := Parse(y); err == nil {
+			t.Fatalf("%q parses", y)
+		}
+	}
+	for _, d := range []string{"99999999999999999999", "1.5"} {
+		schema := strings.Replace(b.schema, "default: 1500", "default: "+d, 1)
+		if _, err := b.runWith(t, schema, &b.yaml); err == nil {
+			t.Fatalf("a default of %s", d)
+		} else if r, _ := refusalOf(t, err); r != ReceiptIdentity {
+			t.Fatalf("a default of %s: %v", d, err)
+		}
+	}
+}

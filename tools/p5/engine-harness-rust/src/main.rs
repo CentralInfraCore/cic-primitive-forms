@@ -125,6 +125,128 @@ fn differential(input: &str, output: &str) {
     println!("engine (rust): {checked} generated accepted cases agree with the engine's try_new and digest");
 }
 
+/// The generated receipt differential (tools/parity/compare_receipt.py): the engine is the third reader of the RECEIPTS each language wrote for the generated cases. For
+/// every accepted case the engine builds its own object from the projection the language wrote, under the key set the GENERATOR declared, and `verify_receipt` has to
+/// accept the receipt, the authored input and the binding the language gave, with the engine identity of that language. Then the receipt is altered in ways that the
+/// engine's contract refuses, and each has to be refused with the code and the rule written here: the input digest, the output digest, the schema version, the evidence
+/// value, an evidence entry removed, and a path with no binding. The comparison with the other language and with the Python reference is compare_receipt.py.
+fn receipt_differential(input: &str, output: &str, identity: &str) {
+    let answers: BTreeMap<u64, J> = std::fs::read_to_string(output)
+        .unwrap()
+        .lines()
+        .map(|l| {
+            let a: J = serde_json::from_str(l).unwrap();
+            (a["id"].as_u64().unwrap(), a["r"].clone())
+        })
+        .collect();
+    let zero = J::String(format!("sha256:{}", "0".repeat(64)));
+    let (mut accepted, mut refused) = (0, 0);
+    for line in std::fs::read_to_string(input).unwrap().lines() {
+        let case: J = serde_json::from_str(line).unwrap();
+        let id = case["id"].as_u64().unwrap();
+        let r = &answers[&id];
+        if r[0] != "ok" {
+            continue;
+        }
+        let projection: J = serde_json::from_str(r[5].as_str().unwrap()).unwrap();
+        let keys: BTreeSet<String> = case["keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k.as_str().unwrap().to_string())
+            .collect();
+        let receipt: J = serde_json::from_str(r[1].as_str().unwrap()).unwrap();
+        assert_eq!(
+            receipt["materialization"]["engine_identity"], identity,
+            "#{id}: the engine identity of the language"
+        );
+        let authored: J = serde_json::from_str(r[2].as_str().unwrap()).unwrap();
+        let binding: BTreeMap<String, String> = r[3]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+            .collect();
+        let verify = |receipt: &J,
+                      binding: &BTreeMap<String, String>|
+         -> Result<(), (&'static str, &'static str)> {
+            let object =
+                MaterializedObject::try_new(fields_of(&projection), &keys).expect("complete");
+            let receipt = Receipt::from_value(&to_value(receipt)).map_err(|e| (e.code, e.rule))?;
+            let binding: PathBinding = binding.clone();
+            verify_receipt(&receipt, &object, &to_value(&authored), &binding)
+                .map_err(|e| (e.code, e.rule))
+        };
+        assert_eq!(
+            verify(&receipt, &binding),
+            Ok(()),
+            "#{id}: the engine verifier on the receipt the language wrote"
+        );
+        accepted += 1;
+        let mut expect = |what: &str,
+                          got: Result<(), (&'static str, &'static str)>,
+                          want: (&'static str, &'static str)| {
+            assert_eq!(got, Err(want), "#{id}: {what}");
+            refused += 1;
+        };
+        let mut r1 = receipt.clone();
+        body(&mut r1)["input_digest"] = zero.clone();
+        expect(
+            "a changed input digest",
+            verify(&r1, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-INPUT"),
+        );
+        let mut r1 = receipt.clone();
+        body(&mut r1)["output_digest"] = zero.clone();
+        expect(
+            "a changed output digest",
+            verify(&r1, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        let mut r1 = receipt.clone();
+        body(&mut r1)["schema_version"] = J::String(String::new());
+        expect(
+            "an empty schema version",
+            verify(&r1, &binding),
+            (code::INVALID_RECEIPT, "R-RECEIPT-SHAPE"),
+        );
+        if receipt["materialization"]["applied_defaults"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+        {
+            continue;
+        }
+        let mut r1 = receipt.clone();
+        body(&mut r1)["applied_defaults"][0]["value_digest"] = zero.clone();
+        expect(
+            "a changed value digest",
+            verify(&r1, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-VALUE"),
+        );
+        let mut r1 = receipt.clone();
+        body(&mut r1)["applied_defaults"]
+            .as_array_mut()
+            .unwrap()
+            .remove(0);
+        expect(
+            "an evidence entry removed",
+            verify(&r1, &binding),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-MEMBERSHIP"),
+        );
+        let mut b = binding.clone();
+        let first = b.keys().next().cloned().expect("a binding");
+        b.remove(&first);
+        expect(
+            "a path with no binding",
+            verify(&receipt, &b),
+            (code::RECEIPT_UNBOUND, "R-RECEIPT-PATH-BINDING"),
+        );
+    }
+    assert!(accepted > 0, "no accepted receipt was checked");
+    println!("engine (rust): {accepted} generated receipts of {identity} accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
+}
+
 /// The engine's verifier is the gate of the receipts of this library (P5-3): for every accepted flat case the receipt in `testdata/p5/receipt.json`, with the
 /// identity of the Rust implementation in its place, is accepted by `verify_receipt` against the object built from the shared projection and the authored
 /// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it.
@@ -344,6 +466,13 @@ fn main() {
     let first = args
         .next()
         .expect("usage: engine-harness-rust <forms root> | differential <in> <out>");
+    if first == "receipt-differential" {
+        let input = args.next().expect("the generated inputs");
+        let output = args.next().expect("the receipt dump of one language");
+        let identity = args.next().expect("the engine identity of that language");
+        receipt_differential(&input, &output, &identity);
+        return;
+    }
     if first == "differential" {
         let input = args.next().expect("the generated inputs");
         let output = args.next().expect("the dump of one language");

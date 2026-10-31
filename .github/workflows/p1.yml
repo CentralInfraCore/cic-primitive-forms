@@ -1397,6 +1397,25 @@ jobs:
             (cd tools/p5/engine-harness-go && go run . differential "$P/in.jsonl" "$P/$l.jsonl")
           done
 
+      # And for the flat RECEIPT (P5-3): the same 6 000 inputs, no second generator. Both languages build the fixture receipt of every case; a refused case has to be refused
+      # as the materialization is, an accepted one has to be the receipt that tools/p5/receipt_cases.py computes in Python from the schema text and the reference projection,
+      # and the two languages differ in nothing but engine_identity and engine_version (decision M). The self-test breaks the dumps in 59 ways. Then the ENGINE is the third
+      # reader again: its own verify_receipt (Rust and Go) accepts every receipt each language wrote, and refuses the altered ones with its own code and rule.
+      - name: Flat receipt differential, dump with both languages, compare, self-test, the engine verifier as the third reader
+        run: |
+          set -e
+          P="$RUNNER_TEMP/parity-receipt"
+          mkdir -p "$P"
+          python3 tools/parity/gen_materialize.py "$P/in.jsonl" --count 6000
+          (cd rust && PARITY_RECEIPT_IN="$P/in.jsonl" PARITY_RECEIPT_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_receipt_dump)
+          (cd go && PARITY_RECEIPT_IN="$P/in.jsonl" PARITY_RECEIPT_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpReceiptOutcomes$' .)
+          python3 tools/parity/compare_receipt.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --show 5
+          python3 tools/parity/selftest_receipt.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl"
+          for l in rust go; do
+            cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- receipt-differential "$P/in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l"
+            (cd tools/p5/engine-harness-go && go run . receipt-differential "$P/in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l")
+          done
+
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten
   # dumps each), so that neither takes more than the time budget of a shard.
   edit-proof:

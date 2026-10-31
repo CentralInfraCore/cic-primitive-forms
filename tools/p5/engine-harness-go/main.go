@@ -134,6 +134,128 @@ func differential(input, output string) {
 	fmt.Printf("engine (go): %d generated accepted cases agree with the engine's NewMaterializedObject and digest\n", checked)
 }
 
+// receiptDifferential is the generated receipt differential (tools/parity/compare_receipt.py): the engine is the third reader of the RECEIPTS each language wrote
+// for the generated cases. For every accepted case the engine builds its own object from the projection the language wrote, under the key set the GENERATOR
+// declared, and receipt.Verify has to accept the receipt, the authored input and the binding the language gave, with the engine identity of that language. Then the
+// receipt is altered in ways that the engine's contract refuses, and each has to be refused with the code and the rule written here: the input digest, the output
+// digest, the schema version, the evidence value, an evidence entry removed, and a path with no binding. The Rust peer is receipt_differential of
+// tools/p5/engine-harness-rust.
+func receiptDifferential(input, output, identity string) {
+	answers := map[json.Number][]interface{}{}
+	out, err := os.ReadFile(output)
+	if err != nil {
+		fail("%v", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		var a struct {
+			ID json.Number   `json:"id"`
+			R  []interface{} `json:"r"`
+		}
+		if err := json.Unmarshal([]byte(line), &a); err != nil {
+			fail("%v", err)
+		}
+		answers[a.ID] = a.R
+	}
+	in, err := os.ReadFile(input)
+	if err != nil {
+		fail("%v", err)
+	}
+	type want struct{ code, rule string }
+	accepted, refused := 0, 0
+	for _, line := range strings.Split(strings.TrimSpace(string(in)), "\n") {
+		var c struct {
+			ID   json.Number `json:"id"`
+			Keys []string    `json:"keys"`
+		}
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			fail("%v", err)
+		}
+		r := answers[c.ID]
+		if len(r) == 0 || r[0] != "ok" {
+			continue
+		}
+		var projection struct {
+			Fields []projField `json:"fields"`
+		}
+		pdec := json.NewDecoder(strings.NewReader(r[5].(string)))
+		pdec.UseNumber() // an integer of 64 bits must not pass through a float
+		if err := pdec.Decode(&projection); err != nil {
+			fail("#%s: %v", c.ID, err)
+		}
+		doc := decode(r[1].(string))
+		authored := decode(r[2].(string))
+		binding := map[string]string{}
+		for k, v := range r[3].(map[string]interface{}) {
+			binding[k] = v.(string)
+		}
+		body := func(d interface{}) map[string]interface{} { return obj(obj(d)["materialization"]) }
+		if got := body(doc)["engine_identity"]; got != identity {
+			fail("#%s: the engine identity is %v, want %s", c.ID, got, identity)
+		}
+		verify := func(d interface{}, b map[string]string) *want {
+			o, err := materialized.NewMaterializedObject(fieldsOf(projection.Fields), keySet(c.Keys))
+			if err != nil {
+				fail("#%s: the object: %v", c.ID, err)
+			}
+			rc, err := receipt.Parse(d)
+			if err == nil {
+				err = receipt.Verify(rc, o, authored, receipt.PathBinding(b))
+			}
+			if err == nil {
+				return nil
+			}
+			var re *receipt.Error
+			if !errors.As(err, &re) {
+				fail("#%s: not an engine error: %v", c.ID, err)
+			}
+			return &want{re.Code, re.Rule}
+		}
+		if w := verify(doc, binding); w != nil {
+			fail("#%s: the engine verifier refused the receipt the language wrote: %v", c.ID, *w)
+		}
+		accepted++
+		expect := func(what string, got *want, w want) {
+			if got == nil || *got != w {
+				fail("#%s: %s: got %v, want %v", c.ID, what, got, w)
+			}
+			refused++
+		}
+		d := clone(doc)
+		body(d)["input_digest"] = zeroDigest()
+		expect("a changed input digest", verify(d, binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-INPUT"})
+		d = clone(doc)
+		body(d)["output_digest"] = zeroDigest()
+		expect("a changed output digest", verify(d, binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		d = clone(doc)
+		body(d)["schema_version"] = ""
+		expect("an empty schema version", verify(d, binding), want{receipt.CodeInvalidReceipt, "R-RECEIPT-SHAPE"})
+		list := func(d interface{}) []interface{} { return body(d)["applied_defaults"].([]interface{}) }
+		if len(list(doc)) == 0 {
+			continue
+		}
+		d = clone(doc)
+		obj(list(d)[0])["value_digest"] = zeroDigest()
+		expect("a changed value digest", verify(d, binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-VALUE"})
+		d = clone(doc)
+		body(d)["applied_defaults"] = list(d)[1:]
+		expect("an evidence entry removed", verify(d, binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-MEMBERSHIP"})
+		b := map[string]string{}
+		first := ""
+		for k, v := range binding {
+			if first == "" || k < first {
+				first = k
+			}
+			b[k] = v
+		}
+		delete(b, first)
+		expect("a path with no binding", verify(doc, b), want{receipt.CodeReceiptUnbound, "R-RECEIPT-PATH-BINDING"})
+	}
+	if accepted == 0 {
+		fail("no accepted receipt was checked")
+	}
+	fmt.Printf("engine (go): %d generated receipts of %s accepted by receipt.Verify, %d altered ones refused with the engine's code and rule\n", accepted, identity, refused)
+}
+
 // decode reads JSON with integers kept as json.Number, the form the engine's receipt.Parse and canonical.IsValue take.
 func decode(text string) interface{} {
 	dec := json.NewDecoder(strings.NewReader(text))
@@ -314,6 +436,10 @@ func receipts(root string) {
 }
 
 func main() {
+	if len(os.Args) == 5 && os.Args[1] == "receipt-differential" {
+		receiptDifferential(os.Args[2], os.Args[3], os.Args[4])
+		return
+	}
 	if len(os.Args) == 4 && os.Args[1] == "differential" {
 		differential(os.Args[2], os.Args[3])
 		return

@@ -52,37 +52,39 @@ def identity(text):
     return one("namespace") + ":" + one("kind"), one("version")
 
 
+def receipt_for(text, projection_json, output_digest, identity_token=TOKEN):
+    """The expected receipt of ONE accepted case, from the schema text and from the projection and the output digest that the materialization gives (never from the
+    library under test): -> (authored_input, document, binding), the first two as canonical text, the binding as {evidence path: field name}. Used for the shared cases
+    below and by tools/parity/compare_receipt.py for the generated ones."""
+    name, version = identity(text)
+    fields = json.loads(projection_json)["fields"]
+    authored = {f["key"]: f["value"] for f in fields if f["provenance"] == "authored"}
+    defaults = sorted(({"path": "$." + f["key"], "rule": "schema-default", "value_digest": digest(f["value"])}
+                       for f in fields if f["provenance"] == "schema_default"), key=lambda d: d["path"].encode())
+    receipt = {"materialization": {
+        "receipt_schema_version": 1,
+        **{k: RELEASE[k] for k in ("grammar_sha256", "grammar_schema_sha256", "primitive_release", "primitive_source_commit", "primitive_build_hash")},
+        "schema_name": name,
+        "schema_version": version,
+        "schema_digest": "sha256:" + hashlib.sha256(text.encode()).hexdigest(),
+        "engine_identity": identity_token,
+        "engine_version": ENGINE_VERSION,
+        "input_digest": digest(authored),
+        "output_digest": output_digest,
+        "applied_defaults": defaults,
+        "derived_values": [],
+    }}
+    return canon(authored), canon(receipt), {d["path"]: d["path"][2:] for d in defaults}
+
+
 def build():
     src = json.loads(SRC.read_text())
     cases = []
     for c in src["cases"]:
         if "refused" in c["expect"]:
             continue
-        text = src["schemas"][c["schema"]]
-        name, version = identity(text)
-        fields = json.loads(c["expect"]["projection"])["fields"]
-        authored = {f["key"]: f["value"] for f in fields if f["provenance"] == "authored"}
-        defaults = sorted(({"path": "$." + f["key"], "rule": "schema-default", "value_digest": digest(f["value"])}
-                           for f in fields if f["provenance"] == "schema_default"), key=lambda d: d["path"].encode())
-        receipt = {"materialization": {
-            "receipt_schema_version": 1,
-            **{k: RELEASE[k] for k in ("grammar_sha256", "grammar_schema_sha256", "primitive_release", "primitive_source_commit", "primitive_build_hash")},
-            "schema_name": name,
-            "schema_version": version,
-            "schema_digest": "sha256:" + hashlib.sha256(text.encode()).hexdigest(),
-            "engine_identity": TOKEN,
-            "engine_version": ENGINE_VERSION,
-            "input_digest": digest(authored),
-            "output_digest": c["expect"]["output_digest"],
-            "applied_defaults": defaults,
-            "derived_values": [],
-        }}
-        cases.append({
-            "id": c["id"],
-            "authored_input": canon(authored),
-            "document": canon(receipt),
-            "binding": {d["path"]: d["path"][2:] for d in defaults},
-        })
+        authored, document, binding = receipt_for(src["schemas"][c["schema"]], c["expect"]["projection"], c["expect"]["output_digest"])
+        cases.append({"id": c["id"], "authored_input": authored, "document": document, "binding": binding})
     return {"engine_identity_token": TOKEN, "engine_version": ENGINE_VERSION, "release": RELEASE, "cases": cases}
 
 
