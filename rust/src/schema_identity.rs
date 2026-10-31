@@ -111,8 +111,9 @@ pub fn bind_schema_identity(
     namespace: Option<&str>,
     kind: Option<&str>,
 ) -> Result<(String, String), SchemaIdentityError> {
-    let Some(claimed) = claimed_digest else {
-        return Err(binding("R-SCHEMA-DIGEST-MISSING"));
+    let claimed = match claimed_digest {
+        Some(claimed) => claimed,
+        None => return Err(binding("R-SCHEMA-DIGEST-MISSING")),
     };
     let actual = schema_digest(source);
     if claimed != actual {

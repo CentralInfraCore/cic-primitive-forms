@@ -599,7 +599,7 @@ DEFECTS = [
     ("rust", "schema identity: a digest mismatch is accepted", "src/schema_identity.rs",
      [("    if claimed != actual {\n", "    if claimed != actual && claimed.is_empty() {\n")]),
     ("rust", "schema identity: a missing claim is taken as a match", "src/schema_identity.rs",
-     [("        return Err(binding(\"R-SCHEMA-DIGEST-MISSING\"));\n", "        return Ok((schema_name(namespace, kind)?, schema_digest(source)));\n")]),
+     [("        None => return Err(binding(\"R-SCHEMA-DIGEST-MISSING\")),\n", "        None => return Ok((schema_name(namespace, kind)?, schema_digest(source))),\n")]),
     ("rust", "schema identity: a colon in the kind is allowed", "src/schema_identity.rs",
      [("Some(k) if !k.is_empty() && !k.contains(':') => k,", "Some(k) if !k.is_empty() => k,")]),
     ("rust", "schema identity: an empty namespace component is allowed", "src/schema_identity.rs",
