@@ -59,6 +59,7 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_gen_materialize.py
       - run: python3 tools/p5/engine_vectors.py --own
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_materialize_cases.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_receipt_cases.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -113,6 +114,8 @@ jobs:
       # P5-2 (ADR 0014, decision A): the engine's own MaterializedObject::try_new and materialized_object_digest on the shared flat-materialization cases,
       # whose expected values are computed by the script (a third reader), and the script's file is the one that is committed
       - run: python3 tools/p5/materialize_cases.py
+      # P5-3: the expected receipts are computed in Python from the materialize cases; the engine verifier below is run over them (the harness runs the receipts after the cases)
+      - run: python3 tools/p5/receipt_cases.py
       - run: cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- .
   go:
     needs: inherit
