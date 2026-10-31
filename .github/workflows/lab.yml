@@ -26,3 +26,26 @@ jobs:
           workspaces: rust -> target
       - run: cargo +"$RUST_TOOLCHAIN" test --locked
         working-directory: rust
+  # How exact is the dependency graph? The typed graph (lab/extractor/typeddeps) and the knowledge base's graph (go.meta.gen.py)
+  # against what each Go test executes; red if the typed graph misses a function a test ran, or if a planted defect is not seen.
+  graph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: |
+            go/go.sum
+            lab/extractor/typeddeps/go.sum
+      - run: pip install pyyaml
+      - run: lab/measure/run.sh "$RUNNER_TEMP/lab-out"
+        env:
+          CIC_FORMS_ROOT: ${{ github.workspace }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: graph-measurement
+          path: |
+            ${{ runner.temp }}/lab-out/*.json
