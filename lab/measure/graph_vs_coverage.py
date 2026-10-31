@@ -115,8 +115,9 @@ def meta_graph(meta_dir, typed):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--typed", required=True)
-    ap.add_argument("--test-bin", required=True)
-    ap.add_argument("--pkg-dir", required=True)
+    ap.add_argument("--test-bin", help="Go: the coverage test binary (go test -c -cover)")
+    ap.add_argument("--pkg-dir", help="Go: the package directory the tests run in")
+    ap.add_argument("--runs", help="instead of a Go binary: per-test runs recorded by collect_rust.py")
     ap.add_argument("--meta-dir")
     ap.add_argument("--jobs", type=int, default=os.cpu_count())
     ap.add_argument("--drop-edges", type=float, default=0.0)
@@ -133,44 +134,51 @@ def main():
         for i in sorted(deps):
             deps[i] = {d for d in sorted(deps[i]) if rnd.random() >= a.drop_edges}
 
-    test_bin = os.path.abspath(a.test_bin)
-    names = subprocess.run([test_bin, "-test.list", ".*"], cwd=a.pkg_dir, capture_output=True, text=True,
-                           check=True).stdout.split()
-    names = [n for n in names if n.startswith(("Test", "Fuzz"))]
-
-    # the profile names files by import path; the graph by path relative to the module directory
-    def rel(profile_file):
-        return profile_file.rsplit("/", 1)[-1]
-
-    def funcs(blocks):
-        out = set()
-        for f, l1, _ in blocks:
-            fid = typed.func_at(rel(f), l1)
-            if fid:
-                out.add(fid)
-        return out
-
-    rc, _, init_blocks = run_profile(test_bin, a.pkg_dir, "^$")
-    if rc != 0:
-        sys.exit("the empty run failed")
-    init_funcs = funcs(init_blocks)
-    init_roots = [i for i, n in typed.nodes.items() if n["kind"] == "var" or ".init@" in i]
-    init_closure = closure(deps, init_roots)
-
-    def one(name):
-        rc, tail, blocks = run_profile(test_bin, a.pkg_dir, "^" + re.escape(name) + "$")
-        return name, rc, tail, funcs(blocks) - init_funcs
-
-    results = {}
-    with concurrent.futures.ThreadPoolExecutor(a.jobs) as ex:
-        for name, rc, tail, ran in ex.map(one, names):
-            results[name] = (rc, tail, ran)
-
     product = {i for i, n in typed.nodes.items() if n["kind"] in ("func", "method") and not n["test"]}
-    test_ids = {}
-    for i, n in typed.nodes.items():
-        if n["test"] and n["kind"] == "func":
-            test_ids.setdefault(i.rsplit(".", 1)[-1], i)
+    if a.runs:
+        recorded = json.load(open(a.runs))
+        results = {t: (r["rc"], r["tail"], set(r["ran"])) for t, r in recorded["tests"].items()}
+        names = sorted(results)
+        test_ids = {t: r["node"] for t, r in recorded["tests"].items() if r["node"]}
+        init_funcs, init_closure = set(), set()
+    else:
+        test_bin = os.path.abspath(a.test_bin)
+        names = subprocess.run([test_bin, "-test.list", ".*"], cwd=a.pkg_dir, capture_output=True, text=True,
+                               check=True).stdout.split()
+        names = [n for n in names if n.startswith(("Test", "Fuzz"))]
+
+        # the profile names files by import path; the graph by path relative to the module directory
+        def rel(profile_file):
+            return profile_file.rsplit("/", 1)[-1]
+
+        def funcs(blocks):
+            out = set()
+            for f, l1, _ in blocks:
+                fid = typed.func_at(rel(f), l1)
+                if fid:
+                    out.add(fid)
+            return out
+
+        rc, _, init_blocks = run_profile(test_bin, a.pkg_dir, "^$")
+        if rc != 0:
+            sys.exit("the empty run failed")
+        init_funcs = funcs(init_blocks)
+        init_roots = [i for i, n in typed.nodes.items() if n["kind"] == "var" or ".init@" in i]
+        init_closure = closure(deps, init_roots)
+
+        def one(name):
+            rc, tail, blocks = run_profile(test_bin, a.pkg_dir, "^" + re.escape(name) + "$")
+            return name, rc, tail, funcs(blocks) - init_funcs
+
+        results = {}
+        with concurrent.futures.ThreadPoolExecutor(a.jobs) as ex:
+            for name, rc, tail, ran in ex.map(one, names):
+                results[name] = (rc, tail, ran)
+
+        test_ids = {}
+        for i, n in typed.nodes.items():
+            if n["test"] and n["kind"] == "func":
+                test_ids.setdefault(i.rsplit(".", 1)[-1], i)
 
     graphs = {"typed": (lambda t: test_ids.get(t), deps, lambda i: i)}
     if a.meta_dir:
