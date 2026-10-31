@@ -24,8 +24,43 @@ use cic_primitive_forms::{
 };
 use std::collections::BTreeMap;
 
-pub const SCHEMA: &str = include_str!("../../testdata/p5/receipt-fuzz/schema.yaml");
-const FIXTURE: &str = include_str!("../../testdata/p5/receipt-fuzz/fixture.txt");
+/// The directory `testdata/p5/receipt-fuzz` is read from at run time, not at compile time: the coverage and the mutation tools build the crate somewhere else, where
+/// a path relative to this file does not lead to the repository. `CIC_FORMS_ROOT` as in the other tests; without it, the nearest directory above the manifest that has it
+/// (the manifest is `rust/` for the replay test and `rust/fuzz/` for the fuzz target).
+fn data(file: &str) -> &'static str {
+    use std::sync::OnceLock;
+    static ROOT: OnceLock<std::path::PathBuf> = OnceLock::new();
+    static TEXTS: OnceLock<std::sync::Mutex<BTreeMap<String, &'static str>>> = OnceLock::new();
+    let root = ROOT.get_or_init(|| {
+        if let Some(r) = std::env::var_os("CIC_FORMS_ROOT") {
+            return std::path::PathBuf::from(r);
+        }
+        let mut dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        loop {
+            if dir.join("testdata/p5/receipt-fuzz").is_dir() {
+                return dir;
+            }
+            assert!(dir.pop(), "no testdata/p5/receipt-fuzz above the manifest");
+        }
+    });
+    let mut texts = TEXTS
+        .get_or_init(|| std::sync::Mutex::new(BTreeMap::new()))
+        .lock()
+        .expect("the lock");
+    texts.entry(file.to_string()).or_insert_with(|| {
+        let text = std::fs::read_to_string(root.join("testdata/p5/receipt-fuzz").join(file))
+            .unwrap_or_else(|e| panic!("testdata/p5/receipt-fuzz/{file}: {e}"));
+        Box::leak(text.into_boxed_str())
+    })
+}
+
+pub fn schema() -> &'static str {
+    data("schema.yaml")
+}
+
+fn fixture_text() -> &'static str {
+    data("fixture.txt")
+}
 pub const IDENTITY: &str = "cic-primitive-forms-rust";
 
 const BIND: u8 = 1;
@@ -62,7 +97,7 @@ pub enum Ended {
 }
 
 fn fixture(key: &str) -> &'static str {
-    FIXTURE
+    fixture_text()
         .lines()
         .find_map(|l| l.strip_prefix(key).and_then(|r| r.strip_prefix('\t')))
         .unwrap_or_else(|| panic!("fixture.txt has no {key}"))
@@ -70,7 +105,7 @@ fn fixture(key: &str) -> &'static str {
 
 /// The declared top-level field names, in byte order (the keys of the capability map).
 pub fn declared() -> Vec<String> {
-    let mut names: Vec<String> = FIXTURE
+    let mut names: Vec<String> = fixture_text()
         .lines()
         .filter_map(|l| l.strip_prefix("cap:").and_then(|r| r.split('\t').next()))
         .map(str::to_string)
@@ -80,7 +115,7 @@ pub fn declared() -> Vec<String> {
 }
 
 fn capabilities(flags: u8, kind: u8) -> BTreeMap<String, String> {
-    let mut caps: BTreeMap<String, String> = FIXTURE
+    let mut caps: BTreeMap<String, String> = fixture_text()
         .lines()
         .filter_map(|l| l.strip_prefix("cap:"))
         .filter_map(|l| l.split_once('\t'))
@@ -130,7 +165,7 @@ fn release(flags: u8, kind: u8) -> ReleaseFixture {
 type Outcome = Result<cic_primitive_forms::FlatReceipt, ReceiptError>;
 
 fn make(flags: u8, kind: u8, doc: &Node) -> Outcome {
-    let mut schema = SCHEMA.to_string();
+    let mut schema = schema().to_string();
     if flags & NO_VERSION != 0 {
         schema = schema.replace("    version: v1.0.0\n", "");
         assert!(!schema.contains("v1.0.0"), "the version line was not found");
@@ -333,13 +368,13 @@ pub fn run(data: &[u8]) -> (Ended, Option<Made>) {
     ));
     has(format!(
         "\"schema_digest\":\"sha256:{}\"",
-        sha256_hex(SCHEMA.as_bytes())
+        sha256_hex(schema().as_bytes())
     ));
     has(format!("\"engine_identity\":\"{IDENTITY}\""));
     has("\"receipt_schema_version\":1".to_string());
     // the values of the identity: the name is `namespace:kind` and the version is the one the schema writes, the engine version is the fixture's
     let line = |key: &str| {
-        SCHEMA
+        schema()
             .lines()
             .find_map(|l| l.strip_prefix(&format!("    {key}: ")))
             .map(|v| v.trim_matches('"').to_string())
