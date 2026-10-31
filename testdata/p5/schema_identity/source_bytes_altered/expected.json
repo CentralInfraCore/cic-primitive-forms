@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "one byte of the source differs from the pinned bytes",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

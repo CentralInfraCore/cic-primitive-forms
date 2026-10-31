@@ -1,0 +1,6 @@
+{
+  "source": "schema.yaml",
+  "claimed_digest": "",
+  "namespace": "cic:storage",
+  "kind": "StorageResource"
+}

@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "the digest form is lowercase hex",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

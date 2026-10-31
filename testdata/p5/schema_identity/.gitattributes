@@ -1,0 +1,2 @@
+# The source files are fixtures whose exact bytes (line endings, a final newline or none) are the thing under test; git must not touch them.
+*.yaml -text

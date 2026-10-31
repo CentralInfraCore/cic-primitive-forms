@@ -1,0 +1,6 @@
+{
+  "accepted": true,
+  "why": "line endings are part of the byte identity; no CRLF to LF normalization",
+  "schema_name": "cic:storage:StorageResource",
+  "schema_digest": "sha256:b0e97e6fcb7d35585a48514acc92e2ac0145ed02f3207be811bf95d18b27e0d2"
+}

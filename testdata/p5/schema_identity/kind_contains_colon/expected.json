@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "a colon in the kind would make the last separator ambiguous",
+  "error": {
+    "code": "E_INVALID_SCHEMA_IDENTITY",
+    "rule": "R-SCHEMA-NAME-KIND",
+    "path": "$.spec.identity.kind"
+  }
+}

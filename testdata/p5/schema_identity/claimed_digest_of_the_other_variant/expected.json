@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "the 314-byte source with the digest of the 313-byte one",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

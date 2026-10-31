@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "empty kind",
+  "error": {
+    "code": "E_INVALID_SCHEMA_IDENTITY",
+    "rule": "R-SCHEMA-NAME-KIND",
+    "path": "$.spec.identity.kind"
+  }
+}

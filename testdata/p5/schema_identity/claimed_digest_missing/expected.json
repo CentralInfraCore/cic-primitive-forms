@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "no claimed digest: fail closed",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISSING",
+    "path": "$.schema_digest"
+  }
+}

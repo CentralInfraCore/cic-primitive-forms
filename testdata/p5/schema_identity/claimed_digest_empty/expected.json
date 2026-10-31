@@ -1,0 +1,9 @@
+{
+  "accepted": false,
+  "why": "an empty claim is a claim, and a wrong one",
+  "error": {
+    "code": "E_SCHEMA_SOURCE_BINDING",
+    "rule": "R-SCHEMA-DIGEST-MISMATCH",
+    "path": "$.schema_digest"
+  }
+}

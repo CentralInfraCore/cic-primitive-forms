@@ -108,6 +108,8 @@ jobs:
           path: upstream/cic-primitive-engine
       - run: pip install -r tools/requirements.txt
       - run: python3 tools/p5/engine_vectors.py --engine upstream/cic-primitive-engine
+      # P5-3: the schema identity vectors the tests read are a snapshot of the engine's own (D1.3, cic-primitive-engine PR #64); byte for byte, the sources included
+      - run: diff -r upstream/cic-primitive-engine/conformance/differential/schema_identity testdata/p5/schema_identity
       # P5-2 (ADR 0014, decision A): the engine's own MaterializedObject::try_new and materialized_object_digest on the shared flat-materialization cases,
       # whose expected values are computed by the script (a third reader), and the script's file is the one that is committed
       - run: python3 tools/p5/materialize_cases.py
