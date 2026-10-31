@@ -685,6 +685,15 @@ DEFECTS = [
      [('Entry{Key: "schema_version", Value: textNode(compiled.Version)}', 'Entry{Key: "schema_version", Value: textNode(name)}')]),
     ("go", "receipt: the engine version is written as the engine identity", "receipt.go",
      [('Entry{Key: "engine_version", Value: textNode(engine.Version)}', 'Entry{Key: "engine_version", Value: textNode(engine.Identity)}')]),
+    # P5-3: the survivors the diff-mutation and the shadow run showed (a digest checked only for one good character or from the second one on, a canonical error of the authored input unwrapped)
+    ("rust", "receipt: one good hex character makes a digest (all taken for any)", "src/receipt.rs",
+     [("hex.len() == 64 && hex.bytes().all(", "hex.len() == 64 && hex.bytes().any(")]),
+    ("rust", "receipt: the canonical error of the authored input panics", "src/receipt.rs",
+     [("let authored = canonical_bytes(doc).map_err(ReceiptError::Canonical)?;", "let authored = canonical_bytes(doc).unwrap();")]),
+    ("go", "receipt: the first character of a digest is not looked at", "receipt.go",
+     [("for i := 0; i < len(hex); i++ {", "for i := 1; i < len(hex); i++ {")]),
+    ("go", "receipt: the canonical error of the authored input panics", "receipt.go",
+     [("authored, err := CanonicalBytes(doc)\n\tif err != nil {\n\t\treturn nil, &ReceiptError{Reason: ReceiptCanonical, Cause: err}", "authored, err := CanonicalBytes(doc)\n\tif err != nil {\n\t\tpanic(err)")]),
     # P5-2: the flat materialization (go/materialize.go, rust/src/materialize.rs). The shared cases testdata/p5/materialize.json and the hand-built shapes must turn red on each.
     ("rust", "materialize: a set does not stop the materialization", "src/materialize.rs",
      [("            ShapeType::Set { .. } => return Err(refuse(MATERIALIZE_SET, name)),\n", "            ShapeType::Set { .. } => {}\n")]),
