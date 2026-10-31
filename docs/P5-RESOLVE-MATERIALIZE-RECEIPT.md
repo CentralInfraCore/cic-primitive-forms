@@ -290,3 +290,18 @@ The receipt joins statements whose authentication has different sources. The ver
 * **Authenticity of origin.** Is the release identity (`primitive_release`, `primitive_source_commit`, `primitive_build_hash`) and the grammar identity that of a verified release? This is not the engine's to answer, and the engine verifier does not check it: it checks form and consistency.
 
 Closing the first does **not** authorize the second. After #63 is answered the implementation can be written and proved with fixtures; an **authentic** production receipt additionally needs the verified release record of L, and until a release cut from the pinned commit exists there is none. A consistent receipt must not look like an authenticated one.
+
+### 15.3 The engine pin moved for the schema identity contract (2026-10-31)
+
+`cic-primitive-engine#63` is answered by owner decision, and the contract is merged in the engine (PR #64, merge commit `a6a0680`): `schema_digest` is the SHA-256 of the raw bytes of the pinned schema source, `schema_name` is `identity.namespace + ":" + identity.kind`, with golden and negative vectors read by both languages (`docs/RECEIPT-SCHEMA.md`, "Schema identity contract"). `testdata/p5/engine-pin.txt` now names `a6a0680` (it was `93c793a`).
+
+What the move changes, read from the diff `93c793a..a6a0680`: nothing under `engine/` or `go/` except the new module `schema_identity` (Rust) and package `schemaidentity` (Go), the two new rejection codes and the new test files; the other commits in that range are conformance fixtures (#62). The receipt verifier and `MaterializedObject` are byte-identical to what P5-2 was proved against.
+
+What was run against the new pin, with the same commands as CI: the engine's canonicalize vectors against the table (27 vectors, 0 failures), both engine harnesses on the corpus (7 accepted cases each), and the 6000-case generated differential with the engine as third reader (1817 accepted cases agree in Rust and Go).
+
+What this move does **not** do, and what comes next as a separate change:
+
+- It adopts no code from the new module. The Forms receipt producer does not exist yet.
+- The review of #64 makes one invariant mandatory for P5-3: the identity components (`namespace`, `kind`) and the digest must be bound to the **same verified source file**. The engine function checks that the claimed digest is the digest of the bytes it is given; it does not check that the components were read from those bytes. The Forms side (`SchemaInput` holds the bytes and the pinned digest, `CompiledSchema` the kind and namespace read from them) is the place to read both from one compile and to prove it, with a case where the components come from another file.
+- The contract tests of Forms against the new pin (the golden vectors through Forms' own producers) belong to that change.
+- The origin gate (a verified release record) stays closed; no production receipt follows from this.
