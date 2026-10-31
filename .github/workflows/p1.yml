@@ -60,6 +60,7 @@ jobs:
       - run: python3 tools/p5/engine_vectors.py --own
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_materialize_cases.py
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_receipt_cases.py
+      - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_compare_receipt_fuzz.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -116,6 +117,8 @@ jobs:
       - run: python3 tools/p5/materialize_cases.py
       # P5-3: the expected receipts are computed in Python from the materialize cases; the engine verifier below is run over them (the harness runs the receipts after the cases)
       - run: python3 tools/p5/receipt_cases.py
+      # P5-3: the schema, the fixture data, the seeds and the Rust corpus of the receipt fuzz targets are derived from the files above; they must be what the script writes
+      - run: python3 tools/p5/receipt_fuzz_seeds.py
       - run: cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- .
   go:
     needs: inherit
@@ -1414,6 +1417,23 @@ jobs:
           for l in rust go; do
             cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- receipt-differential "$P/in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l"
             (cd tools/p5/engine-harness-go && go run . receipt-differential "$P/in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l")
+          done
+
+      # And the receipt fuzz targets' replay (P5-3, docs section 19): the seeds and a deterministic mutation round (the same algorithm in both languages) run through the
+      # property in every build; the two replays must have drawn the same inputs and ended the same on every one but the named parser class (a quoted scalar continued
+      # at column 0, which the Go parser reads and the Rust parser refuses: counted and printed, not normalized away), and made the same receipts. Then the engine's own
+      # verifier is run on every receipt each language made, with the altered ones refused.
+      - name: Receipt fuzz replay, compare, the engine verifier on what the seeds and the mutations made
+        run: |
+          set -e
+          P="$RUNNER_TEMP/fuzz-receipt"
+          mkdir -p "$P"
+          (cd rust && CIC_FUZZ_RECEIPT_DUMP_DIR="$P" cargo +"$RUST_TOOLCHAIN" test --locked --test receipt_fuzz_seeds)
+          (cd go && CIC_FUZZ_RECEIPT_DUMP_DIR="$P" go test -count=1 -run '^TestReceiptFuzzSeeds$' .)
+          python3 tools/parity/compare_receipt_fuzz.py "$P" --show 5
+          for l in rust go; do
+            cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- receipt-differential "$P/$l.in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l"
+            (cd tools/p5/engine-harness-go && go run . receipt-differential "$P/$l.in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l")
           done
 
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten

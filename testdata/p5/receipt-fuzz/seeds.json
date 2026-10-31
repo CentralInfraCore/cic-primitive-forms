@@ -1,0 +1,188 @@
+[
+ {
+  "name": "s00_defaults_4",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s01_defaults_0",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\nenabled: false\nmtu: 0\nlabel: \"\"\nmaybe: ~\n"
+ },
+ {
+  "name": "s02_defaults_1",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\nenabled: false\nmtu: 5\nlabel: x\n"
+ },
+ {
+  "name": "s03_defaults_2",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\nenabled: false\nmtu: 5\n"
+ },
+ {
+  "name": "s04_escaping",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: \"a<b>&c\\u2028\\td\"\nlabel: \"é/ü\"\nmtu: 9223372036854775807\n"
+ },
+ {
+  "name": "s10_unknown_field",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\nzzz: 1\n"
+ },
+ {
+  "name": "s11_mandatory_missing",
+  "flags": 0,
+  "kind": 0,
+  "doc": "mtu: 1\n"
+ },
+ {
+  "name": "s12_wrong_scalar_type",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: 1\n"
+ },
+ {
+  "name": "s13_nested_value",
+  "flags": 0,
+  "kind": 0,
+  "doc": "type: t\nmtu: [1]\n"
+ },
+ {
+  "name": "s14_empty_mapping",
+  "flags": 0,
+  "kind": 0,
+  "doc": "{}\n"
+ },
+ {
+  "name": "s20_claim_changed",
+  "flags": 1,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s21_bytes_edited_after_the_claim",
+  "flags": 1,
+  "kind": 1,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s22_claim_empty",
+  "flags": 1,
+  "kind": 2,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s23_binding_before_a_bad_document",
+  "flags": 1,
+  "kind": 0,
+  "doc": "zzz: 1\n"
+ },
+ {
+  "name": "s30_no_version",
+  "flags": 2,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s31_bad_build_hash",
+  "flags": 4,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s31b_build_hash_last_character",
+  "flags": 4,
+  "kind": 9,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s31c_build_hash_first_character",
+  "flags": 4,
+  "kind": 18,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s32_empty_engine_version",
+  "flags": 8,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s33_binding_wins_over_the_version",
+  "flags": 3,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s34_version_wins_over_the_hash",
+  "flags": 6,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s35_hash_wins_over_the_engine",
+  "flags": 12,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s36_engine_wins_over_the_document",
+  "flags": 8,
+  "kind": 0,
+  "doc": "zzz: 1\n"
+ },
+ {
+  "name": "s40_capability_missing",
+  "flags": 16,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s41_capability_unknown",
+  "flags": 16,
+  "kind": 3,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s42_capability_undeclared",
+  "flags": 16,
+  "kind": 6,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s45_dotted_name",
+  "flags": 64,
+  "kind": 0,
+  "doc": "type: t\n"
+ },
+ {
+  "name": "s46_dotted_name_after_a_refused_document",
+  "flags": 64,
+  "kind": 0,
+  "doc": "zzz: 1\n"
+ },
+ {
+  "name": "s50_repeated_key",
+  "flags": 32,
+  "kind": 0,
+  "doc": "type: t\nmtu: 1\n"
+ },
+ {
+  "name": "s51_repeated_key_in_a_refused_document",
+  "flags": 32,
+  "kind": 0,
+  "doc": "zzz: 1\n"
+ },
+ {
+  "name": "s52_nothing_to_repeat",
+  "flags": 32,
+  "kind": 0,
+  "doc": "{}\n"
+ }
+]

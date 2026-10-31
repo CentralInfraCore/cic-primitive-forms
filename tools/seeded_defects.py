@@ -770,14 +770,33 @@ def prepare(lang, tmp):
     os.symlink(os.path.join(ROOT, "corpus"), os.path.join(tmp, "corpus"))
     os.symlink(os.path.join(ROOT, "testdata"), os.path.join(tmp, "testdata"))
     dest = os.path.join(tmp, lang)
-    shutil.copytree(os.path.join(ROOT, lang), dest, ignore=shutil.ignore_patterns("target", "fuzz", "rapid"))
+    shutil.copytree(os.path.join(ROOT, lang), dest, ignore=copy_filter(lang))
     return dest
+
+
+def copy_filter(lang):
+    """What the copy leaves out: build output, the property-test state and the fuzz directories - except, in Rust, the two things the receipt fuzz replay test reaches into
+    (fuzz/receipt_check.rs, which the test includes, and its seed corpus fuzz/corpus/receipt): the seeded defects must be run against that test too."""
+    top = os.path.join(ROOT, lang)
+
+    def ignore(directory, names):
+        skip = {n for n in names if n in ("target", "rapid")}
+        rel = os.path.relpath(directory, top)
+        if rel == "fuzz" and lang == "rust":
+            skip |= {n for n in names if n not in ("receipt_check.rs", "corpus")}
+        elif rel == os.path.join("fuzz", "corpus") and lang == "rust":
+            skip |= {n for n in names if n != "receipt"}
+        elif "fuzz" in names and not (rel == "." and lang == "rust"):
+            skip.add("fuzz")
+        return skip
+
+    return ignore
 
 
 def command(lang):
     if lang == "rust":
         return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
-                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus", "--test", "schema_identity_contract", "--test", "receipt_flat"]
+                "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus", "--test", "schema_identity_contract", "--test", "receipt_flat", "--test", "receipt_fuzz_seeds"]
     return ["go", "test", "-count=1", "./..."]
 
 
