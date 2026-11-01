@@ -68,7 +68,7 @@ type Analysis struct {
 }
 
 // The constructs the extractor can report; anything else it meets is unresolved, never silently absent.
-var reportable = []string{"go.const.explicit", "go.const.implicit_repeat", "go.const.iota", "go.func", "go.func.generic", "go.method",
+var reportable = []string{"go.const.explicit", "go.const.group", "go.const.implicit_repeat", "go.const.iota", "go.func", "go.func.generic", "go.method",
 	"go.type", "go.type.alias", "go.type.generic", "go.var"}
 
 // Graph is the output.
@@ -457,6 +457,11 @@ func (b *builder) methodsOf(t types.Type, out map[string]bool) {
 // noConversions switches the interface conversion rule off: a planted defect, for showing that the measurement sees it.
 var noConversions bool
 
+// plantedNoConstGroup switches the const group rule off (no inherited expression, no edge to the declaration): the model before
+// this fix, which lab/testdata/iota showed to be unsafe. Kept so that the red case stays reproducible and the measurement keeps
+// seeing it.
+var plantedNoConstGroup bool
+
 // benignReflect are the reflect functions that cannot call a method of the value they are given.
 var benignReflect = map[string]bool{"DeepEqual": true, "TypeOf": true}
 
@@ -521,6 +526,9 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 			}
 			b.add(pkg, file, id, kind, d.Pos(), d.End(), src, walk, append([]string(nil), fileOpaque...), obj.Type().(*types.Signature), constructs, unresolved)
 		case *ast.GenDecl:
+			// what an implicit const repeat repeats: the type and the expressions of the last spec of this declaration that has some
+			var lastType ast.Expr
+			var lastValues []ast.Expr
 			for _, spec := range d.Specs {
 				switch s := spec.(type) {
 				case *ast.TypeSpec:
@@ -541,11 +549,19 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 					if d.Tok == token.CONST {
 						kind = "const"
 					}
-					walk := []ast.Node{}
-					if s.Type != nil {
-						walk = append(walk, s.Type)
+					typ, values := s.Type, s.Values
+					if d.Tok == token.CONST {
+						if len(s.Values) > 0 {
+							lastType, lastValues = s.Type, s.Values
+						} else if !plantedNoConstGroup {
+							typ, values = lastType, lastValues // the inherited expression is part of what this constant depends on
+						}
 					}
-					for _, v := range s.Values {
+					walk := []ast.Node{}
+					if typ != nil {
+						walk = append(walk, typ)
+					}
+					for _, v := range values {
 						walk = append(walk, v)
 					}
 					for _, name := range s.Names {
@@ -556,18 +572,64 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 						if obj == nil {
 							fail("no object for %s", name.Name)
 						}
-						// iota: a constant without values repeats the previous spec's expression; its deps are the spec's own.
-						// RECOGNISED here (as a construct), NOT YET MODELLED: no edge is added for it (known defect, lab/testdata/iota).
+						// A constant that repeats the previous spec (implicit) or uses iota has a value that depends on what else is in its
+						// `const ( ... )`: the expression it inherits (walked above) and its position among the specs. The position is not
+						// in the text of the spec, so the constant depends on a node for the whole declaration (constGroup).
+						// (Before this was modelled, lab/testdata/iota was the known defect; -planted-no-const-group brings it back.)
+						constructs := valueConstructs(pkg, d, s)
 						b.add(pkg, file, idOf(obj), kind, s.Pos(), s.End(), src, walk, append([]string(nil), fileOpaque...), nil,
-							valueConstructs(pkg, d, s), nil)
+							constructs, nil)
 						gp, ge := b.fset.Position(d.Pos()), b.fset.Position(d.End())
 						gsum := sha256.Sum256(src[gp.Offset:ge.Offset])
 						b.nodes[idOf(obj)].Group = hex.EncodeToString(gsum[:])
+						if !plantedNoConstGroup && (contains(constructs, "go.const.implicit_repeat") || contains(constructs, "go.const.iota")) {
+							gid := b.constGroup(pkg, d, src, hex.EncodeToString(gsum[:]))
+							if b.deps[idOf(obj)] == nil {
+								b.deps[idOf(obj)] = map[string]bool{}
+							}
+							b.deps[idOf(obj)][gid] = true
+						}
 					}
 				}
 			}
 		}
 	}
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// constGroup returns the id of the node of a const declaration as a whole, creating it once. Its source digest is that of the whole
+// declaration, so the key of every constant that depends on it changes when anything in the declaration changes: conservative (an
+// added constant after the last use moves no value), and sound for the value of a constant, which depends on nothing else here.
+func (b *builder) constGroup(pkg *packages.Package, d *ast.GenDecl, src []byte, digest string) string {
+	var first types.Object
+	for _, spec := range d.Specs {
+		for _, name := range spec.(*ast.ValueSpec).Names {
+			if name.Name != "_" && first == nil {
+				first = pkg.TypesInfo.Defs[name]
+			}
+		}
+	}
+	gid := idOf(first) + "#const-group"
+	if _, ok := b.nodes[gid]; ok {
+		return gid
+	}
+	pos, end := b.fset.Position(d.Pos()), b.fset.Position(d.End())
+	rel, err := filepath.Rel(b.root, pos.Filename)
+	if err != nil {
+		rel = pos.Filename
+	}
+	b.nodes[gid] = &Node{ID: gid, Kind: "constgroup", File: rel, Line: pos.Line, EndLine: end.Line, Test: strings.HasSuffix(rel, "_test.go"),
+		SrcSHA256: digest, Constructs: []string{"go.const.group"}, Analysis: Analysis{Status: "COMPLETE", Unresolved: []string{}}}
+	b.deps[gid] = map[string]bool{}
+	return gid
 }
 
 // valueConstructs names the constructs of one const or var spec. A const spec with no values is an implicit repeat of the previous
@@ -600,6 +662,7 @@ func fail(format string, args ...any) {
 
 func main() {
 	tests := flag.Bool("tests", true, "include the _test.go files (test variants of the packages)")
+	flag.BoolVar(&plantedNoConstGroup, "planted-no-const-group", false, "planted defect: the model before the const group rule (implicit iota has no edge)")
 	flag.BoolVar(&noConversions, "planted-no-conversions", false, "planted defect: leave out the edges of interface conversions")
 	flag.Parse()
 	if flag.NArg() < 1 {

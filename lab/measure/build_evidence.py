@@ -29,8 +29,10 @@ class BuilderError(Exception):
     """No evidence can be made at all (not even an UNVERIFIABLE one)."""
 
 
-def extractor_identity(binary):
-    """(identity, provenance) of the extractor binary; BuilderError if it cannot be read."""
+def extractor_identity(binary, args=()):
+    """(identity, provenance) of the extractor binary run with `args`; BuilderError if the binary cannot be read.
+
+    The flags are part of the identity: the same binary with -planted-no-const-group is a different model."""
     try:
         with open(binary, "rb") as f:
             digest = hashlib.sha256(f.read()).hexdigest()
@@ -38,7 +40,8 @@ def extractor_identity(binary):
         raise BuilderError("extractor binary unreadable: %s" % e)
     r = subprocess.run(["go", "version", "-m", binary], capture_output=True, text=True)
     build = [l.strip() for l in r.stdout.splitlines() if l.strip()] if r.returncode == 0 else ["go version -m unavailable"]
-    return "typeddeps:sha256:" + digest, {"extractor_binary_sha256": digest, "extractor_build": build}
+    ident = "typeddeps:sha256:" + digest + ("".join("|" + a for a in args))
+    return ident, {"extractor_binary_sha256": digest, "extractor_args": list(args), "extractor_build": build}
 
 
 def closure(nodes, subject):

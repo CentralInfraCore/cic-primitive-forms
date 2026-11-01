@@ -1,4 +1,4 @@
-# Implicit `iota`: a reproduced unsafe reuse
+# Implicit `iota`: a reproduced unsafe reuse, and its fix
 
 Two commit states of one Go package; `B` repeats the expression of `A` (`A = iota + N`, then `B`).
 
@@ -45,3 +45,23 @@ GitHub Actions run 41306166178 (commit `059f30c`, job `graph`): Go 1.27.2 and `x
 Merkle keys are identical to the local record. The record is `lab/results/iota-red-ci-run41306166178-go1.27.2-tools0.38.0.json`.
 The same run: jobs `kernel`, `graph`, `graph-rust`, `data` and `subject` succeeded. A green `iota` step means the defect is still
 present, not that the verification is correct.
+
+## The fix (const group rule) and what keeps the red case alive
+
+Two missing dependencies, not one:
+
+1. **The position in the group.** A constant that repeats the previous spec, or uses `iota`, gets an edge to a node for its whole
+   `const ( ... )` declaration (`...#const-group`, source digest of the declaration). Any change in the declaration moves the key of
+   such a constant: conservative (a constant added after the last use moves no value) and enough for the value, which depends on
+   nothing else here (`iota-insert`).
+2. **The expression it inherits.** `A = iota + K; B`: `B` repeats `A`'s expression, so it depends on `K`. The group digest does not
+   change when `K` changes; the extractor now walks the inherited expression (`iota-inherit`). The earlier "0 candidates" of
+   RESULTS.md section 9 searched for the group mechanism only and could not see this one.
+
+The old model is kept as `typeddeps -planted-no-const-group` (the convention of the lab's planted defects), so `repro_iota.py
+--expect vulnerable --extractor-arg=-planted-no-const-group` still reproduces the red case, and CI runs it next to `--expect fixed`.
+
+Whether a build may be trusted for these constructs is not declared by the extractor: `lab/measure/qualify.py` runs the three
+pairs (`iota`, `iota-insert`, `iota-inherit`) against that binary and flags, and only a build whose keys move on all three is
+qualified for `go.const.implicit_repeat`, `go.const.iota` and `go.const.group`. That is regression evidence for these cases, not
+a proof that every const group is modelled. The old model fails all three probes.

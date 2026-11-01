@@ -3,6 +3,9 @@ comes from, so a change of that value leaves its Merkle key, and the key of ever
 
     python3 lab/measure/repro_iota.py TYPEDDEPS_BINARY --expect vulnerable|fixed [--record OUT.json]
 
+--extractor-arg passes a flag to the extractor; with -planted-no-const-group the extractor is the model before the const group rule, so
+the RED case stays reproducible after the fix.
+
 --expect vulnerable (the default while the extractor is unfixed): exit 0 when the defect is reproduced (all four facts hold).
 --expect fixed: exit 0 when the graph is no longer blind, i.e. the key of TestB differs between a and b (fact 4 no longer holds
 and fact 2 is false) while fact 3 still holds. A known-RED case kept on purpose: the decision function must answer UNVERIFIABLE
@@ -24,8 +27,8 @@ fx = os.path.join(here, "..", "testdata", "iota")
 TEST = "iotarepro.TestB"
 
 
-def graph(binary, v):
-    out = subprocess.run([binary, "."], cwd=os.path.join(fx, v), check=True, capture_output=True, text=True).stdout
+def graph(binary, v, args=()):
+    out = subprocess.run([binary, *args, "."], cwd=os.path.join(fx, v), check=True, capture_output=True, text=True).stdout
     g = json.loads(out)
     return {n["id"]: n for n in g["nodes"]}, merkle.keys(g)[0]
 
@@ -44,17 +47,19 @@ def tool(*cmd):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("binary")
-    ap.add_argument("--expect", choices=["vulnerable", "fixed"], default="vulnerable")
+    ap.add_argument("--expect", choices=["vulnerable", "fixed"], required=True)
     ap.add_argument("--record")
+    ap.add_argument("--extractor-arg", action="append", default=[], help="e.g. -planted-no-const-group: the model before the fix")
     a = ap.parse_args()
-    na, ka = graph(os.path.abspath(a.binary), "a")
-    nb, kb = graph(os.path.abspath(a.binary), "b")
+    na, ka = graph(os.path.abspath(a.binary), "a", a.extractor_arg)
+    nb, kb = graph(os.path.abspath(a.binary), "b", a.extractor_arg)
     pa, pb = passes("a"), passes("b")
     facts = {
         "1 B source digest identical": na["iotarepro.B"]["src_sha256"] == nb["iotarepro.B"]["src_sha256"],
         "2 TestB Merkle key identical": ka[TEST] == kb[TEST],
         "3 TestB passes on a, fails on b": pa and not pb,
-        "4 B has no edge to A (graph blind to the change)": "iotarepro.A" not in nb["iotarepro.B"]["deps"],
+        "4 B has no edge to A or to its const declaration (graph blind to the change)": not any(
+            d == "iotarepro.A" or d.endswith("#const-group") for d in nb["iotarepro.B"]["deps"]),
     }
     for k, v in facts.items():
         print(("HOLDS  " if v else "no     ") + k)

@@ -48,10 +48,13 @@ jobs:
       # The chain from real Go source to the decision: extractor -> evidence builder -> kernel, with an Assurance held outside the
       # extractor. The iota case must come out UNVERIFIABLE (CONSTRUCT_NOT_VERIFIED); no `constructs` is written by hand.
       - run: TYPEDDEPS_BIN="$RUNNER_TEMP/lab-out/typeddeps" python3 -m unittest lab/measure/test_e2e_iota.py
-      # KNOWN-VULNERABILITY REPRODUCTION (lab/testdata/iota/README.md): green here means the defect is STILL PRESENT in the extractor
-      # (an implicit-iota constant has no edge to its value); it is not a statement that the verification is correct. When the
-      # extractor is fixed this step becomes --expect fixed.
-      - run: python3 lab/measure/repro_iota.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --record "$RUNNER_TEMP/lab-out/iota-red.json"
+      # RED -> GREEN of the implicit iota defect (lab/testdata/iota/README.md). The extractor as it is must key the case apart; the
+      # same binary with -planted-no-const-group is the model before the fix and must still show the defect (so the case, and the
+      # check that sees it, stay alive). Green on the second line is a KNOWN-VULNERABILITY REPRODUCTION of the old model, not a
+      # statement that anything is verified.
+      - run: python3 lab/measure/repro_iota.py "$RUNNER_TEMP/lab-out/typeddeps" --expect fixed
+      - run: python3 lab/measure/repro_iota.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --extractor-arg=-planted-no-const-group --record "$RUNNER_TEMP/lab-out/iota-red.json"
+      - run: python3 lab/measure/qualify.py "$RUNNER_TEMP/lab-out/typeddeps"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
