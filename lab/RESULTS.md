@@ -309,11 +309,15 @@ and the `proptest!` tests in Rust (1435).
 upstream registry checkout, absent where this ran, and fails on both sides), **0 pass on the parent and fail on the child**. So:
 
 * the gap was real in the model and **no proven wrong decision in the history of main**, again;
-* those 61 reruns are the price of the over-approximation (0.5% of the Go runs), not of wrong reuse;
+* the 61 reruns are 0.5% of the Go runs. That 59 of them pass on both sides says only that on these two commit pairs the outcome did not
+  change; it does not make the reruns unnecessary: the dependency is real (a method that can be dispatched to is in the closure now);
 * the 8268 Go runs called eligible in section 10 that had no generic or alias in the closure were not safe by construction: 8227
   of them are eligible again after the fix, **41 are not** (their keys moved, they are among the 61, and the rest of the 61 lie under
   generics or aliases). Section 10's number was therefore an over-estimate of what the fixed model allows, which is the direction
   the fix was expected to move it.
+
+The whole 113-pair history was decided on a machine with Go 1.26.9 and Rust 1.99.1, not with the pinned CI toolchain; CI has confirmed the
+targeted cases (the eleven pairs, the probes, the planted builds) with Go 1.27.2, not this backtest.
 
 What is claimed and what is not: the dispatch rule covers the mechanisms of the eleven cases; it does not follow what `fmt` reaches by
 reflection beyond fields, elements and type arguments, nor the methods of a type of a package that is not loaded (the toolchain's and
@@ -321,6 +325,27 @@ go.sum's business, the environment key). `-planted-no-implementers` has no probe
 implementers rule redundant for the probed cases, and the rule is held only by the coverage check of section 3. A type argument that
 cannot be resolved marks the node opaque. `qualify.py` now treats the three conversion cases as REQUIRED probes: the old conversion rule
 is qualified for nothing.
+
+### 10.3 The decisions against what the tests did (Go, replayed, observed twice)
+
+`shadow_replay.py` runs the whole Go test suite at each of the 114 commits (the pinned upstream checkouts, `go test -json`, **twice**) and
+records the outcome of every test. `kernel_backtest.py --verdicts` then decides the pairs with the parent's observed outcome (a pass only
+if both runs passed; a skip is not a pass), and `shadow_check.py` sets each decision against the child's observed outcome.
+`lab/results/shadow-replay-verdicts-314475ab14e0.json`, `shadow-check-314475ab14e0.json`, `kernel-backtest-observed-314475ab14e0.json`.
+
+| Kernel decision (Go) | Runs | Observed on the child |
+|---|---|---|
+| `REUSE_ELIGIBLE` | 12782 | all `CONSISTENT`; **`FALSE_REUSE` 0** |
+| `RERUN_REQUIRED` | 1995 | all `SAME_OUTCOME` |
+| `UNVERIFIABLE` | 126 | all `SAME_OUTCOME` |
+
+No test is nondeterministic in the history (the two runs agree everywhere), no build fails, and the four `TestDump*` helpers are skipped
+(which is why 125 fewer runs are eligible than with the assumed pass of section 10.2: a skip is not evidence).
+
+**What this shows, and what it cannot.** The history of main is green at every commit: no Go test fails on any of them. A false reuse is a
+parent pass reused for a child failure, so none could appear whatever the model was, and no rerun could change an outcome. The 0 is therefore
+empty: the replay confirms that the pipeline runs on observed outcomes and that nothing contradicts the decisions, and it has no power to find
+a wrong decision. The power comes from states in which a test fails. That is the next step (injected semantic changes), not a result here.
 
 ## 11. Reproducing
 

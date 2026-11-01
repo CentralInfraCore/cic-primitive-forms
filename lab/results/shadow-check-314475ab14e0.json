@@ -1,0 +1,15 @@
+{
+ "decisions": {
+  "RERUN_REQUIRED": {
+   "SAME_OUTCOME": 1995
+  },
+  "REUSE_ELIGIBLE": {
+   "CONSISTENT": 12782
+  },
+  "UNVERIFIABLE": {
+   "SAME_OUTCOME": 126
+  }
+ },
+ "false_reuse": [],
+ "nondeterministic_tests": []
+}

@@ -83,6 +83,8 @@ def main():
     ap.add_argument("--scipdeps", required=True)
     ap.add_argument("--rust-toolchain", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--verdicts", help="shadow_replay.py output: the observed outcome of every Go test; replaces the assumed pass on the parent")
+    ap.add_argument("--dump-decisions", help="write every decision as a line: child commit, test, status, reasons")
     a = ap.parse_args()
     repo, work = os.path.abspath(a.repo), os.path.abspath(a.work)
     cache = json.load(open(os.path.join(work, "cache.json")))
@@ -97,6 +99,8 @@ def main():
     print("qualified: go %d constructs, rust %d constructs" % (len(assurance.extractors[go_id]), len(assurance.extractors[rs_id])),
           file=sys.stderr)
 
+    verdicts = json.load(open(a.verdicts)) if a.verdicts else None
+    decisions_out = []
     gpath = os.path.join(work, "kernel-graphs.json")
     graphs = json.load(open(gpath)) if os.path.exists(gpath) else {}
     wt = os.path.join(work, "kernel-wt")
@@ -157,6 +161,11 @@ def main():
                                 sp.append((path, json.dumps(bd.content(repo, p, path, kind), default=str)))
                                 sc.append((path, json.dumps(bd.content(repo, c, path, kind), default=str)))
                         d_prev, d_cur = [hashlib.sha256(json.dumps(x).encode()).hexdigest() for x in (sp, sc)]
+                if verdicts is not None and lang == "go":
+                    # the verdict of the parent is what the run said, twice: a pass only if both runs passed; anything else (a failure,
+                    # a skip, two different outcomes, a test not seen) is not a pass and is not reused
+                    seen = verdicts.get(p, {}).get("go", {}).get(t.split(":", 1)[1].rsplit(".", 1)[-1])
+                    verdict = "pass" if seen == ["PASS", "PASS"] else "fail"
                 prev = dict(prev_e, verdict=verdict, data_dependencies_digest=d_prev, environment_digest=envd(lang, p),
                             opaque_reads=opaque_reads, provenance={"evidence_id": p[:12] + " " + t})
                 cur = dict(cur_e, data_dependencies_digest=d_cur, environment_digest=envd(lang, c), opaque_reads=opaque_reads)
@@ -164,6 +173,8 @@ def main():
                 # the older rule on the same keys: equal key, equal environment, no read file changed, not a failure
                 old = (prev_e["code_closure_digest"] == cur_e["code_closure_digest"] and envd(lang, p) == envd(lang, c)
                        and d_prev == d_cur and verdict == "pass" and not opaque_reads)
+                if a.dump_decisions:
+                    decisions_out.append("%s %s %s %s" % (c, t, d.status, ",".join(d.reasons)))
                 tally[lang][d.status] += 1
                 reasons[lang][(d.status,) + d.reasons] += 1
                 cross[lang][(old, d.status)] += 1
@@ -185,7 +196,9 @@ def main():
     report = {"revision": a.rev, "pairs": len(rows),
               "extractors": {"go": go_id, "rust": rs_id},
               "toolchain": {k: tc[k] for k in ("rustc", "rust-analyzer")},
-              "assumptions": ["a test with no trace on the parent had a pass there", "a test new on the child is not counted"],
+              "assumptions": (["a test new on the child is not counted", "Rust: a test with no trace on the parent had a pass there"] if verdicts is not None else
+                              ["a test with no trace on the parent had a pass there", "a test new on the child is not counted"]),
+              "verdicts": "observed (shadow_replay.py) for Go" if verdicts is not None else "assumed",
               "decisions": {l: dict(tally[l]) for l in tally},
               "by_reason": {l: {",".join(k): v for k, v in reasons[l].items()} for l in reasons},
               "reusable_by_the_older_rule_not_by_the_kernel": {l: {",".join(k): v for k, v in lost[l].items()} for l in lost},
@@ -193,6 +206,8 @@ def main():
               "older_rule_runs_by_watched_constructs": {l: dict(sorted(by_presence[l].items())) for l in by_presence},
               "older_rule_vs_kernel": {l: {"%s/%s" % (str(k[0]).lower(), k[1]): v for k, v in cross[l].items()} for l in cross},
               "rows": rows}
+    if a.dump_decisions:
+        open(a.dump_decisions, "w").write("\n".join(decisions_out) + "\n")
     json.dump(report, open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in report.items() if k != "rows"}, indent=1))
 
