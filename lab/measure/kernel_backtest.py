@@ -37,6 +37,8 @@ import qualify_rust as qrs  # noqa: E402
 import rust_graph as rg  # noqa: E402
 
 DATA_PLACEHOLDER = "-"
+# the constructs whose qualification is being decided; the table of the runs by their presence shows what each is worth
+WATCHED = {"go": {"go.func.generic", "go.type.alias"}, "rust": {"rs.macro.generated"}}
 
 
 def summaries(graph, ident, prov, name_of):
@@ -51,17 +53,17 @@ def summaries(graph, ident, prov, name_of):
     return out
 
 
-def commit_graphs(repo, wt, commit, a, idents):
+def commit_graphs(repo, wt, commit, a, idents, langs=("go", "rust")):
     bd.run(["git", "-C", wt, "checkout", "-q", "--detach", "--force", commit], check=True)
     res = {"go": {}, "rust": {}, "errors": {}}
     env = dict(os.environ, GOFLAGS="-mod=mod", GOTOOLCHAIN="local", GOPROXY="off", GOSUMDB="off")
-    if os.path.isfile(os.path.join(wt, "go", "go.mod")):
+    if "go" in langs and os.path.isfile(os.path.join(wt, "go", "go.mod")):
         r = bd.run([os.path.abspath(a.typeddeps), os.path.join(wt, "go")], env=env)
         if r.returncode:
             res["errors"]["go"] = r.stderr[-300:]
         else:
             res["go"] = summaries(json.loads(r.stdout), *idents["go"], lambda i: "go:" + i.rsplit("/", 1)[-1])
-    if os.path.isfile(os.path.join(wt, "rust", "Cargo.toml")):
+    if "rust" in langs and os.path.isfile(os.path.join(wt, "rust", "Cargo.toml")):
         try:
             g = rg.graph(os.path.join(wt, "rust"), a.scipdeps, a.rust_toolchain)
             res["rust"] = summaries(g, *idents["rust"], lambda i: "rust:" + i)
@@ -100,13 +102,21 @@ def main():
     wt = os.path.join(work, "kernel-wt")
     try:
         for c in commits:
-            if c in graphs:
+            # a language is made again only if the extractor that made it is not the one of this run (its identity is kept)
+            need = tuple(l for l in ("go", "rust") if c not in graphs or graphs[c].get("ids", {}).get(l) != idents[l][0])
+            if not need:
                 continue
             if not os.path.isdir(wt):
                 bd.run(["git", "-C", repo, "worktree", "add", "--detach", wt, c], check=True)
-            graphs[c] = commit_graphs(repo, wt, c, a, idents)
+            res = commit_graphs(repo, wt, c, a, idents, need)
+            g = graphs.setdefault(c, {"go": {}, "rust": {}, "errors": {}, "ids": {}})
+            for l in need:
+                g[l] = res[l]
+                g["ids"][l] = idents[l][0]
+                g["errors"].pop(l, None)
+            g["errors"].update(res["errors"])
             json.dump(graphs, open(gpath, "w"))
-            print("%s go %d rust %d %s" % (c[:7], len(graphs[c]["go"]), len(graphs[c]["rust"]), graphs[c]["errors"] or ""),
+            print("%s %s go %d rust %d %s" % (c[:7], "+".join(need), len(g["go"]), len(g["rust"]), g["errors"] or ""),
                   file=sys.stderr, flush=True)
     finally:
         if os.path.isdir(wt):
@@ -116,6 +126,8 @@ def main():
     tally = {lang: collections.Counter() for lang in ("go", "rust")}
     reasons = {lang: collections.Counter() for lang in ("go", "rust")}
     cross = {lang: collections.Counter() for lang in ("go", "rust")}
+    lost_missing = {lang: collections.Counter() for lang in ("go", "rust")}  # the same, by the unqualified constructs that are missing
+    by_presence = {lang: collections.Counter() for lang in ("go", "rust")}  # runs the older rule reuses, by the watched constructs in the closure
     lost = {lang: collections.Counter() for lang in ("go", "rust")}  # what the older rule would reuse and the kernel does not, by reason
     rows, violations = [], []
     for p, c in zip(commits, commits[1:]):
@@ -155,8 +167,15 @@ def main():
                 tally[lang][d.status] += 1
                 reasons[lang][(d.status,) + d.reasons] += 1
                 cross[lang][(old, d.status)] += 1
+                if old:
+                    present = (set(prev_e["graph"]["constructs"]) | set(cur_e["graph"]["constructs"])) & WATCHED[lang]
+                    opq = bool(prev_e["graph"]["opaque"] or cur_e["graph"]["opaque"])
+                    by_presence[lang][(" + ".join(sorted(present)) or "none") + (" + opaque" if opq else "") + " => " + d.status] += 1
                 if old and d.status != ev.REUSE_ELIGIBLE:
                     lost[lang][(d.status,) + d.reasons] += 1
+                    ident = prev_e["graph"]["extractor"]
+                    missing = sorted((set(prev_e["graph"]["constructs"]) | set(cur_e["graph"]["constructs"])) - assurance.extractors.get(ident, frozenset()))
+                    lost_missing[lang][" + ".join(missing + [r for r in d.reasons if r != "CONSTRUCT_NOT_VERIFIED"])] += 1
                 if d.status == ev.REUSE_ELIGIBLE and not old:
                     violations.append((c, t, d.reasons))
                 row[lang + "_" + d.status] += 1
@@ -170,6 +189,8 @@ def main():
               "decisions": {l: dict(tally[l]) for l in tally},
               "by_reason": {l: {",".join(k): v for k, v in reasons[l].items()} for l in reasons},
               "reusable_by_the_older_rule_not_by_the_kernel": {l: {",".join(k): v for k, v in lost[l].items()} for l in lost},
+              "withheld_by_missing_construct": {l: dict(lost_missing[l].most_common()) for l in lost_missing},
+              "older_rule_runs_by_watched_constructs": {l: dict(sorted(by_presence[l].items())) for l in by_presence},
               "older_rule_vs_kernel": {l: {"%s/%s" % (str(k[0]).lower(), k[1]): v for k, v in cross[l].items()} for l in cross},
               "rows": rows}
     json.dump(report, open(a.out, "w"), indent=1)

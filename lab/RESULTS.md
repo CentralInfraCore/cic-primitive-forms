@@ -254,6 +254,35 @@ What this does not say:
 
 `lab/results/kernel-backtest-314475ab14e0.json`.
 
+### 10.1 The first qualification round: aliases in, generics out
+
+The 4700 Go runs withheld for an unqualified construct held two constructs. Probe pairs were written for each
+(`qualify.py`, `CONSTRUCT_PROBES`; real `PASS -> FAIL` changes, the key of the test must move; negative controls with planted builds,
+`test_qualify_go.py`). `lab/results/kernel-backtest-alias-qualified-314475ab14e0.json`.
+
+| Go runs the older rule reuses (13073), by what the closure holds | Runs | Before | Now |
+|---|---|---|---|
+| neither generics nor aliases, no opaque | 8268 | eligible | eligible |
+| **aliases only** | **628** | withheld | **eligible** (3 of 3 probes) |
+| generic functions only | 2683 | withheld | withheld (1 of 2 probes fails) |
+| generic functions and aliases | 1389 | withheld | withheld |
+| generic functions and an opaque `reflect` use | 27 | withheld | withheld |
+| an opaque `reflect` use, nothing else | 78 | withheld | withheld |
+
+So the kernel now calls **19361** runs `REUSE_ELIGIBLE` (Go 8896, Rust 10465): **66.5%** of 29096, up from 18733 (64.4%). The
+scenario "if all 4700 were qualified" (80.5%) is not reached, because 87% of those runs sit under the **generic functions**, and
+those are not qualified: one of their two probes fails.
+
+* **The failing probe is a real defect, not a missing proof.** `testdata/go-generic-fmt`: a generic function that formats its
+  argument (`fmt.Sprint(x)`); the type argument's `String` changes, the test goes from pass to fail, the Merkle key does not move.
+  The conversion rule skips a type parameter on purpose, and `types.IsInterface` is true for one, so the method set of the type
+  argument is never reached. It is the second red case of this kind (after implicit `iota` and the Rust macro of the crate). It
+  is **not fixed**; until it is, the kernel is right to refuse generics.
+* **Aliases: what is claimed.** Three mechanisms: an alias retargeted, the method of the target of an unchanged alias changed, a
+  value of the alias formatted by `fmt`. Not "all aliases"; the negative control (`-planted-no-conversions`) fails the third.
+* **What is left in Go** is almost entirely generics (4072 + 27), and in Rust the `proptest!` tests (1435). The next number depends
+  on a fix of the generic gap, not on more probes.
+
 ## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned

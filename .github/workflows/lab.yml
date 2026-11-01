@@ -48,6 +48,10 @@ jobs:
       # The chain from real Go source to the decision: extractor -> evidence builder -> kernel, with an Assurance held outside the
       # extractor. The iota case must come out UNVERIFIABLE (CONSTRUCT_NOT_VERIFIED); no `constructs` is written by hand.
       - run: TYPEDDEPS_BIN="$RUNNER_TEMP/lab-out/typeddeps" python3 -m unittest lab/measure/test_e2e_iota.py
+      # Per-construct qualification (aliases, generics), its negative controls (planted builds that must fail a probe), and the chain
+      # to the kernel. The generic probe that fails is a KNOWN RED case (lab/testdata/go-generic-fmt): green here means the kernel
+      # refuses generics, not that they are modelled.
+      - run: TYPEDDEPS_BIN="$RUNNER_TEMP/lab-out/typeddeps" python3 -m unittest lab/measure/test_qualify_go.py
       # RED -> GREEN of the implicit iota defect (lab/testdata/iota/README.md). The extractor as it is must key the case apart; the
       # same binary with -planted-no-const-group is the model before the fix and must still show the defect (so the case, and the
       # check that sees it, stay alive). Green on the second line is a KNOWN-VULNERABILITY REPRODUCTION of the old model, not a

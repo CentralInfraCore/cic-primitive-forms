@@ -207,6 +207,9 @@ func (b *builder) targets(obj types.Object) []string {
 					out = append(out, id) // the universe's error.Error has no package, and no id
 				}
 				for _, n := range b.named {
+					if plantedNoImplementers {
+						break
+					}
 					for _, t := range []types.Type{n, types.NewPointer(n)} {
 						if !types.Implements(t, iface) {
 							continue
@@ -457,6 +460,10 @@ func (b *builder) methodsOf(t types.Type, out map[string]bool) {
 // noConversions switches the interface conversion rule off: a planted defect, for showing that the measurement sees it.
 var noConversions bool
 
+// plantedNoImplementers leaves out the edges from a call of an interface method (or of a method of a type parameter's constraint) to
+// the methods of the types that implement it: a planted defect, for showing that the generic probe of qualify.py can fail.
+var plantedNoImplementers bool
+
 // plantedNoConstGroup switches the const group rule off (no inherited expression, no edge to the declaration): the model before
 // this fix, which lab/testdata/iota showed to be unsafe. Kept so that the red case stays reproducible and the measurement keeps
 // seeing it.
@@ -662,6 +669,7 @@ func fail(format string, args ...any) {
 
 func main() {
 	tests := flag.Bool("tests", true, "include the _test.go files (test variants of the packages)")
+	flag.BoolVar(&plantedNoImplementers, "planted-no-implementers", false, "planted defect: a call of an interface method has no edge to its implementers")
 	flag.BoolVar(&plantedNoConstGroup, "planted-no-const-group", false, "planted defect: the model before the const group rule (implicit iota has no edge)")
 	flag.BoolVar(&noConversions, "planted-no-conversions", false, "planted defect: leave out the edges of interface conversions")
 	flag.Parse()
