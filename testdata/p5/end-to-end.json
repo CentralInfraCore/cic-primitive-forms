@@ -1,0 +1,242 @@
+{
+ "engine_identity_token": "ENGINE_IDENTITY_TOKEN",
+ "engine_version": "0.0.0",
+ "release": {
+  "primitive_release": "fixture/@v0.0.0",
+  "primitive_source_commit": "0000000000000000000000000000000000000000",
+  "primitive_build_hash": "sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36",
+  "grammar_sha256": "sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51",
+  "grammar_schema_sha256": "sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c"
+ },
+ "grammar": "cic-primitives-73ae469-6a188078",
+ "access_keys": [
+  "value",
+  "access",
+  "modify",
+  "inherit",
+  "default_injection",
+  "conformance"
+ ],
+ "cases": [
+  {
+   "id": "zero-defaults",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n",
+   "sha256": "6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf",
+   "yaml": "type: t\nenabled: false\nmtu: 0\nlabel: \"\"\nmaybe: ~\n",
+   "base": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "label": "implemented",
+     "maybe": "implemented",
+     "mtu": "deprecated",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"authored\",\"value\":false},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"authored\",\"value\":\"\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"authored\",\"value\":null},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"authored\",\"value\":0},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:f7d9fcc0c9b14f6ed2947409caac44f6cd8c461648d891eb5ddac8276442059c",
+    "authored_input": "{\"enabled\":false,\"label\":\"\",\"maybe\":null,\"mtu\":0,\"type\":\"t\"}",
+    "input_digest": "sha256:630d880252255e85cfd8b7b302eff6f221a1e34c43bdd7ec33a0dfbf1eed0ecc",
+    "document": "{\"materialization\":{\"applied_defaults\":[],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:630d880252255e85cfd8b7b302eff6f221a1e34c43bdd7ec33a0dfbf1eed0ecc\",\"output_digest\":\"sha256:f7d9fcc0c9b14f6ed2947409caac44f6cd8c461648d891eb5ddac8276442059c\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {}
+   },
+   "alt": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "label": "implemented",
+     "maybe": "implemented",
+     "mtu": "deprecated",
+     "type": "deprecated"
+    },
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"authored\",\"value\":false},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"authored\",\"value\":\"\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"authored\",\"value\":null},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"authored\",\"value\":0},{\"capability\":\"deprecated\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:618edc0b2813e87463abb4a441a498bee9b06aa4259ea610f61053e6592fda26",
+    "authored_input": "{\"enabled\":false,\"label\":\"\",\"maybe\":null,\"mtu\":0,\"type\":\"t\"}",
+    "input_digest": "sha256:630d880252255e85cfd8b7b302eff6f221a1e34c43bdd7ec33a0dfbf1eed0ecc",
+    "document": "{\"materialization\":{\"applied_defaults\":[],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:630d880252255e85cfd8b7b302eff6f221a1e34c43bdd7ec33a0dfbf1eed0ecc\",\"output_digest\":\"sha256:618edc0b2813e87463abb4a441a498bee9b06aa4259ea610f61053e6592fda26\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {}
+   },
+   "alt_changes": {
+    "field": "type",
+    "to": "deprecated"
+   }
+  },
+  {
+   "id": "one-default",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: note\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n",
+   "sha256": "d4a74d586f32fe05011cf78623053108e714ef804999d138169d0309ffacdb7d",
+   "yaml": "type: t\nnote: n\n",
+   "base": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "note": "implemented",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "enabled",
+     "note",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"note\",\"provenance\":\"authored\",\"value\":\"n\"},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:72be05451a9913c2424d8f0d30effdc778115b45884debf037db100ebffd3ae0",
+    "authored_input": "{\"note\":\"n\",\"type\":\"t\"}",
+    "input_digest": "sha256:73068bb25de1d9a3856821a6a27670150f0189364e6b05d23c7bf0060c21f3b9",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:73068bb25de1d9a3856821a6a27670150f0189364e6b05d23c7bf0060c21f3b9\",\"output_digest\":\"sha256:72be05451a9913c2424d8f0d30effdc778115b45884debf037db100ebffd3ae0\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:d4a74d586f32fe05011cf78623053108e714ef804999d138169d0309ffacdb7d\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.enabled": "enabled"
+    }
+   },
+   "alt": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "note": "not_implemented",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "enabled",
+     "note",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"not_implemented\",\"key\":\"note\",\"provenance\":\"authored\",\"value\":\"n\"},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:ce3abdac394d2f0f463fbbe226dda03f3943c20ee0b2af80d903339f141ecf86",
+    "authored_input": "{\"note\":\"n\",\"type\":\"t\"}",
+    "input_digest": "sha256:73068bb25de1d9a3856821a6a27670150f0189364e6b05d23c7bf0060c21f3b9",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:73068bb25de1d9a3856821a6a27670150f0189364e6b05d23c7bf0060c21f3b9\",\"output_digest\":\"sha256:ce3abdac394d2f0f463fbbe226dda03f3943c20ee0b2af80d903339f141ecf86\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:d4a74d586f32fe05011cf78623053108e714ef804999d138169d0309ffacdb7d\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.enabled": "enabled"
+    }
+   },
+   "alt_changes": {
+    "field": "note",
+    "to": "not_implemented"
+   }
+  },
+  {
+   "id": "many-defaults",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        default: 1500\n      - name: label\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        default: x\n      - name: maybe\n        shape_type: scalar\n        scalar_type: string\n        optional: true\n        nullable: true\n        default: d\n",
+   "sha256": "6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf",
+   "yaml": "type: t\n",
+   "base": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "label": "implemented",
+     "maybe": "implemented",
+     "mtu": "deprecated",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"schema_default\",\"value\":\"x\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"schema_default\",\"value\":\"d\"},{\"capability\":\"deprecated\",\"key\":\"mtu\",\"provenance\":\"schema_default\",\"value\":1500},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:f9c6b8f8a235e38903c47d29c07e5b23d548f2990fa23e2080ac15de9cc0f157",
+    "authored_input": "{\"type\":\"t\"}",
+    "input_digest": "sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.label\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:ba2df4903a2c14e86dc3bcca58911b44ac1d2514b7227bf6eb08cfb978f55a1b\"},{\"path\":\"$.maybe\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:3fa5834dc920d385ca9b099c9fe55dcca163a6b256a261f8f147291b0e7cf633\"},{\"path\":\"$.mtu\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:9f69998560dcfd8016442e0a32e959191df095817a164ce844c64ec5a8b0cc1b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab\",\"output_digest\":\"sha256:f9c6b8f8a235e38903c47d29c07e5b23d548f2990fa23e2080ac15de9cc0f157\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.enabled": "enabled",
+     "$.label": "label",
+     "$.maybe": "maybe",
+     "$.mtu": "mtu"
+    }
+   },
+   "alt": {
+    "capabilities": {
+     "enabled": "not_implemented",
+     "label": "implemented",
+     "maybe": "implemented",
+     "mtu": "implemented",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "enabled",
+     "label",
+     "maybe",
+     "mtu",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"label\",\"provenance\":\"schema_default\",\"value\":\"x\"},{\"capability\":\"implemented\",\"key\":\"maybe\",\"provenance\":\"schema_default\",\"value\":\"d\"},{\"capability\":\"implemented\",\"key\":\"mtu\",\"provenance\":\"schema_default\",\"value\":1500},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:ad88028bd39295b87b08e674c73c81b7e7fe92dae9e9b2eae3e5270bcf362d35",
+    "authored_input": "{\"type\":\"t\"}",
+    "input_digest": "sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.label\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:ba2df4903a2c14e86dc3bcca58911b44ac1d2514b7227bf6eb08cfb978f55a1b\"},{\"path\":\"$.maybe\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:3fa5834dc920d385ca9b099c9fe55dcca163a6b256a261f8f147291b0e7cf633\"},{\"path\":\"$.mtu\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:9f69998560dcfd8016442e0a32e959191df095817a164ce844c64ec5a8b0cc1b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab\",\"output_digest\":\"sha256:ad88028bd39295b87b08e674c73c81b7e7fe92dae9e9b2eae3e5270bcf362d35\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:6a6a67dbc4abd7725a5710e49c01989885774e71829912fbdb44b58a1d9522cf\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.enabled": "enabled",
+     "$.label": "label",
+     "$.maybe": "maybe",
+     "$.mtu": "mtu"
+    }
+   },
+   "alt_changes": {
+    "field": "mtu",
+    "to": "implemented"
+   }
+  },
+  {
+   "id": "twin-defaults",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: type\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: enabled\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n      - name: active\n        shape_type: scalar\n        scalar_type: boolean\n        optional: true\n        default: true\n",
+   "sha256": "09575463df41aa2a44aff34890d3d8dcb4ce549c49b3eb1e4834a4639f3eb5aa",
+   "yaml": "type: t\n",
+   "base": {
+    "capabilities": {
+     "active": "implemented",
+     "enabled": "not_implemented",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "active",
+     "enabled",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"implemented\",\"key\":\"active\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:3b2dacddf5e594c642cff7ed70510bb1db4c9a4e71e7dd17af028dcf81cf29c7",
+    "authored_input": "{\"type\":\"t\"}",
+    "input_digest": "sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.active\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab\",\"output_digest\":\"sha256:3b2dacddf5e594c642cff7ed70510bb1db4c9a4e71e7dd17af028dcf81cf29c7\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:09575463df41aa2a44aff34890d3d8dcb4ce549c49b3eb1e4834a4639f3eb5aa\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.active": "active",
+     "$.enabled": "enabled"
+    }
+   },
+   "alt": {
+    "capabilities": {
+     "active": "deprecated",
+     "enabled": "not_implemented",
+     "type": "implemented"
+    },
+    "expected_keys": [
+     "active",
+     "enabled",
+     "type"
+    ],
+    "projection": "{\"fields\":[{\"capability\":\"deprecated\",\"key\":\"active\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"not_implemented\",\"key\":\"enabled\",\"provenance\":\"schema_default\",\"value\":true},{\"capability\":\"implemented\",\"key\":\"type\",\"provenance\":\"authored\",\"value\":\"t\"}]}",
+    "output_digest": "sha256:2905c4f50be20984b10e8985cc2d9cf42d1e2dc837fadaa9143df1b4dbf75b17",
+    "authored_input": "{\"type\":\"t\"}",
+    "input_digest": "sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab",
+    "document": "{\"materialization\":{\"applied_defaults\":[{\"path\":\"$.active\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"},{\"path\":\"$.enabled\",\"rule\":\"schema-default\",\"value_digest\":\"sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\"}],\"derived_values\":[],\"engine_identity\":\"ENGINE_IDENTITY_TOKEN\",\"engine_version\":\"0.0.0\",\"grammar_schema_sha256\":\"sha256:e94a3ca933b4bbce9ddc99a9c017e3eac69c3a856e450e8adf7cd6f1f36c718c\",\"grammar_sha256\":\"sha256:ac978ea0dfedd026f4576453115b24e076de205ffd39a2f7393339064162fd51\",\"input_digest\":\"sha256:2241608e8271eac800d4d4ac804b3f39352a4a383bb9c7ba12629724bc9d60ab\",\"output_digest\":\"sha256:2905c4f50be20984b10e8985cc2d9cf42d1e2dc837fadaa9143df1b4dbf75b17\",\"primitive_build_hash\":\"sha256:974da43a2dc834bc547f33db31fdaee033640020aff7b72c444e95e284d65f36\",\"primitive_release\":\"fixture/@v0.0.0\",\"primitive_source_commit\":\"0000000000000000000000000000000000000000\",\"receipt_schema_version\":1,\"schema_digest\":\"sha256:09575463df41aa2a44aff34890d3d8dcb4ce549c49b3eb1e4834a4639f3eb5aa\",\"schema_name\":\"cic:demo:Demo\",\"schema_version\":\"v1.0.0\"}}",
+    "binding": {
+     "$.active": "active",
+     "$.enabled": "enabled"
+    }
+   },
+   "alt_changes": {
+    "field": "active",
+    "to": "deprecated"
+   }
+  }
+ ]
+}

@@ -567,11 +567,206 @@ fn receipts(root: &str) {
     println!("engine (rust): {accepted} receipts accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
 }
 
+type Outcome = Result<(), (&'static str, &'static str)>;
+
+/// The engine's verifier on a receipt, the authored input and the object built from a projection under a key set, with a binding.
+fn verify_one(
+    receipt: &J,
+    authored: &J,
+    projection: &J,
+    keys: &BTreeSet<String>,
+    binding: &BTreeMap<String, String>,
+) -> Outcome {
+    let object = MaterializedObject::try_new(fields_of(projection), keys).expect("complete");
+    let receipt = Receipt::from_value(&to_value(receipt)).map_err(|e| (e.code, e.rule))?;
+    let binding: PathBinding = binding.clone();
+    verify_receipt(&receipt, &object, &to_value(authored), &binding).map_err(|e| (e.code, e.rule))
+}
+
+fn string_map(j: &J) -> BTreeMap<String, String> {
+    j.as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+        .collect()
+}
+
+/// The end-to-end proof of P5-3 (tools/parity/check_receipt_e2e.py; docs section 21): the engine's verifier is the independent reader of the records one language's
+/// chain made. For each case and each of its two runs (the capability map as given, and with one capability changed) the OBJECT is the one the standalone
+/// materialization step made, the receipt, the authored input and the binding are the ones the receipt step made, all of the same execution: the verifier has to accept.
+/// Then the artefacts of the two runs are mixed, and every alteration the engine can see is made: each has to be refused with the code and the rule written here.
+/// What the engine cannot see (the schema source) is the identity step's and the checker's. And the swap of the bindings of two defaulted fields: refused when their
+/// values differ, ACCEPTED when they are equal (that acceptance is the measured limit, and it is why the Python reference compares the binding itself).
+fn end_to_end(dump: &str, identity: &str) {
+    let zero = J::String(format!("sha256:{}", "0".repeat(64)));
+    let (mut accepted, mut refused) = (0, 0);
+    let (mut swap_accepted, mut swap_refused) = (0, 0);
+    for line in std::fs::read_to_string(dump).unwrap().lines() {
+        let case: J = serde_json::from_str(line).unwrap();
+        let id = case["id"].as_str().unwrap().to_string();
+        let run = |which: &str| -> (J, J, J, BTreeSet<String>, BTreeMap<String, String>) {
+            let r = &case[which];
+            let receipt: J =
+                serde_json::from_str(r["receipt"]["document"].as_str().unwrap()).unwrap();
+            let authored: J =
+                serde_json::from_str(r["receipt"]["authored_input"].as_str().unwrap()).unwrap();
+            let projection: J =
+                serde_json::from_str(r["standalone"]["projection"].as_str().unwrap()).unwrap();
+            let keys = r["standalone"]["expected_keys"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|k| k.as_str().unwrap().to_string())
+                .collect();
+            (
+                receipt,
+                authored,
+                projection,
+                keys,
+                string_map(&r["receipt"]["binding"]),
+            )
+        };
+        let (base, alt) = (run("base"), run("alt"));
+        for (which, r) in [("base", &base), ("alt", &alt)] {
+            assert_eq!(
+                r.0["materialization"]["engine_identity"], identity,
+                "{id} {which}"
+            );
+            assert_eq!(
+                verify_one(&r.0, &r.1, &r.2, &r.3, &r.4),
+                Ok(()),
+                "{id} {which}: the engine verifier on the chain of the language"
+            );
+            accepted += 1;
+        }
+        let mut expect = |what: &str, got: Outcome, want: (&'static str, &'static str)| {
+            assert_eq!(got, Err(want), "{id}: {what}");
+            refused += 1;
+        };
+        // the receipt of one run does not describe the object of the other: a capability moves the object, and the receipt that was made for the old one is refused
+        expect(
+            "the receipt of the base run against the object of the alt run",
+            verify_one(&base.0, &base.1, &alt.2, &alt.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        expect(
+            "the receipt of the alt run against the object of the base run",
+            verify_one(&alt.0, &alt.1, &base.2, &base.3, &alt.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        let mut r = base.0.clone();
+        r["materialization"]["input_digest"] = zero.clone();
+        expect(
+            "a changed input digest",
+            verify_one(&r, &base.1, &base.2, &base.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-INPUT"),
+        );
+        let mut r = base.0.clone();
+        r["materialization"]["output_digest"] = zero.clone();
+        expect(
+            "a changed output digest",
+            verify_one(&r, &base.1, &base.2, &base.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-OUTPUT"),
+        );
+        let mut a = base.1.clone();
+        a["type"] = J::String("another".into());
+        expect(
+            "another authored input",
+            verify_one(&base.0, &a, &base.2, &base.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-BINDS-INPUT"),
+        );
+        let evidence = base.0["materialization"]["applied_defaults"]
+            .as_array()
+            .unwrap()
+            .clone();
+        if evidence.is_empty() {
+            continue;
+        }
+        let mut r = base.0.clone();
+        r["materialization"]["applied_defaults"][0]["value_digest"] = zero.clone();
+        expect(
+            "a changed default evidence",
+            verify_one(&r, &base.1, &base.2, &base.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-VALUE"),
+        );
+        let mut r = base.0.clone();
+        r["materialization"]["applied_defaults"]
+            .as_array_mut()
+            .unwrap()
+            .remove(0);
+        expect(
+            "a default evidence removed",
+            verify_one(&r, &base.1, &base.2, &base.3, &base.4),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-MEMBERSHIP"),
+        );
+        let first = base.4.keys().next().unwrap().clone();
+        let mut b = base.4.clone();
+        b.remove(&first);
+        expect(
+            "a path with no binding",
+            verify_one(&base.0, &base.1, &base.2, &base.3, &b),
+            (code::RECEIPT_UNBOUND, "R-RECEIPT-PATH-BINDING"),
+        );
+        let mut b = base.4.clone();
+        b.insert(first.clone(), "nope".into());
+        expect(
+            "a path bound to a key the object does not have",
+            verify_one(&base.0, &base.1, &base.2, &base.3, &b),
+            (code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-MEMBERSHIP"),
+        );
+        // the swap of the bindings of two defaulted fields
+        for i in 0..evidence.len() {
+            for j in i + 1..evidence.len() {
+                let (pi, pj) = (
+                    evidence[i]["path"].as_str().unwrap(),
+                    evidence[j]["path"].as_str().unwrap(),
+                );
+                let mut b = base.4.clone();
+                let (ki, kj) = (b[pi].clone(), b[pj].clone());
+                b.insert(pi.to_string(), kj);
+                b.insert(pj.to_string(), ki);
+                let got = verify_one(&base.0, &base.1, &base.2, &base.3, &b);
+                if evidence[i]["value_digest"] == evidence[j]["value_digest"] {
+                    assert_eq!(
+                        got,
+                        Ok(()),
+                        "{id}: two defaults of one value, bindings swapped: the engine cannot tell"
+                    );
+                    swap_accepted += 1;
+                } else {
+                    assert_eq!(
+                        got,
+                        Err((code::RECEIPT_MISMATCH, "R-RECEIPT-EVIDENCE-VALUE")),
+                        "{id}: two defaults of two values, bindings swapped"
+                    );
+                    swap_refused += 1;
+                }
+            }
+        }
+    }
+    assert!(accepted >= 8, "the chains accepted");
+    assert!(
+        swap_accepted >= 1,
+        "no swap of two defaults of one value was measured"
+    );
+    assert!(
+        swap_refused >= 1,
+        "no swap of two defaults of two values was measured"
+    );
+    println!("engine (rust): {accepted} chains of {identity} accepted by verify_receipt, {refused} altered or mixed ones refused; swapped bindings: {swap_accepted} of equal values accepted (the engine cannot tell), {swap_refused} of different values refused");
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let first = args
         .next()
         .expect("usage: engine-harness-rust <forms root> | differential <in> <out>");
+    if first == "end-to-end" {
+        let dump = args.next().expect("the dump of one language");
+        let identity = args.next().expect("the engine identity of that language");
+        end_to_end(&dump, &identity);
+        return;
+    }
     if first == "receipt-differential" {
         let input = args.next().expect("the generated inputs");
         let output = args.next().expect("the receipt dump of one language");

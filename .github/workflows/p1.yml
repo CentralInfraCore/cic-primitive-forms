@@ -61,6 +61,8 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_materialize_cases.py
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_receipt_cases.py
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_compare_receipt_fuzz.py
+      # P5-3 end-to-end proof: the checker of the chain is shown to fail on a skipped step, an artefact of another run, a missing case and a swapped binding
+      - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_check_receipt_e2e.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
@@ -1439,6 +1441,24 @@ jobs:
           for l in rust go; do
             cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- receipt-differential "$P/$l.in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l"
             (cd tools/p5/engine-harness-go && go run . receipt-differential "$P/$l.in.jsonl" "$P/$l.jsonl" "cic-primitive-forms-$l")
+          done
+
+      # P5-3 end-to-end proof WITHOUT reference resolution (docs section 21): schema source bytes -> verified compile and identity; document -> parse -> materialize ->
+      # receipt_flat_fixture, one execution per language; the receipt builder materializes again inside and the two objects must be one. The expected values are
+      # computed in Python (the file is the one the script writes); the checker binds every artefact to the run it came from; the engine's verifier then reads the
+      # records of both languages (four combinations), with the runs mixed, the digests, the evidence and the binding altered, and the swapped bindings measured.
+      - name: P5-3 end-to-end proof, Rust and Go, against the Python reference and the engine verifier
+        run: |
+          set -e
+          P="$RUNNER_TEMP/e2e"
+          mkdir -p "$P"
+          python3 tools/p5/end_to_end_cases.py
+          (cd rust && CIC_E2E_DUMP="$P/rust.e2e.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test receipt_end_to_end)
+          (cd go && CIC_E2E_DUMP="$P/go.e2e.jsonl" go test -count=1 -run 'EndToEnd' .)
+          python3 tools/parity/check_receipt_e2e.py "$P"
+          for l in rust go; do
+            cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- end-to-end "$P/$l.e2e.jsonl" "cic-primitive-forms-$l"
+            (cd tools/p5/engine-harness-go && go run . end-to-end "$P/$l.e2e.jsonl" "cic-primitive-forms-$l")
           done
 
   # The edit differential on real defects (P3b E4): a defect planted in one language must turn the comparison red. One job per language (a build and ten

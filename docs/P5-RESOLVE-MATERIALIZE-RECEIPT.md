@@ -428,7 +428,7 @@ The owner's record of 2026-10-30 asks, before P5-3 is closed, a machine-checked 
 | A binding to a key that is not in the object, or to a key of another provenance, is `E_RECEIPT_MISMATCH`, `R-RECEIPT-EVIDENCE-MEMBERSHIP` | 2 | the binding is checked for existence and provenance |
 | Two defaulted fields bound crosswise (different values) are `R-RECEIPT-EVIDENCE-VALUE` | 1 (+1 control) | a wrong binding is seen **only through the value digest** |
 
-**The limit that follows (read from `check_entry`, not executed):** the verifier compares the digest of the value only. Two defaulted fields with **equal** values can have their bindings swapped and the receipt is still accepted. So the verifier cannot prove that a path is bound to the right key; that proof stays with the library's own derivation, which is the half that is not done.
+**The limit that follows (read from `check_entry`; executed in section 21):** the verifier compares the digest of the value only. Two defaulted fields with **equal** values can have their bindings swapped and the receipt is still accepted. So the verifier cannot prove that a path is bound to the right key; that proof stays with the library's own derivation, which is the half that is not done.
 
 **Scope decisions (accepted by the review of this PR; the measured table above is the engine's behaviour, the lines below are what Forms commits to):**
 
@@ -437,3 +437,44 @@ The owner's record of 2026-10-30 asks, before P5-3 is closed, a machine-checked 
 * **The end-to-end proof** (a document from text through parse, resolve, materialize and receipt to the engine verifier, in one run) is the next step; production receipt and Engine #63 stay on hold.
 
 **Recorded:** B closes for the flat `$.field -> field` binding only, derived from the same schema/materialization source and checked against an independent reference; a swapped binding of equal-valued defaults is not correct either, although the verifier would accept it. C: no list-element selector is written as a receipt evidence path until the engine's normative contract defines selector and key; unsupported input is refused explicitly. The non-flat binding is a contract unit of its own. The end-to-end proof is a separate PR and has to use values from one connected execution, not separately built fixtures.
+
+
+## 21. P5-3, sixth step: the end-to-end proof, without reference resolution (2026-11-01)
+
+**P5-3 end-to-end proof without reference resolution.** The owner withdrew the requirement of a reference resolve (the instruction of 2026-11-01): there is no snapshot or reference contract in this library, and none is invented here. The chain is
+
+`schema source bytes -> verified compile and identity` and `authored document -> parse -> materialize -> receipt_flat_fixture -> the pinned engine verifier`
+
+with the capability map an **explicit, checked caller input** (the P5-2 contract). This step does not say where that map comes from, and does not call its source authenticated. `ResolveRule` is not connected to the materialization. Decision F and P5-4 stay open; the release record is the fixture of section 17, the production receipt is on hold, and engine issue #63 stays open.
+
+**What is built (tests and tools only, no product code):**
+
+* `tools/p5/end_to_end_cases.py` writes `testdata/p5/end-to-end.json`: four cases (no default, one default, four defaults, and `twin-defaults`: two defaulted fields of one value), each run twice, with its capability map (`base`) and with ONE capability changed (`alt`). The expected values of both runs are computed in Python from the fields each case lists: the canonical bytes of the projection and its digest, the authored input and its digest, the default evidence, the `$.field -> field` binding and the whole receipt.
+* `rust/tests/receipt_end_to_end.rs` and `go/receipt_end_to_end_test.go`: ONE chain per run. The schema is compiled and its identity bound (`schema_identity`, `compile_schema`), the document is parsed once, and that very node is what the standalone `materialize_flat` and `receipt_flat_fixture` are given. Each step's output is checked against what the next step carries: the receipt names the identity of the first step, the input digest of the parsed document, and the output digest of the standalone materialization; its evidence and binding cover exactly the defaulted fields.
+* `tools/parity/check_receipt_e2e.py` (+ 23 self-tests) reads the dumps of both languages and the Python reference. Every record carries `chain`, a digest over the schema digest, the input digest, the output digest, the receipt digest and the capability map of THAT run; an artefact of another run, or of another capability map, breaks it.
+* `end-to-end` mode of both engine harnesses: the engine verifier reads the records of both languages (four combinations: Rust or Go producer, Rust or Go verifier).
+
+**Two materializations, stated.** The receipt builder materializes inside, so a chain holds TWO executions of the materialization: the standalone step and the builder's. They are compared field by field (key, capability, provenance, canonical value bytes, projection, expected keys, output digest) in the tests and, from the dump, by the checker. One execution is never claimed where two happened.
+
+**What the proof shows (run locally, Rust and Go):**
+
+| Requirement | How it is shown |
+|---|---|
+| One chain, same compile and input for every step | the chain function above; the checker rejects a record whose chain digest is not the digest of its own artefacts |
+| A capability change moves the object, the output digest and the receipt | tests in both languages and the checker: object, `output_digest` and receipt differ, and the receipt differs in `output_digest` alone |
+| ... and not the input digest | the authored input, the input digest, the schema identity and the binding are equal across the two runs |
+| The old receipt is not valid for the changed object | the engine refuses the base receipt against the alt object, and the alt receipt against the base object, with `R-RECEIPT-BINDS-OUTPUT` (all four combinations) |
+| A missing, unknown (`Implemented`, `unverified`) or undeclared capability | refused with the reason and the field in the standalone step **and** by the receipt builder alone, which makes no receipt |
+| Binding correctness | the binding is compared with the Python reference, field by field, for every case |
+| Swapped binding of two defaults of EQUAL value | **the engine accepts it** (executed, both verifiers): 1 swap of equal values accepted; and refuses 6 swaps of different values with `R-RECEIPT-EVIDENCE-VALUE`. The Python reference rejects the swapped binding (a self-test builds it and reads the message) |
+| Altered schema source, document, output, digests, evidence, binding | an altered schema source stops at the identity step; the engine refuses a changed input digest, output digest, authored input, default evidence value, a removed evidence entry, an unbound path and a path bound to a missing key |
+| A schema that is not flat | refused with `not_flat` in the chain, never walked into |
+
+**The proof of the proof.** The checker is shown to fail: its 23 tests build a clean pair of dumps from the reference and break one thing at a time, reading the message and not the count: a case missing from one language and from BOTH, a repeated case, an invented one, a skipped or invented step (a missing `standalone`, `receipt`, `chain`, `authored_input`, `schema_digest`; an added `resolve`), a wrong schema identity, another authored input, a changed standalone object, a builder object that is not the standalone one, a receipt that differs from the reference even with its own digest, an artefact or the capability map of another run, the receipt of another case, the swapped binding, a wrong or missing binding, the twin case that lost its two equal values, a capability change that moves nothing, that moves the input, or that moves more than the output digest. Ten defects planted in the checker itself (the chain digest, the binding, the two-objects check, the twin point, the output-digest-only check, the cross-language check, the artefact and run key checks, the receipt-against-reference check and the missing-case check) each turned a test red. The harness side was seen to fail the same way (a swap case that stops being accepted, a mixed run that stops being refused).
+
+**What this does not prove.**
+
+* Where the capability map comes from. It is a caller input, checked for form; no source is authenticated.
+* The schema source and the grammar identity. The engine cannot see `schema_name`, `schema_version` or `schema_digest` (section 18); they are the identity step's, the Python reference's and the checker's.
+* The release record is a fixture (section 17): a well-formed receipt here is not an authentic one.
+* Reference resolution, a snapshot, a non-flat document and a list-element selector: not done, refused explicitly (section 20 for the selector).

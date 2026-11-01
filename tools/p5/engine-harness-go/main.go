@@ -547,7 +547,168 @@ func receipts(root string) {
 	fmt.Printf("engine (go): %d path and binding cases give the verdict written in receipt-paths.json\n", len(paths.Cases))
 }
 
+// e2eRun is one run of the chain as the language dumped it (tools/parity/check_receipt_e2e.py).
+type e2eRun struct {
+	Standalone struct {
+		Projection   string   `json:"projection"`
+		ExpectedKeys []string `json:"expected_keys"`
+	} `json:"standalone"`
+	Receipt struct {
+		Document      string            `json:"document"`
+		AuthoredInput string            `json:"authored_input"`
+		Binding       map[string]string `json:"binding"`
+	} `json:"receipt"`
+}
+
+// endToEnd is the end-to-end proof of P5-3 (docs section 21): the engine's verifier is the independent reader of the records one language's chain made. For each
+// case and each of its two runs (the capability map as given, and with one capability changed) the OBJECT is the one the standalone materialization step made, the
+// receipt, the authored input and the binding are the ones the receipt step made, all of the same execution: the verifier has to accept. Then the artefacts of the
+// two runs are mixed, and every alteration the engine can see is made: each has to be refused with the code and the rule written here. What the engine cannot see
+// (the schema source) is the identity step's and the checker's. And the swap of the bindings of two defaulted fields: refused when their values differ, ACCEPTED when
+// they are equal (that acceptance is the measured limit, and it is why the Python reference compares the binding itself). The Rust peer is tools/p5/engine-harness-rust.
+func endToEnd(dump, identity string) {
+	type want struct{ code, rule string }
+	text, err := os.ReadFile(dump)
+	if err != nil {
+		fail("%v", err)
+	}
+	accepted, refused, swapAccepted, swapRefused := 0, 0, 0, 0
+	for _, line := range strings.Split(strings.TrimSpace(string(text)), "\n") {
+		var c struct {
+			ID   string `json:"id"`
+			Base e2eRun `json:"base"`
+			Alt  e2eRun `json:"alt"`
+		}
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			fail("%v", err)
+		}
+		type prepared struct {
+			doc, authored interface{}
+			fields        []projField
+			keys          []string
+			binding       map[string]string
+		}
+		prepare := func(r e2eRun) prepared {
+			var projection struct {
+				Fields []projField `json:"fields"`
+			}
+			pdec := json.NewDecoder(strings.NewReader(r.Standalone.Projection))
+			pdec.UseNumber() // an integer of 64 bits must not pass through a float
+			if err := pdec.Decode(&projection); err != nil {
+				fail("%s: %v", c.ID, err)
+			}
+			return prepared{decode(r.Receipt.Document), decode(r.Receipt.AuthoredInput), projection.Fields, r.Standalone.ExpectedKeys, r.Receipt.Binding}
+		}
+		verify := func(doc, authored interface{}, fs []projField, keys []string, binding map[string]string) *want {
+			o, err := materialized.NewMaterializedObject(fieldsOf(fs), keySet(keys))
+			if err != nil {
+				fail("%s: the object: %v", c.ID, err)
+			}
+			rc, err := receipt.Parse(doc)
+			if err == nil {
+				err = receipt.Verify(rc, o, authored, receipt.PathBinding(binding))
+			}
+			if err == nil {
+				return nil
+			}
+			var re *receipt.Error
+			if !errors.As(err, &re) {
+				fail("%s: not an engine error: %v", c.ID, err)
+			}
+			return &want{re.Code, re.Rule}
+		}
+		base, alt := prepare(c.Base), prepare(c.Alt)
+		body := func(d interface{}) map[string]interface{} { return obj(obj(d)["materialization"]) }
+		for _, r := range []struct {
+			which string
+			p     prepared
+		}{{"base", base}, {"alt", alt}} {
+			if got := body(r.p.doc)["engine_identity"]; got != identity {
+				fail("%s %s: the engine identity is %v, want %s", c.ID, r.which, got, identity)
+			}
+			if w := verify(r.p.doc, r.p.authored, r.p.fields, r.p.keys, r.p.binding); w != nil {
+				fail("%s %s: the engine verifier refused the chain of the language: %v", c.ID, r.which, *w)
+			}
+			accepted++
+		}
+		expect := func(what string, got *want, w want) {
+			if got == nil || *got != w {
+				fail("%s: %s: got %v, want %v", c.ID, what, got, w)
+			}
+			refused++
+		}
+		// the receipt of one run does not describe the object of the other: a capability moves the object, and the receipt that was made for the old one is refused
+		expect("the receipt of the base run against the object of the alt run", verify(base.doc, base.authored, alt.fields, alt.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		expect("the receipt of the alt run against the object of the base run", verify(alt.doc, alt.authored, base.fields, base.keys, alt.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		d := clone(base.doc)
+		body(d)["input_digest"] = zeroDigest()
+		expect("a changed input digest", verify(d, base.authored, base.fields, base.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-INPUT"})
+		d = clone(base.doc)
+		body(d)["output_digest"] = zeroDigest()
+		expect("a changed output digest", verify(d, base.authored, base.fields, base.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-OUTPUT"})
+		a := clone(base.authored)
+		obj(a)["type"] = "another"
+		expect("another authored input", verify(base.doc, a, base.fields, base.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-BINDS-INPUT"})
+		list := func(d interface{}) []interface{} { return body(d)["applied_defaults"].([]interface{}) }
+		evidence := list(base.doc)
+		if len(evidence) == 0 {
+			continue
+		}
+		d = clone(base.doc)
+		obj(list(d)[0])["value_digest"] = zeroDigest()
+		expect("a changed default evidence", verify(d, base.authored, base.fields, base.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-VALUE"})
+		d = clone(base.doc)
+		body(d)["applied_defaults"] = list(d)[1:]
+		expect("a default evidence removed", verify(d, base.authored, base.fields, base.keys, base.binding), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-MEMBERSHIP"})
+		first := obj(evidence[0])["path"].(string)
+		b := map[string]string{}
+		for k, v := range base.binding {
+			if k != first {
+				b[k] = v
+			}
+		}
+		expect("a path with no binding", verify(base.doc, base.authored, base.fields, base.keys, b), want{receipt.CodeReceiptUnbound, "R-RECEIPT-PATH-BINDING"})
+		b = map[string]string{}
+		for k, v := range base.binding {
+			b[k] = v
+		}
+		b[first] = "nope"
+		expect("a path bound to a key the object does not have", verify(base.doc, base.authored, base.fields, base.keys, b), want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-MEMBERSHIP"})
+		// the swap of the bindings of two defaulted fields
+		for i := 0; i < len(evidence); i++ {
+			for j := i + 1; j < len(evidence); j++ {
+				pi, pj := obj(evidence[i])["path"].(string), obj(evidence[j])["path"].(string)
+				b := map[string]string{}
+				for k, v := range base.binding {
+					b[k] = v
+				}
+				b[pi], b[pj] = b[pj], b[pi]
+				got := verify(base.doc, base.authored, base.fields, base.keys, b)
+				if obj(evidence[i])["value_digest"] == obj(evidence[j])["value_digest"] {
+					if got != nil {
+						fail("%s: two defaults of one value, bindings swapped: the engine refused %v", c.ID, *got)
+					}
+					swapAccepted++
+				} else {
+					if got == nil || *got != (want{receipt.CodeReceiptMismatch, "R-RECEIPT-EVIDENCE-VALUE"}) {
+						fail("%s: two defaults of two values, bindings swapped: got %v", c.ID, got)
+					}
+					swapRefused++
+				}
+			}
+		}
+	}
+	if accepted < 8 || swapAccepted < 1 || swapRefused < 1 {
+		fail("the chains accepted %d, swaps of equal values %d, of different values %d", accepted, swapAccepted, swapRefused)
+	}
+	fmt.Printf("engine (go): %d chains of %s accepted by receipt.Verify, %d altered or mixed ones refused; swapped bindings: %d of equal values accepted (the engine cannot tell), %d of different values refused\n", accepted, identity, refused, swapAccepted, swapRefused)
+}
+
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "end-to-end" {
+		endToEnd(os.Args[2], os.Args[3])
+		return
+	}
 	if len(os.Args) == 5 && os.Args[1] == "receipt-differential" {
 		receiptDifferential(os.Args[2], os.Args[3], os.Args[4])
 		return
