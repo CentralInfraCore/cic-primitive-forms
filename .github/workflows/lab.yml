@@ -92,6 +92,9 @@ jobs:
       # -> kernel. The macro of the crate itself (lab/testdata/rust-macro) is a known-unsafe case and must come out UNVERIFIABLE.
       - run: python3 lab/measure/qualify_rust.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN"
       - run: SCIPDEPS_BIN="$RUNNER_TEMP/lab-out/scipdeps" python3 -m unittest lab/measure/test_e2e_rust.py
+      # KNOWN-VULNERABILITY REPRODUCTION (lab/testdata/rust-dispatch/README.md): ten implicit calls are followed; the Drop of a type with a
+      # lifetime parameter is not (the key of the test does not move). Green here means the defect is STILL PRESENT.
+      - run: python3 lab/measure/repro_rust_dispatch.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN" --expect vulnerable
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
