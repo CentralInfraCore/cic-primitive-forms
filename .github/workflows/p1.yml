@@ -120,6 +120,8 @@ jobs:
       # P5-3: the schema, the fixture data, the seeds and the Rust corpus of the receipt fuzz targets are derived from the files above; they must be what the script writes
       - run: python3 tools/p5/receipt_fuzz_seeds.py
       - run: cargo +"$RUST_TOOLCHAIN" run --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml -- .
+      # P5-3 (B and C): the table of path cases cannot lose, repeat or grow a case unseen; the self-test shows the check refuses each
+      - run: cargo +"$RUST_TOOLCHAIN" test --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml
   go:
     needs: inherit
     if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
@@ -146,6 +148,9 @@ jobs:
           ref: ${{ steps.engine.outputs.commit }}
           path: upstream/cic-primitive-engine
       - run: go run . ../../..
+        working-directory: tools/p5/engine-harness-go
+      # P5-3 (B and C): the self-test of the check on the table of path cases (a missing, a repeated and an unknown case are refused)
+      - run: go test ./...
         working-directory: tools/p5/engine-harness-go
       # the go-mutesting executors give a mutant the verdict its test run earns: one that does not build is not killed (#94)
       - run: python3 -W error::ResourceWarning -m unittest tools/test_mutation_exec.py

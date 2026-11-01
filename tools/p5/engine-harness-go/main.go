@@ -284,6 +284,50 @@ func zeroDigest() string { return "sha256:" + strings.Repeat("0", 64) }
 // input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it. The
 // expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md). The Rust peer is
 // the receipts function of tools/p5/engine-harness-rust.
+// pathCases are the cases that receipt-paths.json has to carry, each once: a table that lost one, repeated one or grew one the harness does not know is a failure,
+// not a shorter run (the count of the table is not a check of the table).
+var pathCases = []string{
+	"plain-bound",
+	"nested-bound",
+	"selector-bound",
+	"selector-unbound",
+	"selector-with-dot-bound",
+	"empty-segment-in-the-middle",
+	"empty-last-segment",
+	"root-only",
+	"no-root",
+	"dollar-without-dot",
+	"trailing-space-bound",
+	"path-names-another-key",
+	"bound-to-a-missing-key",
+	"bound-to-an-authored-key",
+	"swapped-binding-of-two-defaults",
+	"control-binding-of-four-defaults",
+}
+
+func checkPathCaseIDs(ids []string) error {
+	known := map[string]bool{}
+	for _, w := range pathCases {
+		known[w] = true
+	}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			return fmt.Errorf("the path case %s is repeated", id)
+		}
+		if !known[id] {
+			return fmt.Errorf("the path case %s is not one the harness knows", id)
+		}
+		seen[id] = true
+	}
+	for _, w := range pathCases {
+		if !seen[w] {
+			return fmt.Errorf("the path case %s is missing", w)
+		}
+	}
+	return nil
+}
+
 func receipts(root string) {
 	read := func(name string) []byte {
 		b, err := os.ReadFile(filepath.Join(root, "testdata", "p5", name))
@@ -446,6 +490,13 @@ func receipts(root string) {
 	}
 	if err := json.Unmarshal(read("receipt-paths.json"), &paths); err != nil {
 		fail("%v", err)
+	}
+	listed := make([]string, 0, len(paths.Cases))
+	for _, pc := range paths.Cases {
+		listed = append(listed, pc.ID)
+	}
+	if err := checkPathCaseIDs(listed); err != nil {
+		fail("receipt-paths.json: %v", err)
 	}
 	for _, pc := range paths.Cases {
 		var keys []string
