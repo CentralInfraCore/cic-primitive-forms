@@ -102,6 +102,27 @@ class EndToEndRust(unittest.TestCase):
         self.assertEqual((d.status, d.reasons), (ev.UNVERIFIABLE, ("CONSTRUCT_NOT_VERIFIED",)))
         self.assertNotEqual(self.ident, self.ident_planted)
 
+    def test_the_build_that_cannot_follow_the_drop_of_a_parameterised_type_is_refused_whole(self):
+        # SCIPDEPS_PLANTED_PLAIN_SELF_ONLY: an impl for a type with a lifetime parameter is not reached by its type (testdata/rust-dispatch)
+        env = {"SCIPDEPS_PLANTED_PLAIN_SELF_ONLY": "1"}
+        self.assertEqual(qr.qualify(BIN, TC, env), frozenset())
+        g, keys = rg.graph(os.path.join(TD, "rust-dispatch", "a"), BIN, TC, env), None
+        keys = merkle.keys(g)[0]
+        gb = rg.graph(os.path.join(TD, "rust-dispatch", "b"), BIN, TC, env)
+        kb = merkle.keys(gb)[0]
+        t = "tests/dispatch::t_drop()."
+        self.assertEqual(keys[t], kb[t])  # the dangerous situation: equal keys, an earlier pass, the test now fails
+        ident, prov = be.extractor_identity(BIN, ("SCIPDEPS_PLANTED_PLAIN_SELF_ONLY=1",), name="scipdeps",
+                                            chain=(("rust-analyzer", rg.toolchain_identity(TC)["rust-analyzer-path"]),))
+        asr = ev.Assurance.of([ev.CONTRACT_V2], [be.RULE_VERSION], {ident: frozenset()})
+        prev = be.build_evidence(g, keys, t, ident, prov, DATA, self.env_digest, verdict="pass")
+        cur = be.build_evidence(gb, kb, t, ident, prov, DATA, self.env_digest)
+        d = ev.evaluate_reuse(prev, cur, asr)
+        self.assertEqual((d.status, d.reasons), (ev.UNVERIFIABLE, ("CONSTRUCT_NOT_VERIFIED",)))
+
+    def test_every_implicit_call_of_the_crate_pair_is_followed_by_the_build_as_it_is(self):
+        self.assertTrue(all(ok for c, ok, _ in qr.probes(BIN, TC) if c.startswith("implicit call")))
+
     # --- the boundary ------------------------------------------------------------------------------------------------------------
 
     def test_a_go_assurance_does_not_authorise_rust_evidence(self):

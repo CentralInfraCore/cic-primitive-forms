@@ -17,6 +17,7 @@ Two kinds of ground, and the module says which is which:
   and `rs.env.CARGO_MANIFEST_DIR`, which is the directory of the crate and not a dependency of its content (what a test reads there is
   a data edge, recorded by the tracer). These are the reviewer's, not measured here.
 
+The eleven implicit calls of lab/testdata/rust-dispatch are probes of the same kind and add no construct name.
 A build that fails any probe is qualified for nothing (see qualify()).
 
 NOT qualified, so UNVERIFIABLE whenever the closure holds them: rs.macro.local (the call site has no edge to the body of a macro of
@@ -29,6 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import merkle  # noqa: E402
 import rust_graph as rg  # noqa: E402
+import repro_rust_dispatch as rrd  # noqa: E402
 
 TD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "testdata")
 CLAIMED = frozenset(["rs.fn", "rs.method", "rs.type", "rs.const", "rs.static", "rs.env.CARGO_MANIFEST_DIR"])
@@ -52,6 +54,18 @@ def probes(scipdeps, toolchain, env=None):
         moves = ka.get(test) is not None and kb.get(test) is not None and ka[test] != kb[test]
         out.append((construct, bool(moves and pa and not pb), "the tests pass on a and fail on b: %s; key of %s moves: %s"
                     % (pa and not pb, test, moves)))
+    # the implicit calls (lab/testdata/rust-dispatch): REQUIRED, like the four above: each is a rule of the build (a type reaches the impls
+    # of its trait, `?` reaches From, `for` reaches next, `+` reaches Add, a scope end reaches Drop ...). They carry no construct name of
+    # their own ("implicit call: ..."), so they add nothing to the qualified set; they decide whether the build is qualified at all.
+    da, db = (os.path.join(TD, "rust-dispatch", v) for v in "ab")
+    kda = merkle.keys(rg.graph(da, scipdeps, toolchain, env))[0]
+    kdb = merkle.keys(rg.graph(db, scipdeps, toolchain, env))[0]
+    pda, pdb = rg.passes(da, toolchain), rg.passes(db, toolchain)
+    for t, what in rrd.TESTS.items():
+        tid = "tests/dispatch::%s()." % t
+        moves = kda.get(tid) is not None and kdb.get(tid) is not None and kda[tid] != kdb[tid]
+        out.append(("implicit call: " + what, bool(moves and pda and not pdb),
+                    "the tests pass on a and fail on b: %s; key of %s moves: %s" % (pda and not pdb, t, moves)))
     return out
 
 
@@ -64,7 +78,7 @@ def qualify(scipdeps, toolchain, env=None):
     ps = probes(scipdeps, toolchain, env)
     if not all(ok for _, ok, _ in ps):
         return frozenset()
-    return CLAIMED | frozenset(c for c, _, _ in ps)
+    return CLAIMED | frozenset(c for c, _, _ in ps if c.startswith("rs."))
 
 
 if __name__ == "__main__":

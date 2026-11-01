@@ -358,6 +358,44 @@ func offset(src []byte, line, col int) int {
 	return off + col
 }
 
+// plantedPlainSelfOnly brings back the rule before implSelfName: only an impl whose self type is a bare name (impl#[Name]) is reached by
+// its type; one for a type with a lifetime or a type parameter (impl#[`Name<'_>`]) is not. A planted defect.
+var plantedPlainSelfOnly = os.Getenv("SCIPDEPS_PLANTED_PLAIN_SELF_ONLY") == "1"
+
+var selfName = regexp.MustCompile(`^&?(?:'\w+\s+)?(?:mut\s+)?([A-Za-z_]\w*)(?:<.*)?$`)
+
+// implSelfName is the name of the type an impl block is for, read from the first bracket of its descriptor: `impl#[Name]...` or, when the
+// type has parameters, a quoted type: impl#[`Name<'_>`]... (also `&Name`). "" when there is no named type (a slice, a tuple, a closure).
+func implSelfName(desc string) string {
+	if plantedPlainSelfOnly {
+		if g := implSelf.FindStringSubmatch(desc); g != nil {
+			return g[1]
+		}
+		return ""
+	}
+	i := strings.Index(desc, "impl#[")
+	if i < 0 {
+		return ""
+	}
+	rest := desc[i+len("impl#["):]
+	quoted, j := false, 0
+	for ; j < len(rest); j++ {
+		if rest[j] == '`' {
+			quoted = !quoted
+		}
+		if rest[j] == ']' && !quoted {
+			break
+		}
+	}
+	if j >= len(rest) {
+		return ""
+	}
+	if g := selfName.FindStringSubmatch(strings.Trim(rest[:j], "`")); g != nil {
+		return g[1]
+	}
+	return ""
+}
+
 // plantedNoImpl leaves out the type -> impl method edges: a planted defect, for showing that the measurement sees it.
 var plantedNoImpl = os.Getenv("SCIPDEPS_PLANTED_NO_IMPL") == "1"
 
@@ -612,11 +650,11 @@ func main() {
 		if plantedNoImpl {
 			break
 		}
-		g := implSelf.FindStringSubmatch(m)
-		if g == nil {
+		name := implSelfName(m)
+		if name == "" {
 			continue
 		}
-		for _, t := range typesByName[g[1]] {
+		for _, t := range typesByName[name] {
 			deps[t][m] = true
 		}
 	}

@@ -92,9 +92,11 @@ jobs:
       # -> kernel. The macro of the crate itself (lab/testdata/rust-macro) is a known-unsafe case and must come out UNVERIFIABLE.
       - run: python3 lab/measure/qualify_rust.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN"
       - run: SCIPDEPS_BIN="$RUNNER_TEMP/lab-out/scipdeps" python3 -m unittest lab/measure/test_e2e_rust.py
-      # KNOWN-VULNERABILITY REPRODUCTION (lab/testdata/rust-dispatch/README.md): ten implicit calls are followed; the Drop of a type with a
-      # lifetime parameter is not (the key of the test does not move). Green here means the defect is STILL PRESENT.
-      - run: python3 lab/measure/repro_rust_dispatch.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN" --expect vulnerable
+      # RED -> GREEN of the implicit calls (lab/testdata/rust-dispatch/README.md): the extractor as it is follows all eleven; with the rule
+      # for the impls of a type with a lifetime parameter planted away (SCIPDEPS_PLANTED_PLAIN_SELF_ONLY) the Drop is not followed. Green on the
+      # second line is a KNOWN-VULNERABILITY REPRODUCTION of the old rule, not a statement that anything is verified.
+      - run: python3 lab/measure/repro_rust_dispatch.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN" --expect fixed
+      - run: python3 lab/measure/repro_rust_dispatch.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN" --expect vulnerable --env SCIPDEPS_PLANTED_PLAIN_SELF_ONLY=1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
