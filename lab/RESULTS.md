@@ -60,7 +60,7 @@ and `ReceiptError.Unwrap` (5 tests), and the `Display::fmt` of three Rust error 
 | Rule | Reusable |
 |---|---|
 | same Merkle key and environment, **any** data change reruns every test | 55.4% (16110) |
-| same Merkle key and environment, a test reruns only if a **file it read** changed (read on the parent) | 85.8% (24973), recorded before the fix of section 8 |
+| same Merkle key and environment, a test reruns only if a **file it read** changed (read on the parent) | **85.8%** (24973) |
 
 * 45 of the 93 pairs with tests reuse everything (documentation, CI, decision records). Of the 38 that reused nothing under
   the first rule, 37 did so only because a data file changed.
@@ -135,7 +135,7 @@ A review of the branch reproduced two defects; both are confirmed here and fixed
 2. `trace_data.py` dropped a path opened relative to a directory fd (`openat(3, "config.yaml")`): the directory was recorded, the
    file was not. The tracer now runs `strace -y` and resolves the path through the fd; a path it cannot resolve becomes an
    "opaque" read, and a test with one is never reused. Re-recorded on `8b0ccc1`, the read sets of all 508 tests are identical to
-   the earlier record and no read is opaque. The data backtest is being rerun with the fixed tracer on every parent; until its result is added here, the 85.8% of section 4 is the number of the earlier tracer.
+   the earlier record and no read is opaque. The data backtest was rerun with the fixed tracer on all 38 parents it traces: the same 24973 reusable runs and 205 runs whose read files changed, and no opaque read anywhere in the history.
 
 The review's conclusion stands: the lab shows how much reuse is possible and how to check it; it does not yet show that a
 skip decision would be safe in general.

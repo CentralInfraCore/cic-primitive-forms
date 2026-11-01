@@ -1142,5 +1142,6 @@
    "not_traced": 0
   }
  ],
- "revision": "314475ab14e0"
+ "revision": "314475ab14e0",
+ "tracer": "strace -y, paths relative to a directory fd resolved (1cd7d88)"
 }
