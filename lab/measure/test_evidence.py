@@ -32,7 +32,7 @@ class Cases(unittest.TestCase):
     def test_every_fixture(self):
         names = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(FX, "*.json")))
         names.remove("assurance")
-        self.assertGreaterEqual(len(names), 12)
+        self.assertGreaterEqual(len(names), 13)
         for n in names:
             with self.subTest(n):
                 c = load(n)

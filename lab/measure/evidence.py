@@ -28,7 +28,7 @@ stable codes (REASONS below); `compared` lists the values actually compared, so 
 """
 from dataclasses import dataclass, field
 
-CONTRACT_V1 = "cic-lab/evidence/v1"
+CONTRACT_V2 = "cic-lab/evidence/v2"  # v2: graph.analysis is required (v1 had no statement of completeness)
 
 REUSE_ELIGIBLE = "REUSE_ELIGIBLE"
 RERUN_REQUIRED = "RERUN_REQUIRED"
@@ -37,7 +37,7 @@ UNVERIFIABLE = "UNVERIFIABLE"
 ALL_CONDITIONS_HOLD = "ALL_CONDITIONS_HOLD"
 UNVERIFIABLE_REASONS = (
     "MALFORMED_EVIDENCE", "CONTRACT_VERSION_UNKNOWN", "RULE_VERSION_NOT_ACCEPTED", "SUBJECT_MISMATCH", "EXTRACTOR_NOT_ALLOWED",
-    "EXTRACTOR_MISMATCH", "CONSTRUCT_NOT_VERIFIED", "SUBJECT_KIND_UNSUPPORTED", "SUBJECT_NODE_MISSING", "OPAQUE_DEPENDENCY",
+    "EXTRACTOR_MISMATCH", "ANALYSIS_INCOMPLETE", "CONSTRUCT_NOT_VERIFIED", "SUBJECT_KIND_UNSUPPORTED", "SUBJECT_NODE_MISSING", "OPAQUE_DEPENDENCY",
 )
 RERUN_REASONS = ("PREVIOUS_TEST_FAILED", "CODE_CHANGED", "DATA_CHANGED", "ENVIRONMENT_CHANGED")
 REASONS = (ALL_CONDITIONS_HOLD,) + UNVERIFIABLE_REASONS + RERUN_REASONS
@@ -84,7 +84,9 @@ def _shape_errors(e, with_verdict):
         err.append("subject")
     g = e.get("graph")
     if not (isinstance(g, dict) and _is_str(g.get("extractor")) and isinstance(g.get("subject_in_graph"), bool)
-            and _is_str_list(g.get("constructs")) and _is_str_list(g.get("opaque"))):
+            and _is_str_list(g.get("constructs")) and _is_str_list(g.get("opaque"))
+            and isinstance(g.get("analysis"), dict) and g["analysis"].get("status") in ("COMPLETE", "INCOMPLETE")
+            and _is_str_list(g["analysis"].get("unresolved"))):
         err.append("graph")
     if not _is_str_list(e.get("opaque_reads")):
         err.append("opaque_reads")
@@ -117,6 +119,10 @@ def _unverifiable(previous, current, assurance):
     for e in (previous, current):
         g = e["graph"]
         verified = assurance.extractors.get(g["extractor"])
+        # two separate statements, both needed: the extraction was complete in the extractor's declared scope (its own report),
+        # and the constructs it found are ones the extractor is VERIFIED for (the caller's assurance). Neither implies the other.
+        if g["analysis"]["status"] != "COMPLETE" or g["analysis"]["unresolved"]:
+            codes.add("ANALYSIS_INCOMPLETE")
         if verified is None:
             codes.add("EXTRACTOR_NOT_ALLOWED")
         elif not set(g["constructs"]) <= verified:

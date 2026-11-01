@@ -1,10 +1,14 @@
 {
  "current": {
   "code_closure_digest": "code-1",
-  "contract_version": "cic-lab/evidence/v1",
+  "contract_version": "cic-lab/evidence/v2",
   "data_dependencies_digest": "data-2",
   "environment_digest": "env-1",
   "graph": {
+   "analysis": {
+    "status": "COMPLETE",
+    "unresolved": []
+   },
    "constructs": [
     "go.func",
     "go.const.explicit"
@@ -31,10 +35,14 @@
  },
  "previous": {
   "code_closure_digest": "code-1",
-  "contract_version": "cic-lab/evidence/v1",
+  "contract_version": "cic-lab/evidence/v2",
   "data_dependencies_digest": "data-1",
   "environment_digest": "env-1",
   "graph": {
+   "analysis": {
+    "status": "COMPLETE",
+    "unresolved": []
+   },
    "constructs": [
     "go.func",
     "go.const.explicit"

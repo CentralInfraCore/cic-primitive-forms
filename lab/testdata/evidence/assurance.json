@@ -1,6 +1,6 @@
 {
  "contract_versions": [
-  "cic-lab/evidence/v1"
+  "cic-lab/evidence/v2"
  ],
  "extractors": {
   "typeddeps:fd61308055ce44d1": [

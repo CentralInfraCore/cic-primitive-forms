@@ -49,12 +49,30 @@ type Node struct {
 	Deps      []string `json:"deps"`
 	Opaque    []string `json:"opaque,omitempty"` // why the deps may be incomplete
 	Entry     bool     `json:"entry,omitempty"`  // a test the runner starts: TestX / FuzzX of a _test.go file
+	// Constructs are the language constructs this declaration itself contains (not its dependencies'), from the list in
+	// `constructs` below. It is what the extractor RECOGNISED. Whether it models their dependencies correctly is not said here and
+	// cannot be: that is a claim of whoever reviewed this extractor, held outside it (lab/measure/evidence.py, Assurance).
+	Constructs []string `json:"constructs"`
+	// Analysis says whether the walk over this declaration was complete in the scope the extractor declares: COMPLETE with no
+	// unresolved item, or INCOMPLETE and what could not be resolved. Complete is not correct (see implicit iota).
+	Analysis Analysis `json:"analysis"`
 }
+
+// Analysis is the completeness of the extraction of one declaration.
+type Analysis struct {
+	Status     string   `json:"status"` // COMPLETE | INCOMPLETE
+	Unresolved []string `json:"unresolved"`
+}
+
+// The constructs the extractor can report; anything else it meets is unresolved, never silently absent.
+var reportable = []string{"go.const.explicit", "go.const.implicit_repeat", "go.const.iota", "go.func", "go.func.generic", "go.method",
+	"go.type", "go.type.alias", "go.type.generic", "go.var"}
 
 // Graph is the output.
 type Graph struct {
 	Schema   string   `json:"schema"`
 	Packages []string `json:"packages"`
+	Scope    []string `json:"scope"` // the constructs the extractor can report: what "complete" is relative to
 	Nodes    []Node   `json:"nodes"`
 	External []string `json:"external"`
 }
@@ -206,7 +224,7 @@ func (b *builder) targets(obj types.Object) []string {
 	return []string{idOf(obj)}
 }
 
-func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at, end token.Pos, src []byte, walk []ast.Node, opaque []string, declSig *types.Signature) {
+func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at, end token.Pos, src []byte, walk []ast.Node, opaque []string, declSig *types.Signature, constructs, unresolved []string) {
 	pos, endPos := b.fset.Position(at), b.fset.Position(end)
 	rel, err := filepath.Rel(b.root, pos.Filename)
 	if err != nil {
@@ -221,6 +239,9 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 	sum := sha256.Sum256(src[pos.Offset:endPos.Offset])
 	n := &Node{ID: id, Kind: kind, File: rel, Line: pos.Line, EndLine: endPos.Line, Test: strings.HasSuffix(rel, "_test.go"),
 		SrcSHA256: hex.EncodeToString(sum[:]), Opaque: opaque}
+	n.Constructs = append([]string{}, constructs...)
+	sort.Strings(n.Constructs)
+	n.Analysis = Analysis{Status: "COMPLETE", Unresolved: []string{}}
 	if n.Test && kind == "func" {
 		name := id[strings.LastIndex(id, ".")+1:]
 		n.Entry = strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "Fuzz")
@@ -228,6 +249,17 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 	b.nodes[id] = n
 	deps := map[string]bool{}
 	for _, w := range walk {
+		guards := map[*ast.Ident]bool{} // `x` of `switch x := v.(type)`: an object per clause (Implicits), none for the name itself
+		ast.Inspect(w, func(nd ast.Node) bool {
+			if ts, ok := nd.(*ast.TypeSwitchStmt); ok {
+				if as, ok := ts.Assign.(*ast.AssignStmt); ok && len(as.Lhs) == 1 {
+					if id, ok := as.Lhs[0].(*ast.Ident); ok {
+						guards[id] = true
+					}
+				}
+			}
+			return true
+		})
 		ast.Inspect(w, func(nd ast.Node) bool {
 			ident, ok := nd.(*ast.Ident)
 			if !ok {
@@ -235,6 +267,9 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 			}
 			obj := pkg.TypesInfo.Uses[ident]
 			if obj == nil {
+				if pkg.TypesInfo.Defs[ident] == nil && ident.Name != "_" && !guards[ident] {
+					n.Analysis.Unresolved = appendOnce(n.Analysis.Unresolved, "identifier "+ident.Name+" resolves to no object")
+				}
 				return true
 			}
 			if _, isPkg := obj.(*types.PkgName); isPkg {
@@ -251,6 +286,7 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 			return true
 		})
 	}
+	finish(n, unresolved)
 	if noConversions {
 		b.deps[id] = deps
 		return
@@ -261,6 +297,17 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 		}
 	}
 	b.deps[id] = deps
+}
+
+// finish is called once all of a declaration's walks are done.
+func finish(n *Node, unresolved []string) {
+	for _, u := range unresolved {
+		n.Analysis.Unresolved = appendOnce(n.Analysis.Unresolved, u)
+	}
+	sort.Strings(n.Analysis.Unresolved)
+	if len(n.Analysis.Unresolved) > 0 {
+		n.Analysis.Status = "INCOMPLETE"
+	}
 }
 
 // conversions finds where a value of a named type of the loaded packages becomes an interface value (an argument of an
@@ -459,7 +506,17 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 			if d.Body != nil {
 				walk = append(walk, d.Body)
 			}
-			b.add(pkg, file, id, kind, d.Pos(), d.End(), src, walk, append([]string(nil), fileOpaque...), obj.Type().(*types.Signature))
+			constructs, unresolved := []string{"go.func"}, []string(nil)
+			if d.Recv != nil {
+				constructs = []string{"go.method"}
+			}
+			if d.Type.TypeParams != nil {
+				constructs = append(constructs, "go.func.generic")
+			}
+			if d.Body == nil {
+				unresolved = append(unresolved, "function without a body (assembly or linkname): its dependencies are not visible")
+			}
+			b.add(pkg, file, id, kind, d.Pos(), d.End(), src, walk, append([]string(nil), fileOpaque...), obj.Type().(*types.Signature), constructs, unresolved)
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
 				switch s := spec.(type) {
@@ -468,7 +525,14 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 					if obj == nil {
 						fail("no object for %s", s.Name.Name)
 					}
-					b.add(pkg, file, idOf(obj), "type", s.Pos(), s.End(), src, []ast.Node{s}, append([]string(nil), fileOpaque...), nil)
+					constructs := []string{"go.type"}
+					if s.TypeParams != nil {
+						constructs = append(constructs, "go.type.generic")
+					}
+					if s.Assign.IsValid() {
+						constructs = append(constructs, "go.type.alias")
+					}
+					b.add(pkg, file, idOf(obj), "type", s.Pos(), s.End(), src, []ast.Node{s}, append([]string(nil), fileOpaque...), nil, constructs, nil)
 				case *ast.ValueSpec:
 					kind := "var"
 					if d.Tok == token.CONST {
@@ -489,13 +553,38 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 						if obj == nil {
 							fail("no object for %s", name.Name)
 						}
-						// iota: a constant without values repeats the previous spec's expression; its deps are the spec's own
-						b.add(pkg, file, idOf(obj), kind, s.Pos(), s.End(), src, walk, append([]string(nil), fileOpaque...), nil)
+						// iota: a constant without values repeats the previous spec's expression; its deps are the spec's own.
+						// RECOGNISED here (as a construct), NOT YET MODELLED: no edge is added for it (known defect, lab/testdata/iota).
+						b.add(pkg, file, idOf(obj), kind, s.Pos(), s.End(), src, walk, append([]string(nil), fileOpaque...), nil,
+							valueConstructs(pkg, d, s), nil)
 					}
 				}
 			}
 		}
 	}
+}
+
+// valueConstructs names the constructs of one const or var spec. A const spec with no values is an implicit repeat of the previous
+// spec's expression (and of its iota), recognised from the syntax of the spec itself, not from what the walk over its values found
+// (that is empty, which is how the dependency was missed); a const whose values use the predeclared iota depends on its position.
+func valueConstructs(pkg *packages.Package, d *ast.GenDecl, s *ast.ValueSpec) []string {
+	if d.Tok != token.CONST {
+		return []string{"go.var"}
+	}
+	out := []string{"go.const.explicit"}
+	if len(s.Values) == 0 {
+		out = []string{"go.const.implicit_repeat"}
+	}
+	iota := types.Universe.Lookup("iota")
+	for _, v := range s.Values {
+		ast.Inspect(v, func(nd ast.Node) bool {
+			if id, ok := nd.(*ast.Ident); ok && pkg.TypesInfo.Uses[id] == iota {
+				out = appendOnce(out, "go.const.iota")
+			}
+			return true
+		})
+	}
+	return out
 }
 
 func fail(format string, args ...any) {
@@ -562,7 +651,7 @@ func main() {
 			b.file(p, f)
 		}
 	}
-	g := Graph{Schema: "cic-lab/typeddeps/v1", Nodes: []Node{}, External: []string{}}
+	g := Graph{Schema: "cic-lab/typeddeps/v2", Scope: reportable, Nodes: []Node{}, External: []string{}}
 	sort.Strings(paths)
 	g.Packages = paths
 	for id, n := range b.nodes {
