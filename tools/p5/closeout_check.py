@@ -11,7 +11,8 @@ The ledger separates four statuses, and this checker holds it to them:
  * `not_proved` and `deferred` entries carry a reason and no evidence.
  * P5-3 closes only as a flat, fixture-based receipt: an entry that touches a Forms receipt (`receipt: true`, or evidence that is a receipt or end-to-end file)
    cannot be `proved`, and a `proved` entry has to say `receipt: false`.
- * The items the owner keeps open (the required list of the ledger) cannot be dropped, or moved to `proved`.
+ * The items the owner keeps open (REQUIRED_OPEN, fixed in this file, not in the ledger) cannot be dropped, or moved to `proved`. The required phrases and the
+   sections without a contract are fixed here too: the ledger cannot lower what it is held to.
 
 It also checks that the ledger and the doc cannot drift apart: the pins equal the files they quote, every section of the doc from 10 on is covered by an entry (or is
 named as one without a contract), every entry id appears in the doc's section 22 and the doc holds the required phrases.
@@ -26,6 +27,28 @@ LEDGER = ROOT / "docs" / "p5-closeout.json"
 STATUSES = {"proved", "fixture_only", "not_proved", "deferred"}
 WITH_EVIDENCE = {"proved", "fixture_only"}
 UNITS = {"P5-1", "P5-2", "P5-3"}
+# What the ledger is held to is fixed HERE, not read from the ledger: an input that could lower its own requirements would check nothing (an open item deleted from
+# the entries and from a list of requirements in the same file would go unseen).
+REQUIRED_OPEN = (
+    "authentic-release-origin",
+    "reference-resolution",
+    "capability-source-authenticated",
+    "shared-compiled-schema-instance",
+    "engine-verifier-blind-to-schema-identity",
+    "production-receipt-api",
+    "non-flat-binding",
+    "list-element-selector",
+    "non-flat-materialization",
+    "p5-4-decision-f",
+    "engine-63-open",
+    "rust-go-quoted-scalar-parser-difference",
+)
+REQUIRED_PHRASES = (
+    "P5-3 end-to-end proof without reference resolution",
+    "flat, fixture-based receipt",
+)
+# the sections from 10 on that state no contract: the pre-checks. A section cannot be added here from the ledger to escape the coverage check.
+NO_CONTRACT_SECTIONS = ("11", "15")
 CLOSEOUT_SECTION = "22"
 FIRST_SECTION = 10
 # a file of the receipt or of the end-to-end chain: an entry that rests on one touches a Forms receipt, whatever its own flag says
@@ -120,7 +143,7 @@ def check(root=ROOT, ledger=None):
             problems.append(f"{eid}: no claim")
         for s in e.get("doc", []):
             covered.add(s)
-            if s not in sections and s not in ledger["doc_sections_without_a_contract"]:
+            if s not in sections and s not in NO_CONTRACT_SECTIONS:
                 problems.append(f"{eid}: the doc has no section {s}")
         if not e.get("doc"):
             problems.append(f"{eid}: no doc section")
@@ -144,7 +167,7 @@ def check(root=ROOT, ledger=None):
             if not str(e.get("reason", "")).strip():
                 problems.append(f"{eid}: a {status} entry gives no reason")
 
-    for rid in ledger["required_not_proved_or_deferred"]:
+    for rid in REQUIRED_OPEN:
         got = by_id.get(rid)
         if got is None:
             problems.append(f"{rid}: a required open item is missing from the ledger")
@@ -152,9 +175,9 @@ def check(root=ROOT, ledger=None):
             problems.append(f"{rid}: a required open item is {got.get('status')}, it has to stay not_proved or deferred")
 
     for s in sorted(sections - {CLOSEOUT_SECTION}, key=int):
-        if s not in covered and s not in ledger["doc_sections_without_a_contract"]:
+        if s not in covered and s not in NO_CONTRACT_SECTIONS:
             problems.append(f"section {s} of the doc is covered by no entry of the ledger")
-    for p in ledger["required_phrases"]:
+    for p in REQUIRED_PHRASES:
         if p not in doc:
             problems.append(f"the doc lacks the phrase {p!r}")
     if CLOSEOUT_SECTION not in set(re.findall(r"^## (\d+)\.", doc, re.M)):

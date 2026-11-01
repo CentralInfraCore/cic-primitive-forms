@@ -1,45 +1,43 @@
 {
-  "about": "Machine-checked closeout ledger of P5-1, P5-2 and P5-3 (docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md section 22). Checked by tools/p5/closeout_check.py. It records what is proved, what is proved only with fixtures, what is not proved and what is deferred. It claims nothing the evidence lists below do not hold: the checker reads every file, text, count, CI step and doc section named here.",
+  "about": "Machine-checked closeout ledger of P5-1, P5-2 and P5-3 (docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md section 22). Checked by tools/p5/closeout_check.py. It records what is proved, what is proved only with fixtures, what is not proved and what is deferred. It claims nothing the evidence lists below do not hold: the checker reads every file, text, count, CI step and doc section named here. The requirements the ledger is held to (the open items that cannot be dropped, the required phrases, the doc sections without a contract) are fixed in the checker, not read from this file.",
   "closes": "P5-3 closes ONLY as a flat, fixture-based receipt. No entry of unit P5-3 that touches a Forms receipt is 'proved'.",
   "engine_pin": "a6a06806c539882cb94f0159eb177c1b98be54c6",
   "grammar_pin_commit": "73ae4692f0680a316d367179ce057195a0031688",
   "doc": "docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md",
   "workflow": ".github/workflows/p1.yml",
-  "doc_sections_without_a_contract": {
-    "11": "P5-2 pre-check, before any code",
-    "15": "P5-3 pre-check and the owner's decisions L-O; its open items are the entries origin, production and engine-63 below"
-  },
-  "required_phrases": [
-    "P5-3 end-to-end proof without reference resolution",
-    "flat, fixture-based receipt"
-  ],
-  "required_not_proved_or_deferred": [
-    "authentic-release-origin",
-    "reference-resolution",
-    "capability-source-authenticated",
-    "shared-compiled-schema-instance",
-    "engine-verifier-blind-to-schema-identity",
-    "production-receipt-api",
-    "non-flat-binding",
-    "list-element-selector",
-    "non-flat-materialization",
-    "p5-4-decision-f",
-    "engine-63-open",
-    "rust-go-quoted-scalar-parser-difference"
-  ],
   "entries": [
     {
       "id": "canonical-bytes-engine-section-a",
       "unit": "P5-1",
       "status": "proved",
       "receipt": false,
-      "doc": ["10"],
+      "doc": [
+        "10"
+      ],
       "claim": "canonical_bytes / canonical_digest (Rust) and CanonicalBytes / CanonicalDigest (Go) follow engine section A (A1-A7) within the range of decision G; a float, an integer beyond 64 bits and a repeated key are refused. 27 vectors, 7 checked against the engine at the pin, 13 own lines against a reference written apart.",
       "limit": "Range of decision G only; the engine digest function beyond the empty mapping and the order of a set (decision H) are not touched.",
       "evidence": {
-        "files": ["rust/src/canonical.rs", "go/canonical.go", "testdata/p5/canonical-vectors.tsv", "tools/p5/engine_vectors.py", "rust/tests/canonical_corpus.rs", "go/canonical_corpus_test.go"],
-        "contains": [{"file": ".github/workflows/p1.yml", "text": "engine_vectors.py --own"}],
-        "counts": [{"file": "testdata/p5/canonical-vectors.tsv", "kind": "tsv_data_lines", "equals": 27}]
+        "files": [
+          "rust/src/canonical.rs",
+          "go/canonical.go",
+          "testdata/p5/canonical-vectors.tsv",
+          "tools/p5/engine_vectors.py",
+          "rust/tests/canonical_corpus.rs",
+          "go/canonical_corpus_test.go"
+        ],
+        "contains": [
+          {
+            "file": ".github/workflows/p1.yml",
+            "text": "engine_vectors.py --own"
+          }
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/canonical-vectors.tsv",
+            "kind": "tsv_data_lines",
+            "equals": 27
+          }
+        ]
       }
     },
     {
@@ -47,13 +45,29 @@
       "unit": "P5-1",
       "status": "proved",
       "receipt": false,
-      "doc": ["10"],
+      "doc": [
+        "10"
+      ],
       "claim": "Rust/Go differential on 20 000 generated values against a reference written apart (self-tested by breaking the dumps), and the fuzz targets FuzzCanonical and canonical.",
       "limit": "The Rust fuzz target's first real run is the CI's; seeds were replayed locally as a test.",
       "evidence": {
-        "files": ["tools/parity/gen_canonical.py", "tools/parity/compare_canonical.py", "tools/parity/selftest_canonical.py", "rust/tests/parity_canonical_dump.rs", "go/parity_canonical_dump_test.go", "rust/fuzz/fuzz_targets/canonical.rs"],
-        "contains": [{"file": "go/fuzz_test.go", "text": "func FuzzCanonical"}],
-        "ci_steps": ["Canonical bytes differential, generate, dump with both languages, compare, self-test"]
+        "files": [
+          "tools/parity/gen_canonical.py",
+          "tools/parity/compare_canonical.py",
+          "tools/parity/selftest_canonical.py",
+          "rust/tests/parity_canonical_dump.rs",
+          "go/parity_canonical_dump_test.go",
+          "rust/fuzz/fuzz_targets/canonical.rs"
+        ],
+        "contains": [
+          {
+            "file": "go/fuzz_test.go",
+            "text": "func FuzzCanonical"
+          }
+        ],
+        "ci_steps": [
+          "Canonical bytes differential, generate, dump with both languages, compare, self-test"
+        ]
       }
     },
     {
@@ -61,12 +75,23 @@
       "unit": "P5-1",
       "status": "proved",
       "receipt": false,
-      "doc": ["10"],
+      "doc": [
+        "10"
+      ],
       "claim": "Planted defects of the canonical bytes (keys unsorted, UTF-16 order, a repeated key accepted, an unsupported value written as null, an escape missing, a digest without its prefix) each turn the suites red.",
       "limit": "The section 10 text counts 20; the runner now holds at least that many entries.",
       "evidence": {
-        "files": ["tools/seeded_defects.py"],
-        "counts": [{"file": "tools/seeded_defects.py", "kind": "occurrences", "text": "\"canonical:", "at_least": 20}]
+        "files": [
+          "tools/seeded_defects.py"
+        ],
+        "counts": [
+          {
+            "file": "tools/seeded_defects.py",
+            "kind": "occurrences",
+            "text": "\"canonical:",
+            "at_least": 20
+          }
+        ]
       }
     },
     {
@@ -74,13 +99,35 @@
       "unit": "P5-2",
       "status": "proved",
       "receipt": false,
-      "doc": ["12"],
+      "doc": [
+        "12"
+      ],
       "claim": "materialize_flat / MaterializeFlat for a flat document: every declared position a top-level scalar, capability an explicit caller input, an omitted optional field with no default refused; 20 shared cases (7 accepted, 13 refused) with expected values computed in Python; the engine's MaterializedObject built from the same file.",
       "limit": "Flat only. The capability is the caller's: the digest records what the caller gave, not that the caller was entitled to it.",
       "evidence": {
-        "files": ["rust/src/materialize.rs", "go/materialize.go", "tools/p5/materialize_cases.py", "rust/tests/materialize_corpus.rs", "go/materialize_corpus_test.go", "tools/p5/engine-harness-rust/src/main.rs", "tools/p5/engine-harness-go/main.go"],
-        "counts": [{"file": "testdata/p5/materialize.json", "kind": "json_len", "key": "cases", "equals": 20},
-                   {"file": "tools/seeded_defects.py", "kind": "occurrences", "text": "\"materialize:", "at_least": 28}]
+        "files": [
+          "rust/src/materialize.rs",
+          "go/materialize.go",
+          "tools/p5/materialize_cases.py",
+          "rust/tests/materialize_corpus.rs",
+          "go/materialize_corpus_test.go",
+          "tools/p5/engine-harness-rust/src/main.rs",
+          "tools/p5/engine-harness-go/main.go"
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/materialize.json",
+            "kind": "json_len",
+            "key": "cases",
+            "equals": 20
+          },
+          {
+            "file": "tools/seeded_defects.py",
+            "kind": "occurrences",
+            "text": "\"materialize:",
+            "at_least": 28
+          }
+        ]
       }
     },
     {
@@ -88,12 +135,22 @@
       "unit": "P5-2",
       "status": "proved",
       "receipt": false,
-      "doc": ["13"],
+      "doc": [
+        "13"
+      ],
       "claim": "6 000 generated cases: Rust and Go answer as the reference and as each other, with the engine as the third reader on the accepted cases; the comparison is self-tested by 19 breaks.",
       "limit": "Nested, list, set and an omitted optional field stay refusals; the differential proves the refusals, not a materialization of them.",
       "evidence": {
-        "files": ["tools/parity/gen_materialize.py", "tools/parity/compare_materialize.py", "tools/parity/selftest_materialize.py", "rust/tests/parity_materialize_dump.rs", "go/parity_materialize_dump_test.go"],
-        "ci_steps": ["Flat materialization differential, generate, dump with both languages, compare, self-test, the engine as the third reader"]
+        "files": [
+          "tools/parity/gen_materialize.py",
+          "tools/parity/compare_materialize.py",
+          "tools/parity/selftest_materialize.py",
+          "rust/tests/parity_materialize_dump.rs",
+          "go/parity_materialize_dump_test.go"
+        ],
+        "ci_steps": [
+          "Flat materialization differential, generate, dump with both languages, compare, self-test, the engine as the third reader"
+        ]
       }
     },
     {
@@ -101,12 +158,21 @@
       "unit": "P5-2",
       "status": "proved",
       "receipt": false,
-      "doc": ["14"],
+      "doc": [
+        "14"
+      ],
       "claim": "FuzzMaterialize and the materialize target hold the flat properties (sorted fields, expected keys, authored versus schema_default, determinism, round trip).",
       "limit": "Schema and capability refusals are fixed away; a nil node is covered by a unit test only.",
       "evidence": {
-        "files": ["rust/fuzz/fuzz_targets/materialize.rs"],
-        "contains": [{"file": "go/fuzz_test.go", "text": "func FuzzMaterialize"}]
+        "files": [
+          "rust/fuzz/fuzz_targets/materialize.rs"
+        ],
+        "contains": [
+          {
+            "file": "go/fuzz_test.go",
+            "text": "func FuzzMaterialize"
+          }
+        ]
       }
     },
     {
@@ -114,12 +180,27 @@
       "unit": "P5-3",
       "status": "proved",
       "receipt": false,
-      "doc": ["15", "16"],
+      "doc": [
+        "15",
+        "16"
+      ],
       "claim": "Schema identity contract D1.3 (schema_digest = SHA-256 of the raw schema source bytes, schema_name = namespace:kind) as the engine merged it; the 23 engine vectors run through Forms' own producers; the identity and the digest come from ONE compile of the pinned bytes (same-source binding).",
       "limit": "Contract conformance only. It says nothing about where the schema source came from.",
       "evidence": {
-        "files": ["rust/src/schema_identity.rs", "go/schemaidentity.go", "rust/tests/schema_identity_contract.rs", "go/schemaidentity_contract_test.go", "testdata/p5/engine-pin.txt"],
-        "counts": [{"file": "testdata/p5/schema_identity", "kind": "dir_entries", "equals": 23}]
+        "files": [
+          "rust/src/schema_identity.rs",
+          "go/schemaidentity.go",
+          "rust/tests/schema_identity_contract.rs",
+          "go/schemaidentity_contract_test.go",
+          "testdata/p5/engine-pin.txt"
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/schema_identity",
+            "kind": "dir_entries",
+            "equals": 23
+          }
+        ]
       }
     },
     {
@@ -127,14 +208,43 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["17"],
+      "doc": [
+        "17"
+      ],
       "claim": "receipt_flat_fixture / ReceiptFlatFixture builds the 15-field receipt of a flat document; Rust and Go produce the bytes the Python reference computes; the pinned engine verifier accepts all 7 cases and refuses the altered ones with the engine's code and rule.",
       "limit": "The release identity is a marked fixture (fixture/@v0.0.0). A green verifier is a consistency result, not an authenticity result.",
       "evidence": {
-        "files": ["rust/src/receipt.rs", "go/receipt.go", "tools/p5/receipt_cases.py", "rust/tests/receipt_flat.rs", "go/receipt_test.go"],
-        "counts": [{"file": "testdata/p5/receipt.json", "kind": "json_len", "key": "cases", "equals": 7},
-                   {"file": "tools/seeded_defects.py", "kind": "occurrences", "text": "\"receipt:", "at_least": 30}],
-        "contains": [{"file": "rust/src/receipt.rs", "text": "pub fn receipt_flat_fixture"}, {"file": "go/receipt.go", "text": "func ReceiptFlatFixture"}]
+        "files": [
+          "rust/src/receipt.rs",
+          "go/receipt.go",
+          "tools/p5/receipt_cases.py",
+          "rust/tests/receipt_flat.rs",
+          "go/receipt_test.go"
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/receipt.json",
+            "kind": "json_len",
+            "key": "cases",
+            "equals": 7
+          },
+          {
+            "file": "tools/seeded_defects.py",
+            "kind": "occurrences",
+            "text": "\"receipt:",
+            "at_least": 30
+          }
+        ],
+        "contains": [
+          {
+            "file": "rust/src/receipt.rs",
+            "text": "pub fn receipt_flat_fixture"
+          },
+          {
+            "file": "go/receipt.go",
+            "text": "func ReceiptFlatFixture"
+          }
+        ]
       }
     },
     {
@@ -142,12 +252,20 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["18"],
+      "doc": [
+        "18"
+      ],
       "claim": "Rust, Go and the Python reference agree on the receipts of the generated flat documents (1817 accepted); the engine verifier accepts them in all four producer/verifier combinations and refuses the altered ones.",
       "limit": "Fixture release data; the engine verifier cannot see schema_name, schema_version or schema_digest.",
       "evidence": {
-        "files": ["tools/parity/compare_receipt.py", "rust/tests/parity_receipt_dump.rs", "go/parity_receipt_dump_test.go"],
-        "ci_steps": ["Flat receipt differential, dump with both languages, compare, self-test, the engine verifier as the third reader"]
+        "files": [
+          "tools/parity/compare_receipt.py",
+          "rust/tests/parity_receipt_dump.rs",
+          "go/parity_receipt_dump_test.go"
+        ],
+        "ci_steps": [
+          "Flat receipt differential, dump with both languages, compare, self-test, the engine verifier as the third reader"
+        ]
       }
     },
     {
@@ -155,12 +273,24 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["19"],
+      "doc": [
+        "19"
+      ],
       "claim": "FuzzReceipt and the receipt target hold the error boundary and determinism; a deterministic mutation round is replayed in every build in both languages, the records are bound to each language's own trace, and the 30 receipt seeded defects are caught by the replay alone.",
       "limit": "One flat schema; one fault at a time for the release fields. The quoted-scalar parser difference is quarantined to the one proven case (entry rust-go-quoted-scalar-parser-difference).",
       "evidence": {
-        "files": ["rust/fuzz/receipt_check.rs", "rust/fuzz/fuzz_targets/receipt.rs", "rust/tests/receipt_fuzz_seeds.rs", "go/receipt_fuzz_test.go", "tools/parity/compare_receipt_fuzz.py", "tools/parity/test_compare_receipt_fuzz.py", "tools/p5/receipt_fuzz_seeds.py"],
-        "ci_steps": ["Receipt fuzz replay, compare, the engine verifier on what the seeds and the mutations made"]
+        "files": [
+          "rust/fuzz/receipt_check.rs",
+          "rust/fuzz/fuzz_targets/receipt.rs",
+          "rust/tests/receipt_fuzz_seeds.rs",
+          "go/receipt_fuzz_test.go",
+          "tools/parity/compare_receipt_fuzz.py",
+          "tools/parity/test_compare_receipt_fuzz.py",
+          "tools/p5/receipt_fuzz_seeds.py"
+        ],
+        "ci_steps": [
+          "Receipt fuzz replay, compare, the engine verifier on what the seeds and the mutations made"
+        ]
       }
     },
     {
@@ -168,13 +298,33 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["20"],
+      "doc": [
+        "20"
+      ],
       "claim": "The behaviour of the pinned engine verifier on path forms and bindings is measured as a table of 16 cases both harnesses assert; the table itself is guarded by hard-coded id lists with self-tests. B and C are recorded: what the verifier does is measured, what Forms commits to is flat only.",
       "limit": "The verifier treats the path as opaque text and sees a wrong binding only through the value digest; two defaulted fields of EQUAL value can be swapped and the receipt is accepted.",
       "evidence": {
-        "files": ["testdata/p5/receipt-paths.json"],
-        "counts": [{"file": "testdata/p5/receipt-paths.json", "kind": "json_len", "key": "cases", "equals": 16}],
-        "contains": [{"file": "tools/p5/engine-harness-rust/src/main.rs", "text": "PATH_CASES"}, {"file": "tools/p5/engine-harness-go/main.go", "text": "pathCases"}]
+        "files": [
+          "testdata/p5/receipt-paths.json"
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/receipt-paths.json",
+            "kind": "json_len",
+            "key": "cases",
+            "equals": 16
+          }
+        ],
+        "contains": [
+          {
+            "file": "tools/p5/engine-harness-rust/src/main.rs",
+            "text": "PATH_CASES"
+          },
+          {
+            "file": "tools/p5/engine-harness-go/main.go",
+            "text": "pathCases"
+          }
+        ]
       }
     },
     {
@@ -182,12 +332,23 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["20", "21"],
+      "doc": [
+        "20",
+        "21"
+      ],
       "claim": "The flat binding $.field -> field is derived from the same schema/materialization source and compared with an independent Python reference in every case; a swapped binding of equal-valued defaults is not correct, although the verifier accepts it (executed, both verifiers).",
       "limit": "Flat only; one plain segment per field; the writing of anything else is refused.",
       "evidence": {
-        "files": ["tools/parity/check_receipt_e2e.py", "tools/parity/test_check_receipt_e2e.py"],
-        "contains": [{"file": "tools/parity/test_check_receipt_e2e.py", "text": "test_the_chain_digest_covers_the_path_binding"}]
+        "files": [
+          "tools/parity/check_receipt_e2e.py",
+          "tools/parity/test_check_receipt_e2e.py"
+        ],
+        "contains": [
+          {
+            "file": "tools/parity/test_check_receipt_e2e.py",
+            "text": "test_the_chain_digest_covers_the_path_binding"
+          }
+        ]
       }
     },
     {
@@ -195,20 +356,40 @@
       "unit": "P5-3",
       "status": "fixture_only",
       "receipt": true,
-      "doc": ["21"],
+      "doc": [
+        "21"
+      ],
       "claim": "P5-3 end-to-end proof without reference resolution: schema source bytes -> verified compile and identity, and authored document -> parse -> materialize -> receipt_flat_fixture -> the pinned engine verifier, in Rust and Go, 4 cases x 2 capability maps; all four producer/verifier combinations accept the chains and refuse the altered or mixed ones; the Python checker is itself shown to fail.",
       "limit": "Two materializations and three schema compiles per chain, stated; the capability map is an explicit caller input of unauthenticated origin; the release record is a fixture.",
       "evidence": {
-        "files": ["tools/p5/end_to_end_cases.py", "rust/tests/receipt_end_to_end.rs", "go/receipt_end_to_end_test.go", "tools/parity/check_receipt_e2e.py", "tools/parity/test_check_receipt_e2e.py"],
-        "counts": [{"file": "testdata/p5/end-to-end.json", "kind": "json_len", "key": "cases", "equals": 4}],
-        "ci_steps": ["P5-3 end-to-end proof, Rust and Go, against the Python reference and the engine verifier"]
+        "files": [
+          "tools/p5/end_to_end_cases.py",
+          "rust/tests/receipt_end_to_end.rs",
+          "go/receipt_end_to_end_test.go",
+          "tools/parity/check_receipt_e2e.py",
+          "tools/parity/test_check_receipt_e2e.py"
+        ],
+        "counts": [
+          {
+            "file": "testdata/p5/end-to-end.json",
+            "kind": "json_len",
+            "key": "cases",
+            "equals": 4
+          }
+        ],
+        "ci_steps": [
+          "P5-3 end-to-end proof, Rust and Go, against the Python reference and the engine verifier"
+        ]
       }
     },
     {
       "id": "authentic-release-origin",
       "unit": "P5-3",
       "status": "not_proved",
-      "doc": ["15", "17"],
+      "doc": [
+        "15",
+        "17"
+      ],
       "claim": "A verified, signed release cut from the pinned grammar commit, and a receipt that names it.",
       "reason": "No verified release record is shown to exist for the grammar pin; the receipt layout has no fixture mark, so the separation is in the function name. Examined in the release-origin pre-check (a separate unit)."
     },
@@ -216,7 +397,9 @@
       "id": "reference-resolution",
       "unit": "P5-3",
       "status": "not_proved",
-      "doc": ["21"],
+      "doc": [
+        "21"
+      ],
       "claim": "A reference resolve or snapshot connected to the materialization.",
       "reason": "The owner withdrew the requirement (2026-11-01). ResolveRule is not connected to the materialization and no snapshot contract exists or is invented."
     },
@@ -224,7 +407,10 @@
       "id": "capability-source-authenticated",
       "unit": "P5-2",
       "status": "not_proved",
-      "doc": ["12", "21"],
+      "doc": [
+        "12",
+        "21"
+      ],
       "claim": "The capability map comes from an authenticated source.",
       "reason": "The map is an explicit caller input checked for form; where it comes from is not claimed to be authenticated."
     },
@@ -232,7 +418,9 @@
       "id": "shared-compiled-schema-instance",
       "unit": "P5-3",
       "status": "not_proved",
-      "doc": ["21"],
+      "doc": [
+        "21"
+      ],
       "claim": "One compiled schema instance is shared by the steps of the chain.",
       "reason": "The chain compiles the schema three times from the same bytes and the same pin and compares the identity; sharing an instance would change the product API."
     },
@@ -240,7 +428,10 @@
       "id": "engine-verifier-blind-to-schema-identity",
       "unit": "P5-3",
       "status": "not_proved",
-      "doc": ["18", "21"],
+      "doc": [
+        "18",
+        "21"
+      ],
       "claim": "The engine verifier checks schema_name, schema_version and schema_digest against the schema.",
       "reason": "It cannot see them; they are checked by the identity step, the Python reference and the checker."
     },
@@ -248,7 +439,10 @@
       "id": "production-receipt-api",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["15", "17"],
+      "doc": [
+        "15",
+        "17"
+      ],
       "claim": "A production receipt function that takes a verified release record.",
       "reason": "HOLD by the owner's decision (question L); no function is exported under a neutral name."
     },
@@ -256,7 +450,9 @@
       "id": "non-flat-binding",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["20"],
+      "doc": [
+        "20"
+      ],
       "claim": "A PathBinding for a nested position.",
       "reason": "A contract unit of its own, after the engine's contract defines how a tree position becomes a key."
     },
@@ -264,7 +460,9 @@
       "id": "list-element-selector",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["20"],
+      "doc": [
+        "20"
+      ],
       "claim": "A list-element selector as a receipt evidence path.",
       "reason": "The verifier accepts the selector form and does not interpret it; Forms writes none until the engine's normative contract defines selector and key. Unsupported input is refused explicitly."
     },
@@ -272,7 +470,11 @@
       "id": "non-flat-materialization",
       "unit": "P5-2",
       "status": "deferred",
-      "doc": ["12", "13", "14"],
+      "doc": [
+        "12",
+        "13",
+        "14"
+      ],
       "claim": "Materializing a nested, list or set document, and an omitted optional field with no default.",
       "reason": "Refused explicitly (not_flat, set, omitted_optional); the differential proves the refusals only (decision H)."
     },
@@ -280,7 +482,9 @@
       "id": "p5-4-decision-f",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["21"],
+      "doc": [
+        "21"
+      ],
       "claim": "P5-4 and decision F.",
       "reason": "An open architectural boundary; nothing here treats it as closed."
     },
@@ -288,7 +492,10 @@
       "id": "engine-63-open",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["15", "21"],
+      "doc": [
+        "15",
+        "21"
+      ],
       "claim": "Closing cic-primitive-engine#63.",
       "reason": "Stays open until a closure is separately justified by the owner."
     },
@@ -296,7 +503,9 @@
       "id": "rust-go-quoted-scalar-parser-difference",
       "unit": "P5-3",
       "status": "deferred",
-      "doc": ["19"],
+      "doc": [
+        "19"
+      ],
       "claim": "Rust and Go read a quoted scalar continued on a line that starts at column 0 differently.",
       "reason": "A parser difference outside the receipt that predates P5-3, quarantined to the one proven case; nothing decides which is right and no issue is filed."
     }

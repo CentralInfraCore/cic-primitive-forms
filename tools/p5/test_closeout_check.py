@@ -131,16 +131,49 @@ class Closeout(unittest.TestCase):
         self.has(self.problems(led), "gives no reason")
 
     def test_a_required_open_item_is_dropped(self):
-        for rid in self.ledger["required_not_proved_or_deferred"]:
+        for rid in cc.REQUIRED_OPEN:
             led = copy.deepcopy(self.ledger)
             led["entries"] = [e for e in led["entries"] if e["id"] != rid]
             self.has(self.problems(led), f"{rid}: a required open item is missing")
 
     def test_a_required_open_item_is_moved_to_proved(self):
-        for rid in self.ledger["required_not_proved_or_deferred"]:
+        for rid in cc.REQUIRED_OPEN:
             led = copy.deepcopy(self.ledger)
             self.entry(led, rid)["status"] = "proved"
             self.has(self.problems(led), f"{rid}: a required open item is proved")
+
+    def test_an_open_item_deleted_from_the_entries_and_from_a_list_of_requirements_in_the_ledger(self):
+        # the review finding of #136: the requirement used to be read from the file it checks
+        for rid in cc.REQUIRED_OPEN:
+            led = copy.deepcopy(self.ledger)
+            led["entries"] = [e for e in led["entries"] if e["id"] != rid]
+            for key in ("required_not_proved_or_deferred", "required"):
+                if key in led:
+                    led[key] = [r for r in led[key] if r != rid]
+            led["required_not_proved_or_deferred"] = [r for r in cc.REQUIRED_OPEN if r != rid]
+            self.has(self.problems(led), f"{rid}: a required open item is missing")
+
+    def test_the_requirements_are_not_in_the_ledger(self):
+        for key in ("required_not_proved_or_deferred", "required_phrases", "doc_sections_without_a_contract"):
+            self.assertNotIn(key, self.ledger)
+
+    def test_a_section_cannot_be_exempted_from_the_ledger(self):
+        led = copy.deepcopy(self.ledger)
+        led["doc_sections_without_a_contract"] = {"19": "no contract", "11": "", "15": ""}
+        for e in led["entries"]:
+            e["doc"] = [s for s in e["doc"] if s != "19"] or ["20"]
+        self.has(self.problems(led), "section 19 of the doc is covered by no entry")
+
+    def test_the_required_phrases_cannot_be_emptied_from_the_ledger(self):
+        led = copy.deepcopy(self.ledger)
+        led["required_phrases"] = []
+        p = self.tmp / "docs" / "P5-RESOLVE-MATERIALIZE-RECEIPT.md"
+        p.write_text(p.read_text().replace("flat, fixture-based receipt", "receipt"))
+        self.has(self.problems(led), "lacks the phrase 'flat, fixture-based receipt'")
+
+    def test_the_fixed_requirements_are_the_twelve_the_review_named(self):
+        self.assertEqual(len(cc.REQUIRED_OPEN), 12)
+        self.assertEqual(len(set(cc.REQUIRED_OPEN)), 12)
 
     # the ledger itself
 
