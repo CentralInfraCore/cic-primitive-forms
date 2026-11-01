@@ -52,6 +52,8 @@ def tree(repo, commit, memo={}):
 
 
 def content(repo, commit, path, kind):
+    if kind == "opaque":
+        return object()  # unknown: never equal, so a test with such a read is never reused
     files = tree(repo, commit)
     if kind == "dir":
         prefix = path.rstrip("/") + "/"

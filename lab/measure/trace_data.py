@@ -3,6 +3,9 @@
     python3 lab/measure/trace_data.py --repo . --go-bin forms.test --go-graph typed.json \
         --rust-exes rexes.txt --rust-graph rtyped.json --out data.json [--jobs N]
 
+A path relative to a directory file descriptor (openat(fd, "name")) is resolved with the fd's path, which strace -y prints; if it
+cannot be resolved the test gets the dependency "<unresolved ...>" of kind "opaque", and a test with one is never reused.
+
 A test depends on a path of the repository when it (or a process it starts) opens it, stats it, checks it for access or reads
 its link, whether or not the path exists: a file that is absent now and present later can change the result. A directory
 opened as a directory is a dependency on its listing. A path under one of the pinned upstream checkouts (CIC_*_ROOT) is a
@@ -22,6 +25,8 @@ import tempfile
 
 CALL = re.compile(r'^(?:\d+\s+)?(openat|open|newfstatat|statx|faccessat2?|access|readlinkat|readlink|stat|lstat)\((.*)$')
 PATH_ARG = re.compile(r'"((?:[^"\\]|\\.)*)"')
+DIRFD = re.compile(r'^\d+<([^>]*)>, ')
+UNRESOLVED = "<unresolved: a path relative to a directory fd>"
 PINS = {"CIC_PRIMITIVES_ROOT": "corpus/pins.yaml", "CIC_REGISTRY_ROOT": "corpus/pins.yaml"}
 
 
@@ -36,10 +41,16 @@ def parse(trace_file, cwd, repo, upstream):
         if not p:
             continue
         path = p.group(1).encode().decode("unicode_escape")
-        if call in ("openat", "newfstatat", "statx", "faccessat", "faccessat2", "readlinkat"):
-            if not (rest.startswith("AT_FDCWD") or path.startswith("/")):
-                continue  # relative to a directory fd: the directory itself was opened and is recorded
-        full = os.path.normpath(path if os.path.isabs(path) else os.path.join(cwd, path))
+        base = cwd
+        if call in ("openat", "newfstatat", "statx", "faccessat", "faccessat2", "readlinkat") and not (
+                rest.startswith("AT_FDCWD") or path.startswith("/")):
+            # relative to a directory fd: strace -y prints the fd's path, N</dir>; without it the path is unknown
+            d = DIRFD.match(rest)
+            if d is None:
+                deps[UNRESOLVED] = "opaque"
+                continue
+            base = d.group(1)
+        full = os.path.normpath(path if os.path.isabs(path) else os.path.join(base, path))
         kind = "dir" if call in ("openat", "open") and "O_DIRECTORY" in rest else "path"
         hit = None
         for root, pin in upstream.items():
@@ -63,7 +74,7 @@ def traced(argv, cwd, repo, upstream, env):
     with tempfile.NamedTemporaryFile(suffix=".strace", delete=False) as f:
         out = f.name
     try:
-        res = subprocess.run(["strace", "-f", "-qq", "-o", out, "-e",
+        res = subprocess.run(["strace", "-f", "-qq", "-y", "-o", out, "-e",
                               "trace=openat,open,newfstatat,statx,faccessat,faccessat2,access,readlinkat,readlink,stat,lstat"]
                              + argv, cwd=cwd, capture_output=True, text=True, env=env)
         deps, outside = parse(out, cwd, repo, upstream)

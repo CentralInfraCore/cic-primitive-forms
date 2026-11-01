@@ -1,0 +1,153 @@
+# Verification lab: results
+
+Status: **measurement on the `lab/verification` branch. Nothing here is a gate of `main`, and no test or mutant result is skipped
+or reused by any CI.** The numbers say how much *could* have been reused on the history of `main`, under rules that are checked
+against what the tests actually did. They are not a measured CI speed-up: the cost of the analysis is listed (section 7), the
+time saved is not measured.
+
+## 1. The question
+
+A test result (or a mutation verdict) of an earlier commit can stand for the current commit when nothing it depends on has
+changed. That needs three things to be complete and correct:
+
+1. **the code it depends on** (a static dependency graph, its closure hashed into a Merkle key);
+2. **the data it reads** (files, recorded while the test runs);
+3. **the environment** (lockfiles, toolchain and tool pins).
+
+The lab builds each, tries to refute each against what the tests actually execute and read, and then replays the history of
+`main` to count what the rules would have reused.
+
+## 2. What was built
+
+| Part | What it does | Where |
+|---|---|---|
+| Go graph | `go/packages` + `go/types`: a node per top-level declaration; an edge for every object an identifier resolves to (unexported ones, package-level types, constants, variables too), the implementers of a called interface method, and every method of a named type whose value becomes an interface value (`fmt` calling `String`, `errors.Is` calling `Unwrap`) | `lab/extractor/typeddeps` |
+| Rust graph | rust-analyzer's SCIP index: an edge for every occurrence; a field or variant is an edge to its type; a type has an edge to every method of its impl blocks (`Display::fmt` through `format!`); a trait of the crate itself is a failure (dispatch through it is not modelled; the crate has none) | `lab/extractor/scipdeps` |
+| The knowledge base's graph | `go.meta.gen.py` / `goastdump`, copied unchanged from CIC_Relay `86eaca2`, measured for comparison | `lab/extractor/relay` |
+| Coverage check | every test alone with coverage (Go cover profile, LLVM for Rust): every function it ran must be in its closure | `lab/measure/graph_vs_coverage.py`, `collect_rust.py` |
+| Merkle key | per node: its own source digest and its dependencies' keys; a cycle is one strongly connected component with one key | `lab/measure/merkle.py` |
+| Data edges | every test alone under `strace -y`: the repository paths it opens, stats or lists; a read in a pinned upstream checkout is a dependency on the pin file | `lab/measure/trace_data.py` |
+| Data check | a data file is corrupted and every test runs: a test that starts failing must have read the file | `lab/measure/data_soundness.py` |
+| Backtests | the history of `main`, commit by commit: tests (`backtest.py`, `backtest_data.py`), mutants (`backtest_mutants.py`) | `lab/measure/` |
+| Mutant samples | sampled mutants run on the parent and the child; the failing tests are the killers; carried verdicts are checked | `lab/measure/mutant_killers.py` |
+
+The lab workflow (`.github/workflows/lab.yml`) runs the coverage checks, the Merkle tests, the data record and check, and the
+planted defects on every push to `lab/**`. The backtests and the mutant samples take hours and run by hand.
+
+## 3. The graphs against what the tests execute
+
+On the tree of `8b0ccc1` (#131):
+
+| | Go | Rust |
+|---|---|---|
+| tests | 264 | 244 |
+| product functions | 279 | 295 |
+| tests that ran a function outside their closure (**typed graph**) | **0** | **0** |
+| the same for the knowledge base's graph (`go.meta.gen.py`) | 248 (261 distinct functions) | (no generator) |
+| precision: share of the closure that runs, mean | 0.59 | 0.58 |
+| tests to rerun when one product function changes, median (graph / coverage) | 13% / 6% | 16% / 6% |
+
+The knowledge base's graph records only exported calls and only references through an imported package, so inside one package
+(all of `go/`) it sees almost nothing. It serves navigation; it cannot decide reuse.
+
+Both rules for indirect calls were found by this check, not designed ahead: without them, `ScalarType.String` (Go, 11 tests)
+and `ReceiptError.Unwrap` (5 tests), and the `Display::fmt` of three Rust error types, ran outside the closure.
+
+## 4. Tests over the history of `main`
+
+113 commit pairs, 29096 test runs (Go and Rust), `lab/results/backtest-*-314475ab14e0.json`.
+
+| Rule | Reusable |
+|---|---|
+| same Merkle key and environment, **any** data change reruns every test | 55.4% (16110) |
+| same Merkle key and environment, a test reruns only if a **file it read** changed (read on the parent) | 85.8% (24973), recorded before the fix of section 8 |
+
+* 45 of the 93 pairs with tests reuse everything (documentation, CI, decision records). Of the 38 that reused nothing under
+  the first rule, 37 did so only because a data file changed.
+* With data edges, typical product pull requests keep most tests: P4-1 (60 patch vectors) 316 of 344, P5-1 differential 453 of
+  456, #130 (P5-3 schema identity, code changed widely) 293 of 487.
+* Reads are recorded on the **parent**: a deterministic test whose closure and read files are unchanged opens the same files on
+  the child, because what it opens is decided by its code and by what it read. A test that failed on the parent is never reused.
+
+The data record checked by corruption (`lab/results/data-soundness-8b0ccc1.json`): 15 read files, 15 unread ones, the two
+testdata files no test reads, `corpus/pins.yaml`, and a new file in six listed directories. No test that failed after a
+corruption lacked the file in its record. 15 of the 36 corruptions made some test fail.
+
+## 5. Mutation verdicts over the history of `main`
+
+92 commit pairs, `lab/results/backtest-mutants-314475ab14e0.json`.
+
+| | Go | Rust |
+|---|---|---|
+| mutant verdicts | 183219 | 97370 |
+| **strict rule**: the same mutant, the same tests reach its declaration, all of them reusable, the same tool and flags | **56%** | **59%** |
+| **kill rule**, upper bound: also a mutant that some reusable test of the parent reaches | 82% | 81% |
+| strict rule, weighed by measured cost | — | 53% (the cost table covers 43% of the mutants) |
+
+The kill rule carries the verdict of a mutant **killed** on the parent when one of the tests that killed it is reusable. Which
+test killed a mutant is not in the history, so the backtest gives only its upper bound; the samples measure it:
+
+| Sample | Run on parent and child | Carried | Held on the child |
+|---|---|---|---|
+| #131 (`704c41d` -> `8b0ccc1`), Go, kill rule | 30 | 20 | 20 |
+| #131, Rust, strict rule | 30 | 30 | 30 |
+| #131, Rust, kill rule | 30 | 27 | 27 |
+| #132 (`8b0ccc1` -> `314475a`, tests only), mutants new tests reach, Go and Rust | 50 | (none carried) | — |
+
+With the kill rule's share of the samples, an estimate of what could be carried is about 73% (Go) and 79% (Rust). It rests on
+one commit pair.
+
+## 6. Planted defects (each must be seen, and is)
+
+| Defect | Seen as |
+|---|---|
+| 5% of the Go graph's edges dropped | 134 to 138 tests with a miss (the property tests draw new cases) |
+| the Go interface conversion rule switched off | 16 tests miss `ScalarType.String`, `ReceiptError.Unwrap` |
+| 5% of the Rust graph's edges dropped | 58 tests with a miss |
+| the Rust type -> impl rule switched off | 3 tests miss `Display::fmt` |
+| `corpus/patch/vectors.yaml` forgotten from every data record | 37 misses |
+| a test with no node in the graph (synthetic, from the review) | `--expect sound` fails |
+| `openat(fd, "name")` relative to a directory fd (synthetic, from the review) | resolved through `strace -y`; unresolvable is "opaque", never reused |
+
+## 7. What this does not show
+
+* **No general proof.** The checks refute; they do not prove. Coverage sees which functions ran, not which constants, types or
+  data paths mattered; the corruption check sees a read only when the corruption makes a test fail; code no test executes has
+  its edges unchecked.
+* **The mutant samples have little power.** In 140 mutants run on both commits no verdict changed, so a wrong rule would have
+  passed them too. A planted case is still to be built: a survivor and, in a trial commit, a new test that kills it.
+* **Not a CI speed-up.** The plain tests take minutes; the CI time is in mutation and fuzzing, and fuzzing explores by chance and
+  is not reused at all. The analysis has a cost per commit: Go graph about 2 s, Rust SCIP index about 15 s, the data record
+  (every test alone under strace) about 10 s on 12 cores, Go mutant enumeration about 40 s; none of it was set against a
+  saving.
+* **Determinism is assumed.** The property tests (rapid, proptest) draw new cases on each run; reusing their result means
+  accepting the earlier draw.
+* **Environment is coarse.** Lockfiles, manifests and the pinned toolchain and tool versions of the p1 workflow; the runner
+  image is not in the key.
+* **Commit pinning.** The lab branch is based on `8b0ccc1`; the backtests read `main` up to `314475a`.
+
+## 8. The external review (2026-11-01)
+
+A review of the branch reproduced two defects; both are confirmed here and fixed with tests
+(`lab/measure/test_review_findings.py`):
+
+1. `graph_vs_coverage.py --expect sound` passed when a test had no node in the graph (its closure unknown). It now fails.
+2. `trace_data.py` dropped a path opened relative to a directory fd (`openat(3, "config.yaml")`): the directory was recorded, the
+   file was not. The tracer now runs `strace -y` and resolves the path through the fd; a path it cannot resolve becomes an
+   "opaque" read, and a test with one is never reused. Re-recorded on `8b0ccc1`, the read sets of all 508 tests are identical to
+   the earlier record and no read is opaque. The data backtest is being rerun with the fixed tracer on every parent; until its result is added here, the 85.8% of section 4 is the number of the earlier tracer.
+
+The review's conclusion stands: the lab shows how much reuse is possible and how to check it; it does not yet show that a
+skip decision would be safe in general.
+
+## 9. Reproducing
+
+Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned
+`go-mutesting` for the mutant parts; the `CIC_*_ROOT` checkouts as in CI.
+
+```
+lab/measure/run.sh OUT          # Go graph vs coverage, the knowledge base's graph, planted defects
+lab/measure/run_rust.sh OUT     # the same for Rust (RUST_TOOLCHAIN)
+lab/measure/run_data.sh OUT     # data record, corruption check, planted defect (corrupts and restores files in the checkout)
+python3 lab/measure/backtest.py ...           then backtest_data.py, backtest_mutants.py, mutant_killers.py (see each --help)
+```

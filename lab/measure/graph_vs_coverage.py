@@ -246,6 +246,9 @@ def main():
         sys.exit("tests failed: %s" % report["failed"])
     if a.expect == "sound" and (misses or report["init"]["missed"]):
         sys.exit("the typed graph missed %d test/function pairs" % misses)
+    # a test the graph has no node for is a test whose closure is unknown: what it ran cannot be checked, so it is not sound
+    if a.expect == "sound" and report["graphs"]["typed"]["tests_without_a_node"]:
+        sys.exit("tests without a node in the graph: %s" % report["graphs"]["typed"]["tests_without_a_node"][:10])
     if a.expect == "misses" and not misses:
         sys.exit("the planted defect was not seen: no miss")
 
