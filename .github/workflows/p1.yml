@@ -63,6 +63,10 @@ jobs:
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_compare_receipt_fuzz.py
       # P5-3 end-to-end proof: the checker of the chain is shown to fail on a skipped step, an artefact of another run, a missing case and a swapped binding
       - run: python3 -W error::ResourceWarning -m unittest tools/parity/test_check_receipt_e2e.py
+      # P5 closeout (docs section 22): the ledger names its evidence and the checker reads it; the checker is shown to fail on a missing file, a changed count, a renamed step,
+      # a receipt entry promoted to proved and a dropped open item
+      - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_closeout_check.py
+      - run: python3 tools/p5/closeout_check.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:

@@ -480,3 +480,56 @@ with the capability map an **explicit, checked caller input** (the P5-2 contract
 * The schema source and the grammar identity. The engine cannot see `schema_name`, `schema_version` or `schema_digest` (section 18); they are the identity step's, the Python reference's and the checker's.
 * The release record is a fixture (section 17): a well-formed receipt here is not an authentic one.
 * Reference resolution, a snapshot, a non-flat document and a list-element selector: not done, refused explicitly (section 20 for the selector).
+
+## 22. P5 closeout: what is proved, what is fixture-only, what is not proved, what is deferred (2026-11-01)
+
+This section closes P5-1, P5-2 and P5-3 on `main` at `b56bb42`. It changes no product code. The machine-checked record is `docs/p5-closeout.json`, read by `tools/p5/closeout_check.py` (self-tested in `tools/p5/test_closeout_check.py`, both run in the `p1` workflow): every file, text, count, CI step and doc section a `proved` or `fixture-only` entry names is read, an entry that touches a Forms receipt cannot be `proved`, the open items below cannot be dropped or moved, and every section of this document from 10 on is covered by an entry. A closeout that the evidence does not hold turns the check red.
+
+**P5-3 closes only as a flat, fixture-based receipt.** The chain is the one of section 21 (P5-3 end-to-end proof without reference resolution); the release record is a fixture (section 17); no authentic receipt exists or can be produced from this state; the production receipt is on hold; Engine issue #63 stays open.
+
+**Proved** (a contract with its evidence; it touches no Forms receipt):
+
+| Id | Unit | What | Section |
+|---|---|---|---|
+| `canonical-bytes-engine-section-a` | P5-1 | canonical bytes of engine section A within decision G; 27 vectors | 10 |
+| `canonical-differential-and-fuzz` | P5-1 | 20 000-value Rust/Go differential against a reference written apart; fuzz targets | 10 |
+| `canonical-seeded-defects` | P5-1 | planted defects of the canonical bytes, each red | 10 |
+| `materialize-flat` | P5-2 | flat materialization, 20 shared cases (7 accepted, 13 refused), capability an explicit caller input | 12 |
+| `materialize-generated-differential` | P5-2 | 6 000 generated documents, the engine as the third reader | 13 |
+| `materialize-fuzz` | P5-2 | fuzz targets of the flat properties | 14 |
+| `schema-identity-d13` | P5-3 | the D1.3 schema identity contract through Forms' own producers, one compile (same-source binding) | 15, 16 |
+
+**Fixture only** (proved with fixture release data; a green engine verifier is a consistency result, not an authenticity result):
+
+| Id | What | Section |
+|---|---|---|
+| `flat-receipt-fixture` | the 15-field flat receipt, 7 shared cases, the engine verifier as the gate | 17 |
+| `receipt-generated-differential` | 1817 accepted generated receipts, four producer/verifier combinations | 18 |
+| `receipt-fuzz` | receipt fuzz targets and the deterministic replay in every build | 19 |
+| `path-binding-measured` | the pinned verifier's behaviour on 16 path and binding cases | 20 |
+| `flat-binding-field` | the flat `$.field -> field` binding against an independent reference | 20, 21 |
+| `end-to-end-without-reference-resolution` | the chain of section 21, Rust and Go | 21 |
+
+**Not proved:**
+
+| Id | What | Why |
+|---|---|---|
+| `authentic-release-origin` | a verified release cut from the grammar pin, named by a receipt | no such record is shown to exist (see the release-origin pre-check, a separate unit) |
+| `reference-resolution` | a reference resolve or snapshot in the chain | the owner withdrew the requirement; no contract is invented |
+| `capability-source-authenticated` | the capability map comes from an authenticated source | it is a caller input checked for form |
+| `shared-compiled-schema-instance` | one compiled schema shared by the steps | three compiles from the same bytes and pin, compared; an instance would change the API |
+| `engine-verifier-blind-to-schema-identity` | the verifier checks `schema_name`, `schema_version`, `schema_digest` | it cannot see them |
+
+**Deferred:**
+
+| Id | What | Why |
+|---|---|---|
+| `production-receipt-api` | a production receipt function taking a verified release record | HOLD (question L) |
+| `non-flat-binding` | a `PathBinding` for a nested position | a contract unit of its own |
+| `list-element-selector` | a selector as evidence path | no path is written until the engine's contract defines selector and key |
+| `non-flat-materialization` | nested, list, set, omitted optional with no default | refused explicitly (decision H) |
+| `p5-4-decision-f` | P5-4 and decision F | an open architectural boundary |
+| `engine-63-open` | closing `cic-primitive-engine#63` | only after a separately justified closure |
+| `rust-go-quoted-scalar-parser-difference` | a quoted scalar continued at column 0 is read differently by the two parsers | outside the receipt, predates P5-3, quarantined to the proven case, no issue filed |
+
+**The gate on the closeout itself.** `tools/p5/test_closeout_check.py` builds a clean copy of the repository's inputs and breaks one thing at a time, reading the message and not the count: a proved entry whose file is missing, whose named text is gone, whose count changed, whose CI step was renamed or whose doc section does not exist; a receipt entry marked `proved`; a `proved` entry without a limit or without the `receipt` field; evidence on an open item; a required open item dropped or moved to `proved`; a repeated id; a status that does not exist; an engine pin that differs from `engine-pin.txt`; a doc section that no entry covers; an entry id that the doc does not hold; a missing required phrase.
