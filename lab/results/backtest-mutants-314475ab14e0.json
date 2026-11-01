@@ -1,0 +1,2799 @@
+{
+ "pairs": 92,
+ "totals": {
+  "go": {
+   "mutants": 183219,
+   "reusable": 102768,
+   "new": 2774,
+   "tests_changed": 60525,
+   "unplaced": 0,
+   "tool": 17152,
+   "unreadable": 0,
+   "cost": 0.0,
+   "cost_reusable": 0.0,
+   "killed_reuse_bound": 150610,
+   "costed": 0,
+   "reusable_share": 0.561,
+   "cost_reusable_share": null,
+   "killed_reuse_bound_share": 0.822
+  },
+  "rust": {
+   "mutants": 97370,
+   "reusable": 57437,
+   "new": 1452,
+   "tests_changed": 29476,
+   "unplaced": 0,
+   "tool": 9005,
+   "unreadable": 0,
+   "cost": 211586.199999999,
+   "cost_reusable": 111742.59999999971,
+   "killed_reuse_bound": 78854,
+   "costed": 41985,
+   "reusable_share": 0.59,
+   "cost_reusable_share": 0.528,
+   "killed_reuse_bound_share": 0.81
+  }
+ },
+ "rows": [
+  {
+   "commit": "5f0c18e28176",
+   "subject": "Merge pull request #23 from CentralInfraCore/feat/p1-presence-validate",
+   "go": {
+    "mutants": 384,
+    "reusable": 0,
+    "new": 63,
+    "tests_changed": 321,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 51,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 190,
+    "reusable": 0,
+    "new": 25,
+    "tests_changed": 165,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 529.0000000000007,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 14,
+    "costed": 170
+   }
+  },
+  {
+   "commit": "2c58713253cf",
+   "subject": "Merge pull request #24 from CentralInfraCore/feat/p1-inherit-validate-d018",
+   "go": {
+    "mutants": 501,
+    "reusable": 0,
+    "new": 117,
+    "tests_changed": 384,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 45,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 250,
+    "reusable": 0,
+    "new": 60,
+    "tests_changed": 190,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 660.9000000000011,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 230
+   }
+  },
+  {
+   "commit": "ace0740d7cce",
+   "subject": "Rust/Go parser parity: differential harness, shared regression corpus, fixes (#25)",
+   "go": {
+    "mutants": 824,
+    "reusable": 0,
+    "new": 331,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 493,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 0,
+    "new": 237,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 230,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "e7e1fa30af0f",
+   "subject": "docs: plan for FULL evidence and a DELTA selector in shadow mode (#27)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "c9580ef90795",
+   "subject": "feat(test-evidence): step A, the record, canonical JSON, validity key and verifier (#28)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "85d2dd60c6f7",
+   "subject": "feat(test-evidence): step B1, pinned actions, the environment and the record builder (#29)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "e2b7623263ba",
+   "subject": "fix(rust): an alias in the place of a mapping key is refused, not a panic (#31)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 467,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 181,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "8f19f4df8c81",
+   "subject": "test-evidence B2: collect, attest, publish, watchdog (switched off until owner setup) (#30)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "ee4f791578a8",
+   "subject": "test(parity): alias-key regression cases in the shared corpus and the fuzz seeds (#32)",
+   "go": {
+    "mutants": 824,
+    "reusable": 131,
+    "new": 0,
+    "tests_changed": 693,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 157,
+    "new": 0,
+    "tests_changed": 310,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 486.59999999999997,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "fb00d66be741",
+   "subject": "ci: balanced Rust mutation shards by measured cost, and a keyed tool cache (#33)",
+   "go": {
+    "mutants": 824,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 824,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 467,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "4e8ee0b4bcbb",
+   "subject": "study: C0 Go mutant id feasibility (#34)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "7158eaf0004a",
+   "subject": "evidence: the watchdog asks for a run only when the slot has no record, not when the branch cannot b",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "38928e3822c0",
+   "subject": "docs: evidence run failure, switching off and verified recovery (#35)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "fd8b2360b6e9",
+   "subject": "docs: plan for step C (stable mutant identity, shadow only) (#37)",
+   "go": {
+    "mutants": 824,
+    "reusable": 824,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 824,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 467,
+    "reusable": 467,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 2352.2999999999906,
+    "killed_reuse_bound": 467,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "650b4c1521ba",
+   "subject": "P1: validate an authored document against a pinned CIC schema (Rust and Go) (#38)",
+   "go": {
+    "mutants": 1109,
+    "reusable": 0,
+    "new": 285,
+    "tests_changed": 824,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 101,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 589,
+    "reusable": 0,
+    "new": 122,
+    "tests_changed": 467,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2352.2999999999906,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 96,
+    "costed": 467
+   }
+  },
+  {
+   "commit": "bf7f90116265",
+   "subject": "P1: validate list elements by declared identity; path_of (Rust and Go) (#39)",
+   "go": {
+    "mutants": 1274,
+    "reusable": 0,
+    "new": 192,
+    "tests_changed": 1082,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 701,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 657,
+    "reusable": 0,
+    "new": 77,
+    "tests_changed": 580,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 84,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "d6359ae615d2",
+   "subject": "P2: recursive expand and collapse with provenance (Rust and Go) (#40)",
+   "go": {
+    "mutants": 1626,
+    "reusable": 0,
+    "new": 391,
+    "tests_changed": 1235,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 91,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 857,
+    "reusable": 0,
+    "new": 206,
+    "tests_changed": 651,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 84,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "bd564dc4ebd0",
+   "subject": "docs: the semantic decisions of the P2 closing round (min_items bound, values that come with an erro",
+   "go": {
+    "mutants": 1626,
+    "reusable": 1626,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1626,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 857,
+    "reusable": 857,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 857,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "013118db3715",
+   "subject": "docs: P3 normalize - design proposal (no code) (#42)",
+   "go": {
+    "mutants": 1626,
+    "reusable": 1626,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1626,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 857,
+    "reusable": 857,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 857,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "4fc5efbf8eca",
+   "subject": "docs: accept ADR 0011 (defaults by Role), close the reference question, update P3 design status (#43",
+   "go": {
+    "mutants": 1626,
+    "reusable": 1626,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1626,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 857,
+    "reusable": 857,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 857,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "8be61b685e75",
+   "subject": "feat(p3): the compiled schema reads policy_surface and identity.base (Rust and Go, shared cases) (#4",
+   "go": {
+    "mutants": 1675,
+    "reusable": 31,
+    "new": 49,
+    "tests_changed": 1595,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1383,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 882,
+    "reusable": 10,
+    "new": 25,
+    "tests_changed": 847,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 13.7,
+    "killed_reuse_bound": 676,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "65adb6991b9f",
+   "subject": "test: Rust ordering oracle follows ADR 0007 for errors at unwritable names (closes #46) (#47)",
+   "go": {
+    "mutants": 1675,
+    "reusable": 1675,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1675,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 882,
+    "reusable": 165,
+    "new": 0,
+    "tests_changed": 717,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 15.000000000000002,
+    "killed_reuse_bound": 882,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "7f376a739d53",
+   "subject": "feat(p3): Role reading, schema defaults and ApplyDefaults (Rust and Go, shared cases) (#45)",
+   "go": {
+    "mutants": 1748,
+    "reusable": 31,
+    "new": 74,
+    "tests_changed": 1643,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1110,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 934,
+    "reusable": 0,
+    "new": 52,
+    "tests_changed": 882,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 630,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "271f371c38ed",
+   "subject": "docs: P3 third unit - normalize = expand + defaults, origin carried (design, no code) (#48)",
+   "go": {
+    "mutants": 1748,
+    "reusable": 1748,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1748,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 934,
+    "reusable": 934,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 934,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "3b76ed482ea1",
+   "subject": "feat(p3): normalize, renormalize, denormalize - expand then defaults, origin carried (unit 3) (#49)",
+   "go": {
+    "mutants": 1798,
+    "reusable": 85,
+    "new": 52,
+    "tests_changed": 1661,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1666,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 953,
+    "reusable": 19,
+    "new": 19,
+    "tests_changed": 915,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 897,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "48b7cc73f771",
+   "subject": "docs: P3 fourth unit - PolicyResolution (design, no code) (#50)",
+   "go": {
+    "mutants": 1798,
+    "reusable": 1798,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1798,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 953,
+    "reusable": 953,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 953,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "d9aea562d272",
+   "subject": "docs: state of the phases in the README, PHASES and the supported-subset doc (P0-P2 done, P3 units 1",
+   "go": {
+    "mutants": 1798,
+    "reusable": 1798,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1798,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 953,
+    "reusable": 953,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 953,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "009ee5d666d2",
+   "subject": "chore(pin): resolution reference + vectors join the grammar pin (ADR 0002 amendment 2) - pin-only (#",
+   "go": {
+    "mutants": 1798,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 1798,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1742,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 953,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 953,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 933,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "30ceb18e1536",
+   "subject": "P3 unit 4: PolicyResolution (Rust and Go, cross-checked against the 86 pinned golden vectors) (#53)",
+   "go": {
+    "mutants": 1901,
+    "reusable": 31,
+    "new": 118,
+    "tests_changed": 1752,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1456,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1003,
+    "reusable": 10,
+    "new": 55,
+    "tests_changed": 938,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 13.7,
+    "killed_reuse_bound": 722,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "9a443445fd88",
+   "subject": "feat(p3): NormalizeWithPolicy - the normalization and the resolution of its object from one compiled",
+   "go": {
+    "mutants": 1903,
+    "reusable": 139,
+    "new": 2,
+    "tests_changed": 1762,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1901,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 91,
+    "new": 1,
+    "tests_changed": 912,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 255.09999999999997,
+    "killed_reuse_bound": 1003,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "95d3fb00d4fc",
+   "subject": "P3 closing round, G2 and G5: mapping-order freedom and never-cut local rules as properties (#56)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 230,
+    "new": 0,
+    "tests_changed": 1673,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 94,
+    "new": 0,
+    "tests_changed": 910,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 255.09999999999997,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "d9d24c19cd14",
+   "subject": "test(p3): Rust-Go differential for normalize and the policy resolution on 3000 generated inputs, wit",
+   "go": {
+    "mutants": 1903,
+    "reusable": 146,
+    "new": 0,
+    "tests_changed": 1757,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 51,
+    "new": 0,
+    "tests_changed": 953,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 23.699999999999996,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "18a2ee68f656",
+   "subject": "docs: the diff gate and the nightly FULL (the decided DELTA model) (#58)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "7ae3aa290864",
+   "subject": "docs: no heavy post-merge on main - the nightly FULL is the check of main (owner decision) (#60)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "a1dcc72816ce",
+   "subject": "ci: the nightly FULL on main - the whole gate every night if main had development in the last 48 hou",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "e2a4cd270b0d",
+   "subject": "docs: P3 exit-criteria check (four units merged, six gaps listed, P3 not closed) (#54)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "73be2a3d1898",
+   "subject": "ci: the diff gate - on a pull request only the mutants in the lines it touches (Rust: cargo mutants ",
+   "go": {
+    "mutants": 1903,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1903,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1004,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "c71a4eb2b508",
+   "subject": "docs: P3b - source-preserving editing, the first unit (replacing one existing scalar); design only (",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "6ebe83e59d5a",
+   "subject": "docs: ADR 0012 (proposed) - source-preserving edit of one scalar: the operation, the span and its re",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "14d55b6096a2",
+   "subject": "docs: ADR 0012 accepted (owner's merge) - acceptance record with the eight decisions and the two cla",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "d5821d786e72",
+   "subject": "ci: a push to main runs only the cheap checks (no mutation, fuzz, seeded defects, evidence selftest)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "c658303a41d3",
+   "subject": "test(p3b): E1 - the hand-written edit and source_span vectors (72 cases), ten edit codes, checker ru",
+   "go": {
+    "mutants": 1903,
+    "reusable": 579,
+    "new": 0,
+    "tests_changed": 1324,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 287,
+    "new": 0,
+    "tests_changed": 717,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "abd11cdfe072",
+   "subject": "docs: P3 closure - the exit-criteria evidence, the six gaps closed, PHASES and README say done (#69)",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "d9a9d9e85660",
+   "subject": "ci: the nightly report opens an issue when the pull request cannot be opened, and can be tested by h",
+   "go": {
+    "mutants": 1903,
+    "reusable": 1903,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1004,
+    "reusable": 1004,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1004,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "92aea3157a05",
+   "subject": "P3b E2: source_span - the byte span of a scalar, verified by reading it back (Rust + Go) (#72)",
+   "go": {
+    "mutants": 2042,
+    "reusable": 935,
+    "new": 139,
+    "tests_changed": 968,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1903,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1059,
+    "reusable": 0,
+    "new": 55,
+    "tests_changed": 1004,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 114,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "e15eaeceb146",
+   "subject": "p1: computed shards (about 100 mutants / ten minutes), one fuzz job per target and by diff, seeded d",
+   "go": {
+    "mutants": 2042,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2042,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1059,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1059,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "faebfe778884",
+   "subject": "P3b E2 follow-up: the Go diff-mutation copy had no corpus (a void 100%); baseline check, edge tests ",
+   "go": {
+    "mutants": 2034,
+    "reusable": 935,
+    "new": 6,
+    "tests_changed": 1093,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1979,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1059,
+    "reusable": 481,
+    "new": 0,
+    "tests_changed": 578,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 458.8,
+    "killed_reuse_bound": 1059,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "105702eea1fe",
+   "subject": "tools/mutation_diff_exec.sh: an optional CIC_MUTATION_TEST_RUN restricts the Go tests of a mutant to",
+   "go": {
+    "mutants": 2034,
+    "reusable": 2034,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2034,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1059,
+    "reusable": 1059,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1059,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "9c68a385d672",
+   "subject": "P3b E3: edit_scalar - replace one scalar, every other byte untouched (Rust + Go, the 44 edit vectors",
+   "go": {
+    "mutants": 2116,
+    "reusable": 579,
+    "new": 100,
+    "tests_changed": 1437,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1989,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 240,
+    "new": 56,
+    "tests_changed": 815,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1040,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "33bc6a8a4c88",
+   "subject": "quality_gate: a mutation report must agree with itself - the score is read from the per-mutant resul",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 1111,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "9ed91f95248a",
+   "subject": "P3b E4: the proof of the guarantees of edit_scalar - a Rust/Go differential that checks each guarant",
+   "go": {
+    "mutants": 2116,
+    "reusable": 893,
+    "new": 0,
+    "tests_changed": 1223,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 436,
+    "new": 0,
+    "tests_changed": 675,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 376.99999999999994,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "bcf3b34d1b6f",
+   "subject": "docs: P3b first unit closed (E1-E4), later units open and named (#82)",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 1111,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "22c8c7d6447a",
+   "subject": "P4-0: design note for diff and patch (ADR 0008 exists, no code yet; the first patch unit and the own",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 1111,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "c73c5a2313f3",
+   "subject": "ADR 0013 (proposed): the first unit of patch - value_change on existing scalars, S+ within the scope",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 1111,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "c0ec550a3f8c",
+   "subject": "corpus: the accounting numbers move out of the tests into corpus/accounting.yaml (written in advance",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 287,
+    "new": 0,
+    "tests_changed": 824,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "1911a6c3dc05",
+   "subject": "docs: ADR 0013 accepted - acceptance record; ADR 0007 (phase patch) and ADR 0005 (kind patch, path_a",
+   "go": {
+    "mutants": 2116,
+    "reusable": 2116,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2116,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1111,
+    "reusable": 1111,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2342.3999999999905,
+    "cost_reusable": 2342.3999999999905,
+    "killed_reuse_bound": 1111,
+    "costed": 463
+   }
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "subject": "Review findings (#85) and the read-back defect (#87): an unknown resolve operation is unknown, the R",
+   "go": {
+    "mutants": 2124,
+    "reusable": 54,
+    "new": 13,
+    "tests_changed": 2057,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1752,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1113,
+    "reusable": 0,
+    "new": 5,
+    "tests_changed": 1108,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 273,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "ea6d8f2cf6a3",
+   "subject": "Validation boundaries (#88): Normalize and ResolvePolicy refuse a document that does not validate, G",
+   "go": {
+    "mutants": 2131,
+    "reusable": 243,
+    "new": 7,
+    "tests_changed": 1881,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1773,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1113,
+    "reusable": 11,
+    "new": 0,
+    "tests_changed": 1102,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 13.7,
+    "killed_reuse_bound": 922,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "9e4bd2bdb977",
+   "subject": "diff gate: a changed test is narrowed by its coverage instead of forcing FULL, and the diff mutation",
+   "go": {
+    "mutants": 2131,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2131,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1113,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1113,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "2a9630473d5e",
+   "subject": "Normalize reads an authored wrapper's rule members, the normalize docs say what it refuses, Same is ",
+   "go": {
+    "mutants": 2140,
+    "reusable": 62,
+    "new": 22,
+    "tests_changed": 2056,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1826,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1118,
+    "reusable": 0,
+    "new": 5,
+    "tests_changed": 1113,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 306,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "ab2e8cf6622e",
+   "subject": "CI chain (#94): a Go mutant or a seeded defect that does not build is not a catch; the Go count of t",
+   "go": {
+    "mutants": 2140,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2140,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1118,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1118,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "c3dc92b5b6a0",
+   "subject": "p1 runs on every pull request, so its checks can be required (#97, prerequisite of the ruleset of #9",
+   "go": {
+    "mutants": 2140,
+    "reusable": 2140,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2140,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1118,
+    "reusable": 1118,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 2329.09999999999,
+    "killed_reuse_bound": 1118,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "eda9d1e01485",
+   "subject": "P4-1: 60 hand-written patch vectors, the rules that hold them (each with faults), the four patch cod",
+   "go": {
+    "mutants": 2140,
+    "reusable": 593,
+    "new": 0,
+    "tests_changed": 1547,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2140,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1118,
+    "reusable": 295,
+    "new": 0,
+    "tests_changed": 823,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2329.09999999999,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1118,
+    "costed": 460
+   }
+  },
+  {
+   "commit": "b5be6e7aa11c",
+   "subject": "P4 D1-D3: diff in Go and Rust, all 66 corpus vectors run (#101)",
+   "go": {
+    "mutants": 2389,
+    "reusable": 0,
+    "new": 249,
+    "tests_changed": 2140,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 235,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1249,
+    "reusable": 0,
+    "new": 132,
+    "tests_changed": 1117,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 149,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "47041dabcfef",
+   "subject": "P4 D3b: Rust/Go/model differential of diff, its self-test, planted defects, fuzz targets (#102)",
+   "go": {
+    "mutants": 2389,
+    "reusable": 870,
+    "new": 0,
+    "tests_changed": 1519,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2389,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1249,
+    "reusable": 719,
+    "new": 0,
+    "tests_changed": 530,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2064.3999999999946,
+    "killed_reuse_bound": 1249,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "253165241a55",
+   "subject": "P4-2: patch, the first unit (ADR 0013), in Go and Rust; the 60 patch vectors run (#103)",
+   "go": {
+    "mutants": 2439,
+    "reusable": 499,
+    "new": 50,
+    "tests_changed": 1890,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2389,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1267,
+    "reusable": 0,
+    "new": 18,
+    "tests_changed": 1249,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 193,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "d0cc8b43fae2",
+   "subject": "P4-3: the proof of patch (differential, self-test, planted defects, fuzz targets); fixes a defect th",
+   "go": {
+    "mutants": 2438,
+    "reusable": 671,
+    "new": 2,
+    "tests_changed": 1765,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2389,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1267,
+    "reusable": 323,
+    "new": 0,
+    "tests_changed": 944,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 245.09999999999994,
+    "killed_reuse_bound": 1249,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "29af238c6579",
+   "subject": "docs: what P0 left to later phases and where each item stands; the P4 row is current (#105)",
+   "go": {
+    "mutants": 2438,
+    "reusable": 2438,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2438,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1267,
+    "reusable": 1267,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1267,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "a3277deb73f5",
+   "subject": "quality_gate: print the share of mutants left out of the denominator (information, no threshold) (#1",
+   "go": {
+    "mutants": 2438,
+    "reusable": 2438,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2438,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1267,
+    "reusable": 1267,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1267,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "3d8d03d9c876",
+   "subject": "ci: the full run of a pull request is measured by cargo-gamma and go-mutants; the nightly FULL keeps",
+   "go": {
+    "mutants": 2438,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2438,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1267,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1267,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "8acac862f070",
+   "subject": "ReadDiff / read_diff: the canonical bytes of a diff read back into events (strict, both languages) (",
+   "go": {
+    "mutants": 2743,
+    "reusable": 0,
+    "new": 305,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2438,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1480,
+    "reusable": 0,
+    "new": 213,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1267,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "1a41018a538d",
+   "subject": "p1: the full Rust mutation shards run under the same 6 GB address-space cap as the diff shards and u",
+   "go": {
+    "mutants": 2743,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 2743,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1480,
+    "reusable": 0,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 1480,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 0,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "e814126acbe8",
+   "subject": "patch: two events on one path are refused (PATCH_DUPLICATE_TARGET) (#112)",
+   "go": {
+    "mutants": 2746,
+    "reusable": 499,
+    "new": 3,
+    "tests_changed": 2244,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2694,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1491,
+    "reusable": 0,
+    "new": 11,
+    "tests_changed": 1480,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 995,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "a165e700bfd5",
+   "subject": "ReadDiff: a Rust/Go differential with its promises and a self-test (#113)",
+   "go": {
+    "mutants": 2745,
+    "reusable": 1059,
+    "new": 1,
+    "tests_changed": 1685,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2444,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1491,
+    "reusable": 1104,
+    "new": 0,
+    "tests_changed": 387,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2285.8999999999905,
+    "killed_reuse_bound": 1491,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "5f7c073d35c9",
+   "subject": "ReadDiff: fuzz targets in Go and Rust (#114)",
+   "go": {
+    "mutants": 2745,
+    "reusable": 2087,
+    "new": 0,
+    "tests_changed": 658,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2745,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1491,
+    "reusable": 1491,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1491,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "cc792653c776",
+   "subject": "ci: a push to main that is the tree of a checked PR head runs no checks (#116)",
+   "go": {
+    "mutants": 2745,
+    "reusable": 2745,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2745,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1491,
+    "reusable": 1491,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1491,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "dcf8c01e9771",
+   "subject": "P5-0: the design note and ADR 0014 (proposed): materialize and receipt (#117)",
+   "go": {
+    "mutants": 2745,
+    "reusable": 2745,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2745,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1491,
+    "reusable": 1491,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1491,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "c47e7ff7a820",
+   "subject": "P5-1: canonical bytes and digest of a processed value (engine section A) (#118)",
+   "go": {
+    "mutants": 2815,
+    "reusable": 0,
+    "new": 70,
+    "tests_changed": 2745,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1486,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1171,
+    "new": 23,
+    "tests_changed": 320,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 471.7,
+    "killed_reuse_bound": 1491,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "5b7629474657",
+   "subject": "P5-1: canonical bytes differential (with an independent reference) and fuzz targets (#119)",
+   "go": {
+    "mutants": 2815,
+    "reusable": 2175,
+    "new": 0,
+    "tests_changed": 640,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2815,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1474,
+    "new": 0,
+    "tests_changed": 40,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2285.6999999999907,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "7abc026d869f",
+   "subject": "P5-1: 20 planted defects for the canonical bytes, one more vector (UTF-8 byte order against UTF-16),",
+   "go": {
+    "mutants": 2815,
+    "reusable": 2175,
+    "new": 0,
+    "tests_changed": 640,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2746,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1171,
+    "new": 0,
+    "tests_changed": 343,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 471.7,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "f6aaac2668a2",
+   "subject": "diff_gate: a text file with a byte that is not UTF-8 no longer crashes the scope job (#115) (#121)",
+   "go": {
+    "mutants": 2815,
+    "reusable": 2815,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2815,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1514,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "0fadedbc950e",
+   "subject": "P5-1: nil_node instead of a panic; the owner's decisions after P5-1 (sets fail closed) (#122)",
+   "go": {
+    "mutants": 2816,
+    "reusable": 2175,
+    "new": 1,
+    "tests_changed": 640,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2746,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1514,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "c3aba320f85f",
+   "subject": "P5-2 pre-check: the engine's object, the five misfits, a first unit, three questions (#123)",
+   "go": {
+    "mutants": 2816,
+    "reusable": 2816,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2816,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1514,
+    "reusable": 1514,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "393583565cc3",
+   "subject": "P5-2: materialize a flat document, checked against the engine's own object and digest (#124)",
+   "go": {
+    "mutants": 2865,
+    "reusable": 0,
+    "new": 49,
+    "tests_changed": 2816,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1557,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 840,
+    "new": 17,
+    "tests_changed": 674,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 281.0,
+    "killed_reuse_bound": 1514,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "a595d62f4c03",
+   "subject": "P5-2: the generated materialization differential, with the engine as the third reader (#125)",
+   "go": {
+    "mutants": 2865,
+    "reusable": 1577,
+    "new": 0,
+    "tests_changed": 1288,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2865,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 840,
+    "new": 0,
+    "tests_changed": 691,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 281.0,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "1a5652c5fd60",
+   "subject": "P5-2: fuzz targets for the flat materialization, Rust and Go (#126)",
+   "go": {
+    "mutants": 2865,
+    "reusable": 1899,
+    "new": 0,
+    "tests_changed": 966,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2865,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 1531,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "8139d1652a97",
+   "subject": "P5-3 pre-check: the receipt, eight misfits, a first unit, four questions (#127)",
+   "go": {
+    "mutants": 2865,
+    "reusable": 2865,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2865,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 1531,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "574b3bdafd1e",
+   "subject": "docs(p5): the engine issue for question N is cic-primitive-engine#63, and the two gates (contract co",
+   "go": {
+    "mutants": 2865,
+    "reusable": 2865,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2865,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 1531,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "bab0c0b06336",
+   "subject": "chore(p5): move the engine pin to a6a0680 (the D1.3 schema identity contract, cic-primitive-engine#6",
+   "go": {
+    "mutants": 2865,
+    "reusable": 2865,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2865,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1531,
+    "reusable": 1531,
+    "new": 0,
+    "tests_changed": 0,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 2326.6999999999903,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "704c41d39758",
+   "subject": "feat(p5-3): the schema identity of a receipt, Forms side (D1.3), with the same-source binding (#130)",
+   "go": {
+    "mutants": 2890,
+    "reusable": 0,
+    "new": 25,
+    "tests_changed": 2865,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1606,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1554,
+    "reusable": 887,
+    "new": 23,
+    "tests_changed": 644,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 281.0,
+    "killed_reuse_bound": 1531,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "8b0ccc1094d6",
+   "subject": "feat(p5-3): receipt_flat, the fixture-based 15-field receipt in Rust and Go, verified by the pinned ",
+   "go": {
+    "mutants": 2948,
+    "reusable": 0,
+    "new": 58,
+    "tests_changed": 2890,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 1628,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1569,
+    "reusable": 841,
+    "new": 15,
+    "tests_changed": 713,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 281.0,
+    "killed_reuse_bound": 1537,
+    "costed": 459
+   }
+  },
+  {
+   "commit": "314475ab14e0",
+   "subject": "test(p5-3): the generated receipt differential, Rust and Go against a Python reference, the engine v",
+   "go": {
+    "mutants": 2948,
+    "reusable": 1580,
+    "new": 0,
+    "tests_changed": 1368,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 0.0,
+    "cost_reusable": 0.0,
+    "killed_reuse_bound": 2948,
+    "costed": 0
+   },
+   "rust": {
+    "mutants": 1569,
+    "reusable": 841,
+    "new": 0,
+    "tests_changed": 728,
+    "unplaced": 0,
+    "tool": 0,
+    "unreadable": 0,
+    "cost": 2326.6999999999903,
+    "cost_reusable": 281.0,
+    "killed_reuse_bound": 1569,
+    "costed": 459
+   }
+  }
+ ]
+}

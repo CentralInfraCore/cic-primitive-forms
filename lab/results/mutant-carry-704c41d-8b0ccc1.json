@@ -1,0 +1,2231 @@
+{
+ "parent": "704c41d39758242509d3f9ecedb97080cba2bf21",
+ "child": "8b0ccc1094d68a5a7daab63c0d29c2e503cab237",
+ "summary": {
+  "go/kill": {
+   "sampled": 30,
+   "reused": 20,
+   "held": 20,
+   "broke": 0,
+   "pool": 1628
+  },
+  "rust/strict": {
+   "sampled": 30,
+   "reused": 30,
+   "held": 30,
+   "broke": 0,
+   "pool": 841
+  },
+  "rust/kill": {
+   "sampled": 30,
+   "reused": 27,
+   "held": 27,
+   "broke": 0,
+   "pool": 696
+  }
+ },
+ "results": [
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 1249d4fb0b13463b",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:FuzzAccess",
+    "go:TestCertPatternVectors"
+   ],
+   "killers_child": [
+    "go:FuzzAccess",
+    "go:TestCertPatternVectors"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 1c5623a33bc19ea2",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestCertPatternVectors"
+   ],
+   "killers_child": [
+    "go:TestCertPatternVectors"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 1a96910d444fd05c",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:<package>"
+   ],
+   "killers_child": [
+    "go:<package>"
+   ],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 7544e88d31d237d8",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestDiffTheCanonicalStrings"
+   ],
+   "killers_child": [
+    "go:TestDiffTheCanonicalStrings"
+   ],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 373afd53748aad7e",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestDiffCasesMatchTheCorpus",
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector"
+   ],
+   "killers_child": [
+    "go:TestDiffCasesMatchTheCorpus",
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | ee3c37baf498bef3",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "killers_child": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | d9198077c12f808d",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 6307a44fdd1b6493",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "killers_child": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 51f251245b73dd3b",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestPropertyAFieldRuleOnAnObjectWithNoPolicyWins",
+    "go:TestPropertyLocalRulesAreNeverCut",
+    "go:TestResolveRuleAgainstTheGoldenVectors",
+    "go:TestSharedPolicyResolutionCases"
+   ],
+   "killers_child": [
+    "go:TestPropertyAFieldRuleOnAnObjectWithNoPolicyWins",
+    "go:TestPropertyLocalRulesAreNeverCut",
+    "go:TestResolveRuleAgainstTheGoldenVectors",
+    "go:TestSharedPolicyResolutionCases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | c646940eeaf9c2d0",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestADefaultIsACandidateOnlyForAnAbsentOptionalField",
+    "go:TestPresenceValidateCasesMatchTheCorpus"
+   ],
+   "killers_child": [
+    "go:TestADefaultIsACandidateOnlyForAnAbsentOptionalField",
+    "go:TestPresenceValidateCasesMatchTheCorpus"
+   ],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 43a5ba8202b8849b",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:FuzzAccess",
+    "go:TestCertPatternVectors",
+    "go:TestPropertyCertPatternAgreesWithTheUpstreamExpression"
+   ],
+   "killers_child": [
+    "go:FuzzAccess",
+    "go:TestCertPatternVectors",
+    "go:TestPropertyCertPatternAgreesWithTheUpstreamExpression"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | c661789d9c3f2f91",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "killers_child": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 0b29923a7ba7e95a",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | bec45e43dcfde377",
+   "parent": "survived",
+   "child": "survived",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | dcb36d33b5af0ece",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestEngineSchemaIdentityVectors",
+    "go:TestSchemaWithAnInvalidIdentityIsRefused"
+   ],
+   "killers_child": [
+    "go:TestEngineSchemaIdentityVectors",
+    "go:TestSchemaWhoseIdentityBreaksTheContractMakesNoReceipt",
+    "go:TestSchemaWithAnInvalidIdentityIsRefused"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 330dfa4b56243008",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesADiffOfAnotherVersionAndReadDiffVersionNamesIt",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "killers_child": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesADiffOfAnotherVersionAndReadDiffVersionNamesIt",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 8d6c7ed64e4ff9bf",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "killers_child": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | cfd34aae7e7612ca",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 7f99431dfea3f024",
+   "parent": "survived",
+   "child": "survived",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | ea7d6a564049ddb4",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestDiffAnUnsupportedNumberAfterEntriesThatAreClean",
+    "go:TestDiffAnUnsupportedNumberIsNamedWhereverItIs",
+    "go:TestDiffCasesMatchTheCorpus",
+    "go:TestDiffEventsAreInPathOrder",
+    "go:TestDiffRepresentationBelowAListElementAndOnlyWherePresentInBoth",
+    "go:TestDiffTheScope",
+    "go:TestDiffTheViewsAreReadAsTheirOwnPhases",
+    "go:TestPathCasesMatchTheCorpus",
+    "go:TestPathTextCasesMatchTheCorpus",
+    "go:TestPolicyResolutionRefusesEveryStructureItCannotWalk",
+    "go:TestPresenceValidateCasesMatchTheCorpus",
+    "go:TestRealRegistrySchemas",
+    "go:TestSharedApplyDefaults",
+    "go:TestSharedExpandCollapseCases",
+    "go:TestSharedNormalize",
+    "go:TestSharedPathOfCases",
+    "go:TestSharedPathTextEdges",
+    "go:TestSharedPolicyResolutionCases",
+    "go:TestSharedSchemaCases"
+   ],
+   "killers_child": [
+    "go:TestDiffAnUnsupportedNumberAfterEntriesThatAreClean",
+    "go:TestDiffAnUnsupportedNumberIsNamedWhereverItIs",
+    "go:TestDiffCasesMatchTheCorpus",
+    "go:TestDiffEventsAreInPathOrder",
+    "go:TestDiffRepresentationBelowAListElementAndOnlyWherePresentInBoth",
+    "go:TestDiffTheScope",
+    "go:TestDiffTheViewsAreReadAsTheirOwnPhases",
+    "go:TestPathCasesMatchTheCorpus",
+    "go:TestPathTextCasesMatchTheCorpus",
+    "go:TestPolicyResolutionRefusesEveryStructureItCannotWalk",
+    "go:TestPresenceValidateCasesMatchTheCorpus",
+    "go:TestRealRegistrySchemas",
+    "go:TestSharedApplyDefaults",
+    "go:TestSharedExpandCollapseCases",
+    "go:TestSharedNormalize",
+    "go:TestSharedPathOfCases",
+    "go:TestSharedPathTextEdges",
+    "go:TestSharedPolicyResolutionCases",
+    "go:TestSharedSchemaCases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | a5b9969a0cfee62d",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestPathTextCasesMatchTheCorpus",
+    "go:TestSharedPathTextEdges"
+   ],
+   "killers_child": [
+    "go:TestPathTextCasesMatchTheCorpus",
+    "go:TestSharedPathTextEdges"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 794e827948773944",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "killers_child": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | b28cde6a7eeabf1e",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:FuzzAccess",
+    "go:TestInheritValidateCasesMatchTheCorpus",
+    "go:TestNormalizeReadsTheRuleMembersOfAnAuthoredWrapper",
+    "go:TestPolicyResolutionRefusesEveryStructureItCannotWalk",
+    "go:TestPropertyEveryModeHasOneSpellingPerVersionAndReadsBack",
+    "go:TestPropertyWhatReadsIsWrittenBackToTheSameSpelling",
+    "go:TestReadModeVectors",
+    "go:TestReadingGoesByKindNotByStrayFields",
+    "go:TestSharedPolicyCases",
+    "go:TestWriteModeIsABijectionPerVersion"
+   ],
+   "killers_child": [
+    "go:FuzzAccess",
+    "go:TestInheritValidateCasesMatchTheCorpus",
+    "go:TestNormalizeReadsTheRuleMembersOfAnAuthoredWrapper",
+    "go:TestPolicyResolutionRefusesEveryStructureItCannotWalk",
+    "go:TestPropertyEveryModeHasOneSpellingPerVersionAndReadsBack",
+    "go:TestPropertyWhatReadsIsWrittenBackToTheSameSpelling",
+    "go:TestReadModeVectors",
+    "go:TestReadingGoesByKindNotByStrayFields",
+    "go:TestSharedPolicyCases",
+    "go:TestWriteModeIsABijectionPerVersion"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 91a8ec020d45f962",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffEveryCanonicalEscapeIsReadAndWrittenBack",
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesADiffOfAnotherVersionAndReadDiffVersionNamesIt",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "killers_child": [
+    "go:TestReadDiffEveryCanonicalEscapeIsReadAndWrittenBack",
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesADiffOfAnotherVersionAndReadDiffVersionNamesIt",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | a3bdd354f4fca2f0",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "killers_child": [
+    "go:TestReadDiffEveryCanonicalStringOfTheCorpusReadsAndWritesBackToItself",
+    "go:TestReadDiffGivesThePatchTheEventsOfTheVector",
+    "go:TestReadDiffRefusesWhatIsNotExactlyTheCanonicalWriting",
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 574c0c7f001b85a6",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "killers_child": [
+    "go:TestReadDiffStopsAtTheReasonAndOffsetOfTheSharedTable",
+    "go:TestReadDiffTheEdgesOfTheReader"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 085806af534991d8",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestPathTextCasesMatchTheCorpus"
+   ],
+   "killers_child": [
+    "go:TestPathTextCasesMatchTheCorpus"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 75bfb1f7d1bd15a9",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:TestEditCasesMatchTheCorpus",
+    "go:TestPatchCasesMatchTheCorpus",
+    "go:TestTheScannerAtTheEdgesOfQuotedScalars",
+    "go:TestTheScannerStopsWhereTheRulesSay"
+   ],
+   "killers_child": [
+    "go:TestEditCasesMatchTheCorpus",
+    "go:TestPatchCasesMatchTheCorpus",
+    "go:TestTheScannerAtTheEdgesOfQuotedScalars",
+    "go:TestTheScannerStopsWhereTheRulesSay"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 97b684326fdc8e30",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "go:<package>"
+   ],
+   "killers_child": [
+    "go:<package>"
+   ],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "go",
+   "group": "kill",
+   "id": "go-token-diff/1 | 66813ee70750ab1f",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/editscalar.rs | short_view | delete match arm Value::Map(entries) in short_view | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::an_inversion_mirrors_the_events",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::denormalize_of_normalize_gives_back_the_authored_document",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result"
+   ],
+   "killers_child": [
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::an_inversion_mirrors_the_events",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::denormalize_of_normalize_gives_back_the_authored_document",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/emit.rs | is_block | delete match arm Value::Map(entries) in is_block | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "killers_child": [
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/normalize.rs | normalize | replace normalize -> Result<NormalizationResult, Error> with Ok(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::array | replace Reader<'_>::array -> Parsed<Node> with Parsed::new(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/pathtext.rs | format_path | replace || with && in format_path | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges"
+   ],
+   "killers_child": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::escape | replace Reader<'_>::escape -> Parsed<char> with Parsed::from_iter([Default::default()]) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::object | replace == with != in Reader<'_>::object | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::nesting_is_bounded",
+    "rust:diffread::nesting_of_objects_is_bounded_too",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "killers_child": [
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::nesting_is_bounded",
+    "rust:diffread::nesting_of_objects_is_bounded_too",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::object | replace += with -= in Reader<'_>::object | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::nesting_is_bounded",
+    "rust:diffread::nesting_of_objects_is_bounded_too",
+    "rust:diffread::no_mutation_of_a_valid_diff_is_accepted_unless_it_is_written_back_as_it_is",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "killers_child": [
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::nesting_is_bounded",
+    "rust:diffread::nesting_of_objects_is_bounded_too",
+    "rust:diffread::no_mutation_of_a_valid_diff_is_accepted_unless_it_is_written_back_as_it_is",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diff.rs | Differ<'_>::gone | replace == with != in Differ<'_>::gone | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:diff::a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_composite_is_named",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::a_null_collection_that_appears_keeps_its_null",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::sets",
+    "rust:diff::the_canonical_strings",
+    "rust:diff::the_scope"
+   ],
+   "killers_child": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:diff::a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_composite_is_named",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::a_null_collection_that_appears_keeps_its_null",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::sets",
+    "rust:diff::the_canonical_strings",
+    "rust:diff::the_scope"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::escape | replace Reader<'_>::escape -> Parsed<char> with Parsed::from(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | read_diff | replace read_diff -> Result<CanonicalDiff, DiffReadError> with Ok(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::escape | delete match arm b'u' in Reader<'_>::escape | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "killers_child": [
+    "rust:diffread::a_surrogate_pair_is_valid_json_and_not_the_canonical_writing",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diff.rs | write_canonical | replace > with >= in write_canonical | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:diff::a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_composite_is_named",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::a_null_collection_that_appears_keeps_its_null",
+    "rust:diff::a_set_that_only_loses_or_only_gains_one_element",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::sets",
+    "rust:diff::the_canonical_strings",
+    "rust:diff::the_scope",
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "killers_child": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:diff::a_composite_that_appears_is_sorted_inside_and_a_float_inside_an_expanded_composite_is_named",
+    "rust:diff::a_fragment_keeps_every_declaration_and_orders_what_it_holds",
+    "rust:diff::a_null_collection_that_appears_keeps_its_null",
+    "rust:diff::a_set_that_only_loses_or_only_gains_one_element",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::sets",
+    "rust:diff::the_canonical_strings",
+    "rust:diff::the_scope",
+    "rust:diffread::a_diff_of_another_version_is_refused_by_read_diff_and_named_by_read_diff_version",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/listitem.rs | path_of | delete match arm ShapeType::Composite(f) in path_of | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:pathof::the_shared_path_of_cases"
+   ],
+   "killers_child": [
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:pathof::the_shared_path_of_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/editscalar.rs | edit_scalar | delete ! in edit_scalar | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees"
+   ],
+   "killers_child": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/listitem.rs | path_of | replace && with || in path_of | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:pathof::the_shared_path_of_cases"
+   ],
+   "killers_child": [
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:pathof::the_shared_path_of_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/pathtext.rs | string | replace + with * in string | 3",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges"
+   ],
+   "killers_child": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::fail | replace Reader<'_>::fail -> Parsed<T> with Parsed::new() | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/emit.rs | string | replace string -> String with String::new() | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::a_long_key_that_starts_with_an_indicator_reads_back",
+    "rust:behaviour::emit_is_stable_under_reparse",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_is_a_fixed_point_under_parse",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::parse_never_panics_and_its_positions_lie_inside_the_text",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "killers_child": [
+    "rust:behaviour::a_long_key_that_starts_with_an_indicator_reads_back",
+    "rust:behaviour::emit_is_stable_under_reparse",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_is_a_fixed_point_under_parse",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::parse_never_panics_and_its_positions_lie_inside_the_text",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/sourcespan.rs | scan | replace + with - in scan | 6",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::sourcespan::tests::the_scanner_stops_where_the_rules_say",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:corpus::source_span_path_errors_and_a_list_below_a_composite",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::sourcespan::tests::the_scanner_stops_where_the_rules_say",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:corpus::source_span_path_errors_and_a_list_below_a_composite",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/emit.rs | emit | replace match guard !entries.is_empty() with false in emit | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::a_long_key_that_starts_with_an_indicator_reads_back",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::parse_never_panics_and_its_positions_lie_inside_the_text",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "killers_child": [
+    "rust:behaviour::a_long_key_that_starts_with_an_indicator_reads_back",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:corpus::corpus_documents_survive_emit_and_parse",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:properties::emit_then_parse_gives_back_the_value",
+    "rust:properties::parse_never_panics_and_its_positions_lie_inside_the_text",
+    "rust:subset::emit_writes_the_pinned_text_and_it_reads_back"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/resolve.rs | is_modify | replace == with != in is_modify | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::an_undeclared_inherit_policy_is_ignored",
+    "rust:resolve_properties::an_unknown_operation_is_unknown_never_permissive",
+    "rust:resolve_vectors::resolve_rule_against_the_golden_vectors"
+   ],
+   "killers_child": [
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::an_undeclared_inherit_policy_is_ignored",
+    "rust:resolve_properties::an_unknown_operation_is_unknown_never_permissive",
+    "rust:resolve_vectors::resolve_rule_against_the_golden_vectors"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/normalize.rs | denormalize | replace denormalize -> Result<Node, Error> with Ok(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/resolve.rs | resolve_rule | replace resolve_rule -> EffectiveRule with Default::default() | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/editscalar.rs | edit_scalar | replace edit_scalar -> Result<EditResult, Error> with Ok(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/sourcespan.rs | scan | replace + with * in scan | 5",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::sourcespan::tests::the_scanner_stops_where_the_rules_say",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::sourcespan::tests::the_scanner_stops_where_the_rules_say",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/pathtext.rs | name | replace < with > in name | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:corpus::source_span_an_empty_value_is_not_a_scalar_target",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:corpus::source_span_path_errors_and_a_list_below_a_composite",
+    "rust:diff::a_place_below_a_value_that_cannot_hold_it_is_refused",
+    "rust:diff::a_scope_below_a_null_in_one_operand_only",
+    "rust:diff::it_refuses_before_it_reads_and_in_the_order_of_the_contract",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_a_position_spelled_with_no_value_holds_null",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_the_order_of_the_checks_across_events",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::the_scope",
+    "rust:diff::the_scope_keeps_every_entry_that_is_not_inside_another",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_refuses_what_earlier_phases_refuse",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value"
+   ],
+   "killers_child": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:corpus::source_span_an_empty_value_is_not_a_scalar_target",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:corpus::source_span_edge_cases",
+    "rust:corpus::source_span_path_errors_and_a_list_below_a_composite",
+    "rust:diff::a_place_below_a_value_that_cannot_hold_it_is_refused",
+    "rust:diff::a_scope_below_a_null_in_one_operand_only",
+    "rust:diff::it_refuses_before_it_reads_and_in_the_order_of_the_contract",
+    "rust:diff::patch_a_key_component_of_a_list_below_a_composite",
+    "rust:diff::patch_a_key_name_below_an_element_is_not_a_key_component",
+    "rust:diff::patch_a_position_spelled_with_no_value_holds_null",
+    "rust:diff::patch_applying_and_the_spans",
+    "rust:diff::patch_the_key_components_and_the_targets_it_refuses",
+    "rust:diff::patch_the_order_of_the_checks_across_events",
+    "rust:diff::patch_two_events_on_one_path_are_refused_before_anything_is_decided_about_the_values",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::the_scope",
+    "rust:diff::the_scope_keeps_every_entry_that_is_not_inside_another",
+    "rust:diffread::every_canonical_escape_is_read_and_written_back",
+    "rust:diffread::the_edges_of_the_reader",
+    "rust:diffread::the_patch_takes_the_events_and_not_the_representation",
+    "rust:diffread::what_is_not_exactly_the_canonical_writing_is_refused",
+    "rust:diffread_corpus::every_canonical_diff_of_the_corpus_reads_and_writes_back_to_itself",
+    "rust:diffread_corpus::the_events_read_from_the_bytes_of_a_patch_vector_are_the_events_it_lists",
+    "rust:diffread_offsets::the_reader_stops_at_the_reason_and_offset_of_the_shared_table",
+    "rust:editscalar::edit_scalar_keeps_everything_else",
+    "rust:editscalar::edit_scalar_plain_safe_and_the_styles",
+    "rust:editscalar::edit_scalar_reaches_a_scalar_below_a_composite_in_a_list_element",
+    "rust:editscalar::edit_scalar_refuses_what_earlier_phases_refuse",
+    "rust:editscalar::edit_scalar_the_kinds_of_the_value",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_in_a_list_element",
+    "rust:editscalar::edit_scalar_through_an_expanded_wrapper_of_an_integer",
+    "rust:editscalar::edit_scalar_writes_and_reads_null",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:properties::the_span_of_every_scalar_reads_back_to_its_value"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | whole | replace whole -> DiffReadError with Default::default() | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/editscalar.rs | edit_scalar | replace + with * in edit_scalar | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:editscalar::edit_scalar_keeps_everything_else"
+   ],
+   "killers_child": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:editscalar::edit_scalar_keeps_everything_else"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "strict",
+   "id": "rust-name/1 | src/diffread.rs | Reader<'_>::array | replace Reader<'_>::array -> Parsed<Node> with Parsed::from(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | starts_scalar | replace == with != in starts_scalar | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:behaviour::an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::the_edges_of_the_text_scan_give_the_yaml_answer",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:cic_primitive_forms::sourcespan::tests::a_span_that_does_not_read_back_to_the_value_is_a_defect_not_a_guess",
+    "rust:parity_dump::the_known_divergences_are_still_divergences",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:behaviour::an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::the_edges_of_the_text_scan_give_the_yaml_answer",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:cic_primitive_forms::sourcespan::tests::a_span_that_does_not_read_back_to_the_value_is_a_defect_not_a_guess",
+    "rust:parity_dump::the_known_divergences_are_still_divergences",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes",
+    "rust:properties::emit_is_a_fixed_point_under_parse"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/recognize.rs | write_name | replace || with && in write_name | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::logical_paths_are_canonical_adr_0006_text_or_absent",
+    "rust:diff::a_field_name_that_cannot_be_written_is_refused",
+    "rust:materialize_corpus::unwritable_name::a_field_name_that_cannot_be_a_path_is_refused",
+    "rust:normalize::an_unwritable_name_gets_no_default",
+    "rust:properties::an_error_at_an_unwritable_name_is_ordered_by_its_segments",
+    "rust:resolution::resolution_refuses_a_position_it_cannot_name",
+    "rust:validate::a_default_is_a_candidate_only_for_an_absent_optional_field"
+   ],
+   "killers_child": [
+    "rust:behaviour::logical_paths_are_canonical_adr_0006_text_or_absent",
+    "rust:diff::a_field_name_that_cannot_be_written_is_refused",
+    "rust:materialize_corpus::unwritable_name::a_field_name_that_cannot_be_a_path_is_refused",
+    "rust:normalize::an_unwritable_name_gets_no_default",
+    "rust:properties::an_error_at_an_unwritable_name_is_ordered_by_its_segments",
+    "rust:resolution::resolution_refuses_a_position_it_cannot_name",
+    "rust:validate::a_default_is_a_candidate_only_for_an_absent_optional_field"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/validate.rs | Walk<'_>::elements | replace == with != in Walk<'_>::elements | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | Compiler::item_fields | replace match guard !i.is_empty() with true in Compiler::item_fields | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | follows_value_indicator | replace == with != in follows_value_indicator | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:parity_dump::the_known_divergences_are_still_divergences"
+   ],
+   "killers_child": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:parity_dump::the_known_divergences_are_still_divergences"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | read_long_role | replace match guard pick(&AUTHORITIES, s).is_some() with false in read_long_role | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases"
+   ],
+   "killers_child": [
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | read | replace > with < in read | 1",
+   "parent": "survived",
+   "child": "survived",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | short_role | delete match arm \"derived\" in short_role | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "killers_child": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | short_role | delete match arm \"operational\" in short_role | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "killers_child": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | Compiler::fields | replace Compiler::fields -> Vec<(String, Shape)> with vec![] | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:receipt_flat::a_field_name_that_is_not_one_plain_segment_makes_no_receipt",
+    "rust:receipt_flat::every_release_and_engine_field_is_required_and_the_digests_have_their_form",
+    "rust:receipt_flat::the_materialization_refusals_come_through_unchanged",
+    "rust:receipt_flat::the_receipt_names_the_schema_it_was_made_from",
+    "rust:receipt_flat::the_shared_receipt_cases",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | scan_words | replace == with != in scan_words | 21",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/validate.rs | Walk<'_>::list | replace < with > in Walk<'_>::list | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:properties::a_conforming_document_has_no_violation",
+    "rust:properties::denormalize_of_normalize_gives_back_the_authored_document",
+    "rust:properties::leaving_out_one_mandatory_field_adds_exactly_its_missing_error",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:schema::the_shared_schema_cases",
+    "rust:validate::min_items_is_inclusive_and_a_non_list_is_refused"
+   ],
+   "killers_child": [
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:properties::a_conforming_document_has_no_violation",
+    "rust:properties::denormalize_of_normalize_gives_back_the_authored_document",
+    "rust:properties::leaving_out_one_mandatory_field_adds_exactly_its_missing_error",
+    "rust:properties::the_edit_of_every_scalar_keeps_the_guarantees",
+    "rust:schema::the_shared_schema_cases",
+    "rust:validate::min_items_is_inclusive_and_a_non_list_is_refused"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/recognize.rs | write_json_string | replace match guard c < ' ' with false in write_json_string | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | scan_words | replace == with != in scan_words | 19",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:behaviour::an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:behaviour::the_edges_of_the_text_scan_give_the_yaml_answer",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named"
+   ],
+   "killers_child": [
+    "rust:behaviour::a_value_indicator_after_a_value_indicator_in_a_flow_collection_is_a_syntax_error",
+    "rust:behaviour::an_indicator_inside_a_plain_scalar_is_text_and_at_a_scalar_start_is_not",
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::marker_like_text_inside_scalars_is_content",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:behaviour::the_edges_of_the_text_scan_give_the_yaml_answer",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | forbid | replace forbid -> Result<(), Problem> with Ok(()) | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | compile_with | delete ! in compile_with | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_gives_no_half_result",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:policy::the_shared_policy_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases",
+    "rust:schema_identity_contract::a_schema_with_an_invalid_identity_is_refused",
+    "rust:schema_identity_contract::the_components_cannot_come_from_another_file",
+    "rust:schema_identity_contract::the_identity_of_one_verified_source"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_gives_no_half_result",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:policy::the_shared_policy_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:receipt_flat::a_field_name_that_is_not_one_plain_segment_makes_no_receipt",
+    "rust:receipt_flat::a_missing_schema_version_makes_no_receipt",
+    "rust:receipt_flat::a_schema_whose_identity_breaks_the_contract_makes_no_receipt",
+    "rust:receipt_flat::an_empty_schema_version_makes_no_receipt",
+    "rust:receipt_flat::every_release_and_engine_field_is_required_and_the_digests_have_their_form",
+    "rust:receipt_flat::the_materialization_refusals_come_through_unchanged",
+    "rust:receipt_flat::the_order_of_the_checks_names_the_first_reason",
+    "rust:receipt_flat::the_receipt_names_the_schema_it_was_made_from",
+    "rust:receipt_flat::the_shared_receipt_cases",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases",
+    "rust:schema_identity_contract::a_schema_with_an_invalid_identity_is_refused",
+    "rust:schema_identity_contract::the_components_cannot_come_from_another_file",
+    "rust:schema_identity_contract::the_identity_of_one_verified_source"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/recognize.rs | write_json_string | replace write_json_string with () | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:diff::an_unsupported_number_after_entries_that_are_clean",
+    "rust:diff::an_unsupported_number_is_named_wherever_it_is",
+    "rust:diff::events_are_in_path_order",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::the_scope",
+    "rust:diff::the_views_are_read_as_their_own_phases",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::path_cases_match_the_corpus",
+    "rust:corpus::path_text_cases_match_the_corpus",
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:diff::an_unsupported_number_after_entries_that_are_clean",
+    "rust:diff::an_unsupported_number_is_named_wherever_it_is",
+    "rust:diff::events_are_in_path_order",
+    "rust:diff::representation_below_a_list_element_and_only_where_present_in_both",
+    "rust:diff::the_scope",
+    "rust:diff::the_views_are_read_as_their_own_phases",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:pathtext::the_shared_path_text_edges",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | read_long_role | replace == with != in read_long_role | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "killers_child": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/validate.rs | Walk<'_>::elements | replace Walk<'_>::elements -> Result<(), Error> with Ok(()) | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:composed::the_boundaries_validate_first",
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:diff::the_views_are_read_as_their_own_phases",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:composed::the_boundaries_validate_first",
+    "rust:corpus::diff_cases_match_the_corpus",
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::presence_validate_cases_match_the_corpus",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:diff::the_views_are_read_as_their_own_phases",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | check_line | delete ! in check_line | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:parity_dump::the_known_divergences_are_still_divergences",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:behaviour::the_order_in_which_problems_are_reported_is_fixed",
+    "rust:parity_dump::the_known_divergences_are_still_divergences",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | scan_words | replace += with -= in scan_words | 2",
+   "parent": "timeout",
+   "child": "timeout",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | Table<'a>::indicator | replace - with / in Table<'a>::indicator | 2",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:corpus::edit_cases_match_the_corpus",
+    "rust:corpus::patch_cases_match_the_corpus",
+    "rust:corpus::source_span_cases_match_the_corpus",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | seq | replace seq -> Option<&[Node]> with Some(Vec::leak(Vec::new())) | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:receipt_flat::a_field_name_that_is_not_one_plain_segment_makes_no_receipt",
+    "rust:receipt_flat::every_release_and_engine_field_is_required_and_the_digests_have_their_form",
+    "rust:receipt_flat::the_materialization_refusals_come_through_unchanged",
+    "rust:receipt_flat::the_receipt_names_the_schema_it_was_made_from",
+    "rust:receipt_flat::the_shared_receipt_cases",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | is_radix_number | replace && with || in is_radix_number | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:subset::parse_reads_the_supported_subset"
+   ],
+   "killers_child": [
+    "rust:subset::parse_reads_the_supported_subset"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | read_long_role | delete match arm \"lifecycle\" in read_long_role | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "killers_child": [
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_default_refusals"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | scan_words | replace && with || in scan_words | 9",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:behaviour::every_short_string_of_indicators_round_trips",
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/parse.rs | scan_words | replace && with || in scan_words | 3",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "killers_child": [
+    "rust:behaviour::markers_and_directives_outside_content_are_refused",
+    "rust:cic_primitive_forms::parse::tests::the_scans_stop_and_go_on_where_the_yaml_does",
+    "rust:parity_dump::the_shared_regression_corpus_gives_the_pinned_outcomes"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/role.rs | short_role | replace short_role -> Option<RoleAxes> with Some(Default::default()) | 1",
+   "parent": "unviable",
+   "child": "unviable",
+   "killers_parent": [],
+   "killers_child": [],
+   "reused": false,
+   "holds": null
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | compile_with | replace match guard matches!(s.value, Value::Map(_)) with false in compile_with | 1",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_gives_no_half_result",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:policy::the_shared_policy_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases",
+    "rust:schema_identity_contract::a_schema_with_an_invalid_identity_is_refused",
+    "rust:schema_identity_contract::the_components_cannot_come_from_another_file",
+    "rust:schema_identity_contract::the_identity_of_one_verified_source"
+   ],
+   "killers_child": [
+    "rust:cic_primitive_forms::schema::tests::item_choice_needs_the_grammar_to_define_it",
+    "rust:composed::expand_does_not_read_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_reads_the_rule_members_of_an_authored_wrapper",
+    "rust:composed::normalize_with_policy_carries_the_schema_it_was_made_from",
+    "rust:composed::normalize_with_policy_gives_no_half_result",
+    "rust:composed::normalize_with_policy_is_normalize_then_resolve_policy",
+    "rust:composed::the_boundaries_validate_first",
+    "rust:defaults::apply_defaults_refuses_what_the_validation_does_not_support",
+    "rust:defaults::the_shared_accepted_roles",
+    "rust:defaults::the_shared_apply_defaults_cases",
+    "rust:defaults::the_shared_default_refusals",
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:materialize_corpus::no_document_is_refused_and_the_reasons_are_the_named_ones",
+    "rust:materialize_corpus::the_shared_materialize_cases",
+    "rust:normalize::denormalize_does_not_depend_on_the_order_of_the_object",
+    "rust:normalize::denormalize_keeps_an_attested_position_expanded",
+    "rust:normalize::normalize_and_denormalize_check_the_context",
+    "rust:normalize::normalize_is_independent_of_list_order",
+    "rust:normalize::normalize_refuses_what_expand_refuses",
+    "rust:normalize::renormalize_of_a_result_that_does_not_know_a_position_calls_it_authored",
+    "rust:normalize::the_shared_normalize_cases",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:policy::the_shared_policy_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:real_schema::network_space_config_surface_compiles_and_validates_a_vcn_intent",
+    "rust:receipt_flat::a_field_name_that_is_not_one_plain_segment_makes_no_receipt",
+    "rust:receipt_flat::a_missing_schema_version_makes_no_receipt",
+    "rust:receipt_flat::a_schema_whose_identity_breaks_the_contract_makes_no_receipt",
+    "rust:receipt_flat::an_empty_schema_version_makes_no_receipt",
+    "rust:receipt_flat::every_release_and_engine_field_is_required_and_the_digests_have_their_form",
+    "rust:receipt_flat::the_materialization_refusals_come_through_unchanged",
+    "rust:receipt_flat::the_order_of_the_checks_names_the_first_reason",
+    "rust:receipt_flat::the_receipt_names_the_schema_it_was_made_from",
+    "rust:receipt_flat::the_shared_receipt_cases",
+    "rust:resolution::resolution_does_not_depend_on_the_order_of_the_list_elements",
+    "rust:resolution::resolution_refuses_every_structure_it_cannot_walk",
+    "rust:resolution::resolution_refuses_what_it_cannot_describe",
+    "rust:resolution::shared_policy_resolution_cases",
+    "rust:resolve_properties::mapping_order_changes_no_result",
+    "rust:schema::the_shared_schema_cases",
+    "rust:schema_identity_contract::a_schema_with_an_invalid_identity_is_refused",
+    "rust:schema_identity_contract::the_components_cannot_come_from_another_file",
+    "rust:schema_identity_contract::the_identity_of_one_verified_source"
+   ],
+   "reused": true,
+   "holds": true
+  },
+  {
+   "lang": "rust",
+   "group": "kill",
+   "id": "rust-name/1 | src/schema.rs | Compiler::item_choice_cases | delete ! in Compiler::item_choice_cases | 2",
+   "parent": "killed",
+   "child": "killed",
+   "killers_parent": [
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "killers_child": [
+    "rust:expand::the_shared_expand_collapse_cases",
+    "rust:expand::the_shared_trusted_context",
+    "rust:pathof::the_shared_path_of_cases",
+    "rust:real_schema::network_interface_config_surface_is_refused_with_every_defect_named",
+    "rust:schema::the_shared_schema_cases"
+   ],
+   "reused": true,
+   "holds": true
+  }
+ ]
+}
