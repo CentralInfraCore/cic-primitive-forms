@@ -84,6 +84,7 @@ def main():
     ap.add_argument("--rust-toolchain", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--verdicts", help="shadow_replay.py output: the observed outcome of every Go test; replaces the assumed pass on the parent")
+    ap.add_argument("--verdicts-rust", help="shadow_replay_rust.py output: the observed outcome of every Rust test")
     ap.add_argument("--dump-decisions", help="write every decision as a line: child commit, test, status, reasons")
     a = ap.parse_args()
     repo, work = os.path.abspath(a.repo), os.path.abspath(a.work)
@@ -100,7 +101,11 @@ def main():
           file=sys.stderr)
 
     verdicts = json.load(open(a.verdicts)) if a.verdicts else None
+    verdicts_rust = json.load(open(a.verdicts_rust)) if a.verdicts_rust else None
     decisions_out = []
+    # tests seen unstable anywhere in the observed history (their two runs disagreed): marked in the evidence, see evidence.py
+    unstable_go = {t for e in (verdicts or {}).values() for t, r in e.get("go", {}).items() if r[0] != r[1]}
+    unstable_rust = {t for e in (verdicts_rust or {}).values() for t, r in e.get("rust", {}).items() if r[0] != r[1]}
     gpath = os.path.join(work, "kernel-graphs.json")
     graphs = json.load(open(gpath)) if os.path.exists(gpath) else {}
     wt = os.path.join(work, "kernel-wt")
@@ -166,9 +171,17 @@ def main():
                     # a skip, two different outcomes, a test not seen) is not a pass and is not reused
                     seen = verdicts.get(p, {}).get("go", {}).get(t.split(":", 1)[1].rsplit(".", 1)[-1])
                     verdict = "pass" if seen == ["PASS", "PASS"] else "fail"
-                prev = dict(prev_e, verdict=verdict, data_dependencies_digest=d_prev, environment_digest=envd(lang, p),
+                if verdicts_rust is not None and lang == "rust":
+                    seen = verdicts_rust.get(p, {}).get("rust", {}).get(bd.runner_key(t).split(":", 1)[1])
+                    verdict = "pass" if seen == ["PASS", "PASS"] else "fail"
+                stab = {}
+                if lang == "go" and t.split(":", 1)[1].rsplit(".", 1)[-1] in unstable_go:
+                    stab = {"stability": "unstable"}
+                if lang == "rust" and bd.runner_key(t).split(":", 1)[1] in unstable_rust:
+                    stab = {"stability": "unstable"}
+                prev = dict(prev_e, **stab, verdict=verdict, data_dependencies_digest=d_prev, environment_digest=envd(lang, p),
                             opaque_reads=opaque_reads, provenance={"evidence_id": p[:12] + " " + t})
-                cur = dict(cur_e, data_dependencies_digest=d_cur, environment_digest=envd(lang, c), opaque_reads=opaque_reads)
+                cur = dict(cur_e, **stab, data_dependencies_digest=d_cur, environment_digest=envd(lang, c), opaque_reads=opaque_reads)
                 d = ev.evaluate_reuse(prev, cur, assurance)
                 # the older rule on the same keys: equal key, equal environment, no read file changed, not a failure
                 old = (prev_e["code_closure_digest"] == cur_e["code_closure_digest"] and envd(lang, p) == envd(lang, c)
@@ -198,7 +211,7 @@ def main():
               "toolchain": {k: tc[k] for k in ("rustc", "rust-analyzer")},
               "assumptions": (["a test new on the child is not counted", "Rust: a test with no trace on the parent had a pass there"] if verdicts is not None else
                               ["a test with no trace on the parent had a pass there", "a test new on the child is not counted"]),
-              "verdicts": "observed (shadow_replay.py) for Go" if verdicts is not None else "assumed",
+              "verdicts": {"go": "observed" if verdicts is not None else "assumed", "rust": "observed" if verdicts_rust is not None else "assumed"},
               "decisions": {l: dict(tally[l]) for l in tally},
               "by_reason": {l: {",".join(k): v for k, v in reasons[l].items()} for l in reasons},
               "reusable_by_the_older_rule_not_by_the_kernel": {l: {",".join(k): v for k, v in lost[l].items()} for l in lost},

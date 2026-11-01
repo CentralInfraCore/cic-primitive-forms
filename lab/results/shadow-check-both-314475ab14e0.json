@@ -1,0 +1,25 @@
+{
+ "decisions": {
+  "go/RERUN_REQUIRED": {
+   "SAME_OUTCOME": 1995
+  },
+  "go/REUSE_ELIGIBLE": {
+   "CONSISTENT": 12782
+  },
+  "go/UNVERIFIABLE": {
+   "SAME_OUTCOME": 126
+  },
+  "rust/RERUN_REQUIRED": {
+   "SAME_OUTCOME": 1520
+  },
+  "rust/REUSE_ELIGIBLE": {
+   "CONSISTENT": 10386
+  },
+  "rust/UNVERIFIABLE": {
+   "SAME_OUTCOME": 1758,
+   "NO_STABLE_OUTCOME": 12
+  }
+ },
+ "false_reuse": [],
+ "nondeterministic_tests": []
+}

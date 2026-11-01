@@ -96,6 +96,19 @@ class Properties(unittest.TestCase):
         q["verdict"] = "unknown"
         self.assertEqual(ev.evaluate_reuse(q, c, A).status, ev.UNVERIFIABLE)
 
+    def test_an_unstable_subject_is_unverifiable_whatever_the_keys(self):
+        p, c = self.pair()
+        for side in ("previous", "current"):
+            q_, r_ = copy.deepcopy(p), copy.deepcopy(c)
+            (q_ if side == "previous" else r_)["stability"] = "unstable"
+            d = ev.evaluate_reuse(q_, r_, A)
+            self.assertEqual((d.status, d.reasons), (ev.UNVERIFIABLE, ("NONDETERMINISTIC_SUBJECT",)), side)
+        q_ = copy.deepcopy(p)
+        q_["stability"] = "stable"
+        self.assertEqual(ev.evaluate_reuse(q_, c, A).status, ev.REUSE_ELIGIBLE)
+        q_["stability"] = "sometimes"
+        self.assertEqual(ev.evaluate_reuse(q_, c, A).reasons, ("MALFORMED_EVIDENCE",))
+
     def test_a_rule_version_is_not_inherited(self):
         p, c = self.pair()
         p["rule_version"] = "cic-lab/reuse-rules/v0"

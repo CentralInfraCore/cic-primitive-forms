@@ -18,7 +18,7 @@ def verdicts(parent, child):
 
 def run(status, parent, child):
     tally, false_reuse, flaky = classify(["c1 go:go.TestX %s ALL_CONDITIONS_HOLD" % status], verdicts(parent, child), PARENT)
-    return dict(tally[status]), false_reuse, flaky
+    return dict(tally[("go", status)]), false_reuse, flaky
 
 
 class Sensitivity(unittest.TestCase):

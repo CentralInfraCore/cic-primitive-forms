@@ -37,7 +37,7 @@ UNVERIFIABLE = "UNVERIFIABLE"
 ALL_CONDITIONS_HOLD = "ALL_CONDITIONS_HOLD"
 UNVERIFIABLE_REASONS = (
     "MALFORMED_EVIDENCE", "CONTRACT_VERSION_UNKNOWN", "RULE_VERSION_NOT_ACCEPTED", "SUBJECT_MISMATCH", "EXTRACTOR_NOT_ALLOWED",
-    "EXTRACTOR_MISMATCH", "ANALYSIS_INCOMPLETE", "CONSTRUCT_NOT_VERIFIED", "SUBJECT_KIND_UNSUPPORTED", "SUBJECT_NODE_MISSING", "OPAQUE_DEPENDENCY",
+    "EXTRACTOR_MISMATCH", "ANALYSIS_INCOMPLETE", "CONSTRUCT_NOT_VERIFIED", "SUBJECT_KIND_UNSUPPORTED", "NONDETERMINISTIC_SUBJECT", "SUBJECT_NODE_MISSING", "OPAQUE_DEPENDENCY",
 )
 RERUN_REASONS = ("PREVIOUS_TEST_FAILED", "CODE_CHANGED", "DATA_CHANGED", "ENVIRONMENT_CHANGED")
 REASONS = (ALL_CONDITIONS_HOLD,) + UNVERIFIABLE_REASONS + RERUN_REASONS
@@ -92,6 +92,8 @@ def _shape_errors(e, with_verdict):
         err.append("opaque_reads")
     if with_verdict and e.get("verdict") not in ("pass", "fail"):
         err.append("verdict")
+    if "stability" in e and e["stability"] not in ("stable", "unstable"):
+        err.append("stability")
     return err
 
 
@@ -117,6 +119,10 @@ def _unverifiable(previous, current, assurance):
     if px != cx:
         codes.add("EXTRACTOR_MISMATCH")
     for e in (previous, current):
+        if e.get("stability") == "unstable":
+            # a test whose repeated runs have disagreed (a timing check, a draw of cases) is not a function of its code: the earlier result
+            # does not stand for another state however equal the keys are. `stability` is optional; absent means nobody has recorded it.
+            codes.add("NONDETERMINISTIC_SUBJECT")
         g = e["graph"]
         verified = assurance.extractors.get(g["extractor"])
         # two separate statements, both needed: the extraction was complete in the extractor's declared scope (its own report),

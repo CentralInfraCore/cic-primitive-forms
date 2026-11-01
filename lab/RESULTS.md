@@ -388,6 +388,60 @@ What this does not show, and where the first run was wrong:
 * Textual mutants of Go product code, 329 of them: a sample. Go only. 9 unstable pairs are not judged. Nothing about Rust, nothing
   about data files or the environment.
 
+<!-- rust-levels:begin -->
+### 10.5 Rust: the same three levels as Go
+
+Level 1, the implicit calls (`testdata/rust-dispatch`, `repro_rust_dispatch.py`): one crate in two states, eleven tests, one per implicit call
+(`Display` through `to_string()`, a trait object and an `impl Display` argument; `?` through `From`; `for` through `Iterator::next`; `+`, `==`,
+`[]`; a method through `Deref`; `Drop`; `sort()` through `Ord`). Ten keys moved. **One did not: the `Drop` of `impl Drop for D<'_>`**, because
+the id of an impl for a type with a parameter quotes the type (``impl#[`D<'_>`][Drop]drop()``) and the rule "a type reaches its impls" read only
+``impl#[Name]``. On the crate itself 54 of 89 impl methods have such a self type (all inherent, so latent: a caller that names the method has its own
+edge). Fixed (`b0f426f`: 65 edges added on 9 types, none removed); the eleven cases are required probes of `qualify_rust.py`; with
+`SCIPDEPS_PLANTED_PLAIN_SELF_ONLY=1` the red case is back, and a build with the old rule is refused whole.
+
+Level 2, the history observed (`shadow_replay_rust.py`, 114 commits, every test binary run twice, `cargo test`):
+
+| Rust decision of the kernel | Runs | Observed on the child |
+|---|---|---|
+| `REUSE_ELIGIBLE` | 10386 | CONSISTENT 10386 |
+| `RERUN_REQUIRED` | 1520 | SAME_OUTCOME 1520 |
+| `UNVERIFIABLE` | 1770 | SAME_OUTCOME 1758, NO_STABLE_OUTCOME 12 |
+
+False reuse in the history: **0**. As for Go this has little power, because main is green: no test fails stably at any commit
+(0 skipped runs); the only failing runs (6 test-commit pairs) are those of the one unstable test
+(behaviour::a_late_duplicate_is_still_found_and_many_keys_do_not_cost_quadratic_time; in 6 commits). That test is a timing check ("does not cost quadratic time") and passes or fails with the load of the machine: it is not a function of its code, and
+the kernel now treats a test seen unstable as `NONDETERMINISTIC_SUBJECT` (`UNVERIFIABLE`) instead of reusing its pass. With observed verdicts and
+that rule both languages together: **23168 of 29096 runs are `REUSE_ELIGIBLE` (79.6%)**.
+
+Level 3, injected changes (`mutant_shadow_rust.py`; the tree at HEAD and mutants of `rust/src`, outside the `#[cfg(test)]` part of a file: 106 here;
+targeted = inside an `impl Trait for Type`):
+
+| Pairs (mutant x test) | Fixed build, measured assurance | Control A: old model (no impl edges), **everything vouched** |
+|---|---|---|
+| mutants | killed 94, survived 12 | killed 42, survived 4 |
+| targeted mutants | killed 5, survived 1 | killed 5, survived 1 |
+| parent PASS, mutant FAIL (twice): `RERUN_REQUIRED` | 1415 | 633 |
+| ... `UNVERIFIABLE` | 39 | 12 |
+| ... **`REUSE_ELIGIBLE` = false reuse** | **0** | **17** |
+| killed tests whose key did **not** move | **0** | **17** |
+| parent PASS, mutant PASS | 24302 | 10544 |
+| unstable | 2 | 18 |
+
+Control A finds **17 false reuses in 17 mutants**, with the key of 17 killed tests unchanged: the mutant set can see the defect of the old model (no edges from an impl to its type), and the 0 of the fixed build means something. Of Control A's false reuses 3 are in the targeted mutants (inside a trait impl) and 14 in the general
+ones; I have not traced by which implicit path each of those tests reaches the mutated code. Control B (old model with **its own** measured
+Assurance, the targeted mutants only): killed 5, survived 1; failing tests by decision UNVERIFIABLE 7; false reuse
+0; 4 killed test(s) whose key did not move, which the kernel withheld all the same.
+
+What this does not show:
+
+* Only 6 mutants are inside a trait impl (the crate has few: free functions and `#[derive]`), so the targeted class is small. A survivor says
+  nothing about a decision; dropped mutants (no build, or a timeout) are not judged (0 here).
+* Textual mutants of `rust/src`: a sample. Rust only; nothing about data files or the environment; 1770 Rust runs are `UNVERIFIABLE`;
+  of the 1508 the older rule reuses, 1435 are the `proptest!` tests (found by their text, so their analysis is incomplete) and
+  73 the one unstable test.
+* The numbers belong to these builds (rust-analyzer and `scipdeps` identity in the JSON) and to Rust 1.99.1 on this machine, not to the pinned CI.
+<!-- rust-levels:end -->
+
 ## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned

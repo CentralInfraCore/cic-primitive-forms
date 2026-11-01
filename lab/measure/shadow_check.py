@@ -38,11 +38,16 @@ def classify(lines, verdicts, parent):
         if not line.strip():
             continue
         c, t, status, reasons = (line.split(" ", 3) + [""])[:4]
-        if not t.startswith("go:"):
+        if t.startswith("go:"):
+            lang, name = "go", t.split(":", 1)[1].rsplit(".", 1)[-1]
+        elif t.startswith("rust:"):
+            lang, name = "rust", bd.runner_key(t).split(":", 1)[1]
+        else:
             continue
-        name = t.split(":", 1)[1].rsplit(".", 1)[-1]
         p = parent[c]
-        vp, vc = verdicts[p]["go"].get(name), verdicts[c]["go"].get(name)
+        if lang == "rust" and "rust" not in (verdicts[p] if isinstance(verdicts[p], dict) else {}):
+            continue
+        vp, vc = verdicts[p][lang].get(name), verdicts[c][lang].get(name)
         sp, sc = stable(vp), stable(vc)
         if status == "REUSE_ELIGIBLE":
             if sc == "PASS" and sp == "PASS":
@@ -60,14 +65,14 @@ def classify(lines, verdicts, parent):
                 kind = "SAME_OUTCOME" if sp == sc else "OUTCOME_CHANGED"
             else:
                 kind = "NO_STABLE_OUTCOME"
-        tally[status][kind] += 1
+        tally[(lang, status)][kind] += 1
     return tally, false_reuse, flaky
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--decisions", required=True)
-    ap.add_argument("--verdicts", required=True)
+    ap.add_argument("--verdicts", required=True, action="append", help="shadow_replay.py / shadow_replay_rust.py output (repeat for both)")
     ap.add_argument("--repo", required=True)
     ap.add_argument("--work", required=True)
     ap.add_argument("--rev", default="origin/main")
@@ -77,9 +82,12 @@ def main():
     cache = json.load(open(os.path.join(os.path.abspath(a.work), "cache.json")))
     commits = [c for c in bd.git(repo, "rev-list", "--first-parent", "--reverse", a.rev).split() if c in cache]
     parent = {commits[i + 1]: commits[i] for i in range(len(commits) - 1)}
-    verdicts = json.load(open(a.verdicts))
+    verdicts = {}
+    for f in a.verdicts:
+        for c, e in json.load(open(f)).items():
+            verdicts.setdefault(c, {}).update(e)
     tally, false_reuse, flaky = classify(open(a.decisions), verdicts, parent)
-    report = {"decisions": {k: dict(v) for k, v in tally.items()}, "false_reuse": false_reuse, "nondeterministic_tests": sorted(flaky)}
+    report = {"decisions": {"%s/%s" % k: dict(v) for k, v in sorted(tally.items())}, "false_reuse": false_reuse, "nondeterministic_tests": sorted(flaky)}
     json.dump(report, open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in report.items() if k != "false_reuse"}, indent=1))
     print("FALSE_REUSE:", len(false_reuse))
