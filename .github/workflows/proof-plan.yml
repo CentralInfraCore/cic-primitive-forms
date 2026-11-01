@@ -1,0 +1,79 @@
+name: proof-plan
+# The proof-aware execution planner, REPORT ONLY (tools/proof-plan/README.md).
+#
+# It decides, for every Go and Rust test, whether an earlier result could stand (REUSE_ELIGIBLE / RERUN_REQUIRED / UNVERIFIABLE), then runs the
+# tests anyway and sets the decision against what they did. Nothing is skipped and no other workflow depends on this one; it is not a
+# required check and a failure of it changes nothing. The evidence of a run is left as the artifact `proof-evidence`, which the next run
+# finds (the newest successful run on main whose commit is an ancestor of the tested commit).
+#
+# It does not replace p1: the gates of p1 keep their meaning, and everything without a rule of its own stays a run.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+permissions:
+  contents: read
+  actions: read   # to find and download the artifact of an earlier run
+env:
+  RUST_TOOLCHAIN: "1.99.1"   # as p1
+concurrency:
+  group: proof-plan-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true   # report only: never a failure of the pull request
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0   # the ancestors of the commit
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: |
+            go/go.sum
+            tools/proof-plan/extractor/typeddeps/go.sum
+            tools/proof-plan/extractor/scipdeps/go.sum
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rust-analyzer
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust -> target
+      - name: Self-test of the planner
+        run: python3 -m unittest tools/proof-plan/test_plan.py tools/proof-plan/test_merkle.py
+      - name: Build the extractors (the identity of a build is the digest of its binary)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pp"
+          (cd tools/proof-plan/extractor/typeddeps && go build -trimpath -o "$RUNNER_TEMP/pp/typeddeps" .)
+          (cd tools/proof-plan/extractor/scipdeps && go build -trimpath -o "$RUNNER_TEMP/pp/scipdeps" .)
+      - name: Find the evidence of an earlier run
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" >> "$GITHUB_STEP_SUMMARY" || true
+          if [ -f "$RUNNER_TEMP/prev/evidence.json" ]; then echo "dir=$RUNNER_TEMP/prev" >> "$GITHUB_OUTPUT"; fi
+      - name: Plan (decide, nothing is skipped)
+        run: |
+          python3 tools/proof-plan/plan.py --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
+            --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/plan" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
+      - name: Observe the Go tests (the command of p1)
+        run: python3 tools/proof-plan/record.py observe-go --repo . --out "$RUNNER_TEMP/go.json"
+      - name: Observe the Rust tests
+        run: python3 tools/proof-plan/record.py observe-rust --repo . --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/rust.json"
+      - name: The Proof-Aware Execution Report and the evidence of this run
+        run: |
+          python3 tools/proof-plan/record.py finish --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
+            ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: proof-evidence
+          path: |
+            ${{ runner.temp }}/out/evidence.json
+            ${{ runner.temp }}/out/comparison.json
+            ${{ runner.temp }}/plan/plan.json
+            ${{ runner.temp }}/plan/timings.json
+          retention-days: 90

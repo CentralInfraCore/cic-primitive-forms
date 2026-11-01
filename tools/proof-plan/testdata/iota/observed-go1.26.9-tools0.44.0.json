@@ -1,0 +1,88 @@
+{
+ "commits": {
+  "a": {
+   "nodes": {
+    "iotarepro.A": {
+     "deps": [],
+     "key": "56a1bffdb16d19968cc75e7352aa3ea394e92dacd51191c98b036f86c970b6cf",
+     "kind": "const",
+     "src_sha256": "2ae986c46f80498065258ef84b0dcf0f22777e0f1ceb1475499acff9e0ddfe97"
+    },
+    "iotarepro.B": {
+     "deps": [],
+     "key": "5c017f936cce4cf7d7b65d4847f26f0821a85f6606f95af1f41fb036506aa1ce",
+     "kind": "const",
+     "src_sha256": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+    },
+    "iotarepro.TestB": {
+     "deps": [
+      "iotarepro.UseB",
+      "testing.T",
+      "testing.common.Fatalf"
+     ],
+     "key": "1d4e239c91f3dd5508433bd7889fd932d96609b2c44740feb2fbb350a9ef5b23",
+     "kind": "func",
+     "src_sha256": "9992755acc87c8f5a4ee02f93aec4264b19d8568e1002478e7d2191792e85974"
+    },
+    "iotarepro.UseB": {
+     "deps": [
+      "iotarepro.B"
+     ],
+     "key": "d4cf4851db391ea1a5755b03dcb1ac0dac430f3ec348cceaae1091e34be1e140",
+     "kind": "func",
+     "src_sha256": "e48008df1e7a71714552a417e30c939bb5fe4df3a37c66e54f9b38465668a5b9"
+    }
+   },
+   "test_passes": true
+  },
+  "b": {
+   "nodes": {
+    "iotarepro.A": {
+     "deps": [],
+     "key": "c51c4dc54950826d1cf8a9c9c131962c578dc9cceee4767aa27a87256c0cccaf",
+     "kind": "const",
+     "src_sha256": "c82fa7add8226c03d623eff6c9557328581365296c8683aa082c42d5dcc80990"
+    },
+    "iotarepro.B": {
+     "deps": [],
+     "key": "5c017f936cce4cf7d7b65d4847f26f0821a85f6606f95af1f41fb036506aa1ce",
+     "kind": "const",
+     "src_sha256": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c"
+    },
+    "iotarepro.TestB": {
+     "deps": [
+      "iotarepro.UseB",
+      "testing.T",
+      "testing.common.Fatalf"
+     ],
+     "key": "1d4e239c91f3dd5508433bd7889fd932d96609b2c44740feb2fbb350a9ef5b23",
+     "kind": "func",
+     "src_sha256": "9992755acc87c8f5a4ee02f93aec4264b19d8568e1002478e7d2191792e85974"
+    },
+    "iotarepro.UseB": {
+     "deps": [
+      "iotarepro.B"
+     ],
+     "key": "d4cf4851db391ea1a5755b03dcb1ac0dac430f3ec348cceaae1091e34be1e140",
+     "kind": "func",
+     "src_sha256": "e48008df1e7a71714552a417e30c939bb5fe4df3a37c66e54f9b38465668a5b9"
+    }
+   },
+   "test_passes": false
+  }
+ },
+ "facts": {
+  "1 B source digest identical": true,
+  "2 TestB Merkle key identical": true,
+  "3 TestB passes on a, fails on b": true,
+  "4 B has no edge to A (graph blind to the change)": true
+ },
+ "tool": {
+  "go": "go version go1.26.9 linux/amd64",
+  "typeddeps_build": [
+   "dep\tgolang.org/x/mod\tv0.35.0\th1:Ww1D637e6Pg+Zb2KrWfHQUnH2dQRLBQyAtpr/haaJeM=",
+   "dep\tgolang.org/x/sync\tv0.20.0\th1:e0PTpb7pjO8GAtTs2dQ6jYa5BWYlMuX047Dco/pItO4=",
+   "dep\tgolang.org/x/tools\tv0.44.0\th1:UP4ajHPIcuMjT1GqzDWRlalUEoY+uzoZKnhOjbIPD2c="
+  ]
+ }
+}
