@@ -283,6 +283,45 @@ those are not qualified: one of their two probes fails.
 * **What is left in Go** is almost entirely generics (4072 + 27), and in Rust the `proptest!` tests (1435). The next number depends
   on a fix of the generic gap, not on more probes.
 
+### 10.2 The dynamic dispatch gap closed
+
+Eleven pairs of Go sources (`testdata/go-generic-*`, `go-conv-*`, `repro_dispatch.py`) showed that the graph did not follow a method
+that `fmt` calls by dynamic dispatch: on a type argument (also a pointer one, a promoted one, one handed on to another generic
+function, a slice of it, a generic type's field) and, without generics, on a promoted method, a slice element and a struct field. Nine
+were red, the key of the test not moving although it went from pass to fail. One reachability function now serves the conversion rule
+and every instantiation (`Info.Instances`): the whole method set (promoted and pointer methods too), then type arguments, fields and
+elements. On `go/`: 225 edges added on 117 declarations, none removed. `lab/results/kernel-backtest-dispatch-fixed-314475ab14e0.json`.
+
+| The history decided by the kernel | Go | Rust | Both |
+|---|---|---|---|
+| older rule, keys of the extractor before the fix | 13073 | 11900 | 24973 |
+| first round, section 10 | 8268 | 10465 | 18733 (64.4%) |
+| aliases qualified, section 10.1 | 8896 | 10465 | 19361 (66.5%) |
+| **dispatch fixed, generics qualified** | **12907** | 10465 | **23372 (80.3% of 29096)** |
+
+The scenario sketched before the measurement (80.5%) was an upper bound on what the 4072 generic runs could give; the measurement
+gives 80.3%. What remains withheld is almost only the same two things as before: the `reflect` uses in Go (105 runs, `OPAQUE_DEPENDENCY`)
+and the `proptest!` tests in Rust (1435).
+
+**The fix changed the keys of 61 runs the older rule reused** (13073 -> 13012 under the corrected keys): 30 tests in each of two commits
+(`2a96304`, `56e222d`) and one in `b5be6e7`. Run alone on the parent and on the child (`verify_moved.py`,
+`lab/results/moved-by-the-dispatch-fix-314475ab14e0.json`): **59 pass on both, 2 are inconclusive** (`TestRealRegistrySchemas` needs the
+upstream registry checkout, absent where this ran, and fails on both sides), **0 pass on the parent and fail on the child**. So:
+
+* the gap was real in the model and **no proven wrong decision in the history of main**, again;
+* those 61 reruns are the price of the over-approximation (0.5% of the Go runs), not of wrong reuse;
+* the 8268 Go runs called eligible in section 10 that had no generic or alias in the closure were not safe by construction: 8227
+  of them are eligible again after the fix, **41 are not** (their keys moved, they are among the 61, and the rest of the 61 lie under
+  generics or aliases). Section 10's number was therefore an over-estimate of what the fixed model allows, which is the direction
+  the fix was expected to move it.
+
+What is claimed and what is not: the dispatch rule covers the mechanisms of the eleven cases; it does not follow what `fmt` reaches by
+reflection beyond fields, elements and type arguments, nor the methods of a type of a package that is not loaded (the toolchain's and
+go.sum's business, the environment key). `-planted-no-implementers` has no probe that fails any more: the instance rule makes the
+implementers rule redundant for the probed cases, and the rule is held only by the coverage check of section 3. A type argument that
+cannot be resolved marks the node opaque. `qualify.py` now treats the three conversion cases as REQUIRED probes: the old conversion rule
+is qualified for nothing.
+
 ## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned

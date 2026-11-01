@@ -13,6 +13,7 @@ The base constructs (BASE) are the ones whose modelling the earlier measurements
 they are the claim of the reviewer and unchanged here. The result belongs to one binary and one set of flags: a different build is
 a different extractor identity and has to be qualified again.
 """
+import functools
 import json
 import os
 import subprocess
@@ -27,7 +28,8 @@ BASE = frozenset(["go.func", "go.method", "go.type", "go.var", "go.const.explici
 # (pass -> fail) and the key of the test must move. A construct is qualified only if ALL of its probes do; a construct whose probe
 # fails is left out and nothing else is: the construct is itself in the closure of any test that reaches it (the generic function, the
 # alias), so the kernel still refuses it. (A required probe is different: a failing one means a rule of the build is missing, and the
-# gap can hide a construct, see qualify().) What the probes cover is the whole of the claim: the mechanisms named, not "all aliases".
+# gap can hide a construct, see qualify().) What the probes cover is the whole of the claim: the mechanisms named, not "all aliases" or "all generics" (type sets, methods of generic types called through
+# an interface, instantiation across packages are not probed).
 CONSTRUCT_PROBES = {
     "go.type.alias": (
         ("an alias is retargeted, the user is unchanged", "go-alias-target", "aliastarget"),
@@ -38,6 +40,14 @@ CONSTRUCT_PROBES = {
         ("a generic function calls a method of its constraint; the implementer changes", "go-generic-impl", "genimpl"),
         ("a generic function formats a value of its type parameter with fmt, which calls String on the type argument",
          "go-generic-fmt", "genfmt"),
+        ("the type argument is a pointer and String has a pointer receiver", "go-generic-ptr", "genptr"),
+        ("the type argument embeds a type and String is promoted", "go-generic-promoted", "genprom"),
+        ("a type parameter is handed on to another generic function", "go-generic-pass", "genpass"),
+        ("the type argument is an interface (fmt.Stringer)", "go-generic-iface", "geniface"),
+        ("the type argument is a slice of the type", "go-generic-slice", "genslice"),
+    ),
+    "go.type.generic": (
+        ("a generic type formats its field; the type argument's String changes", "go-generic-type", "gentype"),
     ),
 }
 CONST_GROUP = frozenset(["go.const.implicit_repeat", "go.const.iota", "go.const.group"])
@@ -46,20 +56,36 @@ PROBES = (
     ("an iota expression edited", "iota", "iotarepro", "TestB"),
     ("a constant inserted into the group", "iota-insert", "insrepro", "TestB"),
     ("an expression the implicit repeat inherits depends on a changed constant", "iota-inherit", "inhrepro", "TestB"),
+    # the base conversion rule: what a value reaches once it is an interface value (fmt.Sprint) is not only the methods declared on its
+    # type. Required, not per construct: nothing about a conversion is a construct, so a gap here cannot be seen by what is reported.
+    ("a promoted method reached by fmt", "go-conv-promoted", "convprom", "TestG"),
+    ("a slice element reached by fmt", "go-conv-slice", "convslice", "TestG"),
+    ("a struct field reached by fmt", "go-conv-field", "convfield", "TestG"),
 )
 
 
+@functools.lru_cache(maxsize=None)
 def _key(binary, args, directory, state, pkg, test="TestB"):
     d = os.path.join(TD, directory, state)
     g = json.loads(subprocess.run([os.path.abspath(binary), *args, "."], cwd=d, check=True, capture_output=True, text=True).stdout)
     return merkle.keys(g)[0].get("%s.%s" % (pkg, test))
 
 
-def _passes(directory, state):
+@functools.lru_cache(maxsize=None)
+def _passes(directory, state):  # the outcome of the test does not depend on the extractor, so it is run once per fixture
     return subprocess.run(["go", "test", "-count=1", "./..."], cwd=os.path.join(TD, directory, state), capture_output=True).returncode == 0
 
 
+@functools.lru_cache(maxsize=None)
+def _construct_probes(binary, args):
+    return _construct_probes_uncached(binary, args)
+
+
 def construct_probes(binary, args=()):
+    return _construct_probes(binary, tuple(args))
+
+
+def _construct_probes_uncached(binary, args):
     """{construct: [(name, ok, detail)]} for CONSTRUCT_PROBES; the test of each pair is TestG."""
     out = {}
     for construct, ps in CONSTRUCT_PROBES.items():
@@ -74,6 +100,7 @@ def construct_probes(binary, args=()):
 
 def probes(binary, args=()):
     """[(name, ok, detail)]: ok when the test went pass -> fail between the states AND the key moved."""
+    args = tuple(args)
     out = []
     for name, directory, pkg, test in PROBES:
         ka, kb = (_key(binary, args, directory, s, pkg, test) for s in "ab")

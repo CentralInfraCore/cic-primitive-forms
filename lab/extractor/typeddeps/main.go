@@ -271,6 +271,24 @@ func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at
 			if !ok {
 				return true
 			}
+			// An instantiation (explicit or inferred) hands the type arguments to a body that may give them to fmt or another
+			// interface: the declaration that instantiates depends on what the type arguments can dispatch to.
+			if inst, isInst := pkg.TypesInfo.Instances[ident]; isInst && !plantedNoTypeArgs {
+				m := map[string]bool{}
+				for i := 0; i < inst.TypeArgs.Len(); i++ {
+					ta := inst.TypeArgs.At(i)
+					if ta == nil || ta == types.Typ[types.Invalid] {
+						n.Opaque = appendOnce(n.Opaque, "a type argument that could not be resolved")
+						continue
+					}
+					b.dispatch(ta, m, map[types.Type]bool{})
+				}
+				for t := range m {
+					if t != id {
+						deps[t] = true
+					}
+				}
+			}
 			obj := pkg.TypesInfo.Uses[ident]
 			if obj == nil {
 				if pkg.TypesInfo.Defs[ident] == nil && ident.Name != "_" && !guards[ident] {
@@ -442,20 +460,78 @@ func (b *builder) conversions(pkg *packages.Package, walk []ast.Node, declSig *t
 	return out
 }
 
-// methodsOf adds the ids of every method of t's named type (value and pointer receivers), if the type is one of the loaded packages.
+// methodsOf adds the ids of the methods a value of type t can reach when it becomes an interface value (or is a type argument that a
+// generic body hands to one): see dispatch. -planted-old-methodsof brings back the rule before that, which looked only at the methods
+// declared on a named type.
 func (b *builder) methodsOf(t types.Type, out map[string]bool) {
-	if p, ok := t.(*types.Pointer); ok {
-		t = p.Elem()
-	}
-	named, ok := types.Unalias(t).(*types.Named)
-	if !ok || named.Obj().Pkg() == nil || !b.loaded[named.Obj().Pkg().Path()] {
+	if plantedOldMethodsOf {
+		if p, ok := t.(*types.Pointer); ok {
+			t = p.Elem()
+		}
+		named, ok := types.Unalias(t).(*types.Named)
+		if !ok || named.Obj().Pkg() == nil || !b.loaded[named.Obj().Pkg().Path()] {
+			return
+		}
+		named = named.Origin()
+		for i := 0; i < named.NumMethods(); i++ {
+			out[idOf(named.Method(i))] = true
+		}
 		return
 	}
-	named = named.Origin()
-	for i := 0; i < named.NumMethods(); i++ {
-		out[idOf(named.Method(i))] = true
+	b.dispatch(t, out, map[types.Type]bool{})
+}
+
+// dispatch adds the methods a value of type t can reach by dynamic dispatch once it is an interface value, as fmt.Sprint(v) calls
+// String or Error on it, or on what it holds. Over-approximate on purpose: for a named type of the loaded packages, the whole method
+// set of the type and of a pointer to it (methods promoted from embedded types included), then the type arguments, the fields and
+// the elements. An interface or a type parameter adds nothing: what is behind it became an interface value where it was converted
+// (the conversion rule), or is a type argument at the place of instantiation (the instance rule).
+func (b *builder) dispatch(t types.Type, out map[string]bool, seen map[types.Type]bool) {
+	if t == nil || seen[t] {
+		return
+	}
+	seen[t] = true
+	switch x := types.Unalias(t).(type) {
+	case *types.Pointer:
+		b.dispatch(x.Elem(), out, seen)
+	case *types.Slice:
+		b.dispatch(x.Elem(), out, seen)
+	case *types.Array:
+		b.dispatch(x.Elem(), out, seen)
+	case *types.Chan:
+		b.dispatch(x.Elem(), out, seen)
+	case *types.Map:
+		b.dispatch(x.Key(), out, seen)
+		b.dispatch(x.Elem(), out, seen)
+	case *types.Struct:
+		for i := 0; i < x.NumFields(); i++ {
+			b.dispatch(x.Field(i).Type(), out, seen)
+		}
+	case *types.Named:
+		for i := 0; i < x.TypeArgs().Len(); i++ {
+			b.dispatch(x.TypeArgs().At(i), out, seen)
+		}
+		if x.Obj().Pkg() == nil || !b.loaded[x.Obj().Pkg().Path()] {
+			return // a type of another package: its methods are the business of the environment (toolchain, go.sum)
+		}
+		for _, tt := range []types.Type{x, types.NewPointer(x)} {
+			ms := types.NewMethodSet(tt)
+			for i := 0; i < ms.Len(); i++ {
+				if f, ok := ms.At(i).Obj().(*types.Func); ok && f.Pkg() != nil && b.loaded[f.Pkg().Path()] {
+					out[idOf(origin(f))] = true
+				}
+			}
+		}
+		b.dispatch(x.Underlying(), out, seen)
 	}
 }
+
+// plantedOldMethodsOf brings back the conversion rule before dispatch: only the methods declared on a named type. A planted defect.
+var plantedOldMethodsOf bool
+
+// plantedNoTypeArgs leaves out the instance rule: a declaration that instantiates a generic function or type has no edge to the
+// methods of the type arguments. A planted defect, the model before the fix of lab/testdata/go-generic-*.
+var plantedNoTypeArgs bool
 
 // noConversions switches the interface conversion rule off: a planted defect, for showing that the measurement sees it.
 var noConversions bool
@@ -669,6 +745,8 @@ func fail(format string, args ...any) {
 
 func main() {
 	tests := flag.Bool("tests", true, "include the _test.go files (test variants of the packages)")
+	flag.BoolVar(&plantedNoTypeArgs, "planted-no-typeargs", false, "planted defect: no edges from an instantiation to the methods of its type arguments")
+	flag.BoolVar(&plantedOldMethodsOf, "planted-old-methodsof", false, "planted defect: the conversion rule looks only at methods declared on a named type")
 	flag.BoolVar(&plantedNoImplementers, "planted-no-implementers", false, "planted defect: a call of an interface method has no edge to its implementers")
 	flag.BoolVar(&plantedNoConstGroup, "planted-no-const-group", false, "planted defect: the model before the const group rule (implicit iota has no edge)")
 	flag.BoolVar(&noConversions, "planted-no-conversions", false, "planted defect: leave out the edges of interface conversions")

@@ -52,17 +52,13 @@ jobs:
       # to the kernel. The generic probe that fails is a KNOWN RED case (lab/testdata/go-generic-fmt): green here means the kernel
       # refuses generics, not that they are modelled.
       - run: TYPEDDEPS_BIN="$RUNNER_TEMP/lab-out/typeddeps" python3 -m unittest lab/measure/test_qualify_go.py
-      # KNOWN-VULNERABILITY REPRODUCTION (lab/testdata/go-conv-promoted/README.md): nine cases of dynamic dispatch (fmt calling String on a
-      # type argument, a promoted method, a slice element, a field) in which the key of the test does not move although the test goes
-      # from pass to fail. Green here means the defects are STILL PRESENT; the step becomes --expect fixed with the fix.
-      - run: python3 lab/measure/repro_dispatch.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --record "$RUNNER_TEMP/lab-out/dispatch-red.json"
-      # RED -> GREEN of the implicit iota defect (lab/testdata/iota/README.md). The extractor as it is must key the case apart; the
-      # same binary with -planted-no-const-group is the model before the fix and must still show the defect (so the case, and the
-      # check that sees it, stay alive). Green on the second line is a KNOWN-VULNERABILITY REPRODUCTION of the old model, not a
-      # statement that anything is verified.
-      - run: python3 lab/measure/repro_iota.py "$RUNNER_TEMP/lab-out/typeddeps" --expect fixed
-      - run: python3 lab/measure/repro_iota.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --extractor-arg=-planted-no-const-group --record "$RUNNER_TEMP/lab-out/iota-red.json"
-      - run: python3 lab/measure/qualify.py "$RUNNER_TEMP/lab-out/typeddeps"
+      # RED -> GREEN of dynamic dispatch (lab/testdata/go-conv-promoted/README.md): nine cases in which fmt calls a method by dynamic
+      # dispatch (on a type argument, a promoted method, a slice element, a field) and the key of the test did not move although the
+      # test goes from pass to fail. The extractor as it is must key every case apart; the same binary with the two rules planted
+      # away must still show nine RED (so the cases, and the check that sees them, stay alive). Green on the second line is a
+      # KNOWN-VULNERABILITY REPRODUCTION of the old model, not a statement that anything is verified.
+      - run: python3 lab/measure/repro_dispatch.py "$RUNNER_TEMP/lab-out/typeddeps" --expect fixed --record "$RUNNER_TEMP/lab-out/dispatch-green.json"
+      - run: python3 lab/measure/repro_dispatch.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --extractor-arg=-planted-no-typeargs --extractor-arg=-planted-old-methodsof --record "$RUNNER_TEMP/lab-out/dispatch-red.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

@@ -115,11 +115,15 @@ class EndToEnd(unittest.TestCase):
         self.assertTrue(q.CONST_GROUP <= q.qualify(BIN, NEW))
         self.assertNotEqual(self.id[OLD], self.id[NEW])
 
-    def test_generics_are_recognised_and_not_qualified_either(self):
+    def test_generics_are_recognised_and_qualified_for_the_probed_mechanisms(self):
+        # Id[T any](x T) T: nothing is dispatched through the type parameter. The qualification covers the mechanisms of qualify.py
+        # (CONSTRUCT_PROBES), not every generic function; test_qualify_go.py has the cases and the planted builds that fail them.
         a = self.evidence("generic", "genericrepro.TestId", NEW, "pass")
         b = self.evidence("generic", "genericrepro.TestId", NEW)
         self.assertIn("go.func.generic", a["graph"]["constructs"])
-        self.assertEqual(self.decide(a, b, NEW).reasons, ("CONSTRUCT_NOT_VERIFIED",))
+        self.assertIn("go.func.generic", self.assurance[NEW].extractors[self.id[NEW]])
+        d = self.decide(a, b, NEW)
+        self.assertEqual((d.status, d.reasons), (ev.REUSE_ELIGIBLE, (ev.ALL_CONDITIONS_HOLD,)))
 
     def test_incomplete_analysis_is_unverifiable(self):
         g, keys = extract("plain/a", NEW)

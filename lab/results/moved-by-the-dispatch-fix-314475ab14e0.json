@@ -1,0 +1,441 @@
+{
+ "distinct_tests_by_commit": {
+  "2a9630473d5e": 30,
+  "56e222d1aa5f": 30,
+  "b5be6e7aa11c": 1
+ },
+ "runs_moved": 61,
+ "verdicts_by_test": {
+  "NO_CHANGE_OF_OUTCOME": 59,
+  "INCONCLUSIVE": 2
+ },
+ "rows": [
+  {
+   "commit": "2a9630473d5e",
+   "test": "FuzzValidate",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestACompositeReportsEveryErrorAtEveryDepthInPathOrder",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestAMismatchBelowACompositeIsRefusedNotSwallowed",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestAbsentAndNullAreDifferentStates",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestAnUnsupportedValidationIsAnError",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestAnchorsFollowADR0007",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestApplyDefaultsOfAnAbsentOptionalRootHasNoDocument",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestApplyDefaultsRefusesWhatTheValidationDoesNotSupport",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestEditParsedRefusesABadPathBeforeItRefusesTheMissingText",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestItemChoiceNeedsTheGrammarToDefineIt",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestMinItemsIsInclusiveAndANonListIsRefused",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPathTextCasesMatchTheCorpus",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyAConformingDocumentHasNoViolation",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyAnyDocumentAgainstAnyShapeGivesAnOrderedUniqueResponse",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyBindingAgreesWithTheOracle",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyDefaultCandidatesAreTheAbsentOptionalFieldsWithADefault",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyEmitIsAFixedPointUnderParse",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyLeavingOutOneMandatoryFieldAddsExactlyItsMissingError",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestPropertyReadingNeverChangesItsInput",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestRealRegistrySchemas",
+   "parent": "FAIL",
+   "child": "FAIL",
+   "verdict": "INCONCLUSIVE"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestRecognitionRunsFirstAndAnExpandedNodeIsNotValidatedYet",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestScalarTypesAreCheckedAndAMismatchWithoutACodeIsRefused",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestSharedAcceptedRoles",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestSharedDefaultRefusals",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestSharedPathOfCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestSharedPolicyCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestSharedSchemaCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestTheRefusalNamesWhatWasFoundAndWhatWasDeclared",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestTheShapeOfAFieldIsNilWhenTheFieldIsNotThere",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "2a9630473d5e",
+   "test": "TestWithARepeatedKeyTheFirstEntryDecides",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "FuzzValidate",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestACompositeReportsEveryErrorAtEveryDepthInPathOrder",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestAMismatchBelowACompositeIsRefusedNotSwallowed",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestAbsentAndNullAreDifferentStates",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestAnUnsupportedValidationIsAnError",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestAnchorsFollowADR0007",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestApplyDefaultsOfAnAbsentOptionalRootHasNoDocument",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestApplyDefaultsRefusesWhatTheValidationDoesNotSupport",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestEditParsedRefusesABadPathBeforeItRefusesTheMissingText",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestItemChoiceNeedsTheGrammarToDefineIt",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestMinItemsIsInclusiveAndANonListIsRefused",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPathTextCasesMatchTheCorpus",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyAConformingDocumentHasNoViolation",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyAnyDocumentAgainstAnyShapeGivesAnOrderedUniqueResponse",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyBindingAgreesWithTheOracle",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyDefaultCandidatesAreTheAbsentOptionalFieldsWithADefault",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyEmitIsAFixedPointUnderParse",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyLeavingOutOneMandatoryFieldAddsExactlyItsMissingError",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestPropertyReadingNeverChangesItsInput",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestRealRegistrySchemas",
+   "parent": "FAIL",
+   "child": "FAIL",
+   "verdict": "INCONCLUSIVE"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestRecognitionRunsFirstAndAnExpandedNodeIsNotValidatedYet",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestScalarTypesAreCheckedAndAMismatchWithoutACodeIsRefused",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestSharedAcceptedRoles",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestSharedDefaultRefusals",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestSharedPathOfCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestSharedPolicyCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestSharedSchemaCases",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestTheRefusalNamesWhatWasFoundAndWhatWasDeclared",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestTheShapeOfAFieldIsNilWhenTheFieldIsNotThere",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "test": "TestWithARepeatedKeyTheFirstEntryDecides",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  },
+  {
+   "commit": "b5be6e7aa11c",
+   "test": "TestTheShapeOfAFieldIsNilWhenTheFieldIsNotThere",
+   "parent": "PASS",
+   "child": "PASS",
+   "verdict": "NO_CHANGE_OF_OUTCOME"
+  }
+ ]
+}
