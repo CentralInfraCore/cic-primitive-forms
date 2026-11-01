@@ -45,13 +45,47 @@ type Node struct {
 	SrcSHA256 string   `json:"src_sha256"`
 	Deps      []string `json:"deps"`
 	Entry     bool     `json:"entry,omitempty"` // a test the runner starts: #[test], or a function of a proptest! block
-	nameLine  int      // 0-based line of the defining name
+	// Constructs are the language constructs this item itself contains (from `reportable`): what the extractor RECOGNISED, from the
+	// SCIP symbols and the text of the item. Whether it models their dependencies is not said here: that is held outside it (the
+	// Assurance of lab/measure/evidence.py, qualify_rust.py).
+	Constructs []string `json:"constructs"`
+	// Analysis: COMPLETE with nothing unresolved, or INCOMPLETE and why. An item found by its text (made by a macro) is INCOMPLETE.
+	Analysis Analysis `json:"analysis"`
+	nameLine int      // 0-based line of the defining name
+	cons     map[string]bool
+	unres    map[string]bool
+}
+
+// Analysis is the completeness of the extraction of one item.
+type Analysis struct {
+	Status     string   `json:"status"` // COMPLETE | INCOMPLETE
+	Unresolved []string `json:"unresolved"`
+}
+
+// The constructs the extractor can report. rs.env.NAME and rs.macro.* are open-ended by name; the rest are listed.
+var reportable = []string{"rs.fn", "rs.method", "rs.type", "rs.const", "rs.static", "rs.trait_impl", "rs.generic.lifetime",
+	"rs.generic.type", "rs.macro.external", "rs.macro.local", "rs.macro.generated", "rs.macro.include", "rs.env.<NAME>", "rs.cfg.test",
+	"rs.cfg.other"}
+
+func (n *Node) add(c string) {
+	if n.cons == nil {
+		n.cons = map[string]bool{}
+	}
+	n.cons[c] = true
+}
+
+func (n *Node) unresolved(why string) {
+	if n.unres == nil {
+		n.unres = map[string]bool{}
+	}
+	n.unres[why] = true
 }
 
 // Graph is the output.
 type Graph struct {
 	Schema   string   `json:"schema"`
 	Packages []string `json:"packages"`
+	Scope    []string `json:"scope"` // the constructs the extractor can report: what "complete" is relative to
 	Nodes    []Node   `json:"nodes"`
 	External []string `json:"external"`
 }
@@ -119,6 +153,101 @@ var (
 	fnText   = regexp.MustCompile(`(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z_]\w*)`)
 	implSelf = regexp.MustCompile(`impl#\[([A-Za-z_]\w*)\]`)
 )
+
+var (
+	genericHead  = regexp.MustCompile(`(?m)^\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:fn|struct|enum|union|type|trait)\s+[A-Za-z_]\w*\s*<`)
+	envMacro     = regexp.MustCompile(`\b(?:env|option_env)!\s*\(\s*"([^"]*)"`)
+	includeMacro = regexp.MustCompile(`\b(?:include_str|include_bytes|include)!`)
+	cfgAttr      = regexp.MustCompile(`#!?\[\s*cfg(?:_attr)?\s*\(|\bcfg!\s*\(`)
+	cfgTest      = regexp.MustCompile(`#!?\[\s*cfg\s*\(\s*test\s*\)\s*\]`)
+)
+
+// textConstructs adds what the text of an item shows: generic parameters, environment and include macros, cfg. The text is not parsed
+// (strings and comments are not skipped), so a word in a comment can add a construct: the error is on the side of reporting too much.
+func textConstructs(n *Node, text string) {
+	for _, m := range genericHead.FindAllStringIndex(text, -1) {
+		depth, start := 1, m[1]
+		i := start
+		for ; i < len(text) && depth > 0; i++ {
+			switch text[i] {
+			case '<':
+				depth++
+			case '>':
+				depth--
+			}
+		}
+		for _, param := range splitTop(text[start:max(start, i-1)]) {
+			if strings.HasPrefix(strings.TrimSpace(param), "'") {
+				n.add("rs.generic.lifetime")
+			} else if strings.TrimSpace(param) != "" {
+				n.add("rs.generic.type")
+			}
+		}
+	}
+	for _, m := range envMacro.FindAllStringSubmatch(text, -1) {
+		n.add("rs.env." + m[1])
+	}
+	if includeMacro.MatchString(text) {
+		n.add("rs.macro.include")
+	}
+	if cfgAttr.MatchString(text) {
+		if cfgTest.MatchString(text) && len(cfgAttr.FindAllString(text, -1)) == len(cfgTest.FindAllString(text, -1)) {
+			n.add("rs.cfg.test")
+		} else {
+			n.add("rs.cfg.other")
+		}
+	}
+}
+
+// splitTop splits a generic parameter list at the commas that are not inside <>, () or [].
+func splitTop(s string) []string {
+	var out []string
+	depth, from := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '<', '(', '[':
+			depth++
+		case '>', ')', ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, s[from:i])
+				from = i + 1
+			}
+		}
+	}
+	return append(out, s[from:])
+}
+
+// implGroups counts the bracket groups after "impl#" in a descriptor (backticks quote a type that holds brackets): one is an inherent
+// impl, two a trait impl; angle brackets inside show generic parameters.
+func implGroups(desc string) (groups int, generic bool) {
+	i := strings.Index(desc, "impl#")
+	if i < 0 {
+		return 0, false
+	}
+	rest := desc[i+len("impl#"):]
+	for len(rest) > 0 && rest[0] == '[' {
+		j, quoted := 1, false
+		for ; j < len(rest); j++ {
+			if rest[j] == '`' {
+				quoted = !quoted
+			}
+			if rest[j] == ']' && !quoted {
+				break
+			}
+		}
+		if j >= len(rest) {
+			break
+		}
+		if strings.Contains(rest[:j], "<") {
+			generic = true
+		}
+		groups++
+		rest = rest[j+1:]
+	}
+	return groups, generic
+}
 
 // bodyEnd finds the brace that closes the first block after offset, skipping comments, strings, raw strings and chars.
 func bodyEnd(src []byte, from int) int {
@@ -320,6 +449,25 @@ func main() {
 			sum := sha256.Sum256(src[offset(src, sp.sl, sp.sc):offset(src, sp.el, sp.ec)])
 			n.SrcSHA256 = hex.EncodeToString(sum[:])
 			n.nameLine = spanOf(o.Range).sl
+			switch {
+			case kind == "func":
+				n.add("rs.fn")
+			case kind == "method":
+				n.add("rs.method")
+				groups, generic := implGroups(desc)
+				if groups >= 2 {
+					n.add("rs.trait_impl")
+				}
+				if generic {
+					n.add("rs.generic.type")
+				}
+			case kind == "type":
+				n.add("rs.type")
+			case kinds[o.Symbol] == scip.SymbolInformation_StaticVariable:
+				n.add("rs.static")
+			default:
+				n.add("rs.const")
+			}
 			nodes[id] = n
 			deps[id] = map[string]bool{}
 			di.items = append(di.items, item{n, sp})
@@ -356,7 +504,12 @@ func main() {
 				sum := sha256.Sum256(src[off : end+1])
 				it.node.SrcSHA256 = hex.EncodeToString(sum[:])
 				it.node.Entry = macroTest(src, sp)
+				it.node.add("rs.macro.generated")
+				it.node.unresolved("made by a macro call (" + filepath.Base(d.RelativePath) + "): the range is that of the call; the item is found by its text")
 			}
+		}
+		for _, it := range di.items {
+			textConstructs(it.node, string(src[offset(src, it.sp.sl, it.sp.sc):offset(src, it.sp.el, it.sp.ec)]))
 		}
 		for i := range di.items {
 			if n := di.items[i].node; n.Kind == "func" && hasTestAttr(src, n.nameLine) {
@@ -384,6 +537,10 @@ func main() {
 			sum := sha256.Sum256(src[m[0] : end+1])
 			n := &Node{ID: id, Kind: "func", File: d.RelativePath, Line: sl + 1, EndLine: el + 1, Test: true,
 				SrcSHA256: hex.EncodeToString(sum[:])}
+			n.add("rs.fn")
+			n.add("rs.macro.generated")
+			n.unresolved("not defined by rust-analyzer: made by a macro, found by its text")
+			textConstructs(n, string(src[m[0]:end+1]))
 			nodes[id] = n
 			deps[id] = map[string]bool{}
 			di.items = append(di.items, item{n, span{sl, sc, el, ec + 1}})
@@ -412,6 +569,15 @@ func main() {
 			}
 			if owner == nil {
 				continue // a use declaration, a module or an attribute outside every item
+			}
+			if strings.HasSuffix(o.Symbol, "!") {
+				// a macro call. The call site shows its arguments (they are indexed) but not what the macro expands to: for a macro of
+				// the crate itself there is no edge to its body, which is a dependency the graph does not have.
+				if strings.HasPrefix(o.Symbol, pkgPrefix) {
+					owner.node.add("rs.macro.local")
+				} else {
+					owner.node.add("rs.macro.external")
+				}
 			}
 			var target string
 			if strings.HasPrefix(o.Symbol, pkgPrefix) {
@@ -455,8 +621,23 @@ func main() {
 		}
 	}
 
-	out := Graph{Schema: "cic-lab/typeddeps/v1", Packages: []string{strings.TrimSpace(pkgPrefix)}, Nodes: []Node{}, External: []string{}}
+	scope := append([]string{}, reportable...)
+	sort.Strings(scope)
+	out := Graph{Schema: "cic-lab/typeddeps/v2", Scope: scope, Packages: []string{strings.TrimSpace(pkgPrefix)}, Nodes: []Node{}, External: []string{}}
 	for id, n := range nodes {
+		n.Constructs = []string{}
+		for c := range n.cons {
+			n.Constructs = append(n.Constructs, c)
+		}
+		sort.Strings(n.Constructs)
+		n.Analysis = Analysis{Status: "COMPLETE", Unresolved: []string{}}
+		for u := range n.unres {
+			n.Analysis.Unresolved = append(n.Analysis.Unresolved, u)
+		}
+		sort.Strings(n.Analysis.Unresolved)
+		if len(n.Analysis.Unresolved) > 0 {
+			n.Analysis.Status = "INCOMPLETE"
+		}
 		n.Deps = []string{}
 		for d := range deps[id] {
 			n.Deps = append(n.Deps, d)
