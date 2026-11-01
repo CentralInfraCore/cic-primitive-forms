@@ -213,7 +213,48 @@ Reading the exposure measure:
   pinned CI toolchain gives the same keys in the iota case (`lab/results/iota-red-ci-run41306166178-*.json`) but this backtest was
   not repeated on it.
 
-## 10. Reproducing
+## 10. The kernel's reading of history (Go and Rust)
+
+Section 4's rule says what an equal key, environment and read-file set allow. The verification kernel (`lab/measure/evidence.py`)
+decides the same 113 pairs from evidence built out of the extractors' output (`kernel_backtest.py`): it adds the qualification of
+the constructs in the closure, the completeness of the analysis, the identity of the extractor, and it refuses an opaque
+dependency. Go with the const group rule and its measured qualification; Rust with `scipdeps` v2 and its qualification
+(`qualify_rust.py`). The kernel never allowed what the older rule does not (the script stops otherwise), and never answered
+`RERUN_REQUIRED` where the older rule reuses: it only withholds.
+
+| Runs the older rule reuses | Go | Rust | Both |
+|---|---|---|---|
+| older rule (section 4) | 13073 | 11900 | **24973 (85.8% of 29096)** |
+| kernel: `REUSE_ELIGIBLE` | 8268 (63.2%) | 10465 (87.9%) | **18733 (64.4% of 29096; 75.0% of the above)** |
+| kernel: `UNVERIFIABLE` where the older rule reuses | 4805 | 1435 | 6240 |
+
+**What the withheld runs cost is concentrated, and is a statement about the model, not about the code:**
+
+* Go, 4700 runs: `CONSTRUCT_NOT_VERIFIED` only. The constructs are `go.func.generic` (two functions of the tree) and `go.type.alias`
+  (one), reached by 5812 of the 15171 Go test-commit combinations. Nobody has shown the graph wrong on them; nobody has qualified
+  it. A probe pair for each would put them in or leave them out.
+* Go, 78 runs: `OPAQUE_DEPENDENCY` only, the tests whose closure reaches `reflect.ValueOf`/`Elem`/`Interface`/`IsNil` (the extractor
+  says the deps of such a node may be incomplete); 27 more runs have both reasons (4700 + 78 + 27 = 4805).
+* Rust, 1435 runs: all the `proptest!` tests (`tests/properties.rs`): `ANALYSIS_INCOMPLETE` (found by their text) and `rs.macro.generated`
+  unqualified.
+
+Where the kernel and the older rule differ in the other direction (the kernel's `RERUN_REQUIRED`/`UNVERIFIABLE` where the older
+rule does not reuse) is not a loss: 867 + 1533 `RERUN_REQUIRED` and 963 + 243 `UNVERIFIABLE` runs the older rule also reruns.
+
+What this does not say:
+
+* `REUSE_ELIGIBLE` is not "safe in general". It means every condition the kernel can check holds, for constructs qualified by the
+  probes of `qualify.py` / `qualify_rust.py` (a regression probe each, not a proof), plus the item kinds the reviewer claims.
+* Two assumptions of the script: a test with no trace on the parent had a pass there (main was green), and a test that is new on the
+  child is not counted.
+* Not a CI saving. Nothing here was skipped, and the cost of building the evidence (a rust-analyzer index of about 8 s per commit, the
+  Go graph about 2 s, the data record about 10 s) is not set against the runs it spares.
+* The numbers belong to these extractor builds (`extractors` in the JSON, with the binary digests), Go 1.26.9 and Rust 1.99.1 as
+  recorded in the report; the CI uses the pinned Go 1.27.2.
+
+`lab/results/kernel-backtest-314475ab14e0.json`.
+
+## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned
 `go-mutesting` for the mutant parts; the `CIC_*_ROOT` checkouts as in CI.
@@ -224,4 +265,5 @@ lab/measure/run_rust.sh OUT     # the same for Rust (RUST_TOOLCHAIN)
 lab/measure/run_data.sh OUT     # data record, corruption check, planted defect (corrupts and restores files in the checkout)
 python3 lab/measure/backtest.py ...           then backtest_data.py, backtest_mutants.py, mutant_killers.py (see each --help)
 python3 lab/measure/iota_exposure.py --repo . --work DIR --typeddeps BIN --rev 314475ab14e0 --out OUT   # needs DIR/cache.json and traces/
+python3 lab/measure/kernel_backtest.py --repo . --work DIR --typeddeps BIN --scipdeps BIN --rust-toolchain 1.99.1 --rev 314475ab14e0 --out OUT   # about 15 minutes
 ```
