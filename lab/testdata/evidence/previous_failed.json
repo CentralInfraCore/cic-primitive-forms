@@ -1,0 +1,59 @@
+{
+ "current": {
+  "code_closure_digest": "code-1",
+  "contract_version": "cic-lab/evidence/v1",
+  "data_dependencies_digest": "data-1",
+  "environment_digest": "env-1",
+  "graph": {
+   "constructs": [
+    "go.func",
+    "go.const.explicit"
+   ],
+   "extractor": "typeddeps:fd61308055ce44d1",
+   "opaque": [],
+   "subject_in_graph": true
+  },
+  "opaque_reads": [],
+  "provenance": {
+   "commit": "2222222"
+  },
+  "rule_version": "cic-lab/reuse-rules/v1",
+  "subject": {
+   "id": "go:TestAlpha",
+   "kind": "test"
+  }
+ },
+ "expect": {
+  "reasons": [
+   "PREVIOUS_TEST_FAILED"
+  ],
+  "status": "RERUN_REQUIRED"
+ },
+ "previous": {
+  "code_closure_digest": "code-1",
+  "contract_version": "cic-lab/evidence/v1",
+  "data_dependencies_digest": "data-1",
+  "environment_digest": "env-1",
+  "graph": {
+   "constructs": [
+    "go.func",
+    "go.const.explicit"
+   ],
+   "extractor": "typeddeps:fd61308055ce44d1",
+   "opaque": [],
+   "subject_in_graph": true
+  },
+  "opaque_reads": [],
+  "provenance": {
+   "commit": "1111111",
+   "evidence_id": "run-0001"
+  },
+  "rule_version": "cic-lab/reuse-rules/v1",
+  "subject": {
+   "id": "go:TestAlpha",
+   "kind": "test"
+  },
+  "verdict": "fail"
+ },
+ "why": "a failed result is never reused"
+}

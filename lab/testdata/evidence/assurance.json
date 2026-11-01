@@ -1,0 +1,15 @@
+{
+ "contract_versions": [
+  "cic-lab/evidence/v1"
+ ],
+ "extractors": {
+  "typeddeps:fd61308055ce44d1": [
+   "go.func",
+   "go.const.explicit"
+  ]
+ },
+ "rule_versions": [
+  "cic-lab/reuse-rules/v1"
+ ],
+ "why": "what the caller has established independently of the evidence; the extractor of this tree is NOT verified for go.const.implicit_repeat"
+}

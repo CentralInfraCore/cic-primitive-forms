@@ -1,0 +1,59 @@
+{
+ "current": {
+  "code_closure_digest": "code-1",
+  "contract_version": "cic-lab/evidence/v1",
+  "data_dependencies_digest": "data-1",
+  "environment_digest": "env-1",
+  "graph": {
+   "constructs": [
+    "go.func",
+    "go.const.explicit"
+   ],
+   "extractor": "typeddeps:unknown",
+   "opaque": [],
+   "subject_in_graph": true
+  },
+  "opaque_reads": [],
+  "provenance": {
+   "commit": "2222222"
+  },
+  "rule_version": "cic-lab/reuse-rules/v1",
+  "subject": {
+   "id": "go:TestAlpha",
+   "kind": "test"
+  }
+ },
+ "expect": {
+  "reasons": [
+   "EXTRACTOR_NOT_ALLOWED"
+  ],
+  "status": "UNVERIFIABLE"
+ },
+ "previous": {
+  "code_closure_digest": "code-1",
+  "contract_version": "cic-lab/evidence/v1",
+  "data_dependencies_digest": "data-1",
+  "environment_digest": "env-1",
+  "graph": {
+   "constructs": [
+    "go.func",
+    "go.const.explicit"
+   ],
+   "extractor": "typeddeps:unknown",
+   "opaque": [],
+   "subject_in_graph": true
+  },
+  "opaque_reads": [],
+  "provenance": {
+   "commit": "1111111",
+   "evidence_id": "run-0001"
+  },
+  "rule_version": "cic-lab/reuse-rules/v1",
+  "subject": {
+   "id": "go:TestAlpha",
+   "kind": "test"
+  },
+  "verdict": "pass"
+ },
+ "why": "an extractor identity the assurance does not list"
+}
