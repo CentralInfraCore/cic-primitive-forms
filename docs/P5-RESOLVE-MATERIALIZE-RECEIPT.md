@@ -485,6 +485,8 @@ with the capability map an **explicit, checked caller input** (the P5-2 contract
 
 This section closes P5-1, P5-2 and P5-3 on `main` at `b56bb42`. It changes no product code. The machine-checked record is `docs/p5-closeout.json`, read by `tools/p5/closeout_check.py` (self-tested in `tools/p5/test_closeout_check.py`, both run in the `p1` workflow): every file, text, count, CI step and doc section a `proved` or `fixture-only` entry names is read, an entry that touches a Forms receipt cannot be `proved`, the open items below cannot be dropped or moved, and every section of this document from 10 on is covered by an entry. A closeout that the evidence does not hold turns the check red.
 
+**Nightly FULL on `main`.** Run `41311587765` on `b56bb42` (the merge of #135) completed with `success`: 122 jobs, none failed (2026-11-01, read from the run, not assumed). The FULL runs before it, on `912f0fa` and `541ad60`, also succeeded. The ledger does not record CI results: they are not checkable offline.
+
 **P5-3 closes only as a flat, fixture-based receipt.** The chain is the one of section 21 (P5-3 end-to-end proof without reference resolution); the release record is a fixture (section 17); no authentic receipt exists or can be produced from this state; the production receipt is on hold; Engine issue #63 stays open.
 
 **Proved** (a contract with its evidence; it touches no Forms receipt):
