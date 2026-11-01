@@ -55,7 +55,8 @@ and `ReceiptError.Unwrap` (5 tests), and the `Display::fmt` of three Rust error 
 
 ## 4. Tests over the history of `main`
 
-113 commit pairs, 29096 test runs (Go and Rust), `lab/results/backtest-*-314475ab14e0.json`.
+113 commit pairs, 29096 test runs (Go and Rust), `lab/results/backtest-*-314475ab14e0.json`. **Read with section 9:** the graph
+behind this number has a known gap (implicit `iota`), and 94% of the reusable Go runs reach a const it concerns.
 
 | Rule | Reusable |
 |---|---|
@@ -140,7 +141,54 @@ A review of the branch reproduced two defects; both are confirmed here and fixed
 The review's conclusion stands: the lab shows how much reuse is possible and how to check it; it does not yet show that a
 skip decision would be safe in general.
 
-## 9. Reproducing
+## 9. What the 85.8% rests on: exposure to implicit `iota` (2026-11-01)
+
+Section 4's number was made with a graph that has no edge from a constant to the group it is declared in (`lab/testdata/iota`:
+`A = iota + 1; B` becomes `iota + 2` and `B`, the key of every test using `B`, and the test result change differently). The extractor
+now reports the constructs it meets (`lab/extractor/typeddeps`, schema v2) and `lab/measure/iota_exposure.py` re-reads the same 113
+commit pairs with it. The reusable runs are recomputed exactly (24973, or the script stops); nothing in the Merkle algorithm or the
+reuse rule is changed, and the iota defect is **not fixed** here.
+
+Three states, side by side. Each says something different, and none replaces another:
+
+| State | Reusable runs | Share of 29096 | What it is |
+|---|---|---|---|
+| **Original** (section 4) | 24973 | 85.8% | Potential reuse by a graph with a known gap. Not a statement that each of these results is valid. |
+| **Conservative**: every run whose Go closure reaches an implicit-repeat or `iota` const is excluded | 12689 | 43.6% | What stands if evidence whose validity cannot be shown is not reused. A lower bound by construction, not an observed loss of correct decisions. |
+| **With the group in the key**: not measured with a fixed extractor | (24973 if nothing else changes) | (85.8%) | A bound from the data below, **derived, not measured**: no run lies in the set a group-aware key would additionally rerun. It holds for this history only. |
+
+The numbers behind the second row, Go only (Rust has no `iota`; its 11900 reusable runs are counted as they were, and they are
+still `UNVERIFIABLE` for the kernel because the Rust extractor reports no constructs):
+
+| Measure | Value |
+|---|---|
+| reusable Go runs | 13073 |
+| of these with an exposed const in the closure (**exposure**) | **12284 (94.0%)** |
+| exposed because the closure could not be read | 0 |
+| exposed const reached, over the Go tests of all pairs | 14344 of 15171 |
+| **semantic change candidates** (an exposed const whose whole `const ( ... )` changed while the test key stayed equal) | **0** |
+| **verified failures** (a candidate that passed on the parent and fails on the child) | **0** (none to run) |
+
+Reading it:
+
+* **Exposure is wide because it is concentrated.** At the last commit with Go tests, 254 of 269 Go tests reach one of 46 consts,
+  declared in **10 const groups**: `Kind*` (7), `rf*` (7), `Err*` (6), `Shape*` (6), `Rule*` (5), `Pos*` (4), `Mode*` (3), `Scalar*` (3),
+  `Policy*` (3) and `Mandatory`/`Optional` (2). The groups are what a verified model (or an assurance for exactly those groups)
+  would have to cover.
+* **Zero candidates is a result about this history, not about the model.** The group of an exposed const changed in 4 pairs
+  (#24, `650b4c1`, `bf7f901`, #101); in each, every test that reaches it also changed its key because other code in its closure
+  changed in the same commit. The detector is tested on synthetic cases (`test_iota_exposure.py`, including the `lab/testdata/iota`
+  shape); that it finds nothing here is not because it cannot see.
+* **So no historical wrong decision is shown, and the model is still vulnerable.** The `lab/testdata/iota` pair is the proof of the
+  second; the 0 of the first says only that main's history, commit by commit, did not contain such a pair for a reusable run.
+  Both are true together, and the cost of not trusting the gap is the second row.
+* **What this does not cover:** other constructs the extractor recognises and the assurance does not yet vouch for are not
+  measured here (generics: 2 functions in the tree); constructs it does not recognise are not seen at all. The extraction was
+  done with Go 1.26.9 and `x/tools` v0.44.0 on the cache of the earlier run (`cache.json`, `traces/` of the fixed tracer); the
+  pinned CI toolchain gives the same keys in the iota case (`lab/results/iota-red-ci-run41306166178-*.json`) but this backtest was
+  not repeated on it.
+
+## 10. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned
 `go-mutesting` for the mutant parts; the `CIC_*_ROOT` checkouts as in CI.
@@ -150,4 +198,5 @@ lab/measure/run.sh OUT          # Go graph vs coverage, the knowledge base's gra
 lab/measure/run_rust.sh OUT     # the same for Rust (RUST_TOOLCHAIN)
 lab/measure/run_data.sh OUT     # data record, corruption check, planted defect (corrupts and restores files in the checkout)
 python3 lab/measure/backtest.py ...           then backtest_data.py, backtest_mutants.py, mutant_killers.py (see each --help)
+python3 lab/measure/iota_exposure.py --repo . --work DIR --typeddeps BIN --rev 314475ab14e0 --out OUT   # needs DIR/cache.json and traces/
 ```

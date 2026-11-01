@@ -56,6 +56,9 @@ type Node struct {
 	// Analysis says whether the walk over this declaration was complete in the scope the extractor declares: COMPLETE with no
 	// unresolved item, or INCOMPLETE and what could not be resolved. Complete is not correct (see implicit iota).
 	Analysis Analysis `json:"analysis"`
+	// Group is the digest of the whole const/var declaration (`const ( ... )`) a spec belongs to. It is reported for measurement only
+	// (lab/measure/iota_exposure.py): the key of a constant does not depend on it, which is the known iota defect.
+	Group string `json:"group_sha256,omitempty"`
 }
 
 // Analysis is the completeness of the extraction of one declaration.
@@ -557,6 +560,9 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 						// RECOGNISED here (as a construct), NOT YET MODELLED: no edge is added for it (known defect, lab/testdata/iota).
 						b.add(pkg, file, idOf(obj), kind, s.Pos(), s.End(), src, walk, append([]string(nil), fileOpaque...), nil,
 							valueConstructs(pkg, d, s), nil)
+						gp, ge := b.fset.Position(d.Pos()), b.fset.Position(d.End())
+						gsum := sha256.Sum256(src[gp.Offset:ge.Offset])
+						b.nodes[idOf(obj)].Group = hex.EncodeToString(gsum[:])
 					}
 				}
 			}

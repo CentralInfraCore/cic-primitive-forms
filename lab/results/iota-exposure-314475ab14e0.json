@@ -1,0 +1,1011 @@
+{
+ "pairs": 113,
+ "totals": {
+  "runs": 29096,
+  "reusable": 24973,
+  "reusable_go": 13073,
+  "reusable_rust": 11900,
+  "go_exposed": 12284,
+  "go_exposed_unreadable": 0,
+  "candidates": 0,
+  "verified_failures": 0
+ },
+ "tests_seen": {
+  "go_tests": 15171,
+  "go_tests_exposed": 14344
+ },
+ "reusable_share_original": 0.8583,
+ "reusable_share_conservative": 0.4361,
+ "reusable_conservative": 12689,
+ "lost_to_exposure": 12284,
+ "go_reusable_share_exposed": 0.9396,
+ "exposed_runs_by_const_top20": [
+  [
+   "go.KindInt",
+   11379
+  ],
+  [
+   "go.KindNull",
+   11379
+  ],
+  [
+   "go.KindBool",
+   11292
+  ],
+  [
+   "go.KindStr",
+   11292
+  ],
+  [
+   "go.ErrContract",
+   11209
+  ],
+  [
+   "go.ErrSyntax",
+   11209
+  ],
+  [
+   "go.ErrUnsupported",
+   11209
+  ],
+  [
+   "go.ErrBinding",
+   11207
+  ],
+  [
+   "go.KindSeq",
+   11205
+  ],
+  [
+   "go.KindMap",
+   10540
+  ],
+  [
+   "go.ErrSchema",
+   10258
+  ],
+  [
+   "go.ErrLimit",
+   9552
+  ],
+  [
+   "go.ShapeComposite",
+   5594
+  ],
+  [
+   "go.ScalarBoolean",
+   5589
+  ],
+  [
+   "go.ScalarInteger",
+   5589
+  ],
+  [
+   "go.ScalarString",
+   5589
+  ],
+  [
+   "go.ShapeScalar",
+   5589
+  ],
+  [
+   "go.Mandatory",
+   5549
+  ],
+  [
+   "go.Optional",
+   5446
+  ],
+  [
+   "go.ShapeList",
+   5419
+  ]
+ ],
+ "candidates": [],
+ "rows": [
+  {
+   "commit": "4e9f3d4a30d5",
+   "subject": "Merge pull request #1 from CentralInfraCore/docs/initial-scope",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "6edd40cebd27",
+   "subject": "Merge pull request #2 from CentralInfraCore/docs/p0-review-findings",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "4556a7fc2807",
+   "subject": "Merge pull request #4 from CentralInfraCore/docs/adr-0001-recognition",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "94d34fbef23b",
+   "subject": "Merge pull request #5 from CentralInfraCore/docs/adr-0002-schema-contract",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "220721eb8689",
+   "subject": "Merge pull request #6 from CentralInfraCore/docs/adr-0003-presence",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "e459bbd2df04",
+   "subject": "Merge pull request #7 from CentralInfraCore/docs/adr-0004-inherit",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "f61278ed9504",
+   "subject": "Merge pull request #8 from CentralInfraCore/docs/adr-0005-corpus-contract",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "a0fca56d31b3",
+   "subject": "Merge pull request #9 from CentralInfraCore/docs/adr-0006-path-grammar",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "2031b0b556e9",
+   "subject": "Merge pull request #10 from CentralInfraCore/docs/adr-0007-error-contract",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "d879ad2814a8",
+   "subject": "Merge pull request #11 from CentralInfraCore/docs/adr-0008-diff",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "1c6124a5c1a6",
+   "subject": "Merge pull request #12 from CentralInfraCore/docs/adr-0009-branch-coverage",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "01245aa7b24b",
+   "subject": "Merge pull request #13 from CentralInfraCore/docs/adr-0010-conformance-origin",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "6e28882f7ec2",
+   "subject": "Merge pull request #14 from CentralInfraCore/docs/p0-acceptance-review",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "aae84dca9886",
+   "subject": "Merge pull request #15 from CentralInfraCore/docs/p0-acceptance-record",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "0ed3575aeffb",
+   "subject": "Merge pull request #16 from CentralInfraCore/feat/grammar-identity",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "42bfe0c72a71",
+   "subject": "Merge pull request #17 from CentralInfraCore/docs/accept-adr-0002",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "636adb61ce41",
+   "subject": "Merge pull request #18 from CentralInfraCore/spike/coverage-qualification",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "a487d4e3b796",
+   "subject": "Merge pull request #19 from CentralInfraCore/docs/adr-0009-decision-a",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "1f452f101ff5",
+   "subject": "Merge pull request #20 from CentralInfraCore/feat/branchcov-go",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "27d9238ea86c",
+   "subject": "Merge pull request #21 from CentralInfraCore/docs/accept-adr-0009",
+   "runs": 0,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "8f2c7e72f96e",
+   "subject": "Merge pull request #22 from CentralInfraCore/feat/p1-parse-recognize-emit",
+   "runs": 65,
+   "reusable": 0,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "5f0c18e28176",
+   "subject": "Merge pull request #23 from CentralInfraCore/feat/p1-presence-validate",
+   "runs": 101,
+   "reusable": 9,
+   "exposed": 2,
+   "candidates": 0
+  },
+  {
+   "commit": "2c58713253cf",
+   "subject": "Merge pull request #24 from CentralInfraCore/feat/p1-inherit-validate-d018",
+   "runs": 148,
+   "reusable": 2,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "ace0740d7cce",
+   "subject": "Rust/Go parser parity: differential harness, shared regression corpus, fixes (#25)",
+   "runs": 174,
+   "reusable": 51,
+   "exposed": 19,
+   "candidates": 0
+  },
+  {
+   "commit": "e7e1fa30af0f",
+   "subject": "docs: plan for FULL evidence and a DELTA selector in shadow mode (#27)",
+   "runs": 174,
+   "reusable": 174,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "c9580ef90795",
+   "subject": "feat(test-evidence): step A, the record, canonical JSON, validity key and verifier (#28)",
+   "runs": 174,
+   "reusable": 174,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "85d2dd60c6f7",
+   "subject": "feat(test-evidence): step B1, pinned actions, the environment and the record builder (#29)",
+   "runs": 174,
+   "reusable": 174,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "e2b7623263ba",
+   "subject": "fix(rust): an alias in the place of a mapping key is refused, not a panic (#31)",
+   "runs": 175,
+   "reusable": 119,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "8f19f4df8c81",
+   "subject": "test-evidence B2: collect, attest, publish, watchdog (switched off until owner setup) (#30)",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "ee4f791578a8",
+   "subject": "test(parity): alias-key regression cases in the shared corpus and the fuzz seeds (#32)",
+   "runs": 175,
+   "reusable": 169,
+   "exposed": 82,
+   "candidates": 0
+  },
+  {
+   "commit": "fb00d66be741",
+   "subject": "ci: balanced Rust mutation shards by measured cost, and a keyed tool cache (#33)",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "4e8ee0b4bcbb",
+   "subject": "study: C0 Go mutant id feasibility (#34)",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "7158eaf0004a",
+   "subject": "evidence: the watchdog asks for a run only when the slot has no record, not when the branch cannot b",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "38928e3822c0",
+   "subject": "docs: evidence run failure, switching off and verified recovery (#35)",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "fd8b2360b6e9",
+   "subject": "docs: plan for step C (stable mutant identity, shadow only) (#37)",
+   "runs": 175,
+   "reusable": 175,
+   "exposed": 86,
+   "candidates": 0
+  },
+  {
+   "commit": "650b4c1521ba",
+   "subject": "P1: validate an authored document against a pinned CIC schema (Rust and Go) (#38)",
+   "runs": 185,
+   "reusable": 14,
+   "exposed": 1,
+   "candidates": 0
+  },
+  {
+   "commit": "bf7f90116265",
+   "subject": "P1: validate list elements by declared identity; path_of (Rust and Go) (#39)",
+   "runs": 187,
+   "reusable": 67,
+   "exposed": 55,
+   "candidates": 0
+  },
+  {
+   "commit": "d6359ae615d2",
+   "subject": "P2: recursive expand and collapse with provenance (Rust and Go) (#40)",
+   "runs": 205,
+   "reusable": 13,
+   "exposed": 0,
+   "candidates": 0
+  },
+  {
+   "commit": "bd564dc4ebd0",
+   "subject": "docs: the semantic decisions of the P2 closing round (min_items bound, values that come with an erro",
+   "runs": 205,
+   "reusable": 205,
+   "exposed": 99,
+   "candidates": 0
+  },
+  {
+   "commit": "013118db3715",
+   "subject": "docs: P3 normalize - design proposal (no code) (#42)",
+   "runs": 205,
+   "reusable": 205,
+   "exposed": 99,
+   "candidates": 0
+  },
+  {
+   "commit": "4fc5efbf8eca",
+   "subject": "docs: accept ADR 0011 (defaults by Role), close the reference question, update P3 design status (#43",
+   "runs": 205,
+   "reusable": 205,
+   "exposed": 99,
+   "candidates": 0
+  },
+  {
+   "commit": "8be61b685e75",
+   "subject": "feat(p3): the compiled schema reads policy_surface and identity.base (Rust and Go, shared cases) (#4",
+   "runs": 207,
+   "reusable": 173,
+   "exposed": 93,
+   "candidates": 0
+  },
+  {
+   "commit": "65adb6991b9f",
+   "subject": "test: Rust ordering oracle follows ADR 0007 for errors at unwritable names (closes #46) (#47)",
+   "runs": 208,
+   "reusable": 191,
+   "exposed": 100,
+   "candidates": 0
+  },
+  {
+   "commit": "7f376a739d53",
+   "subject": "feat(p3): Role reading, schema defaults and ApplyDefaults (Rust and Go, shared cases) (#45)",
+   "runs": 219,
+   "reusable": 136,
+   "exposed": 69,
+   "candidates": 0
+  },
+  {
+   "commit": "271f371c38ed",
+   "subject": "docs: P3 third unit - normalize = expand + defaults, origin carried (design, no code) (#48)",
+   "runs": 219,
+   "reusable": 219,
+   "exposed": 106,
+   "candidates": 0
+  },
+  {
+   "commit": "3b76ed482ea1",
+   "subject": "feat(p3): normalize, renormalize, denormalize - expand then defaults, origin carried (unit 3) (#49)",
+   "runs": 242,
+   "reusable": 186,
+   "exposed": 95,
+   "candidates": 0
+  },
+  {
+   "commit": "48b7cc73f771",
+   "subject": "docs: P3 fourth unit - PolicyResolution (design, no code) (#50)",
+   "runs": 242,
+   "reusable": 242,
+   "exposed": 118,
+   "candidates": 0
+  },
+  {
+   "commit": "d9aea562d272",
+   "subject": "docs: state of the phases in the README, PHASES and the supported-subset doc (P0-P2 done, P3 units 1",
+   "runs": 242,
+   "reusable": 242,
+   "exposed": 118,
+   "candidates": 0
+  },
+  {
+   "commit": "009ee5d666d2",
+   "subject": "chore(pin): resolution reference + vectors join the grammar pin (ADR 0002 amendment 2) - pin-only (#",
+   "runs": 242,
+   "reusable": 183,
+   "exposed": 90,
+   "candidates": 0
+  },
+  {
+   "commit": "30ceb18e1536",
+   "subject": "P3 unit 4: PolicyResolution (Rust and Go, cross-checked against the 86 pinned golden vectors) (#53)",
+   "runs": 268,
+   "reusable": 196,
+   "exposed": 100,
+   "candidates": 0
+  },
+  {
+   "commit": "9a443445fd88",
+   "subject": "feat(p3): NormalizeWithPolicy - the normalization and the resolution of its object from one compiled",
+   "runs": 274,
+   "reusable": 268,
+   "exposed": 132,
+   "candidates": 0
+  },
+  {
+   "commit": "95d3fb00d4fc",
+   "subject": "P3 closing round, G2 and G5: mapping-order freedom and never-cut local rules as properties (#56)",
+   "runs": 278,
+   "reusable": 274,
+   "exposed": 135,
+   "candidates": 0
+  },
+  {
+   "commit": "d9d24c19cd14",
+   "subject": "test(p3): Rust-Go differential for normalize and the policy resolution on 3000 generated inputs, wit",
+   "runs": 280,
+   "reusable": 278,
+   "exposed": 137,
+   "candidates": 0
+  },
+  {
+   "commit": "18a2ee68f656",
+   "subject": "docs: the diff gate and the nightly FULL (the decided DELTA model) (#58)",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "7ae3aa290864",
+   "subject": "docs: no heavy post-merge on main - the nightly FULL is the check of main (owner decision) (#60)",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "a1dcc72816ce",
+   "subject": "ci: the nightly FULL on main - the whole gate every night if main had development in the last 48 hou",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "e2a4cd270b0d",
+   "subject": "docs: P3 exit-criteria check (four units merged, six gaps listed, P3 not closed) (#54)",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "73be2a3d1898",
+   "subject": "ci: the diff gate - on a pull request only the mutants in the lines it touches (Rust: cargo mutants ",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "c71a4eb2b508",
+   "subject": "docs: P3b - source-preserving editing, the first unit (replacing one existing scalar); design only (",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "6ebe83e59d5a",
+   "subject": "docs: ADR 0012 (proposed) - source-preserving edit of one scalar: the operation, the span and its re",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "14d55b6096a2",
+   "subject": "docs: ADR 0012 accepted (owner's merge) - acceptance record with the eight decisions and the two cla",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "d5821d786e72",
+   "subject": "ci: a push to main runs only the cheap checks (no mutation, fuzz, seeded defects, evidence selftest)",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "c658303a41d3",
+   "subject": "test(p3b): E1 - the hand-written edit and source_span vectors (72 cases), ten edit codes, checker ru",
+   "runs": 280,
+   "reusable": 262,
+   "exposed": 131,
+   "candidates": 0
+  },
+  {
+   "commit": "abd11cdfe072",
+   "subject": "docs: P3 closure - the exit-criteria evidence, the six gaps closed, PHASES and README say done (#69)",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "d9a9d9e85660",
+   "subject": "ci: the nightly report opens an issue when the pull request cannot be opened, and can be tested by h",
+   "runs": 280,
+   "reusable": 280,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "92aea3157a05",
+   "subject": "P3b E2: source_span - the byte span of a scalar, verified by reading it back (Rust + Go) (#72)",
+   "runs": 293,
+   "reusable": 159,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "e15eaeceb146",
+   "subject": "p1: computed shards (about 100 mutants / ten minutes), one fuzz job per target and by diff, seeded d",
+   "runs": 293,
+   "reusable": 293,
+   "exposed": 144,
+   "candidates": 0
+  },
+  {
+   "commit": "faebfe778884",
+   "subject": "P3b E2 follow-up: the Go diff-mutation copy had no corpus (a void 100%); baseline check, edge tests ",
+   "runs": 297,
+   "reusable": 287,
+   "exposed": 138,
+   "candidates": 0
+  },
+  {
+   "commit": "105702eea1fe",
+   "subject": "tools/mutation_diff_exec.sh: an optional CIC_MUTATION_TEST_RUN restricts the Go tests of a mutant to",
+   "runs": 297,
+   "reusable": 297,
+   "exposed": 146,
+   "candidates": 0
+  },
+  {
+   "commit": "9c68a385d672",
+   "subject": "P3b E3: edit_scalar - replace one scalar, every other byte untouched (Rust + Go, the 44 edit vectors",
+   "runs": 326,
+   "reusable": 251,
+   "exposed": 133,
+   "candidates": 0
+  },
+  {
+   "commit": "33bc6a8a4c88",
+   "subject": "quality_gate: a mutation report must agree with itself - the score is read from the per-mutant resul",
+   "runs": 326,
+   "reusable": 326,
+   "exposed": 161,
+   "candidates": 0
+  },
+  {
+   "commit": "9ed91f95248a",
+   "subject": "P3b E4: the proof of the guarantees of edit_scalar - a Rust/Go differential that checks each guarant",
+   "runs": 328,
+   "reusable": 324,
+   "exposed": 160,
+   "candidates": 0
+  },
+  {
+   "commit": "bcf3b34d1b6f",
+   "subject": "docs: P3b first unit closed (E1-E4), later units open and named (#82)",
+   "runs": 328,
+   "reusable": 328,
+   "exposed": 162,
+   "candidates": 0
+  },
+  {
+   "commit": "22c8c7d6447a",
+   "subject": "P4-0: design note for diff and patch (ADR 0008 exists, no code yet; the first patch unit and the own",
+   "runs": 328,
+   "reusable": 328,
+   "exposed": 162,
+   "candidates": 0
+  },
+  {
+   "commit": "c73c5a2313f3",
+   "subject": "ADR 0013 (proposed): the first unit of patch - value_change on existing scalars, S+ within the scope",
+   "runs": 328,
+   "reusable": 328,
+   "exposed": 162,
+   "candidates": 0
+  },
+  {
+   "commit": "c0ec550a3f8c",
+   "subject": "corpus: the accounting numbers move out of the tests into corpus/accounting.yaml (written in advance",
+   "runs": 328,
+   "reusable": 313,
+   "exposed": 162,
+   "candidates": 0
+  },
+  {
+   "commit": "1911a6c3dc05",
+   "subject": "docs: ADR 0013 accepted - acceptance record; ADR 0007 (phase patch) and ADR 0005 (kind patch, path_a",
+   "runs": 328,
+   "reusable": 328,
+   "exposed": 162,
+   "candidates": 0
+  },
+  {
+   "commit": "56e222d1aa5f",
+   "subject": "Review findings (#85) and the read-back defect (#87): an unknown resolve operation is unknown, the R",
+   "runs": 335,
+   "reusable": 92,
+   "exposed": 70,
+   "candidates": 0
+  },
+  {
+   "commit": "ea6d8f2cf6a3",
+   "subject": "Validation boundaries (#88): Normalize and ResolvePolicy refuse a document that does not validate, G",
+   "runs": 339,
+   "reusable": 253,
+   "exposed": 131,
+   "candidates": 0
+  },
+  {
+   "commit": "9e4bd2bdb977",
+   "subject": "diff gate: a changed test is narrowed by its coverage instead of forcing FULL, and the diff mutation",
+   "runs": 339,
+   "reusable": 339,
+   "exposed": 167,
+   "candidates": 0
+  },
+  {
+   "commit": "2a9630473d5e",
+   "subject": "Normalize reads an authored wrapper's rule members, the normalize docs say what it refuses, Same is ",
+   "runs": 344,
+   "reusable": 112,
+   "exposed": 81,
+   "candidates": 0
+  },
+  {
+   "commit": "ab2e8cf6622e",
+   "subject": "CI chain (#94): a Go mutant or a seeded defect that does not build is not a catch; the Go count of t",
+   "runs": 344,
+   "reusable": 179,
+   "exposed": 169,
+   "candidates": 0
+  },
+  {
+   "commit": "c3dc92b5b6a0",
+   "subject": "p1 runs on every pull request, so its checks can be required (#97, prerequisite of the ruleset of #9",
+   "runs": 344,
+   "reusable": 344,
+   "exposed": 169,
+   "candidates": 0
+  },
+  {
+   "commit": "eda9d1e01485",
+   "subject": "P4-1: 60 hand-written patch vectors, the rules that hold them (each with faults), the four patch cod",
+   "runs": 344,
+   "reusable": 316,
+   "exposed": 157,
+   "candidates": 0
+  },
+  {
+   "commit": "b5be6e7aa11c",
+   "subject": "P4 D1-D3: diff in Go and Rust, all 66 corpus vectors run (#101)",
+   "runs": 390,
+   "reusable": 34,
+   "exposed": 10,
+   "candidates": 0
+  },
+  {
+   "commit": "47041dabcfef",
+   "subject": "P4 D3b: Rust/Go/model differential of diff, its self-test, planted defects, fuzz targets (#102)",
+   "runs": 393,
+   "reusable": 390,
+   "exposed": 192,
+   "candidates": 0
+  },
+  {
+   "commit": "253165241a55",
+   "subject": "P4-2: patch, the first unit (ADR 0013), in Go and Rust; the 60 patch vectors run (#103)",
+   "runs": 409,
+   "reusable": 209,
+   "exposed": 181,
+   "candidates": 0
+  },
+  {
+   "commit": "d0cc8b43fae2",
+   "subject": "P4-3: the proof of patch (differential, self-test, planted defects, fuzz targets); fixes a defect th",
+   "runs": 414,
+   "reusable": 393,
+   "exposed": 194,
+   "candidates": 0
+  },
+  {
+   "commit": "29af238c6579",
+   "subject": "docs: what P0 left to later phases and where each item stands; the P4 row is current (#105)",
+   "runs": 414,
+   "reusable": 414,
+   "exposed": 205,
+   "candidates": 0
+  },
+  {
+   "commit": "a3277deb73f5",
+   "subject": "quality_gate: print the share of mutants left out of the denominator (information, no threshold) (#1",
+   "runs": 414,
+   "reusable": 414,
+   "exposed": 205,
+   "candidates": 0
+  },
+  {
+   "commit": "3d8d03d9c876",
+   "subject": "ci: the full run of a pull request is measured by cargo-gamma and go-mutants; the nightly FULL keeps",
+   "runs": 414,
+   "reusable": 414,
+   "exposed": 205,
+   "candidates": 0
+  },
+  {
+   "commit": "8acac862f070",
+   "subject": "ReadDiff / read_diff: the canonical bytes of a diff read back into events (strict, both languages) (",
+   "runs": 439,
+   "reusable": 211,
+   "exposed": 36,
+   "candidates": 0
+  },
+  {
+   "commit": "1a41018a538d",
+   "subject": "p1: the full Rust mutation shards run under the same 6 GB address-space cap as the diff shards and u",
+   "runs": 439,
+   "reusable": 439,
+   "exposed": 217,
+   "candidates": 0
+  },
+  {
+   "commit": "e814126acbe8",
+   "subject": "patch: two events on one path are refused (PATCH_DUPLICATE_TARGET) (#112)",
+   "runs": 442,
+   "reusable": 260,
+   "exposed": 190,
+   "candidates": 0
+  },
+  {
+   "commit": "a165e700bfd5",
+   "subject": "ReadDiff: a Rust/Go differential with its promises and a self-test (#113)",
+   "runs": 444,
+   "reusable": 429,
+   "exposed": 206,
+   "candidates": 0
+  },
+  {
+   "commit": "5f7c073d35c9",
+   "subject": "ReadDiff: fuzz targets in Go and Rust (#114)",
+   "runs": 445,
+   "reusable": 444,
+   "exposed": 219,
+   "candidates": 0
+  },
+  {
+   "commit": "cc792653c776",
+   "subject": "ci: a push to main that is the tree of a checked PR head runs no checks (#116)",
+   "runs": 445,
+   "reusable": 445,
+   "exposed": 220,
+   "candidates": 0
+  },
+  {
+   "commit": "dcf8c01e9771",
+   "subject": "P5-0: the design note and ADR 0014 (proposed): materialize and receipt (#117)",
+   "runs": 445,
+   "reusable": 445,
+   "exposed": 220,
+   "candidates": 0
+  },
+  {
+   "commit": "c47e7ff7a820",
+   "subject": "P5-1: canonical bytes and digest of a processed value (engine section A) (#118)",
+   "runs": 453,
+   "reusable": 273,
+   "exposed": 48,
+   "candidates": 0
+  },
+  {
+   "commit": "5b7629474657",
+   "subject": "P5-1: canonical bytes differential (with an independent reference) and fuzz targets (#119)",
+   "runs": 456,
+   "reusable": 453,
+   "exposed": 224,
+   "candidates": 0
+  },
+  {
+   "commit": "7abc026d869f",
+   "subject": "P5-1: 20 planted defects for the canonical bytes, one more vector (UTF-8 byte order against UTF-16),",
+   "runs": 456,
+   "reusable": 449,
+   "exposed": 220,
+   "candidates": 0
+  },
+  {
+   "commit": "f6aaac2668a2",
+   "subject": "diff_gate: a text file with a byte that is not UTF-8 no longer crashes the scope job (#115) (#121)",
+   "runs": 456,
+   "reusable": 456,
+   "exposed": 226,
+   "candidates": 0
+  },
+  {
+   "commit": "0fadedbc950e",
+   "subject": "P5-1: nil_node instead of a panic; the owner's decisions after P5-1 (sets fail closed) (#122)",
+   "runs": 457,
+   "reusable": 450,
+   "exposed": 220,
+   "candidates": 0
+  },
+  {
+   "commit": "c3aba320f85f",
+   "subject": "P5-2 pre-check: the engine's object, the five misfits, a first unit, three questions (#123)",
+   "runs": 457,
+   "reusable": 457,
+   "exposed": 227,
+   "candidates": 0
+  },
+  {
+   "commit": "393583565cc3",
+   "subject": "P5-2: materialize a flat document, checked against the engine's own object and digest (#124)",
+   "runs": 470,
+   "reusable": 282,
+   "exposed": 52,
+   "candidates": 0
+  },
+  {
+   "commit": "a595d62f4c03",
+   "subject": "P5-2: the generated materialization differential, with the engine as the third reader (#125)",
+   "runs": 472,
+   "reusable": 465,
+   "exposed": 231,
+   "candidates": 0
+  },
+  {
+   "commit": "1a5652c5fd60",
+   "subject": "P5-2: fuzz targets for the flat materialization, Rust and Go (#126)",
+   "runs": 473,
+   "reusable": 472,
+   "exposed": 235,
+   "candidates": 0
+  },
+  {
+   "commit": "8139d1652a97",
+   "subject": "P5-3 pre-check: the receipt, eight misfits, a first unit, four questions (#127)",
+   "runs": 473,
+   "reusable": 473,
+   "exposed": 236,
+   "candidates": 0
+  },
+  {
+   "commit": "574b3bdafd1e",
+   "subject": "docs(p5): the engine issue for question N is cic-primitive-engine#63, and the two gates (contract co",
+   "runs": 473,
+   "reusable": 473,
+   "exposed": 236,
+   "candidates": 0
+  },
+  {
+   "commit": "bab0c0b06336",
+   "subject": "chore(p5): move the engine pin to a6a0680 (the D1.3 schema identity contract, cic-primitive-engine#6",
+   "runs": 473,
+   "reusable": 473,
+   "exposed": 236,
+   "candidates": 0
+  },
+  {
+   "commit": "704c41d39758",
+   "subject": "feat(p5-3): the schema identity of a receipt, Forms side (D1.3), with the same-source binding (#130)",
+   "runs": 487,
+   "reusable": 293,
+   "exposed": 56,
+   "candidates": 0
+  },
+  {
+   "commit": "8b0ccc1094d6",
+   "subject": "feat(p5-3): receipt_flat, the fixture-based 15-field receipt in Rust and Go, verified by the pinned ",
+   "runs": 508,
+   "reusable": 297,
+   "exposed": 56,
+   "candidates": 0
+  },
+  {
+   "commit": "314475ab14e0",
+   "subject": "test(p5-3): the generated receipt differential, Rust and Go against a Python reference, the engine v",
+   "runs": 513,
+   "reusable": 508,
+   "exposed": 249,
+   "candidates": 0
+  }
+ ]
+}
