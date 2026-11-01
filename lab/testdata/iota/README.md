@@ -38,3 +38,10 @@ tested configuration only.
 An edge `B -> A` is not enough. If a constant is inserted between `A` and `B`, the text of `B` stays `B` while its `iota`
 changes. The node of an implicit spec must carry the inherited expression and its index in the group, so that either changing
 changes the key.
+
+## Confirmed on the pinned toolchain
+
+GitHub Actions run 41306166178 (commit `059f30c`, job `graph`): Go 1.27.2 and `x/tools` v0.38.0, all four facts hold, and the
+Merkle keys are identical to the local record. The record is `lab/results/iota-red-ci-run41306166178-go1.27.2-tools0.38.0.json`.
+The same run: jobs `kernel`, `graph`, `graph-rust`, `data` and `subject` succeeded. A green `iota` step means the defect is still
+present, not that the verification is correct.
