@@ -91,7 +91,8 @@ def main():
     ap.add_argument("--typeddeps", required=True)
     ap.add_argument("--verified")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--expect-reusable", type=int, default=24973)
+    ap.add_argument("--expect-reusable", type=int, help="stop unless the recomputed reusable runs are exactly this many (24973 for RESULTS.md section 4)")
+    ap.add_argument("--dump-reusable", help="write the reusable runs as sorted \"commit test\" lines, to compare two states run by run")
     a = ap.parse_args()
     repo, work = os.path.abspath(a.repo), os.path.abspath(a.work)
     cache = json.load(open(os.path.join(work, "cache.json")))
@@ -116,7 +117,7 @@ def main():
     tot = {"runs": 0, "reusable": 0, "reusable_go": 0, "reusable_rust": 0, "go_exposed": 0, "go_exposed_unreadable": 0,
            "candidates": 0, "verified_failures": 0}
     tests_seen = {"go_tests": 0, "go_tests_exposed": 0}
-    rows, candidates = [], []
+    rows, candidates, reusable_runs = [], [], []
     by_const = collections.Counter()
     for p, c in zip(commits, commits[1:]):
         prev, cur = cache[p], cache[c]
@@ -148,6 +149,7 @@ def main():
                     continue
             tot["reusable"] += 1
             row["reusable"] += 1
+            reusable_runs.append(c + " " + t)
             if lang != "go":
                 tot["reusable_rust"] += 1
                 continue
@@ -176,7 +178,9 @@ def main():
                         tot["verified_failures"] += 1
                 candidates.append(cand)
         rows.append(row)
-    if tot["reusable"] != a.expect_reusable:
+    if a.dump_reusable:
+        open(a.dump_reusable, "w").write("\n".join(sorted(reusable_runs)) + "\n")
+    if a.expect_reusable is not None and tot["reusable"] != a.expect_reusable:
         sys.exit("the reusable runs recomputed are %d, not %d: the measurement does not reproduce the backtest" % (tot["reusable"], a.expect_reusable))
     conservative = tot["reusable"] - tot["go_exposed"]
     report = {

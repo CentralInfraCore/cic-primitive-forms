@@ -155,7 +155,7 @@ Three states, side by side. Each says something different, and none replaces ano
 |---|---|---|---|
 | **Original** (section 4) | 24973 | 85.8% | Potential reuse by a graph with a known gap. Not a statement that each of these results is valid. |
 | **Conservative**: every run whose Go closure reaches an implicit-repeat or `iota` const is excluded | 12689 | 43.6% | What stands if evidence whose validity cannot be shown is not reused. A lower bound by construction, not an observed loss of correct decisions. |
-| **With the group in the key**: not measured with a fixed extractor | (24973 if nothing else changes) | (85.8%) | A bound from the data below, **derived, not measured**: no run lies in the set a group-aware key would additionally rerun. It holds for this history only. |
+| **With the const group rule** (`a1d189f`): the Go keys made again, all 113 pairs, the same rule and traces | **24973** | **85.8%** | **Measured.** The same runs, run by run (the sorted lists are identical). The rule closes the two mechanisms below and the exposed runs stay reusable, now with a qualified construct (section 9.1). History of this repository only. |
 
 The numbers behind the second row, Go only (Rust has no `iota`; its 11900 reusable runs are counted as they were, and they are
 still `UNVERIFIABLE` for the kernel because the Rust extractor reports no constructs):
@@ -169,7 +169,32 @@ still `UNVERIFIABLE` for the kernel because the Rust extractor reports no constr
 | **semantic change candidates** (an exposed const whose whole `const ( ... )` changed while the test key stayed equal) | **0** |
 | **verified failures** (a candidate that passed on the parent and fails on the child) | **0** (none to run) |
 
-Reading it:
+### 9.1 The fix, measured
+
+The const group rule (`a1d189f`): a constant that repeats the previous spec or uses `iota` depends on a node for its whole
+`const ( ... )`, and an implicit repeat depends on what its inherited expression depends on. Two mechanisms, not one: the first
+(position) is what the `candidate` count above looks for; the second (an inherited expression that reaches a constant that changed,
+`lab/testdata/iota-inherit`) it cannot see, and is measured here by the new keys.
+
+| | |
+|---|---|
+| Go test keys | 15171 |
+| of these different under the new model (the closure now holds a group node) | 14344, the exposed tests |
+| Go runs with an equal key on parent and child under the old keys | 13157 |
+| of these with unequal keys under the new keys (**runs the fix would rerun**) | **0** |
+| reusable runs, old keys / new keys | 24973 / **24973**, the same runs |
+
+So, for this history: neither mechanism moved a value under a test that was called reusable, **and** the model that now keys them
+is the one `qualify.py` has qualified on the three probe pairs (the old model fails all three). The 12284 exposed runs are not lost;
+nothing was recovered either, because nothing was in the set the rule reruns. The value of the fix here is the second row's
+bound turned into a statement the model can make, not a number: with the old model the 24973 had a gap that history happened not to hit.
+The cost is on the side of reruns when a group does change (a constant added after the last use reruns every test that reaches
+the group, although no value moved); it is zero in this history.
+
+`lab/results/iota-fix-rekey-314475ab14e0.json`; reproduce with `backtest_rekey.py` then `iota_exposure.py --work DIR2`.
+Keys of Rust are the earlier ones (the change is a Go one); the Rust extractor still reports no constructs.
+
+Reading the exposure measure:
 
 * **Exposure is wide because it is concentrated.** At the last commit with Go tests, 254 of 269 Go tests reach one of 46 consts,
   declared in **10 const groups**: `Kind*` (7), `rf*` (7), `Err*` (6), `Shape*` (6), `Rule*` (5), `Pos*` (4), `Mode*` (3), `Scalar*` (3),

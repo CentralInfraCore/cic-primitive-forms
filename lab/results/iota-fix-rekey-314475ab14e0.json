@@ -1,0 +1,22 @@
+{
+ "revision": "314475ab14e0",
+ "extractor": "typeddeps with the const group rule (a1d189f), Go 1.26.9, x/tools v0.44.0",
+ "go_test_keys": 15171,
+ "go_test_keys_different_under_the_new_model": 14344,
+ "go_runs_with_equal_key_on_parent_and_child_under_the_old_keys": 13157,
+ "of_these_unequal_under_the_new_keys": 0,
+ "reusable_old_keys": 24973,
+ "reusable_new_keys": 24973,
+ "reusable_share_new_keys": 0.8583,
+ "run_by_run": "the sets of reusable runs are identical (diff of the sorted lists is empty)",
+ "totals_new_keys": {
+  "runs": 29096,
+  "reusable": 24973,
+  "reusable_go": 13073,
+  "reusable_rust": 11900,
+  "go_exposed": 12284,
+  "go_exposed_unreadable": 0,
+  "candidates": 0,
+  "verified_failures": 0
+ }
+}
