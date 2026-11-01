@@ -458,6 +458,66 @@ fn receipts(root: &str) {
         );
     }
     assert_eq!(accepted, 7, "the accepted receipts");
+
+    // The path of an evidence entry and its binding (testdata/p5/receipt-paths.json): what the verifier says is measured here, not designed.
+    let paths: J = serde_json::from_str(
+        &std::fs::read_to_string(format!("{root}/testdata/p5/receipt-paths.json")).unwrap(),
+    )
+    .unwrap();
+    let mut path_cases = 0;
+    for pc in paths["cases"].as_array().unwrap() {
+        let id = pc["id"].as_str().unwrap();
+        let c = file["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == pc["base"])
+            .unwrap();
+        let mc = materialize["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == pc["base"])
+            .unwrap();
+        let projection: J =
+            serde_json::from_str(mc["expect"]["projection"].as_str().unwrap()).unwrap();
+        let keys: BTreeSet<String> = mc["expect"]["expected_keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k.as_str().unwrap().to_string())
+            .collect();
+        let mut receipt: J = serde_json::from_str(
+            &c["document"]
+                .as_str()
+                .unwrap()
+                .replace(token, "cic-primitive-forms-rust"),
+        )
+        .unwrap();
+        let authored: J = serde_json::from_str(c["authored_input"].as_str().unwrap()).unwrap();
+        if let Some(ps) = pc.get("paths") {
+            for (i, p) in ps.as_array().unwrap().iter().enumerate() {
+                body(&mut receipt)["applied_defaults"][i]["path"] = p.clone();
+            }
+        }
+        let binding: BTreeMap<String, String> = pc["bind"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+            .collect();
+        let got = verify(&receipt, &authored, &projection, &keys, &binding);
+        match &pc["expect"] {
+            J::String(w) if w == "accept" => assert_eq!(got, Ok(()), "{id}: the path case"),
+            w => {
+                let (c, r) = (w[0].as_str().unwrap(), w[1].as_str().unwrap());
+                assert_eq!(got, Err((c, r)), "{id}: the path case");
+            }
+        }
+        path_cases += 1;
+    }
+    assert_eq!(path_cases, paths["cases"].as_array().unwrap().len());
+    println!("engine (rust): {path_cases} path and binding cases give the verdict written in receipt-paths.json");
     println!("engine (rust): {accepted} receipts accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
 }
 

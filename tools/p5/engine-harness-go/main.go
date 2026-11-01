@@ -433,6 +433,67 @@ func receipts(root string) {
 		fail("%d receipts accepted, want 7", accepted)
 	}
 	fmt.Printf("engine (go): %d receipts accepted by receipt.Verify, %d altered ones refused with the engine's code and rule\n", accepted, refused)
+
+	// The path of an evidence entry and its binding (testdata/p5/receipt-paths.json): what the verifier says is measured here, not designed.
+	var paths struct {
+		Cases []struct {
+			ID     string            `json:"id"`
+			Base   string            `json:"base"`
+			Paths  []string          `json:"paths"`
+			Bind   map[string]string `json:"bind"`
+			Expect json.RawMessage   `json:"expect"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(read("receipt-paths.json"), &paths); err != nil {
+		fail("%v", err)
+	}
+	for _, pc := range paths.Cases {
+		var keys []string
+		var projText string
+		for _, m := range materialize.Cases {
+			if m.ID == pc.Base {
+				keys, projText = m.Expect.ExpectedKeys, m.Expect.Projection
+			}
+		}
+		var projection struct {
+			Fields []projField `json:"fields"`
+		}
+		if err := json.Unmarshal([]byte(projText), &projection); err != nil {
+			fail("%s: %v", pc.ID, err)
+		}
+		found := false
+		for _, c := range file.Cases {
+			if c.ID != pc.Base {
+				continue
+			}
+			found = true
+			doc := decode(strings.ReplaceAll(c.Document, file.Token, "cic-primitive-forms-go"))
+			authored := decode(c.AuthoredInput)
+			list := obj(obj(doc)["materialization"])["applied_defaults"].([]interface{})
+			for i, p := range pc.Paths {
+				obj(list[i])["path"] = p
+			}
+			got := verify(doc, authored, projection.Fields, keys, pc.Bind)
+			var verdict string
+			if json.Unmarshal(pc.Expect, &verdict) == nil && verdict == "accept" {
+				if got != nil {
+					fail("%s: the path case: refused %v, want accepted", pc.ID, *got)
+				}
+				continue
+			}
+			var w []string
+			if err := json.Unmarshal(pc.Expect, &w); err != nil || len(w) != 2 {
+				fail("%s: the expectation is neither accept nor [code, rule]", pc.ID)
+			}
+			if got == nil || *got != (want{w[0], w[1]}) {
+				fail("%s: the path case: got %v, want %v", pc.ID, got, w)
+			}
+		}
+		if !found {
+			fail("%s: no base case %s", pc.ID, pc.Base)
+		}
+	}
+	fmt.Printf("engine (go): %d path and binding cases give the verdict written in receipt-paths.json\n", len(paths.Cases))
 }
 
 func main() {
