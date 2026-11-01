@@ -52,6 +52,10 @@ jobs:
       # to the kernel. The generic probe that fails is a KNOWN RED case (lab/testdata/go-generic-fmt): green here means the kernel
       # refuses generics, not that they are modelled.
       - run: TYPEDDEPS_BIN="$RUNNER_TEMP/lab-out/typeddeps" python3 -m unittest lab/measure/test_qualify_go.py
+      # KNOWN-VULNERABILITY REPRODUCTION (lab/testdata/go-conv-promoted/README.md): nine cases of dynamic dispatch (fmt calling String on a
+      # type argument, a promoted method, a slice element, a field) in which the key of the test does not move although the test goes
+      # from pass to fail. Green here means the defects are STILL PRESENT; the step becomes --expect fixed with the fix.
+      - run: python3 lab/measure/repro_dispatch.py "$RUNNER_TEMP/lab-out/typeddeps" --expect vulnerable --record "$RUNNER_TEMP/lab-out/dispatch-red.json"
       # RED -> GREEN of the implicit iota defect (lab/testdata/iota/README.md). The extractor as it is must key the case apart; the
       # same binary with -planted-no-const-group is the model before the fix and must still show the defect (so the case, and the
       # check that sees it, stay alive). Green on the second line is a KNOWN-VULNERABILITY REPRODUCTION of the old model, not a
