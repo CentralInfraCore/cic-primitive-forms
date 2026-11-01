@@ -83,6 +83,10 @@ jobs:
         env:
           CIC_FORMS_ROOT: ${{ github.workspace }}
       - run: MERKLE_GRAPH="$RUNNER_TEMP/lab-out/rtyped.json" python3 -m unittest lab/measure/test_merkle.py
+      # Rust: which constructs this build of scipdeps is qualified for (probes), then real Rust source -> SCIP -> scipdeps -> evidence
+      # -> kernel. The macro of the crate itself (lab/testdata/rust-macro) is a known-unsafe case and must come out UNVERIFIABLE.
+      - run: python3 lab/measure/qualify_rust.py "$RUNNER_TEMP/lab-out/scipdeps" "$RUST_TOOLCHAIN"
+      - run: SCIPDEPS_BIN="$RUNNER_TEMP/lab-out/scipdeps" python3 -m unittest lab/measure/test_e2e_rust.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

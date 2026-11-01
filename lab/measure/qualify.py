@@ -54,7 +54,12 @@ def probes(binary, args=()):
 
 
 def qualify(binary, args=()):
-    return BASE | (CONST_GROUP if all(ok for _, ok, _ in probes(binary, args)) else frozenset())
+    """The constructs this build is qualified for; NOTHING if any probe fails.
+
+    A build that fails a probe has a known gap in what it models, and a gap can hide the construct it concerns (a missing edge keeps
+    the construct out of the closure, so a check of the reported constructs alone would pass; see qualify_rust.py). Such a build is
+    qualified for no construct, not even the base ones."""
+    return BASE | CONST_GROUP if all(ok for _, ok, _ in probes(binary, args)) else frozenset()
 
 
 if __name__ == "__main__":

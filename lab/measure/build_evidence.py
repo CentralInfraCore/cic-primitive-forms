@@ -29,19 +29,29 @@ class BuilderError(Exception):
     """No evidence can be made at all (not even an UNVERIFIABLE one)."""
 
 
-def extractor_identity(binary, args=()):
-    """(identity, provenance) of the extractor binary run with `args`; BuilderError if the binary cannot be read.
-
-    The flags are part of the identity: the same binary with -planted-no-const-group is a different model."""
+def _digest(path):
     try:
-        with open(binary, "rb") as f:
-            digest = hashlib.sha256(f.read()).hexdigest()
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
     except OSError as e:
-        raise BuilderError("extractor binary unreadable: %s" % e)
+        raise BuilderError("%s unreadable: %s" % (path, e))
+
+
+def extractor_identity(binary, args=(), name="typeddeps", chain=()):
+    """(identity, provenance) of an extractor: its binary, run with `args`, and the tools that make its input (`chain`, a list of
+    (name, path), e.g. the rust-analyzer that writes the SCIP index scipdeps reads). BuilderError if one cannot be read.
+
+    The identity holds the SHA-256 of every binary, which covers the runtime and the libraries built into it and the build flags,
+    and the flags the extractor ran with: the same binary with -planted-no-const-group is a different model. The name is the
+    language's: an identity of one language never equals one of another, so an Assurance for one cannot authorise the other."""
+    parts = [(name, binary)] + list(chain)
+    digests = [(n, _digest(p)) for n, p in parts]
     r = subprocess.run(["go", "version", "-m", binary], capture_output=True, text=True)
     build = [l.strip() for l in r.stdout.splitlines() if l.strip()] if r.returncode == 0 else ["go version -m unavailable"]
-    ident = "typeddeps:sha256:" + digest + ("".join("|" + a for a in args))
-    return ident, {"extractor_binary_sha256": digest, "extractor_args": list(args), "extractor_build": build}
+    ident = "|".join("%s:sha256:%s" % (n, d) for n, d in digests) + "".join("|" + a for a in args)
+    prov = {"extractor_binary_sha256": digests[0][1], "extractor_args": list(args), "extractor_build": build,
+            "chain": {n: d for n, d in digests[1:]}}
+    return ident, prov
 
 
 def closure(nodes, subject):
