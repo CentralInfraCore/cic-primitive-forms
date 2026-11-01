@@ -255,6 +255,43 @@ fn body(r: &mut J) -> &mut J {
     &mut r["materialization"]
 }
 
+/// The path and binding cases that receipt-paths.json has to carry, each once: a table that lost one, repeated one or grew one the harness does not know is a failure,
+/// not a shorter run (the count of the table is not a check of the table).
+const PATH_CASES: [&str; 16] = [
+    "plain-bound",
+    "nested-bound",
+    "selector-bound",
+    "selector-unbound",
+    "selector-with-dot-bound",
+    "empty-segment-in-the-middle",
+    "empty-last-segment",
+    "root-only",
+    "no-root",
+    "dollar-without-dot",
+    "trailing-space-bound",
+    "path-names-another-key",
+    "bound-to-a-missing-key",
+    "bound-to-an-authored-key",
+    "swapped-binding-of-two-defaults",
+    "control-binding-of-four-defaults",
+];
+
+fn check_path_case_ids(ids: &[&str]) -> Result<(), String> {
+    let mut seen = BTreeSet::new();
+    for id in ids {
+        if !seen.insert(*id) {
+            return Err(format!("the path case {id} is repeated"));
+        }
+        if !PATH_CASES.contains(id) {
+            return Err(format!("the path case {id} is not one the harness knows"));
+        }
+    }
+    match PATH_CASES.iter().find(|w| !seen.contains(*w)) {
+        Some(w) => Err(format!("the path case {w} is missing")),
+        None => Ok(()),
+    }
+}
+
 fn receipts(root: &str) {
     let materialize: J = serde_json::from_str(
         &std::fs::read_to_string(format!("{root}/testdata/p5/materialize.json")).unwrap(),
@@ -458,6 +495,75 @@ fn receipts(root: &str) {
         );
     }
     assert_eq!(accepted, 7, "the accepted receipts");
+
+    // The path of an evidence entry and its binding (testdata/p5/receipt-paths.json): what the verifier says is measured here, not designed.
+    let paths: J = serde_json::from_str(
+        &std::fs::read_to_string(format!("{root}/testdata/p5/receipt-paths.json")).unwrap(),
+    )
+    .unwrap();
+    let listed: Vec<&str> = paths["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["id"].as_str().unwrap())
+        .collect();
+    if let Err(e) = check_path_case_ids(&listed) {
+        panic!("receipt-paths.json: {e}");
+    }
+    let mut path_cases = 0;
+    for pc in paths["cases"].as_array().unwrap() {
+        let id = pc["id"].as_str().unwrap();
+        let c = file["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == pc["base"])
+            .unwrap();
+        let mc = materialize["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|x| x["id"] == pc["base"])
+            .unwrap();
+        let projection: J =
+            serde_json::from_str(mc["expect"]["projection"].as_str().unwrap()).unwrap();
+        let keys: BTreeSet<String> = mc["expect"]["expected_keys"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|k| k.as_str().unwrap().to_string())
+            .collect();
+        let mut receipt: J = serde_json::from_str(
+            &c["document"]
+                .as_str()
+                .unwrap()
+                .replace(token, "cic-primitive-forms-rust"),
+        )
+        .unwrap();
+        let authored: J = serde_json::from_str(c["authored_input"].as_str().unwrap()).unwrap();
+        if let Some(ps) = pc.get("paths") {
+            for (i, p) in ps.as_array().unwrap().iter().enumerate() {
+                body(&mut receipt)["applied_defaults"][i]["path"] = p.clone();
+            }
+        }
+        let binding: BTreeMap<String, String> = pc["bind"]
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+            .collect();
+        let got = verify(&receipt, &authored, &projection, &keys, &binding);
+        match &pc["expect"] {
+            J::String(w) if w == "accept" => assert_eq!(got, Ok(()), "{id}: the path case"),
+            w => {
+                let (c, r) = (w[0].as_str().unwrap(), w[1].as_str().unwrap());
+                assert_eq!(got, Err((c, r)), "{id}: the path case");
+            }
+        }
+        path_cases += 1;
+    }
+    assert_eq!(path_cases, PATH_CASES.len(), "every path case ran");
+    println!("engine (rust): {path_cases} path and binding cases give the verdict written in receipt-paths.json");
     println!("engine (rust): {accepted} receipts accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
 }
 
@@ -554,4 +660,43 @@ fn main() {
     assert_eq!(checked, 7, "the accepted cases");
     println!("engine (rust): {checked} accepted cases agree with the engine's try_new and digest");
     receipts(&root);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_whole_table_is_accepted() {
+        assert_eq!(check_path_case_ids(&PATH_CASES), Ok(()));
+    }
+
+    #[test]
+    fn an_empty_table_is_refused() {
+        assert!(check_path_case_ids(&[]).unwrap_err().contains("is missing"));
+    }
+
+    #[test]
+    fn a_missing_case_is_refused() {
+        let ids = &PATH_CASES[1..];
+        let e = check_path_case_ids(ids).unwrap_err();
+        assert_eq!(e, format!("the path case {} is missing", PATH_CASES[0]));
+    }
+
+    #[test]
+    fn a_repeated_case_in_place_of_another_is_refused() {
+        let mut ids = PATH_CASES.to_vec();
+        ids[1] = ids[0];
+        let e = check_path_case_ids(&ids).unwrap_err();
+        assert_eq!(e, format!("the path case {} is repeated", PATH_CASES[0]));
+    }
+
+    #[test]
+    fn a_case_the_harness_does_not_know_is_refused() {
+        let mut ids = PATH_CASES.to_vec();
+        ids.push("invented");
+        assert!(check_path_case_ids(&ids)
+            .unwrap_err()
+            .contains("is not one the harness knows"));
+    }
 }

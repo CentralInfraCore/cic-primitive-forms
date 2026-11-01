@@ -409,3 +409,31 @@ Sections 17 and 18 proved the receipt on the shared cases and on the 6 000 gener
 **What was run.** Go: 45 s of exploration, 362 061 executions, no failure. Rust: `cargo-fuzz` 0.13.2 on the stable toolchain with `RUSTC_BOOTSTRAP=1` (the pinned nightly is the CI's), 60 s, 179 979 executions, no failure, the corpus the fuzzer grew was not committed. The CI job runs `cargo fuzz` for 60 s per target as for the others.
 
 **What this does not prove.** The schema is the one flat schema of the first case; other shapes are the generated differential's (section 18) and the refusals of section 12. The release fields are one fixture with one fault at a time; the engine verifier cannot see the schema identity (section 18). The product code did not change in this step, so there is no new product mutant; the fuzz code is test code. The parser class above is open.
+
+
+## 20. P5-3, fifth step: B and C measured against the pinned engine verifier (2026-11-01)
+
+The owner's record of 2026-10-30 asks, before P5-3 is closed, a machine-checked contract for **B** (who defines the `PathBinding`, how a tree position becomes a key) and **C** (the path form of a list element), because "the verifier accepts a path form" is not a proof that the path is bound to the right key. This step is the **measurement** half: what the pinned verifier (`a6a0680`, Rust `verify_receipt` and Go `receipt.Verify`) says, as a table the two engine harnesses check in CI. It designs nothing and changes no product code.
+
+**The table:** `testdata/p5/receipt-paths.json`, 16 cases. Each takes the receipt of a case of `receipt.json`, replaces the paths of its `applied_defaults`, and verifies it with a given binding. Both harnesses (`tools/p5/engine-harness-rust`, `tools/p5/engine-harness-go`, run by the existing `receipts` step) read it and assert the verdict; a verdict that differs fails the build. Seen to fail: a changed expectation turned red in Rust and in Go, for an accepted and for a refused case. The table itself is guarded: each harness carries the 16 case ids, each once, and stops on a table that has lost one, repeated one in place of another, or grew one it does not know (the count of the table is not a check of the table); the self-tests (`cargo test` and `go test` in the harness directories, run in CI) show each of the four refusals, and a real table with no cases, one dropped and one repeated was refused by both harnesses.
+
+**What it shows (all 16 as written, both languages, first run):**
+
+| Finding | Cases | Consequence |
+|---|---|---|
+| The form check refuses only an empty segment or a missing `$.` root (`$.a..b`, `$.a.`, `$.`, `enabled`, `$enabled`: `E_INVALID_RECEIPT`, `R-RECEIPT-EVIDENCE-FORM`) | 5 | the writing is nearly free |
+| The selector form of ADR 0006, `$.routes[{to="b"}].metric`, **passes** the form check and is accepted when bound; without a binding entry it is `E_RECEIPT_UNBOUND` | 2 | **C: the verifier does not refuse a list-element path, and does not interpret it** |
+| A dot inside a selector value (`{to="a.b"}`) splits the path into two non-empty segments and passes | 1 | the form check cannot tell a selector from a nested path; a key value with a dot is not safe in this writing |
+| The path is opaque text: `$.label` bound to the key `enabled`, and a path with a trailing space, are accepted | 2 | **B: the verifier does not relate a path to a key; only the binding does** |
+| A binding to a key that is not in the object, or to a key of another provenance, is `E_RECEIPT_MISMATCH`, `R-RECEIPT-EVIDENCE-MEMBERSHIP` | 2 | the binding is checked for existence and provenance |
+| Two defaulted fields bound crosswise (different values) are `R-RECEIPT-EVIDENCE-VALUE` | 1 (+1 control) | a wrong binding is seen **only through the value digest** |
+
+**The limit that follows (read from `check_entry`, not executed):** the verifier compares the digest of the value only. Two defaulted fields with **equal** values can have their bindings swapped and the receipt is still accepted. So the verifier cannot prove that a path is bound to the right key; that proof stays with the library's own derivation, which is the half that is not done.
+
+**Scope decisions (accepted by the review of this PR; the measured table above is the engine's behaviour, the lines below are what Forms commits to):**
+
+* **B, the library side.** Today the binding is `$.<field>` to `<field>`, one plain segment, derived from the schema and compared with the Python reference in every generated case (section 18). Whether a nested position or a list element needs a binding at all depends on materializing a non-flat document, which P5-2 does not do (decision H, and flat documents first). Proposal: P5-3 closes **flat only**, with the writing of a key that is not one plain segment refused (already so, `path_not_one_segment`), and a non-flat binding is a unit of its own after the engine's contract defines it.
+* **C, the list element.** The verifier accepts the selector form and does not interpret it; ADR 0006's escaping of a dot inside a selector value is not seen by it. Proposal: this library writes **no** list-element path in a receipt until the engine's contract says how a selector becomes a key; the measured table is the pinned behaviour that a later contract has to confirm or change.
+* **The end-to-end proof** (a document from text through parse, resolve, materialize and receipt to the engine verifier, in one run) is the next step; production receipt and Engine #63 stay on hold.
+
+**Recorded:** B closes for the flat `$.field -> field` binding only, derived from the same schema/materialization source and checked against an independent reference; a swapped binding of equal-valued defaults is not correct either, although the verifier would accept it. C: no list-element selector is written as a receipt evidence path until the engine's normative contract defines selector and key; unsupported input is refused explicitly. The non-flat binding is a contract unit of its own. The end-to-end proof is a separate PR and has to use values from one connected execution, not separately built fixtures.

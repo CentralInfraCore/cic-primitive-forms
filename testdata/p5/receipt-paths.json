@@ -1,0 +1,222 @@
+{
+ "about": "What the pinned engine verifier (verify_receipt, Rust and Go) says about the path of an evidence entry and its binding, measured on the engine pin. Each case takes the receipt of a case of receipt.json, replaces the paths of its applied_defaults in order (when paths is given), and verifies it with the given binding. This table is a measurement, not a design: that the verifier accepts a path form does not show that the path means the right key (section 20 of docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md).",
+ "cases": [
+  {
+   "id": "plain-bound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.enabled"
+   ],
+   "bind": {
+    "$.enabled": "enabled"
+   },
+   "expect": "accept",
+   "why": "the control: the form this library writes"
+  },
+  {
+   "id": "nested-bound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.a.b"
+   ],
+   "bind": {
+    "$.a.b": "enabled"
+   },
+   "expect": "accept",
+   "why": "a nested path is a form the verifier accepts when the caller binds it"
+  },
+  {
+   "id": "selector-bound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.routes[{to=\"b\"}].metric"
+   ],
+   "bind": {
+    "$.routes[{to=\"b\"}].metric": "enabled"
+   },
+   "expect": "accept",
+   "why": "the selector form of ADR 0006 passes the form check: it has no empty dot segment"
+  },
+  {
+   "id": "selector-unbound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.routes[{to=\"b\"}].metric"
+   ],
+   "bind": {},
+   "expect": [
+    "E_RECEIPT_UNBOUND",
+    "R-RECEIPT-PATH-BINDING"
+   ],
+   "why": "the same path without a binding entry is refused, never read as a key"
+  },
+  {
+   "id": "selector-with-dot-bound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.routes[{to=\"a.b\"}].metric"
+   ],
+   "bind": {
+    "$.routes[{to=\"a.b\"}].metric": "enabled"
+   },
+   "expect": "accept",
+   "why": "a dot inside a selector value splits the path into two non-empty segments, so the form check cannot tell it from a nested path"
+  },
+  {
+   "id": "empty-segment-in-the-middle",
+   "base": "flat.note-written",
+   "paths": [
+    "$.a..b"
+   ],
+   "bind": {
+    "$.a..b": "enabled"
+   },
+   "expect": [
+    "E_INVALID_RECEIPT",
+    "R-RECEIPT-EVIDENCE-FORM"
+   ],
+   "why": "an empty segment is refused before the binding is read"
+  },
+  {
+   "id": "empty-last-segment",
+   "base": "flat.note-written",
+   "paths": [
+    "$.a."
+   ],
+   "bind": {
+    "$.a.": "enabled"
+   },
+   "expect": [
+    "E_INVALID_RECEIPT",
+    "R-RECEIPT-EVIDENCE-FORM"
+   ],
+   "why": "a trailing dot is an empty segment"
+  },
+  {
+   "id": "root-only",
+   "base": "flat.note-written",
+   "paths": [
+    "$."
+   ],
+   "bind": {
+    "$.": "enabled"
+   },
+   "expect": [
+    "E_INVALID_RECEIPT",
+    "R-RECEIPT-EVIDENCE-FORM"
+   ],
+   "why": "the root with no segment"
+  },
+  {
+   "id": "no-root",
+   "base": "flat.note-written",
+   "paths": [
+    "enabled"
+   ],
+   "bind": {
+    "enabled": "enabled"
+   },
+   "expect": [
+    "E_INVALID_RECEIPT",
+    "R-RECEIPT-EVIDENCE-FORM"
+   ],
+   "why": "a bare key is not a path"
+  },
+  {
+   "id": "dollar-without-dot",
+   "base": "flat.note-written",
+   "paths": [
+    "$enabled"
+   ],
+   "bind": {
+    "$enabled": "enabled"
+   },
+   "expect": [
+    "E_INVALID_RECEIPT",
+    "R-RECEIPT-EVIDENCE-FORM"
+   ],
+   "why": "the root needs the dot"
+  },
+  {
+   "id": "trailing-space-bound",
+   "base": "flat.note-written",
+   "paths": [
+    "$.enabled "
+   ],
+   "bind": {
+    "$.enabled ": "enabled"
+   },
+   "expect": "accept",
+   "why": "the path is opaque text: the verifier does not trim, and does not relate the path to the key"
+  },
+  {
+   "id": "path-names-another-key",
+   "base": "flat.note-written",
+   "paths": [
+    "$.label"
+   ],
+   "bind": {
+    "$.label": "enabled"
+   },
+   "expect": "accept",
+   "why": "the verifier does not relate the path text to the key it is bound to: $.label bound to enabled is accepted (only the binding says which key a path means)"
+  },
+  {
+   "id": "bound-to-a-missing-key",
+   "base": "flat.note-written",
+   "paths": [
+    "$.enabled"
+   ],
+   "bind": {
+    "$.enabled": "nope"
+   },
+   "expect": [
+    "E_RECEIPT_MISMATCH",
+    "R-RECEIPT-EVIDENCE-MEMBERSHIP"
+   ],
+   "why": "a key that is not in the object"
+  },
+  {
+   "id": "bound-to-an-authored-key",
+   "base": "flat.note-written",
+   "paths": [
+    "$.enabled"
+   ],
+   "bind": {
+    "$.enabled": "label"
+   },
+   "expect": [
+    "E_RECEIPT_MISMATCH",
+    "R-RECEIPT-EVIDENCE-MEMBERSHIP"
+   ],
+   "why": "a key whose provenance is not the one the list requires"
+  },
+  {
+   "id": "swapped-binding-of-two-defaults",
+   "base": "flat.minimal",
+   "bind": {
+    "$.enabled": "enabled",
+    "$.label": "mtu",
+    "$.maybe": "maybe",
+    "$.mtu": "label"
+   },
+   "expect": [
+    "E_RECEIPT_MISMATCH",
+    "R-RECEIPT-EVIDENCE-VALUE"
+   ],
+   "why": "the binding is what ties a path to a value: two defaulted fields with different values, bound crosswise, are refused on the value digest"
+  },
+  {
+   "id": "control-binding-of-four-defaults",
+   "base": "flat.minimal",
+   "bind": {
+    "$.enabled": "enabled",
+    "$.label": "label",
+    "$.maybe": "maybe",
+    "$.mtu": "mtu"
+   },
+   "expect": "accept",
+   "why": "the control of the swap"
+  }
+ ]
+}
