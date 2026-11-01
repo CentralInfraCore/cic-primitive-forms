@@ -196,17 +196,18 @@ fn link(id: &str, c: &Chain) -> J {
     body.clone()
 }
 
-/// The record of one run, as the dump and the checker see it. `chain` binds the schema, the input, the output and the receipt of THIS run, and its capability map.
+/// The record of one run, as the dump and the checker see it. `chain` binds the schema, the input, the output, the receipt and the path binding (the engine's separate input) of THIS run, and its capability map.
 fn record(c: &Chain, caps: &BTreeMap<String, String>) -> J {
     let r = &c.receipt;
     let chain = sha256_hex(
         format!(
-            "{}\n{}\n{}\n{}\n{}",
+            "{}\n{}\n{}\n{}\n{}\n{}",
             c.identity.schema_digest,
             canonical_digest(c.authored.as_bytes()),
             c.standalone.output_digest,
             r.digest,
-            serde_json::to_string(caps).unwrap()
+            serde_json::to_string(caps).unwrap(),
+            sha256_hex(serde_json::to_string(&r.binding).unwrap().as_bytes())
         )
         .as_bytes(),
     );

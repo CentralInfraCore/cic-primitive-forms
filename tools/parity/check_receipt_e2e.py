@@ -6,15 +6,15 @@
 
 DIR holds rust.e2e.jsonl and go.e2e.jsonl, one line per case: {"id", "base", "alt"}, each run holding every artefact of ONE execution of the chain (the schema
 identity, the authored input, the standalone materialization, the receipt with the object the builder materialized inside, and `chain`, a digest over the schema,
-the input, the output, the receipt and the capability map of that run). The reference is testdata/p5/end-to-end.json, computed in Python by
+the input, the output, the receipt, the path binding and the capability map of that run). The reference is testdata/p5/end-to-end.json, computed in Python by
 tools/p5/end_to_end_cases.py from the fields each case lists. Exit status 1 when
 
  * a language lacks a case the reference has, repeats one, or has one the reference does not (completeness is checked per language: a case missing from BOTH is red);
  * a run lacks an artefact of the chain (a step was skipped) or has one the chain does not make;
  * the schema identity, the authored input, the standalone object, its output digest, the receipt, the binding or the default evidence differ from the reference;
  * the object the receipt builder materialized inside is not the standalone one (the chain states TWO materializations; they have to be one object);
- * the chain digest is not the one of the artefacts the record holds (an artefact of ANOTHER run was put in: the schema, the input, the output, the receipt and
-   the capability map have to be of one run);
+ * the chain digest is not the one of the artefacts the record holds (an artefact of ANOTHER run was put in: the schema, the input, the output, the receipt, the path
+   binding and the capability map have to be of one run);
  * a capability change does not move the object, the output digest and the receipt, or moves the input digest, the schema identity or the binding, or more of the
    receipt than its output digest;
  * the two languages differ in anything but the engine identity (and what depends on it: the receipt digest and the chain digest);
@@ -49,10 +49,11 @@ def sha(text):
 
 
 def chain_digest(run):
-    """The digest a run has to carry: of ITS schema, input, output, receipt and capability map."""
+    """The digest a run has to carry: of ITS schema, input, output, receipt, path binding (the engine takes it apart from the receipt) and capability map."""
     caps = json.dumps(run["capabilities"], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     input_digest = "sha256:" + sha(run["authored_input"])
-    return sha("\n".join([run["schema_digest"], input_digest, run["standalone"]["output_digest"], run["receipt"]["digest"], caps]))
+    binding = json.dumps(run["receipt"]["binding"], sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return sha("\n".join([run["schema_digest"], input_digest, run["standalone"]["output_digest"], run["receipt"]["digest"], caps, sha(binding)]))
 
 
 def check_run(lang, cid, which, run, case, want, fixture):

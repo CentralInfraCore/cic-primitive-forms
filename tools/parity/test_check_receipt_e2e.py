@@ -176,6 +176,32 @@ class CheckReceiptE2E(unittest.TestCase):
         d["go"][1]["base"]["capabilities"] = copy.deepcopy(d["go"][1]["alt"]["capabilities"])
         self.assertTrue(has(messages(d), "go one-default base", "capability map"))
 
+    def test_the_chain_digest_covers_the_path_binding(self):
+        # the binding is a separate input of the engine's verifier: changing it, and nothing else, has to change the chain digest and turn the chain check red
+        d = dumps()
+        run = d["rust"][3]["base"]
+        before = run["chain"]
+        b = run["receipt"]["binding"]
+        b["$.active"], b["$.enabled"] = b["$.enabled"], b["$.active"]
+        self.assertNotEqual(ck.chain_digest(run), before)
+        self.assertEqual(run["chain"], before)
+        p = messages(d)
+        self.assertTrue(has(p, "rust twin-defaults base", "chain digest"))
+        # the chain check alone: with the reference's binding check out of the way, the digest still catches the swap
+        original = ck.check_run
+
+        def without_binding_reference(lang, cid, which, run, case, want, fixture):
+            want = dict(want, binding=run["receipt"]["binding"] if isinstance(run, dict) and "receipt" in run else want["binding"])
+            return original(lang, cid, which, run, case, want, fixture)
+
+        ck.check_run = without_binding_reference
+        try:
+            p = messages(d)
+        finally:
+            ck.check_run = original
+        self.assertTrue(has(p, "rust twin-defaults base", "chain digest"))
+        self.assertFalse(has(p, "rust twin-defaults base", "path binding"))
+
     def test_a_receipt_of_another_case_is_red(self):
         d = dumps()
         d["rust"][2]["base"]["receipt"] = copy.deepcopy(d["rust"][0]["base"]["receipt"])

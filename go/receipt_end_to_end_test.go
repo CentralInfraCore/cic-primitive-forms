@@ -210,15 +210,20 @@ func e2eLink(t *testing.T, id string, c *e2eChain) map[string]any {
 	return body
 }
 
-// e2eRecord is the record of one run, as the dump and the checker see it. chain binds the schema, the input, the output and the receipt of THIS run, and its
-// capability map.
+// e2eRecord is the record of one run, as the dump and the checker see it. chain binds the schema, the input, the output, the receipt and the path binding (the engine's separate input) of THIS run, and
+// its capability map.
 func e2eRecord(t *testing.T, c *e2eChain, caps map[string]string) map[string]any {
 	t.Helper()
 	capsJSON, err := json.Marshal(caps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256([]byte(fmt.Sprintf("%s\n%s\n%s\n%s\n%s", c.identity.SchemaDigest, forms.CanonicalDigest([]byte(c.authored)), c.standalone.OutputDigest, c.receipt.Digest, capsJSON)))
+	bindingJSON, err := json.Marshal(c.receipt.Binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingSum := sha256.Sum256(bindingJSON)
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", c.identity.SchemaDigest, forms.CanonicalDigest([]byte(c.authored)), c.standalone.OutputDigest, c.receipt.Digest, capsJSON, hex.EncodeToString(bindingSum[:]))))
 	r := c.receipt
 	return map[string]any{
 		"capabilities":   caps,
