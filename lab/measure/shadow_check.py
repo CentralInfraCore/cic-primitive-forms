@@ -30,23 +30,11 @@ def stable(v):
     return v[0] if v and v[0] == v[1] else None
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--decisions", required=True)
-    ap.add_argument("--verdicts", required=True)
-    ap.add_argument("--repo", required=True)
-    ap.add_argument("--work", required=True)
-    ap.add_argument("--rev", default="origin/main")
-    ap.add_argument("--out", required=True)
-    a = ap.parse_args()
-    repo = os.path.abspath(a.repo)
-    cache = json.load(open(os.path.join(os.path.abspath(a.work), "cache.json")))
-    commits = [c for c in bd.git(repo, "rev-list", "--first-parent", "--reverse", a.rev).split() if c in cache]
-    parent = {commits[i + 1]: commits[i] for i in range(len(commits) - 1)}
-    verdicts = json.load(open(a.verdicts))
+def classify(lines, verdicts, parent):
+    """(tally by decision and kind, the false reuses, the nondeterministic test names) of decision lines `child test status reasons`."""
     tally = collections.defaultdict(collections.Counter)
     false_reuse, flaky = [], set()
-    for line in open(a.decisions):
+    for line in lines:
         if not line.strip():
             continue
         c, t, status, reasons = (line.split(" ", 3) + [""])[:4]
@@ -73,6 +61,24 @@ def main():
             else:
                 kind = "NO_STABLE_OUTCOME"
         tally[status][kind] += 1
+    return tally, false_reuse, flaky
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--decisions", required=True)
+    ap.add_argument("--verdicts", required=True)
+    ap.add_argument("--repo", required=True)
+    ap.add_argument("--work", required=True)
+    ap.add_argument("--rev", default="origin/main")
+    ap.add_argument("--out", required=True)
+    a = ap.parse_args()
+    repo = os.path.abspath(a.repo)
+    cache = json.load(open(os.path.join(os.path.abspath(a.work), "cache.json")))
+    commits = [c for c in bd.git(repo, "rev-list", "--first-parent", "--reverse", a.rev).split() if c in cache]
+    parent = {commits[i + 1]: commits[i] for i in range(len(commits) - 1)}
+    verdicts = json.load(open(a.verdicts))
+    tally, false_reuse, flaky = classify(open(a.decisions), verdicts, parent)
     report = {"decisions": {k: dict(v) for k, v in tally.items()}, "false_reuse": false_reuse, "nondeterministic_tests": sorted(flaky)}
     json.dump(report, open(a.out, "w"), indent=1)
     print(json.dumps({k: v for k, v in report.items() if k != "false_reuse"}, indent=1))

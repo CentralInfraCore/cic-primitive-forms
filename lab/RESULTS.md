@@ -347,6 +347,47 @@ parent pass reused for a child failure, so none could appear whatever the model 
 empty: the replay confirms that the pipeline runs on observed outcomes and that nothing contradicts the decisions, and it has no power to find
 a wrong decision. The power comes from states in which a test fails. That is the next step (injected semantic changes), not a result here.
 
+### 10.4 Injected semantic changes against the decisions (Go, falsification)
+
+The history is green (10.3), so it cannot show a wrong decision. `mutant_shadow.py` makes states in which tests fail on purpose: for the tree
+at `c70bea9` (every Go test passes) and for each of 329 mutants of the product code (29 aimed at the blind spots found so far, 300 drawn
+at random from 1944 textual ones with seed 1), the whole suite is run (a failure is observed **twice**), and the kernel decides every test
+for the pair baseline -> mutant. A killed test called `REUSE_ELIGIBLE` is a false reuse. Per mutant the file keeps the changed line, the
+parent and mutant key of every killed test, its closure size, the observed outcome, the decision and the reason
+(`lab/results/mutant-shadow-*-c70bea9.json.gz`).
+
+| Pairs (mutant x test), 316 mutants evaluated, 13 dropped (no compile / timeout) | Fixed build, measured assurance | Control A: old model, **everything vouched** |
+|---|---|---|
+| parent PASS, mutant FAIL (twice): `RERUN_REQUIRED` | 2685 | 2668 |
+| ... `UNVERIFIABLE` | 29 | 26 |
+| ... **`REUSE_ELIGIBLE` = false reuse** | **0** | **12** (3 mutants) |
+| killed tests whose Merkle key did **not** move | **0** | **12** |
+| parent PASS, mutant PASS (cannot test the detection) | 78883 | 78890 |
+| unstable (the two runs differ) | 9 | 10 |
+| no outcome even after rerunning alone | 554 | 554 |
+
+Both sides of the criterion hold. The fixed build calls none of 2714 failing tests eligible and moves the key of every one of them. The
+old model with an Assurance that vouches for everything calls 12 eligible, **all of one kind: a blank constant inserted into an `iota`
+group** (`access.go:133`, `node.go:27`, `validate.go:19`), the position of a constant that no text of it shows; the fixed build asks for a
+rerun on those same mutants (6, 1 and 5 tests). Control B, the old model with **its own measured Assurance** (29 aimed mutants,
+`mutant-shadow-honest-targeted`): the 35 failing tests are all `UNVERIFIABLE`, none eligible, and 12 of them had a key that did not move.
+That is the sensitivity without a false approval: the key shows the model missed the change, and the kernel withholds anyway. Control A
+is a counterfactual (what a reviewer who wrongly vouched would get), not a path of the system.
+
+What this does not show, and where the first run was wrong:
+
+* **The first run saw too little.** A `panic` or a fatal error ends the test binary and the tests after it never run: 72 of the 316
+  mutants. The first run reported 1819 failing tests and "0 false reuse"; observing the missing tests alone, in further rounds, gives 2714.
+  The first result held for the tests it saw only. After the fix: **554 pairs (0.7%) in 4 mutants** (`parse.go:183`, `:201`, `:264`,
+  `schema.go:257`) have no outcome even so (they run past the 120 s limit); the claim does not cover them.
+* **The mutants find one defect class of the old model: the iota position.** The dispatch gaps (generics, promoted methods, slice elements,
+  fields) do not occur in the product code's shape, so no mutant could reveal them; those are held by the eleven fixture pairs
+  (`repro_dispatch.py`), not by this experiment. The same holds for aliases.
+* **48 mutants survived**, 12 of the 18 aimed at `iota` among them: no test observes those values. That is a gap in the tests, not in the
+  model, and a survivor says nothing about a decision.
+* Textual mutants of Go product code, 329 of them: a sample. Go only. 9 unstable pairs are not judged. Nothing about Rust, nothing
+  about data files or the environment.
+
 ## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned
