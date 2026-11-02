@@ -65,6 +65,20 @@ class Rule(unittest.TestCase):
         self.assertEqual(run(p, c), (False, "DEPENDENCY_CHANGED"))
 
 
+class Kernel(unittest.TestCase):
+    def test_a_reaching_test_the_kernel_does_not_clear_stops_the_carry(self):
+        p, c = graph(), graph()
+        mi, ci = mp.index(p), mp.index(c)
+        self.assertEqual(mp.decide(MUT, "CaughtMutant", mi, ci, lambda t: True), (True, "CARRY"))
+        self.assertEqual(mp.decide(MUT, "CaughtMutant", mi, ci, lambda t: False), (False, "A_REACHING_TEST_NOT_REUSE_ELIGIBLE"))
+
+    def test_decisions_map_by_runner_key_and_unknown_is_not_ok(self):
+        ok = mp.kernel_test_ok({"rust:cic_primitive_forms::access::tests::x": "REUSE_ELIGIBLE", "rust:v::y": "RERUN_REQUIRED"})
+        self.assertTrue(ok("access/tests/x()."))
+        self.assertFalse(ok("tests/v::y()."))
+        self.assertFalse(ok("tests/v::unknown()."))
+
+
 class Outcomes(unittest.TestCase):
     def write(self, d, name, summary, sub="rust-mutants-0"):
         import json

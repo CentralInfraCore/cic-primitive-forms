@@ -58,7 +58,12 @@ Measured on two real nightly FULL runs (Rust only; `541ad60` -> `033b671`, 1569 
 
 The tool check is in (`env.json`: mutation tool, cargo, rustc must agree; missing or different carries nothing).
 
-Not done: the data/environment digests of the planner (here test keys stand for them) and the comparison with a real run in CI.
+**Correction after review (kernel decisions):** the first rule compared test keys only, so a test the kernel does not clear (UNVERIFIABLE: `proptest!`,
+`reflect`; or a changed data read, environment, assurance) did not stop a carry. `mutplan.py --plan` / `mutcarry.py plan --plan` now require every test that
+reached the mutant to be REUSE_ELIGIBLE in the kernel's decisions of this tree against the evidence **at the commit of the earlier run** (not the latest
+evidence), and the authority to carry is the authority of that plan (evidence and planner from main). Effect, on the same two nightlies with the decisions of
+a full-tree plan: 1314 of 1569 (83.7%) became **614 of 1569 (39.1%), 42.7% of the mutant seconds**; 700 mutants are held back by a test the kernel does not
+clear. Not done: the comparison with a real run in CI.
 **Go cannot be done from the existing artifacts:** the ledger of `mutation_shard_exec.sh` names a mutant by the digest of the whole mutated
 file (`id<TAB>shard<TAB>shards<TAB>verdict`), so any edit of the file renames every mutant in it and the id carries no file or line. A Go
 carry-over needs the stable mutant id of `docs/C-STABLE-MUTANT-ID-PLAN.md` (or a listing that records file and line per id) first; `go-mutesting`
@@ -71,6 +76,28 @@ by hand). p1 stays as it is and stays the required check. Step 1 changes only wh
 name `proof / <job>` for every job (the checks of a workflow are named by the job alone and the ruleset of `main` requires those names), no
 `workflow_call`, and `inherit` asking about p1-proof.yml. The job graph (ids, `needs`, `if`) is p1's, and the test says so. The planner does not decide
 anything in it yet: it runs exactly what p1 runs, which is the baseline the next steps are compared with.
+
+Step 4: the `rust` and `go` jobs of p1-proof wait for `proof-plan`, fetch its plan and run their test step through `select_tests.py run`: the command of p1 minus
+the REUSE_ELIGIBLE tests, but only when the plan is authorized (evidence and planner from main). On a pull request that is never so, and with no plan
+at all (the planner failed) the command is p1's. Run locally with an authorized plan: Rust 233 skipped, the 20 others passed, doctests included; Go 266 skipped, rest passed.
+Step 5: `proof-compare` waits for every other job and for the p1 run of the same commit, compares the conclusions job by job and the planner's FALSE_REUSE, and
+fails on a divergence; when the comparison cannot be made it says NOT COMPARED (not a pass, not a failure).
+
+Step 6: mutation. `proof-mutplan` predicts on every run (report) which Rust mutant verdicts of the last nightly FULL may stand; on main it writes them out as
+carried verdicts, and `quality-mutation-rust` leaves them out of its run (`-E`) and puts their outcomes into its report with the totals recounted, so the
+gate reads a complete shard report as before. That shard only runs in a classic FULL (nightly, by hand), never in a pull request. Rehearsed locally with
+the real cargo-mutants on a slice of 31 mutants (`src/(receipt|normalize|defaults).rs`) after a code edit in `is_digest`: 3 carried, 30 ran, the merged
+report equals the report of a full run of the same tree mutant by mutant (33 of 33), and the gate accepts it. One slice, one edit, three carried:
+it shows the mechanism is exact, not that the saving is large (the rule is conservative: 3 of 31 here, 83.7% between the two nightlies, whose commits
+changed no crate code).
+
+Step 7 (review: the tests ran twice): in p1-proof the planner is two phases around the jobs. `proof-plan` (phase `plan`) decides; `rust` and `go` run the
+tests through `select_tests.py run ... --observed-out` and leave what each test did as `proof-observed-<lang>`; `proof-finish` (phase `finish`) traces the reads
+of the tests that ran, sets the decisions against those observations and writes the evidence. The planner no longer runs the tests for itself in p1-proof (it
+still does in its own workflow, `proof-plan.yml` on its own triggers, which stays the measuring harness). A test the plan skipped is CARRIED: its earlier verdict
+and the commit it was obtained on stay in the evidence. The old key-only mutation prediction step of that workflow is gone; `proof-mutplan` replaces it.
+
+The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
 
 ## Trust: what may ever authorize skipping
 
@@ -108,5 +135,9 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `qualify.py`, `qualify_rust.py`, `rust_graph.py`, `repro_rust_dispatch.py`, `testdata/` | probes that qualify an extractor build |
 | `extractor/` | the Go extractors (their own modules) |
 | `gen_p1_proof.py`, `test_gen_p1_proof.py` | generates and checks `p1-proof.yml` from `p1.yml` |
+| `select_tests.py`, `test_select_tests.py` | the commands the decisions imply (`-skip`, `--exact --skip`), checked against the real test lists; report only |
+| `compare_runs.py`, `test_compare_runs.py` | p1-proof against p1, job by job, for the same commit (the `proof-compare` job) |
+| `mutcarry.py`, `gen_mutation.py`, `test_mutcarry.py` | carried mutation verdicts into a shard's report; the p1-proof wiring of `quality-mutation-rust` |
+| `test_record_carry.py` | a test the plan skipped is carried, not observed |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |

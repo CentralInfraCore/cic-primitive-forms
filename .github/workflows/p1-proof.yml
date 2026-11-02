@@ -88,11 +88,16 @@ jobs:
       - run: CIC_REQUIRE_GH_ATTESTATION=1 python3 tools/test-evidence/evidence.py check-gh
   rust:
     name: "proof / rust"
-    needs: inherit
+    needs: [inherit, proof-plan]
     if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true   # no plan: the test step runs the command of p1
+        with:
+          name: proof-plan-data
+          path: ${{ runner.temp }}/proof
       - uses: ./.github/actions/upstream-pinned
       - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rustfmt,clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -102,8 +107,15 @@ jobs:
         working-directory: rust
       - run: cargo +"$RUST_TOOLCHAIN" clippy --locked --all-targets -- -D warnings
         working-directory: rust
-      - run: cargo +"$RUST_TOOLCHAIN" test --locked
-        working-directory: rust
+      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        continue-on-error: true
+        with:
+          name: proof-observed-rust
+          path: ${{ runner.temp }}/observed-rust.json
+          if-no-files-found: ignore
+          retention-days: 7
       # P5-1 (ADR 0014, decision A): the canonical-bytes table is the engine's own vectors at the pinned commit, plus own vectors against a reference written apart
       - id: engine
         run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
@@ -128,11 +140,16 @@ jobs:
       - run: cargo +"$RUST_TOOLCHAIN" test --locked -q --manifest-path tools/p5/engine-harness-rust/Cargo.toml
   go:
     name: "proof / go"
-    needs: inherit
+    needs: [inherit, proof-plan]
     if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true   # no plan: the test step runs the command of p1
+        with:
+          name: proof-plan-data
+          path: ${{ runner.temp }}/proof
       - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
@@ -142,8 +159,15 @@ jobs:
         working-directory: go
       - run: go vet ./...
         working-directory: go
-      - run: go test -race -count=1 -rapid.checks=1000 ./...
-        working-directory: go
+      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        continue-on-error: true
+        with:
+          name: proof-observed-go
+          path: ${{ runner.temp }}/observed-go.json
+          if-no-files-found: ignore
+          retention-days: 7
       # P5-2: the same cases against the engine's Go module (the Rust peer is in the rust job)
       - id: engine
         run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
@@ -442,8 +466,8 @@ jobs:
 
   quality-mutation-rust:
     name: "proof / quality-mutation-rust"
-    needs: [scope, plan]
-    if: ${{ needs.scope.outputs.mode == 'full' && needs.scope.outputs.engine == 'classic' }}
+    needs: [scope, plan, proof-mutplan]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.scope.outputs.mode == 'full' && needs.scope.outputs.engine == 'classic' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -474,12 +498,39 @@ jobs:
             --shards "$RUST_SHARDS" --shard ${{ matrix.shard }} --regex-out "$RUNNER_TEMP/q/re.txt" --names-out "$RUNNER_TEMP/q/names.json"
           (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json -F "$(cat "$RUNNER_TEMP/q/re.txt")") > "$RUNNER_TEMP/q/selected.json"
           python3 tools/shard_plan.py verify --names "$RUNNER_TEMP/q/names.json" --selected "$RUNNER_TEMP/q/selected.json"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true   # no prediction: every mutant of the shard runs
+        with:
+          name: proof-carried
+          path: ${{ runner.temp }}/carried
+      - name: Mutants that carry an earlier verdict leave this shard's run
+        run: |
+          C="$RUNNER_TEMP/carried/carried.json"; : > "$RUNNER_TEMP/q/ex.txt"
+          if [ -f "$C" ]; then
+            python3 tools/proof-plan/mutcarry.py exclude --carried "$C" --names "$RUNNER_TEMP/q/names.json" --out "$RUNNER_TEMP/q/ex.txt"
+            python3 tools/proof-plan/mutcarry.py rest --carried "$C" --names "$RUNNER_TEMP/q/names.json" --out "$RUNNER_TEMP/q/rest.json"
+          fi
+          if [ -s "$RUNNER_TEMP/q/ex.txt" ]; then
+            # what runs must be exactly the planned mutants minus the carried ones, or the shard stops here
+            (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json -F "$(cat "$RUNNER_TEMP/q/re.txt")" -E "$(cat "$RUNNER_TEMP/q/ex.txt")") > "$RUNNER_TEMP/q/selected-rest.json"
+            python3 tools/shard_plan.py verify --names "$RUNNER_TEMP/q/rest.json" --selected "$RUNNER_TEMP/q/selected-rest.json"
+          else
+            echo "No mutant of this shard is carried: all of them run."
+          fi
       - name: Mutation, Rust (cargo-mutants), one shard
         run: |
           # The exit status of cargo-mutants says whether mutants survived; the gate decides that.
           # The cap is the one of the diff shards (diff-mutation-rust): a mutant that moves the reader backwards can grow memory until the runner kills the whole job
           # ("The operation was canceled", no verdict; FULL 40841623917, shards 10 and 11); under the cap the allocation fails and the mutant is caught.
-          (ulimit -v 6291456; cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants -F "$(cat "$RUNNER_TEMP/q/re.txt")" --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+          EXARGS=(); [ -s "$RUNNER_TEMP/q/ex.txt" ] && EXARGS=(-E "$(cat "$RUNNER_TEMP/q/ex.txt")")
+          (ulimit -v 6291456; cd rust && CIC_FORMS_ROOT="$GITHUB_WORKSPACE" cargo +"$RUST_TOOLCHAIN" mutants -F "$(cat "$RUNNER_TEMP/q/re.txt")" "${EXARGS[@]}" --output "$RUNNER_TEMP/q/mut-rust" --jobs 1 --timeout 120 -- --tests) || true
+      - name: The report of the shard holds the carried verdicts too
+        run: |
+          O="$RUNNER_TEMP/q/mut-rust/mutants.out/outcomes.json"; C="$RUNNER_TEMP/carried/carried.json"
+          if [ -f "$C" ] && [ -s "$RUNNER_TEMP/q/ex.txt" ]; then
+            python3 tools/proof-plan/mutcarry.py merge --carried "$C" --names "$RUNNER_TEMP/q/names.json" --fresh "$O" --out "$O.merged"
+            mv "$O.merged" "$O"
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rust-mutants-${{ matrix.shard }}
@@ -1596,3 +1647,135 @@ jobs:
           (cd rust && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_patch_dump)
           (cd go && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpPatchOutcomes$' .)
           python3 tools/parity/patch_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"
+
+  proof-plan:
+    name: "proof / proof-plan"
+    uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: plan
+    permissions:
+      contents: read
+      actions: read   # the planner finds and downloads the evidence artifact of an earlier run
+
+  proof-finish:
+    name: "proof / proof-finish"
+    needs: [rust, go, proof-plan]
+    if: ${{ always() && !cancelled() }}   # also when a test job failed: that is what the evidence has to say
+    uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: finish
+    permissions:
+      contents: read
+      actions: read
+
+  proof-mutplan:
+    name: "proof / proof-mutplan"
+    needs: scope
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true   # a prediction: it never fails the pipeline, and without it every mutant runs
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: |
+            tools/proof-plan/extractor/typeddeps/go.sum
+            tools/proof-plan/extractor/scipdeps/go.sum
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rust-analyzer
+      - name: Tool, cargo-mutants (pinned)
+        uses: ./.github/actions/cached-tool
+        with:
+          kind: cargo
+          name: cargo-mutants
+          spec: cargo-mutants@27.1.0
+      - name: The extractors (reproducible builds)
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          (cd tools/proof-plan/extractor/typeddeps && go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/typeddeps" .)
+          (cd tools/proof-plan/extractor/scipdeps && go build -trimpath -buildvcs=false -o "$RUNNER_TEMP/scipdeps" .)
+      - name: The last nightly FULL on main
+        id: nightly
+        run: |
+          RUN=$(gh run list --workflow nightly.yml --branch main --status success --limit 1 --json databaseId,headSha -q '.[0] | "\(.databaseId) \(.headSha)"')
+          set -- $RUN; echo "id=$1" >> "$GITHUB_OUTPUT"; echo "sha=$2" >> "$GITHUB_OUTPUT"
+          if [ -z "$1" ]; then echo "No successful nightly on main: no prediction."; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/nightly"
+          # rust-mutants-N holds outcomes.json; rust-mutants-log-N holds the same file again, which these patterns leave out
+          for pat in "rust-mutants-?" "rust-mutants-??" "env-rust-mutants-0"; do gh run download "$1" --repo "$GITHUB_REPOSITORY" -p "$pat" -D "$RUNNER_TEMP/nightly" || true; done
+          git worktree add --detach "$RUNNER_TEMP/prevtree" "$2"
+      # A mutant verdict was obtained on the nightly's commit with the tests of that commit. It may stand only if every test that reached the mutant is
+      # REUSE_ELIGIBLE for the kernel, now, against the evidence of that very commit (not the latest one): the keys, the data the tests read, the
+      # environment and the assurance of the extractor. No evidence at that commit means no decision, and no mutant is carried.
+      - name: The evidence at the commit of that nightly
+        if: ${{ steps.nightly.outputs.id != '' }}
+        run: python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prevev" --branch main --sha "${{ steps.nightly.outputs.sha }}" || true
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/qual
+          key: proof-qual-${{ runner.os }}-${{ hashFiles('tools/proof-plan/**', '!**/__pycache__/**') }}
+          restore-keys: |
+            proof-qual-${{ runner.os }}-
+      - name: The decisions of the kernel for this tree against that evidence
+        if: ${{ steps.nightly.outputs.id != '' }}
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # the planner is main's own code only on a run of main itself; anywhere else the evidence and the carry are a report
+          TRUST=branch; if [ "$GITHUB_REF" = refs/heads/main ] && [ "$EVENT" != pull_request ]; then TRUST=main; fi
+          PREV=""; if [ -f "$RUNNER_TEMP/prevev/evidence.json" ]; then PREV="--prev $RUNNER_TEMP/prevev"; fi
+          python3 tools/proof-plan/plan.py --repo . --typeddeps "$RUNNER_TEMP/typeddeps" --scipdeps "$RUNNER_TEMP/scipdeps" --rust-toolchain "$RUST_TOOLCHAIN" \
+            --tooling-trust "$TRUST" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" $PREV
+      - name: Which mutant verdicts may stand
+        if: ${{ steps.nightly.outputs.id != '' }}
+        env:
+          NIGHTLY_ID: ${{ steps.nightly.outputs.id }}
+          NIGHTLY_SHA: ${{ steps.nightly.outputs.sha }}
+        run: |
+          (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json) > "$RUNNER_TEMP/all.json"
+          { echo '### Mutation carry-over'; echo "Earlier FULL: nightly run $NIGHTLY_ID at \`${NIGHTLY_SHA:0:7}\`"; echo '```'
+            python3 tools/proof-plan/mutcarry.py plan --prev-repo "$RUNNER_TEMP/prevtree" --cur-repo . --scipdeps "$RUNNER_TEMP/scipdeps" \
+              --rust-toolchain "$RUST_TOOLCHAIN" --outcomes "$RUNNER_TEMP/nightly" --prev-env "$RUNNER_TEMP/nightly/env-rust-mutants-0/env.json" \
+              --plan "$RUNNER_TEMP/plan/plan.json" --list "$RUNNER_TEMP/all.json" --source "$NIGHTLY_ID" --out "$RUNNER_TEMP/carried.json"
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.nightly.outputs.id != '' }}
+        with:
+          name: proof-carried
+          path: ${{ runner.temp }}/carried.json
+          if-no-files-found: warn
+
+  proof-compare:
+    name: "proof / proof-compare"
+    needs: [inherit, quality-gate-selftest, evidence-selftest, rust, go, branch-coverage, scope, quality-lines, plan, quality-mutation-rust, quality-mutation-go, diff-plan, diff-mutation-rust, diff-mutation-go, diff-gamma, fast-list, fast-mutation-rust, fast-mutation-go, shadow-gamma, quality, fuzz-target, fuzz, seeded-defects-shard, seeded-defects, parity, edit-proof, diff-proof, patch-proof, proof-plan, proof-finish, proof-mutplan]
+    if: ${{ always() && !cancelled() }}   # also when a job before it failed: that is what is compared
+    runs-on: ubuntu-latest
+    timeout-minutes: 40   # it waits for the p1 run of the same commit
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: proof-evidence
+          path: ${{ runner.temp }}/proof
+      - run: |
+          python3 tools/proof-plan/compare_runs.py --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA" --event "$EVENT" --own-run "$GITHUB_RUN_ID" \
+            --comparison "$RUNNER_TEMP/proof/comparison.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "${PIPESTATUS[0]}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}   # the pull request run is named by the head, not by the merge commit
