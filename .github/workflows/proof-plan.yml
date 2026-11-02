@@ -47,6 +47,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           REF: ${{ github.ref }}
         run: |
           # A planner in a pull request can make any evidence it likes, so a decision made by it can be reported but never obeyed. For a pull
@@ -55,7 +56,9 @@ jobs:
           TOOL="$GITHUB_WORKSPACE/tools/proof-plan"; TRUST=branch
           if [ "$EVENT" = pull_request ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
             mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
-            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
+            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"
+            # the base is trusted only when it is main: a pull request stacked on another branch (base.ref) has a base that anyone can push to
+            if [ "$BASE_REF" = main ]; then TRUST=main; fi
           elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
             TRUST=main
           fi
