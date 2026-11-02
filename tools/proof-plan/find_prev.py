@@ -1,6 +1,6 @@
 """Find the evidence an earlier run left: the newest successful run of the proof-plan workflow on main whose commit is an ancestor of HEAD.
 
-    python3 tools/proof-plan/find_prev.py --repo OWNER/NAME --workflow proof-plan.yml --out DIR [--head HEAD] [--branch main] [--branch PRBRANCH]
+    python3 tools/proof-plan/find_prev.py --repo OWNER/NAME --workflow proof-plan.yml --out DIR [--head HEAD] [--branch main] [--branch PRBRANCH] [--sha SHA]
 
 Not only the last commit: the nearest ancestor that has evidence (a run can be missing, expired or failed). The artifact is `proof-evidence`
 (evidence.json). `--branch` is repeatable (default main): a run of the pull request's own branch is as valid as one of main by the content rules (its
@@ -50,6 +50,7 @@ def main():
     ap.add_argument("--head", default="HEAD")
     ap.add_argument("--limit", type=int, default=40)
     ap.add_argument("--branch", action="append")
+    ap.add_argument("--sha", help="only the run of exactly this commit (the evidence at the commit an earlier result was obtained on)")
     a = ap.parse_args()
     runs = []
     for branch in a.branch or ["main"]:
@@ -60,6 +61,8 @@ def main():
             continue
         runs += json.loads(ls.stdout or "[]")
     runs.sort(key=lambda r: r.get("createdAt", ""), reverse=True)  # the newest first, whatever the branch
+    if a.sha:
+        runs = [r for r in runs if r["headSha"] == a.sha]
     anc = lambda sha: subprocess.run(["git", "merge-base", "--is-ancestor", sha, a.head], capture_output=True).returncode == 0
     for _ in range(len(runs)):
         r = pick(runs, anc)

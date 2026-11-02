@@ -9,7 +9,9 @@
 cargo-mutants from running them. `merge` puts their earlier outcomes (marked `carried_from`) into the shard's outcomes.json with the totals recounted,
 so that the gate, which wants every listed mutant in exactly one shard's report and totals that agree with the outcomes, sees a complete report.
 
-Nothing is carried unless `plan` says so, and `plan` carries nothing unless it is authorized (--authorized: the planner and the earlier run are main's).
+Nothing is carried unless `plan` says so. It needs the kernel's decisions (--plan) and carries nothing unless they are authorized: the evidence they were
+made against (the planner's evidence at the commit of the earlier run) and the planner itself are from main. A mutant is carried only if every test that
+reached it is REUSE_ELIGIBLE in those decisions.
 """
 import argparse
 import json
@@ -20,6 +22,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, ".."))
 import mutplan  # noqa: E402
+import select_tests  # noqa: E402
 import shard_plan  # noqa: E402
 
 VERDICTS = {"CaughtMutant": "caught", "MissedMutant": "missed", "Timeout": "timeout", "Unviable": "unviable"}
@@ -76,7 +79,8 @@ def main():
     p.add_argument("--outcomes", action="append", required=True)
     p.add_argument("--prev-env", required=True)
     p.add_argument("--list", required=True)
-    p.add_argument("--authorized", action="store_true")
+    p.add_argument("--plan", required=True, help="plan.json: the kernel's decisions of this tree against the evidence at the commit of the earlier run; "
+                   "its authority (evidence and planner from main) is the authority to carry")
     p.add_argument("--source", default="", help="the run the earlier outcomes come from (kept in carried.json, written on every carried outcome)")
     p.add_argument("--out", required=True)
     e = sub.add_parser("exclude")
@@ -104,12 +108,15 @@ def main():
             return rg.graph(crate, a.scipdeps, a.rust_toolchain)
         raw = mutplan.load_raw(a.outcomes)
         listed = {x["name"] for x in json.load(open(a.list))}
+        plan = json.load(open(a.plan))
+        decisions = {d["key"]: d["status"] for d in plan["decisions"]}
         rows = mutplan.predict(made(a.prev_repo), made(a.cur_repo), mutplan.load_outcomes(a.outcomes), json.load(open(a.prev_env)),
-                               mutplan.env_of_tree(a.cur_repo, a.rust_toolchain))
-        carried = carried_set(rows, raw, listed) if a.authorized else {}
-        json.dump({"authorized": a.authorized, "source": a.source, "would_carry": sum(r["carry"] for r in rows), "carried": carried}, open(a.out, "w"))
+                               mutplan.env_of_tree(a.cur_repo, a.rust_toolchain), decisions)
+        authorized = select_tests.authorized(plan)
+        carried = carried_set(rows, raw, listed) if authorized else {}
+        json.dump({"authorized": authorized, "source": a.source, "would_carry": sum(r["carry"] for r in rows), "carried": carried}, open(a.out, "w"))
         print(mutplan.report(rows))
-        print("authorized: %s; carried into the reports: %d" % (a.authorized, len(carried)))
+        print("authorized: %s; carried into the reports: %d" % (authorized, len(carried)))
     elif a.cmd == "rest":
         carried = json.load(open(a.carried))["carried"]
         json.dump(sorted(set(json.load(open(a.names))) - set(carried)), open(a.out, "w"))

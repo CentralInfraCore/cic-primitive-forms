@@ -8,11 +8,12 @@ Rule (strict; every clause must hold, otherwise the mutant is run):
   1. the earlier verdict is CaughtMutant (Missed, Timeout, Unviable, anything else is run: a survivor or a timeout proves nothing);
   2. the mutant lies inside a function node of the graph, in the earlier and in the current tree (same node id, same file);
   3. the source of that node is unchanged (src_sha256) and so is its Merkle key (nothing it depends on moved);
-  4. the tests that reached the node before are still there, still reach it, and each has the same Merkle key (a test that kills a
+  4. the tests that reached the node before are still there, still reach it, each has the same Merkle key, and, when the decisions of the
+     verification kernel are given (CI always gives them), each is REUSE_ELIGIBLE in them: the closure, the data it reads, the environment and
+     the assurance of the extractor are then all as they were, not only the keys (a test that kills a
      mutant is a function of its closure; the closure is unchanged, so the kill stands). A test ADDED since only adds kills: a kill
      cannot be undone by another test. The killer is one of the earlier tests, which cargo-mutants does not name, so all of them must hold.
-The test keys stand here for the planner's decisions; in CI the data and environment digests of the planner decide as well (not modelled
-in this offline prototype, see the report).
+Without decisions (the offline prototype) the test keys stand for them and the data and environment digests are not modelled.
 
 Same tool and flags are checked from env.json when given. Nothing here reads a verdict from the current tree: the current tree only
 supplies the graph.
@@ -81,8 +82,8 @@ def enclosing(nodes, file, line):
     return best
 
 
-def decide(m, summary, prev, cur):
-    """(carried?, reason) for one mutant."""
+def decide(m, summary, prev, cur, test_ok=None):
+    """(carried?, reason) for one mutant. `test_ok(test node id)` is the verdict of the kernel on a test (None: only the keys are compared)."""
     if summary != "CaughtMutant":
         return False, "NOT_CAUGHT:" + summary
     (pn, pk, pr), (cn, ck, cr) = prev, cur
@@ -104,6 +105,8 @@ def decide(m, summary, prev, cur):
         return False, "A_REACHING_TEST_LOST"
     if any(pk.get(t) != ck.get(t) for t in ta):
         return False, "A_REACHING_TEST_CHANGED"
+    if test_ok is not None and not all(test_ok(t) for t in ta):
+        return False, "A_REACHING_TEST_NOT_REUSE_ELIGIBLE"
     return True, "CARRY"
 
 
@@ -116,12 +119,19 @@ def same_tool(prev_env, cur_env):
     return pick(prev_env) == pick(cur_env) and pick(prev_env)[0] is not None
 
 
-def predict(prev_graph, cur_graph, outcomes, prev_env=None, cur_env=None):
+def kernel_test_ok(decisions):
+    """test_ok from the kernel's decisions of the planner ({"rust:<target>::<test>": status}): a test the plan does not name is not OK."""
+    import plan as pl
+    return lambda tid: decisions.get("rust:" + pl.runner_key(tid)) == "REUSE_ELIGIBLE"
+
+
+def predict(prev_graph, cur_graph, outcomes, prev_env=None, cur_env=None, decisions=None):
     prev, cur = index(prev_graph), index(cur_graph)
+    test_ok = kernel_test_ok(decisions) if decisions is not None else None
     tool_ok = same_tool(prev_env, cur_env)
     rows = []
     for m, s, secs in outcomes:
-        ok, why = decide(m, s, prev, cur)
+        ok, why = decide(m, s, prev, cur, test_ok)
         if ok and not tool_ok:
             ok, why = False, "TOOL_OR_FLAGS_NOT_THE_SAME"
         rows.append({"mutant": m["name"], "summary": s, "seconds": secs, "carry": ok, "reason": why})
@@ -162,6 +172,7 @@ def main():
     ap.add_argument("--scipdeps")
     ap.add_argument("--rust-toolchain")
     ap.add_argument("--outcomes", action="append", required=True)
+    ap.add_argument("--plan", help="plan.json of the planner (the kernel's decisions of this tree against the evidence at the earlier run's commit)")
     ap.add_argument("--prev-env", help="env.json of the earlier run (without both env files nothing is carried)")
     ap.add_argument("--cur-env", help="env.json of this run")
     ap.add_argument("--out")
@@ -176,7 +187,8 @@ def main():
     pg = made(a.prev_repo) if a.prev_repo else json.load(open(a.prev_graph))
     cg = made(a.cur_repo) if a.cur_repo else json.load(open(a.cur_graph))
     cur_env = env_of_tree(a.cur_repo, a.rust_toolchain) if a.cur_repo and not a.cur_env else env(a.cur_env)
-    rows = predict(pg, cg, load_outcomes(a.outcomes), env(a.prev_env), cur_env)
+    decisions = {d["key"]: d["status"] for d in json.load(open(a.plan))["decisions"]} if a.plan else None
+    rows = predict(pg, cg, load_outcomes(a.outcomes), env(a.prev_env), cur_env, decisions)
     print(report(rows))
     if a.out:
         json.dump(rows, open(a.out, "w"), indent=1)

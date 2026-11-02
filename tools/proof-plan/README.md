@@ -58,7 +58,12 @@ Measured on two real nightly FULL runs (Rust only; `541ad60` -> `033b671`, 1569 
 
 The tool check is in (`env.json`: mutation tool, cargo, rustc must agree; missing or different carries nothing).
 
-Not done: the data/environment digests of the planner (here test keys stand for them) and the comparison with a real run in CI.
+**Correction after review (kernel decisions):** the first rule compared test keys only, so a test the kernel does not clear (UNVERIFIABLE: `proptest!`,
+`reflect`; or a changed data read, environment, assurance) did not stop a carry. `mutplan.py --plan` / `mutcarry.py plan --plan` now require every test that
+reached the mutant to be REUSE_ELIGIBLE in the kernel's decisions of this tree against the evidence **at the commit of the earlier run** (not the latest
+evidence), and the authority to carry is the authority of that plan (evidence and planner from main). Effect, on the same two nightlies with the decisions of
+a full-tree plan: 1314 of 1569 (83.7%) became **614 of 1569 (39.1%), 42.7% of the mutant seconds**; 700 mutants are held back by a test the kernel does not
+clear. Not done: the comparison with a real run in CI.
 **Go cannot be done from the existing artifacts:** the ledger of `mutation_shard_exec.sh` names a mutant by the digest of the whole mutated
 file (`id<TAB>shard<TAB>shards<TAB>verdict`), so any edit of the file renames every mutant in it and the id carries no file or line. A Go
 carry-over needs the stable mutant id of `docs/C-STABLE-MUTANT-ID-PLAN.md` (or a listing that records file and line per id) first; `go-mutesting`
