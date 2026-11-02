@@ -1,5 +1,7 @@
 # P5-3: release-origin pre-check (question L)
 
+Update 2026-11-02: the answer below is that of 2026-11-01 and is not edited. `cic-primitives` has since released `primitives/@v0.2.1` from the pinned commit, and the last link of the chain now holds; see `docs/P5-RELEASE-ORIGIN-ADDENDUM.md`. The findings 2, 9 and 11 and the answer describe `v0.2.0`, which is still not the release of the pin.
+
 Status: pre-check, 2026-11-01. It reads and measures; it changes no code, creates no release and adds no production receipt API. It follows `docs/P5-RESOLVE-MATERIALIZE-RECEIPT.md` section 15 (decision L, the two gates) and section 22 (the closeout, entry `authentic-release-origin`).
 
 **Question.** Is there a signed, verifiable `cic-primitives` release that the Forms grammar pin belongs to, so that a receipt can name an *authenticated* release (`primitive_release`, `primitive_source_commit`, `primitive_build_hash`, `grammar_sha256`, `grammar_schema_sha256`)?

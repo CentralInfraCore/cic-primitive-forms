@@ -364,7 +364,7 @@ Section 17 proved the receipt on 7 shared cases. This step asks whether the cont
 
 * The engine's verifier cannot see the schema identity (`schema_name`, `schema_version`, `schema_digest`): it has nothing to compare them with. They are guarded by the Python reference and by the self-test, not by the engine.
 * The generated schemas have only plain field names and one fixed fixture release, so `path_not_one_segment` and the form of the release fields are proved by the unit tests of section 17, not by the generated cases.
-* A green engine verifier is a consistency result (section 15). The origin gate stays closed: the grammar pin is the `cic-primitives` commit `73ae469` of `devel` with no verified release (this is the pin of `corpus/pins.yaml`, not the engine pin `a6a0680`), so there is no production receipt. `cic-primitive-engine#63` stays open until the end-to-end proof is closed.
+* A green engine verifier is a consistency result (section 15). The origin gate stays closed: the grammar pin is the `cic-primitives` commit `73ae469` of `devel`; a release that contains it exists (`primitives/@v0.2.1`, `docs/P5-RELEASE-ORIGIN-ADDENDUM.md`) but it is not verified against a trust anchor pinned outside the record (this is the pin of `corpus/pins.yaml`, not the engine pin `a6a0680`), so there is no production receipt. `cic-primitive-engine#63` stays open until the end-to-end proof is closed.
 
 ### The six survivors of the shadow mutation run of #131
 
@@ -516,7 +516,7 @@ This section closes P5-1, P5-2 and P5-3 on `main` at `b56bb42`. It changes no pr
 
 | Id | What | Why |
 |---|---|---|
-| `authentic-release-origin` | a verified release cut from the grammar pin, named by a receipt | no such record is shown to exist (see the release-origin pre-check, a separate unit) |
+| `authentic-release-origin` | a verified release cut from the grammar pin, named by a receipt | a signed release that contains the pin exists (`primitives/@v0.2.1`), but it is not verified against a trust anchor pinned outside the record, the base64 to hex mapping of the receipt digests is not a contract, and no receipt names it (see the release-origin pre-check and its addendum, separate units) |
 | `reference-resolution` | a reference resolve or snapshot in the chain | the owner withdrew the requirement; no contract is invented |
 | `capability-source-authenticated` | the capability map comes from an authenticated source | it is a caller input checked for form |
 | `shared-compiled-schema-instance` | one compiled schema shared by the steps | three compiles from the same bytes and pin, compared; an instance would change the API |
