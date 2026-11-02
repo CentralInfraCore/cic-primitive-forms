@@ -97,6 +97,23 @@ class Generated(unittest.TestCase):
         self.assertTrue(j["continue-on-error"])
         self.assertEqual(j["needs"], "scope")
 
+    def test_every_shell_script_of_the_two_workflows_parses(self):
+        """A quoting slip in a `run:` block fails only when the step runs, and a job with continue-on-error hides it behind a green mark."""
+        import re
+        import subprocess
+        planner = yaml.safe_load(open(os.path.join(os.path.dirname(g.DST), "proof-plan.yml")))
+        bad = []
+        for wf in (PROOF, planner):
+            for jn, j in wf["jobs"].items():
+                for s in j.get("steps", []):
+                    r = s.get("run")
+                    if r:
+                        r = re.sub(r"\$\{\{.*?\}\}", "X", r, flags=re.S)
+                        p = subprocess.run(["bash", "-n"], input=r, text=True, capture_output=True)
+                        if p.returncode:
+                            bad.append((jn, s.get("name", r[:40]), p.stderr[:80]))
+        self.assertEqual(bad, [])
+
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
             self.assertTrue(j["name"].startswith("proof / "), k)
