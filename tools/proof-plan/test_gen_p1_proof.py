@@ -20,12 +20,14 @@ class Generated(unittest.TestCase):
         self.assertEqual(g.main(["--check"]), 0)
 
     def test_same_job_graph(self):
-        self.assertEqual(list(P1["jobs"]) + ["proof-plan", "proof-compare"], list(PROOF["jobs"]))
+        self.assertEqual(list(P1["jobs"]) + ["proof-plan", "proof-mutplan", "proof-compare"], list(PROOF["jobs"]))
         for k, j in P1["jobs"].items():
             p = PROOF["jobs"][k]
             for field in ("needs", "if", "strategy", "runs-on", "steps", "outputs", "timeout-minutes"):
                 if k in ("rust", "go") and field in ("needs", "steps"):
                     continue   # wired to the planner: see the tests below
+                if k == "quality-mutation-rust" and field in ("needs", "if", "steps"):
+                    continue   # wired to the carry-over: see the tests below
                 self.assertEqual(j.get(field), p.get(field), (k, field))
 
     def test_the_planner_job_is_called(self):
@@ -48,6 +50,7 @@ class Generated(unittest.TestCase):
             needs = j.get("needs", [])
             needs = [needs] if isinstance(needs, str) else needs
             self.assertEqual("proof-plan" in needs, k in ("rust", "go", "proof-compare"), k)
+            self.assertEqual("proof-mutplan" in needs, k in ("quality-mutation-rust", "proof-compare"), k)
 
     def test_the_compare_job_waits_for_every_other_job_and_nothing_waits_for_it(self):
         c = PROOF["jobs"]["proof-compare"]
@@ -56,6 +59,28 @@ class Generated(unittest.TestCase):
         for k, j in PROOF["jobs"].items():
             n = j.get("needs", [])
             self.assertNotIn("proof-compare", [n] if isinstance(n, str) else n, k)
+
+    def test_the_mutation_shard_is_wired_to_the_carry_over_and_runs_without_it(self):
+        j, o = PROOF["jobs"]["quality-mutation-rust"], P1["jobs"]["quality-mutation-rust"]
+        self.assertEqual(j["needs"], o["needs"] + ["proof-mutplan"])
+        # a failed or skipped prediction must not skip the shard; the plan and the classic FULL are still required
+        for must in ("!cancelled()", "needs.plan.result == 'success'", "mode == 'full'", "engine == 'classic'"):
+            self.assertIn(must, j["if"])
+        text = "\n".join(str(s.get("run", "")) for s in j["steps"])
+        self.assertIn("mutcarry.py merge", text)
+        self.assertIn('"${EXARGS[@]}"', text)
+        dl = [s for s in j["steps"] if "download-artifact" in str(s.get("uses"))]
+        self.assertTrue(dl and all(s.get("continue-on-error") for s in dl))
+        # the merge comes before the upload of the report the gate reads
+        names = [s.get("name", s.get("uses", "")) for s in j["steps"]]
+        merge_at = next(i for i, s in enumerate(j["steps"]) if "mutcarry.py merge" in str(s.get("run")))
+        upload_at = next(i for i, s in enumerate(j["steps"]) if "upload-artifact" in str(s.get("uses")) and s["with"]["name"].startswith("rust-mutants-$"))
+        self.assertLess(merge_at, upload_at, names)
+
+    def test_the_prediction_job_never_fails_the_pipeline(self):
+        j = PROOF["jobs"]["proof-mutplan"]
+        self.assertTrue(j["continue-on-error"])
+        self.assertEqual(j["needs"], "scope")
 
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():

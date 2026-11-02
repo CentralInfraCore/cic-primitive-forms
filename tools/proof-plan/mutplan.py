@@ -30,26 +30,33 @@ import build_evidence as be  # noqa: E402
 import merkle  # noqa: E402
 
 
-def load_outcomes(dirs):
-    """[(mutant, summary, seconds)] of every cargo-mutants outcomes.json under the directories (baseline excluded), ONE per mutant name.
+def load_raw(dirs):
+    """{mutant name: (the outcome as cargo-mutants wrote it, conflict?)}, one per mutant name over every outcomes.json under the directories
+    (baseline excluded).
 
     The artifacts of a shard are two: `rust-mutants-N` (outcomes.json) and `rust-mutants-log-N` (the whole output directory, which holds the same
     outcomes.json again), so a plain glob counts every mutant twice. A name seen twice with the same verdict is one mutant; with two different
-    verdicts the mutant is not trusted at all (summary CONFLICT) and is run."""
+    verdicts the mutant is in conflict and is not trusted."""
     seen = {}
     for d in dirs:
         for f in sorted(glob.glob(os.path.join(d, "**", "outcomes.json"), recursive=True)):
             for o in json.load(open(f))["outcomes"]:
-                s = o["scenario"]
-                if s == "Baseline":
+                if o["scenario"] == "Baseline":
                     continue
-                m = s["Mutant"]
-                secs = sum(p.get("duration", 0) for p in o.get("phase_results", []))
-                if m["name"] in seen and seen[m["name"]][1] != o["summary"]:
-                    seen[m["name"]] = (m, "CONFLICT", seen[m["name"]][2])
+                name = o["scenario"]["Mutant"]["name"]
+                if name in seen:
+                    seen[name] = (seen[name][0], seen[name][1] or seen[name][0]["summary"] != o["summary"])
                 else:
-                    seen.setdefault(m["name"], (m, o["summary"], secs))
-    return list(seen.values())
+                    seen[name] = (o, False)
+    return seen
+
+
+def load_outcomes(dirs):
+    """[(mutant, summary, seconds)], summary CONFLICT for a mutant with two verdicts."""
+    out = []
+    for o, conflict in load_raw(dirs).values():
+        out.append((o["scenario"]["Mutant"], "CONFLICT" if conflict else o["summary"], sum(p.get("duration", 0) for p in o.get("phase_results", []))))
+    return out
 
 
 def index(graph):

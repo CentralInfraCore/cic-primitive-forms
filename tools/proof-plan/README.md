@@ -78,6 +78,14 @@ at all (the planner failed) the command is p1's. Run locally with an authorized 
 Step 5: `proof-compare` waits for every other job and for the p1 run of the same commit, compares the conclusions job by job and the planner's FALSE_REUSE, and
 fails on a divergence; when the comparison cannot be made it says NOT COMPARED (not a pass, not a failure).
 
+Step 6: mutation. `proof-mutplan` predicts on every run (report) which Rust mutant verdicts of the last nightly FULL may stand; on main it writes them out as
+carried verdicts, and `quality-mutation-rust` leaves them out of its run (`-E`) and puts their outcomes into its report with the totals recounted, so the
+gate reads a complete shard report as before. That shard only runs in a classic FULL (nightly, by hand), never in a pull request. Rehearsed locally with
+the real cargo-mutants on a slice of 31 mutants (`src/(receipt|normalize|defaults).rs`) after a code edit in `is_digest`: 3 carried, 30 ran, the merged
+report equals the report of a full run of the same tree mutant by mutant (33 of 33), and the gate accepts it. One slice, one edit, three carried:
+it shows the mechanism is exact, not that the saving is large (the rule is conservative: 3 of 31 here, 83.7% between the two nightlies, whose commits
+changed no crate code).
+
 The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
 
 ## Trust: what may ever authorize skipping
@@ -118,5 +126,6 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `gen_p1_proof.py`, `test_gen_p1_proof.py` | generates and checks `p1-proof.yml` from `p1.yml` |
 | `select_tests.py`, `test_select_tests.py` | the commands the decisions imply (`-skip`, `--exact --skip`), checked against the real test lists; report only |
 | `compare_runs.py`, `test_compare_runs.py` | p1-proof against p1, job by job, for the same commit (the `proof-compare` job) |
+| `mutcarry.py`, `gen_mutation.py`, `test_mutcarry.py` | carried mutation verdicts into a shard's report; the p1-proof wiring of `quality-mutation-rust` |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |

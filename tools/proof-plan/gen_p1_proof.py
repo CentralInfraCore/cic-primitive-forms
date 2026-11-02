@@ -15,6 +15,10 @@ so that the jobs it shares with p1 cannot drift from p1. This first step changes
   the tests whose earlier result may stand. The plan skips nothing unless it is authorized (evidence and planner from main), so on a pull
   request they run exactly what p1 runs; without the plan (the planner failed, no artifact) too;
 * the job `proof-compare` is added (step 5): after every other job of p1-proof it compares their conclusions with those of the p1 run of the same commit;
+* the job `proof-mutplan` is added (step 6, gen_mutation.py): it predicts, from the last nightly FULL on main, which Rust mutant verdicts may stand
+  (mutplan.py) on every run, and writes them out as carried verdicts only when it runs on main; `quality-mutation-rust` leaves the carried mutants
+  out of its run (`-E`) and puts their earlier outcomes into its report (mutcarry.py), which the gate reads as before. That shard only runs in a
+  classic FULL (the nightly, a run by hand), never in a pull request, where mutants are measured by cargo-gamma;
 * the job `proof-plan` is added (step 2): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
   the `needs` of `quality`: it reports, it decides nothing yet.
 
@@ -122,6 +126,8 @@ def wire_tests(text):
     return text
 
 
+import gen_mutation  # noqa: E402
+
 COMPARE_JOB = """
   proof-compare:
     name: "proof / proof-compare"
@@ -157,9 +163,9 @@ def generate(src_text):
         raise Unsupported("workflow_call block not found exactly once")
     t = once(t, "      caller: p1\n", "      caller: p1-proof\n")
     t = once(t, "      workflows: p1.yml,corpus.yml\n", "      workflows: p1-proof.yml,corpus.yml\n")
-    t = prefix_job_names(wire_tests(t))
+    t = prefix_job_names(gen_mutation.wire(wire_tests(t), job_block, Unsupported))
     ids = re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", t[t.index("\njobs:"):], re.M)
-    return t.rstrip("\n") + "\n" + PLANNER_JOB + COMPARE_JOB % ", ".join(ids + ["proof-plan"])
+    return t.rstrip("\n") + "\n" + PLANNER_JOB + gen_mutation.MUTPLAN_JOB + COMPARE_JOB % ", ".join(ids + ["proof-plan", "proof-mutplan"])
 
 
 def main(argv):
