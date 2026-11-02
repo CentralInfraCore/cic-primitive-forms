@@ -65,5 +65,28 @@ class Rule(unittest.TestCase):
         self.assertEqual(run(p, c), (False, "DEPENDENCY_CHANGED"))
 
 
+class Tool(unittest.TestCase):
+    E = {"cargo": "1.99.1", "rustc": "1.99.1", "tools": {"cargo-mutants": "27.1.0"}, "python": "3.14"}
+
+    def test_same_tool_ignores_python(self):
+        self.assertTrue(mp.same_tool(self.E, dict(self.E, python="3.15")))
+
+    def test_other_tool_version(self):
+        self.assertFalse(mp.same_tool(self.E, dict(self.E, tools={"cargo-mutants": "27.2.0"})))
+
+    def test_other_rustc(self):
+        self.assertFalse(mp.same_tool(self.E, dict(self.E, rustc="1.100.0")))
+
+    def test_unknown_is_not_equal(self):
+        self.assertFalse(mp.same_tool(None, self.E))
+        self.assertFalse(mp.same_tool({}, {}))
+
+    def test_nothing_is_carried_without_the_same_tool(self):
+        rows = mp.predict(graph(), graph(), [(MUT, "CaughtMutant", 1.0)])
+        self.assertEqual((rows[0]["carry"], rows[0]["reason"]), (False, "TOOL_OR_FLAGS_NOT_THE_SAME"))
+        rows = mp.predict(graph(), graph(), [(MUT, "CaughtMutant", 1.0)], self.E, self.E)
+        self.assertTrue(rows[0]["carry"])
+
+
 if __name__ == "__main__":
     unittest.main()

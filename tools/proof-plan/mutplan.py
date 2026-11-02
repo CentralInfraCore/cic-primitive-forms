@@ -90,11 +90,23 @@ def decide(m, summary, prev, cur):
     return True, "CARRY"
 
 
-def predict(prev_graph, cur_graph, outcomes):
+def same_tool(prev_env, cur_env):
+    """True only when both env.json files exist and agree on what decides a mutant's verdict: the mutation tool, cargo and rustc (the runner
+    image and Python do not). A missing or different one carries nothing: unknown is not equal."""
+    if prev_env is None or cur_env is None:
+        return False
+    pick = lambda e: (e.get("tools"), e.get("cargo"), e.get("rustc"))  # noqa: E731
+    return pick(prev_env) == pick(cur_env) and pick(prev_env)[0] is not None
+
+
+def predict(prev_graph, cur_graph, outcomes, prev_env=None, cur_env=None):
     prev, cur = index(prev_graph), index(cur_graph)
+    tool_ok = same_tool(prev_env, cur_env)
     rows = []
     for m, s, secs in outcomes:
         ok, why = decide(m, s, prev, cur)
+        if ok and not tool_ok:
+            ok, why = False, "TOOL_OR_FLAGS_NOT_THE_SAME"
         rows.append({"mutant": m["name"], "summary": s, "seconds": secs, "carry": ok, "reason": why})
     return rows
 
@@ -117,9 +129,12 @@ def main():
     ap.add_argument("--prev-graph", required=True)
     ap.add_argument("--cur-graph", required=True)
     ap.add_argument("--outcomes", action="append", required=True)
+    ap.add_argument("--prev-env", help="env.json of the earlier run (without both env files nothing is carried)")
+    ap.add_argument("--cur-env", help="env.json of this run")
     ap.add_argument("--out")
     a = ap.parse_args()
-    rows = predict(json.load(open(a.prev_graph)), json.load(open(a.cur_graph)), load_outcomes(a.outcomes))
+    env = lambda p: json.load(open(p)) if p else None  # noqa: E731
+    rows = predict(json.load(open(a.prev_graph)), json.load(open(a.cur_graph)), load_outcomes(a.outcomes), env(a.prev_env), env(a.cur_env))
     print(report(rows))
     if a.out:
         json.dump(rows, open(a.out, "w"), indent=1)
