@@ -87,5 +87,19 @@ class FindPrev(unittest.TestCase):
         self.assertIsNone(find_prev.pick(runs, lambda s: False))
 
 
+class Locate(unittest.TestCase):
+    def test_evidence_json_is_found_where_the_artifact_put_it(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(find_prev.locate(d))
+            os.makedirs(os.path.join(d, "out"))
+            open(os.path.join(d, "out", "evidence.json"), "w").write("{}")
+            self.assertTrue(find_prev.locate(d))
+            self.assertTrue(os.path.exists(os.path.join(d, "evidence.json")))
+        with tempfile.TemporaryDirectory() as d:  # at the root already
+            open(os.path.join(d, "evidence.json"), "w").write("{}")
+            self.assertTrue(find_prev.locate(d))
+
+
 if __name__ == "__main__":
     unittest.main()

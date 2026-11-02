@@ -72,13 +72,14 @@ jobs:
         run: |
           python3 tools/proof-plan/record.py finish --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
             ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifact"
+          cp "$RUNNER_TEMP/out/evidence.json" "$RUNNER_TEMP/out/comparison.json" "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: proof-evidence
-          path: |
-            ${{ runner.temp }}/out/evidence.json
-            ${{ runner.temp }}/out/comparison.json
-            ${{ runner.temp }}/plan/plan.json
-            ${{ runner.temp }}/plan/timings.json
+          path: ${{ runner.temp }}/artifact
           retention-days: 90

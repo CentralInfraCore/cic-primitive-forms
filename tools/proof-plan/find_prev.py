@@ -10,6 +10,7 @@ only for a branch of this repository; the workflow adds it for those pull reques
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 
@@ -20,6 +21,19 @@ def pick(runs, is_ancestor):
         if r.get("conclusion") in (None, "success") and is_ancestor(r["headSha"]):
             return r
     return None
+
+
+def locate(directory):
+    """Make `evidence.json` sit at the root of `directory`: upload-artifact keeps the common parent of several paths, so an artifact can hold
+    it in a subdirectory (out/evidence.json). True if it is there afterwards."""
+    root = os.path.join(directory, "evidence.json")
+    if os.path.exists(root):
+        return True
+    for base, _dirs, files in os.walk(directory):
+        if "evidence.json" in files:
+            shutil.copy(os.path.join(base, "evidence.json"), root)
+            return True
+    return False
 
 
 def main():
@@ -48,7 +62,7 @@ def main():
         os.makedirs(a.out, exist_ok=True)
         d = subprocess.run(["gh", "run", "download", str(r["databaseId"]), "--repo", a.repo, "-n", "proof-evidence", "-D", a.out],
                            capture_output=True, text=True)
-        if d.returncode == 0 and os.path.exists(os.path.join(a.out, "evidence.json")):
+        if d.returncode == 0 and locate(a.out):
             print(r["headSha"])
             return 0
         runs = [x for x in runs if x["databaseId"] != r["databaseId"]]  # no artifact (expired, or none): the next ancestor
