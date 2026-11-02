@@ -63,7 +63,7 @@ jobs:
           echo "TOOL=$TOOL" >> "$GITHUB_ENV"; echo "TOOLING_TRUST=$TRUST" >> "$GITHUB_ENV"
           echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Self-test of the planner
-        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle
+        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle test_mutplan
       - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
         env:
           CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner

@@ -41,6 +41,24 @@ decide it, and a reuse right earned for tests is not a right for them. A skipped
   type arguments in Go, implicit calls in Rust, `iota` groups), not all of Go or Rust; and tests that draw their cases or measure time are
   only caught as `unstable` after they flip once.
 
+## Mutation carry-over (prediction only, offline prototype)
+
+`mutplan.py` asks, for each CaughtMutant of an earlier FULL run (cargo-mutants `outcomes.json`), whether the verdict could stand for the
+current tree: the enclosing function node is unchanged (source and Merkle key), and every test that reached it before is still there,
+still reaches it, with the same key (tests added since only add kills). Missed, Timeout and Unviable are always run. Nothing is skipped.
+
+Measured on two real nightly FULL runs (Rust only; `541ad60` -> `033b671`, 3138 mutants, graphs made locally with Rust 1.99.1):
+
+- predicted carry 2628 of 3138 (83.7%), 85.1% of the mutant seconds; set against the real outcomes of the later run: 0 false carries.
+  This is the weak half of the evidence: the two commits differ in tests and docs only, so a rule that carried everything would have
+  scored the same.
+- sensitivity control: one semantic edit in `checked()` (`access.rs`) drops the carry to 478 (15.2%): 10 mutants of the function itself
+  (CODE_CHANGED), 4 of what depends on it, 2136 whose reaching tests changed. The rule is conservative on purpose: it cannot tell
+  which of the reaching tests killed a mutant (cargo-mutants does not say), so all of them must hold.
+
+Not done: Go (go-mutesting ledger), the data/environment digests of the planner (here test keys stand for them), the tool/flags check from
+`env.json`, and the comparison with a real run in CI. It is not a saving until a later real run confirms the carried verdicts.
+
 ## Trust: what may ever authorize skipping
 
 Report only is safe whoever writes the evidence. Skipping is not, and two things decide it:
@@ -76,4 +94,5 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `build_evidence.py`, `merkle.py` | evidence of one test from an extractor graph; Merkle keys |
 | `qualify.py`, `qualify_rust.py`, `rust_graph.py`, `repro_rust_dispatch.py`, `testdata/` | probes that qualify an extractor build |
 | `extractor/` | the Go extractors (their own modules) |
-| `test_plan.py` | self-test of the pure parts |
+| `mutplan.py` | mutation carry-over prediction (report only) |
+| `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |
