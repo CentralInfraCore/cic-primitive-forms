@@ -1,0 +1,2188 @@
+{
+ "about": "docs/P5-DIGEST-MAPPING-CONTRACT.md, section 6. A conversion case: the base64 value of a record member and the receipt digest, or one reason. A map case: a record (only the members the mapping reads), a pin ({path: 64 lowercase hex}) and the three receipt digests, or one reason and the field it names. Written by tools/p5/digest_mapping_cases.py; read by the reference tools/p5/digest_mapping.py and by the Rust and Go implementations.",
+ "reasons": [
+  "envelope_not_3",
+  "field_missing",
+  "field_type",
+  "base64_shape",
+  "base64_not_canonical",
+  "base64_length",
+  "digest_form",
+  "artifact_absent",
+  "artifact_duplicate",
+  "provenance_artifacts_disagree",
+  "record_pin_disagree"
+ ],
+ "cases": [
+  {
+   "id": "P1-build-hash-of-v0.2.1",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": "sha256:1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+   "refuse": null
+  },
+  {
+   "id": "P2-grammar-sha256-of-v0.2.1",
+   "kind": "convert",
+   "input": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+   "expect": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+   "refuse": null
+  },
+  {
+   "id": "P3-grammar-schema-sha256-of-v0.2.1",
+   "kind": "convert",
+   "input": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc=",
+   "expect": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657",
+   "refuse": null
+  },
+  {
+   "id": "P4-32-zero-bytes",
+   "kind": "convert",
+   "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+   "expect": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+   "refuse": null
+  },
+  {
+   "id": "P5-32-bytes-ff",
+   "kind": "convert",
+   "input": "//////////////////////////////////////////8=",
+   "expect": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "refuse": null
+  },
+  {
+   "id": "P6-plus-and-slash",
+   "kind": "convert",
+   "input": "+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/8=",
+   "expect": "sha256:fbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbffbff",
+   "refuse": null
+  },
+  {
+   "id": "N1-non-canonical-spelling-of-the-same-32-bytes",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2t=",
+   "expect": null,
+   "refuse": "base64_not_canonical"
+  },
+  {
+   "id": "N1b-non-canonical-spelling-of-zeros",
+   "kind": "convert",
+   "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB=",
+   "expect": null,
+   "refuse": "base64_not_canonical"
+  },
+  {
+   "id": "N2-trailing-newline",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=\n",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N2b-trailing-carriage-return-and-newline",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=\r\n",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N3a-leading-space",
+   "kind": "convert",
+   "input": " HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N3b-embedded-newline",
+   "kind": "convert",
+   "input": "HVazYxdg73\n7P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N3c-trailing-space",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s= ",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N4a-url-safe-minus",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF-TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N4b-url-safe-underscore",
+   "kind": "convert",
+   "input": "__________________________________________8=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N5a-no-padding",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N5b-double-padding",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s==",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N5c-padding-in-the-middle",
+   "kind": "convert",
+   "input": "HVazYxdg737P2bMy2Enk=5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6a-31-bytes",
+   "kind": "convert",
+   "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6b-33-bytes",
+   "kind": "convert",
+   "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6c-64-bytes",
+   "kind": "convert",
+   "input": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6d-empty-string",
+   "kind": "convert",
+   "input": "",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6e-a-hex-string-of-64-digits",
+   "kind": "convert",
+   "input": "1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N6f-already-in-receipt-form",
+   "kind": "convert",
+   "input": "sha256:1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N7a-a-non-ascii-character",
+   "kind": "convert",
+   "input": "HVazY\u00e9dg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N7b-a-nul-character",
+   "kind": "convert",
+   "input": "HVazY\u0000dg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+   "expect": null,
+   "refuse": "base64_shape"
+  },
+  {
+   "id": "N8a-an-integer",
+   "kind": "convert",
+   "input": 5,
+   "expect": null,
+   "refuse": "field_type"
+  },
+  {
+   "id": "N8b-null",
+   "kind": "convert",
+   "input": null,
+   "expect": null,
+   "refuse": "field_type"
+  },
+  {
+   "id": "N8c-a-list",
+   "kind": "convert",
+   "input": [
+    "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+   ],
+   "expect": null,
+   "refuse": "field_type"
+  },
+  {
+   "id": "N8d-a-boolean",
+   "kind": "convert",
+   "input": true,
+   "expect": null,
+   "refuse": "field_type"
+  },
+  {
+   "id": "R1-the-record-of-v0.2.1",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": {
+    "primitive_build_hash": "sha256:1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+    "grammar_sha256": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "grammar_schema_sha256": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "refuse": null,
+   "field": null
+  },
+  {
+   "id": "R2-a-synthetic-record",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "//////////////////////////////////////////8=",
+     "grammar_schema_sha256": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+   },
+   "expect": {
+    "primitive_build_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "grammar_sha256": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "grammar_schema_sha256": "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+   },
+   "refuse": null,
+   "field": null
+  },
+  {
+   "id": "R3-more-artifacts-and-members-are-ignored",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+     "sign": "vault:v1:x"
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      },
+      {
+       "path": "schemas/atomic/role.yaml",
+       "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+     ]
+    },
+    "kind": "PrimitiveRelease"
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": {
+    "primitive_build_hash": "sha256:1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+    "grammar_sha256": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "grammar_schema_sha256": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "refuse": null,
+   "field": null
+  },
+  {
+   "id": "R4-a-forged-signature-is-not-this-functions-business",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=",
+     "sign": "vault:v1:forged"
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    },
+    "cic_countersign": {
+     "sign": "vault:v1:forged",
+     "signed_payload": "build_hash"
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": {
+    "primitive_build_hash": "sha256:1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b",
+    "grammar_sha256": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "grammar_schema_sha256": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "refuse": null,
+   "field": null
+  },
+  {
+   "id": "E1-release-envelope-2",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 2,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E2-release-envelope-1",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 1,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E3-release-envelope-as-a-string",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": "3",
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E4-release-envelope-as-a-float",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3.0,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E5-release-envelope-true",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": true,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E6-release-envelope-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E7-release-envelope-4",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 4,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E8-provenance-envelope-2",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 2,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "provenance.envelope"
+  },
+  {
+   "id": "E9-provenance-envelope-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "provenance.envelope"
+  },
+  {
+   "id": "E10-provenance-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "provenance.envelope"
+  },
+  {
+   "id": "E11-release-absent",
+   "kind": "map",
+   "record": {
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "E12-the-envelope-is-judged-before-anything-else",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 2
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "envelope_not_3",
+   "field": "release.envelope"
+  },
+  {
+   "id": "B1-build-hash-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "B2-build-hash-null",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": null
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "B3-build-hash-an-integer",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": 7
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "B4-build-hash-non-canonical",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2t="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "base64_not_canonical",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "B5-build-hash-with-a-trailing-newline",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s=\n"
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "base64_shape",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "B6-build-hash-already-hex",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "1d56b3631760ef7ecfd9b332d849e48f97a3d557c5f93438a43b9bf3a1b7a76b"
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "base64_shape",
+   "field": "release.build_hash"
+  },
+  {
+   "id": "A1-artifacts-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "artifacts.files"
+  },
+  {
+   "id": "A2-artifacts-files-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {}
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "artifacts.files"
+  },
+  {
+   "id": "A3-artifacts-files-not-a-list",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": {
+      "a": 1
+     }
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "artifacts.files"
+  },
+  {
+   "id": "A4-check-grammar-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "artifact_absent",
+   "field": "proposals/atom-grammar/check_grammar.py"
+  },
+  {
+   "id": "A5-schema-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "artifact_absent",
+   "field": "proposals/atom-grammar/instance-grammar.schema.yaml"
+  },
+  {
+   "id": "A6-check-grammar-listed-twice-both-right",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "artifact_duplicate",
+   "field": "proposals/atom-grammar/check_grammar.py"
+  },
+  {
+   "id": "A7-a-path-spelled-differently-is-not-the-path",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "./proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "artifact_absent",
+   "field": "proposals/atom-grammar/check_grammar.py"
+  },
+  {
+   "id": "D1-digest-uppercase",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:EF2D6A6E0F692C0E8A92CB813021193A8904CB41A7ABC0EA838730B106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D2-digest-sha512",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha512:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D3-digest-63-digits",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b10672637"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D4-digest-65-digits",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b1067263750"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D5-digest-no-prefix",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D6-digest-trailing-newline",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375\n"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D7-digest-in-base64",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U="
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D8-digest-empty",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": ""
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "digest_form",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D9-digest-an-integer",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": 5
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "D10-digest-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "artifacts.files[proposals/atom-grammar/check_grammar.py].digest"
+  },
+  {
+   "id": "V1-provenance-grammar-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "provenance.grammar_sha256"
+  },
+  {
+   "id": "V2-provenance-schema-absent",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "provenance.grammar_schema_sha256"
+  },
+  {
+   "id": "V3-provenance-grammar-an-integer",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": 1,
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "provenance.grammar_sha256"
+  },
+  {
+   "id": "V4-provenance-grammar-non-canonical",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3V=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "base64_not_canonical",
+   "field": "provenance.grammar_sha256"
+  },
+  {
+   "id": "V5-provenance-grammar-with-a-trailing-newline",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=\n",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "base64_shape",
+   "field": "provenance.grammar_sha256"
+  },
+  {
+   "id": "V6-provenance-differs-from-the-artifact-by-one-bit",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3Q=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "provenance_artifacts_disagree",
+   "field": "grammar_sha256"
+  },
+  {
+   "id": "V7-provenance-schema-differs-by-one-bit",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plY="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "provenance_artifacts_disagree",
+   "field": "grammar_schema_sha256"
+  },
+  {
+   "id": "K1-artifact-differs-from-the-pin-by-one-bit",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726370",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "record_pin_disagree",
+   "field": "grammar_sha256"
+  },
+  {
+   "id": "K2-schema-differs-from-the-pin-by-one-bit",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda650"
+   },
+   "expect": null,
+   "refuse": "record_pin_disagree",
+   "field": "grammar_schema_sha256"
+  },
+  {
+   "id": "K3-the-pin-has-no-entry-for-the-path",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_missing",
+   "field": "pin.proposals/atom-grammar/check_grammar.py"
+  },
+  {
+   "id": "K4-the-pin-digest-with-the-prefix-is-not-the-pin-form",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "record_pin_disagree",
+   "field": "grammar_sha256"
+  },
+  {
+   "id": "O1-provenance-is-judged-before-the-pin",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3Q=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726370",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "provenance_artifacts_disagree",
+   "field": "grammar_sha256"
+  },
+  {
+   "id": "O2-grammar-sha256-is-judged-before-the-schema",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3Q=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plY="
+    },
+    "artifacts": {
+     "files": [
+      {
+       "path": "LICENSE.md",
+       "digest": "sha256:4fffcdac095c0623fefb8515ab80b3e9629c0febc454456cd08b3cdf3c941720"
+      },
+      {
+       "path": "proposals/atom-grammar/check_grammar.py",
+       "digest": "sha256:ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375"
+      },
+      {
+       "path": "proposals/atom-grammar/instance-grammar.schema.yaml",
+       "digest": "sha256:3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+      }
+     ]
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "provenance_artifacts_disagree",
+   "field": "grammar_sha256"
+  },
+  {
+   "id": "O3-the-build-hash-is-judged-before-the-artifacts",
+   "kind": "map",
+   "record": {
+    "release": {
+     "envelope": 3,
+     "build_hash": 7
+    },
+    "provenance": {
+     "envelope": 3,
+     "grammar_sha256": "7y1qbg9pLA6KksuBMCEZOokEy0Gnq8Dqg4cwsQZyY3U=",
+     "grammar_schema_sha256": "OvJnzW5/C5MX5iv8uPDR0g73+bJ01wo8h1ON/2T9plc="
+    }
+   },
+   "pin": {
+    "proposals/atom-grammar/check_grammar.py": "ef2d6a6e0f692c0e8a92cb813021193a8904cb41a7abc0ea838730b106726375",
+    "proposals/atom-grammar/instance-grammar.schema.yaml": "3af267cd6e7f0b9317e62bfcb8f0d1d20ef7f9b274d70a3c87538dff64fda657"
+   },
+   "expect": null,
+   "refuse": "field_type",
+   "field": "release.build_hash"
+  }
+ ]
+}
