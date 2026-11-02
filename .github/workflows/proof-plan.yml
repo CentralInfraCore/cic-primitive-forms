@@ -76,7 +76,7 @@ jobs:
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/qual
-          key: proof-qual-${{ runner.os }}-${{ hashFiles('tools/proof-plan/**') }}
+          key: proof-qual-${{ runner.os }}-${{ hashFiles('tools/proof-plan/**', '!**/__pycache__/**') }}   # the self-test leaves .pyc files: they must not move the key
           restore-keys: |
             proof-qual-${{ runner.os }}-
       - name: Plan (decide, nothing is skipped)
