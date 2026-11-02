@@ -65,7 +65,7 @@ jobs:
           echo "TOOL=$TOOL" >> "$GITHUB_ENV"; echo "TOOLING_TRUST=$TRUST" >> "$GITHUB_ENV"
           echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Self-test of the planner
-        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle test_mutplan
+        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle test_mutplan test_select_tests
       - name: p1-proof.yml is what the generator makes from p1.yml (the code under test, not the planner chosen above)
         run: |
           python3 -c 'import yaml' 2>/dev/null || pip install pyyaml
@@ -143,6 +143,11 @@ jobs:
             python3 "$TOOL/mutplan.py" --prev-repo "$RUNNER_TEMP/prevtree" --cur-repo . --scipdeps "$RUNNER_TEMP/pp/scipdeps" --rust-toolchain "$RUST_TOOLCHAIN" \
               --outcomes "$RUNNER_TEMP/nightly" --prev-env "$RUNNER_TEMP/nightly/env-rust-mutants-0/env.json" --out "$RUNNER_TEMP/out/mutation-carry.json"
             echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Selection, report only (the commands the decisions imply, checked against the real test lists)
+        continue-on-error: true
+        run: |
+          if [ ! -f "$TOOL/select_tests.py" ]; then echo "The planner in use has no select_tests.py yet: no selection check." | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          python3 "$TOOL/select_tests.py" --plan "$RUNNER_TEMP/plan/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always()
         run: |

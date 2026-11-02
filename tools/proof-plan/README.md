@@ -108,5 +108,6 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `qualify.py`, `qualify_rust.py`, `rust_graph.py`, `repro_rust_dispatch.py`, `testdata/` | probes that qualify an extractor build |
 | `extractor/` | the Go extractors (their own modules) |
 | `gen_p1_proof.py`, `test_gen_p1_proof.py` | generates and checks `p1-proof.yml` from `p1.yml` |
+| `select_tests.py`, `test_select_tests.py` | the commands the decisions imply (`-skip`, `--exact --skip`), checked against the real test lists; report only |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |
