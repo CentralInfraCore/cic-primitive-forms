@@ -21,7 +21,7 @@ env:
   RUST_TOOLCHAIN: "1.99.1"   # as p1
 concurrency:
   group: proof-plan-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}   # a run on main leaves the evidence the others are compared with: it is not cancelled
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -43,8 +43,27 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: rust -> target
+      - name: Choose the planner (from the base of a pull request if it has one, else the code under test)
+        id: tooling
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          # A planner in a pull request can make any evidence it likes, so a decision made by it can be reported but never obeyed. For a pull
+          # request the planner is taken from the base commit; if the base has none (before this is merged) the one under test is used and the
+          # report says so. A push to main is main's own code.
+          TOOL="$GITHUB_WORKSPACE/tools/proof-plan"; TRUST=branch
+          if [ "$EVENT" = pull_request ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
+            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
+            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
+          elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
+            TRUST=main
+          fi
+          echo "TOOL=$TOOL" >> "$GITHUB_ENV"; echo "TOOLING_TRUST=$TRUST" >> "$GITHUB_ENV"
+          echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Self-test of the planner
-        run: python3 -m unittest tools/proof-plan/test_plan.py tools/proof-plan/test_merkle.py
+        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle
       - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
         env:
           CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner
@@ -53,8 +72,8 @@ jobs:
           # every commit, so the evidence of the commit before is never accepted). Built twice and compared: the identity must not depend on the run.
           for d in "$RUNNER_TEMP/pp" "$RUNNER_TEMP/pp2"; do
             mkdir -p "$d"
-            (cd tools/proof-plan/extractor/typeddeps && go build -trimpath -buildvcs=false -o "$d/typeddeps" .)
-            (cd tools/proof-plan/extractor/scipdeps && go build -trimpath -buildvcs=false -o "$d/scipdeps" .)
+            (cd "$TOOL/extractor/typeddeps" && go build -trimpath -buildvcs=false -o "$d/typeddeps" .)
+            (cd "$TOOL/extractor/scipdeps" && go build -trimpath -buildvcs=false -o "$d/scipdeps" .)
           done
           { echo '### Extractor builds'; echo '```'; sha256sum "$RUNNER_TEMP"/pp/typeddeps "$RUNNER_TEMP"/pp/scipdeps; \
             cmp "$RUNNER_TEMP/pp/typeddeps" "$RUNNER_TEMP/pp2/typeddeps" && cmp "$RUNNER_TEMP/pp/scipdeps" "$RUNNER_TEMP/pp2/scipdeps" \
@@ -70,7 +89,7 @@ jobs:
           # main always; the own branch of a pull request or a push too, but only a branch of this repository (never a fork's artifact)
           BRANCHES="--branch main"
           if [ "$SAME_REPO" = "true" ]; then BRANCHES="$BRANCHES --branch $HEAD_REF"; fi
-          python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
+          python3 "$TOOL/find_prev.py" --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
           if [ -f "$RUNNER_TEMP/prev/evidence.json" ]; then echo "dir=$RUNNER_TEMP/prev" >> "$GITHUB_OUTPUT"; fi
       # The qualification of the extractor builds (the probes) depends on the binaries, the probes and the toolchains, not on the tree under test: it
       # is kept between runs. plan.py reads the file only if it was made for exactly these identities, probes and toolchains (the key below is only
@@ -83,23 +102,23 @@ jobs:
             proof-qual-${{ runner.os }}-
       - name: Plan (decide, nothing is skipped)
         run: |
-          python3 tools/proof-plan/plan.py --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
-            --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
+          python3 "$TOOL/plan.py" --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
+            --rust-toolchain "$RUST_TOOLCHAIN" --tooling-trust "$TOOLING_TRUST" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
       - name: Observe the Go tests (the command of p1)
-        run: python3 tools/proof-plan/record.py observe-go --repo . --out "$RUNNER_TEMP/go.json"
+        run: python3 "$TOOL/record.py" observe-go --repo . --out "$RUNNER_TEMP/go.json"
       - name: Observe the Rust tests
-        run: python3 tools/proof-plan/record.py observe-rust --repo . --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/rust.json"
+        run: python3 "$TOOL/record.py" observe-rust --repo . --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/rust.json"
       - name: Install strace (to see which files each test reads)
         run: sudo apt-get install -y strace
       - name: Trace what the tests read (only the tests whose reads are not already known)
         continue-on-error: true   # without the reads the evidence falls back to the coarse digest of all data files
         run: |
-          python3 tools/proof-plan/record.py trace --repo . --plan "$RUNNER_TEMP/plan" --rust-toolchain "$RUST_TOOLCHAIN" \
+          python3 "$TOOL/record.py" trace --repo . --plan "$RUNNER_TEMP/plan" --rust-toolchain "$RUST_TOOLCHAIN" \
             ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/trace.json"
       - name: The Proof-Aware Execution Report and the evidence of this run
         run: |
           TRACE=""; if [ -f "$RUNNER_TEMP/trace.json" ]; then TRACE="--trace $RUNNER_TEMP/trace.json"; fi
-          python3 tools/proof-plan/record.py finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
+          python3 "$TOOL/record.py" finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
             $TRACE ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always()

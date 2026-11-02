@@ -245,6 +245,27 @@ def decide(prev_tests, cur_tests, assurance):
     return out
 
 
+def load_source(path):
+    """Where the earlier evidence came from ({branch, event, trust, run_id}); trust "none" if it is unknown, which is the least."""
+    try:
+        return json.load(open(os.path.join(path, "source.json")))
+    except (OSError, ValueError, TypeError):
+        return {"trust": "none"}
+
+
+def authority(source, tooling_trust):
+    """(True, "") if a decision made here could authorize skipping work, else (False, why). Both the evidence and the planner that read it
+    must come from main: evidence a pull request's own earlier run left is unauthenticated, and a planner in the pull request can make any
+    evidence it likes. Reporting is all either is good for."""
+    why = []
+    if source.get("trust") != "main":
+        why.append("the earlier evidence is %s (branch %s)" % ("from no run" if source.get("trust") == "none" else "not from a push to main",
+                                                              source.get("branch") or "-"))
+    if tooling_trust != "main":
+        why.append("the planner is the one of the branch being tested, not the one of main")
+    return (not why), "; ".join(why)
+
+
 def load_prev(path):
     if not path:
         return {}, None
@@ -265,6 +286,8 @@ def main():
     ap.add_argument("--rust-toolchain", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--prev")
+    ap.add_argument("--tooling-trust", default="branch", choices=["main", "branch"],
+                    help="where this planner came from: main (the base of the pull request, or a push to main) or the branch under test")
     ap.add_argument("--qual-cache", help="a file: the qualification of exactly these builds and probes is read from it, or measured and written to it")
     ap.add_argument("--sha", default="")
     a = ap.parse_args()
@@ -285,7 +308,9 @@ def main():
     t3 = time.time()
     decisions = decide(prev, cur, assurance)
     json.dump({"schema": SCHEMA, "commit": a.sha, "tests": cur}, open(os.path.join(a.out, "current.json"), "w"))
-    json.dump({"schema": "cic-proof-plan/plan/v1", "commit": a.sha, "previous_commit": prev_commit, "extractor_errors": errors,
+    source = load_source(a.prev) if a.prev else {"trust": "none"}
+    json.dump({"schema": "cic-proof-plan/plan/v1", "commit": a.sha, "previous_commit": prev_commit, "previous_source": source,
+               "tooling_trust": a.tooling_trust, "extractor_errors": errors,
                "qualified": {k: sorted(v) for k, v in assurance.extractors.items()}, "decisions": decisions},
               open(os.path.join(a.out, "plan.json"), "w"), indent=1)
     json.dump({"identity_s": round(t1 - t0, 1), "evidence_s": round(t2 - t1, 1), "qualification_s": round(t3 - t2, 1), "qualification_cached": q_hit,

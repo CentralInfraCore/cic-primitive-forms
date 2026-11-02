@@ -162,8 +162,12 @@ def report(plan, rows, summary, observed_meta, timings, false_reuse, trace_meta=
     would_skip = sum((observed_meta.get("go") or {}).get(r["key"], {}).get("elapsed", 0.0) for r in elig if r["key"].startswith("go:"))
     trace_s = (trace_meta or {}).get("wall_s", 0.0)
     cost = timings.get("total_s", 0.0) + trace_s
+    ok, why = pl.authority(plan.get("previous_source") or {"trust": "none"}, plan.get("tooling_trust", "branch"))
+    elig_n = counts.get("REUSE_ELIGIBLE", 0)
     L = ["## Proof-Aware Execution Report (report only: nothing was skipped)", "",
          "Evidence compared with: `%s`." % (plan.get("previous_commit") or "none found"), "",
+         "**Could authorize skipping: %s.** %s" % ("%d tests" % elig_n if ok else "0 tests",
+                                                   "Trusted evidence and trusted planner." if ok else "Reporting only: " + why + "."), "",
          "| | Tests |", "|---|---|"]
     for label, k in (("Could be reused (`REUSE_ELIGIBLE`)", "REUSE_ELIGIBLE"), ("Would be rerun, a known dependency moved (`RERUN_REQUIRED`)", "RERUN_REQUIRED"),
                      ("Would be rerun, the proof cannot support a claim (`UNVERIFIABLE`)", "UNVERIFIABLE"), ("No earlier evidence", "NO_EVIDENCE")):

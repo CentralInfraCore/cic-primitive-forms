@@ -15,6 +15,12 @@ import subprocess
 import sys
 
 
+def trust_of(run):
+    """The trust level of the evidence a run left. It comes from what GitHub says about the run (the branch it ran on and the event), never from
+    the content of the artifact, which is input: "main" only for a push to main (a process that only merged code can start), "branch" for the rest."""
+    return "main" if (run.get("headBranch") == "main" and run.get("event") == "push") else "branch"
+
+
 def pick(runs, is_ancestor):
     """The first run (newest first) whose head commit is an ancestor of the head. Pure."""
     for r in runs:
@@ -48,7 +54,7 @@ def main():
     runs = []
     for branch in a.branch or ["main"]:
         ls = subprocess.run(["gh", "run", "list", "--repo", a.repo, "--workflow", a.workflow, "--branch", branch, "--status", "success",
-                             "--limit", str(a.limit), "--json", "databaseId,headSha,conclusion,createdAt"], capture_output=True, text=True)
+                             "--limit", str(a.limit), "--json", "databaseId,headSha,conclusion,createdAt,headBranch,event"], capture_output=True, text=True)
         if ls.returncode:
             print("no run list for %s (%s)" % (branch, ls.stderr.strip()[:200]), file=sys.stderr)
             continue
@@ -63,6 +69,8 @@ def main():
         d = subprocess.run(["gh", "run", "download", str(r["databaseId"]), "--repo", a.repo, "-n", "proof-evidence", "-D", a.out],
                            capture_output=True, text=True)
         if d.returncode == 0 and locate(a.out):
+            json.dump({"run_id": r["databaseId"], "head_sha": r["headSha"], "branch": r.get("headBranch"), "event": r.get("event"),
+                       "trust": trust_of(r)}, open(os.path.join(a.out, "source.json"), "w"))
             print(r["headSha"])
             return 0
         runs = [x for x in runs if x["databaseId"] != r["databaseId"]]  # no artifact (expired, or none): the next ancestor

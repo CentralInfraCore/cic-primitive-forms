@@ -50,6 +50,33 @@ class Decide(unittest.TestCase):
         self.assertFalse(pl.is_data("go/a.go") or pl.is_data("rust/Cargo.lock") or pl.is_data("docs/x.md"))
 
 
+class Trust(unittest.TestCase):
+    def test_trust_comes_from_the_run_not_from_the_artifact(self):
+        self.assertEqual(find_prev.trust_of({"headBranch": "main", "event": "push"}), "main")
+        for r in ({"headBranch": "main", "event": "workflow_dispatch"}, {"headBranch": "feat/x", "event": "push"},
+                  {"headBranch": "feat/x", "event": "pull_request"}, {}):
+            self.assertEqual(find_prev.trust_of(r), "branch")
+
+    def test_skipping_needs_both_the_evidence_and_the_planner_from_main(self):
+        main = {"trust": "main", "branch": "main"}
+        self.assertEqual(pl.authority(main, "main"), (True, ""))
+        ok, why = pl.authority(main, "branch")
+        self.assertFalse(ok)
+        self.assertIn("planner", why)
+        ok, why = pl.authority({"trust": "branch", "branch": "feat/x"}, "main")
+        self.assertFalse(ok)
+        self.assertIn("feat/x", why)
+        self.assertFalse(pl.authority({"trust": "none"}, "main")[0])
+        self.assertFalse(pl.authority({}, "main")[0])  # nothing known is the least trust, not the most
+
+    def test_missing_or_broken_source_is_no_trust(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(pl.load_source(d), {"trust": "none"})
+            open(os.path.join(d, "source.json"), "w").write("not json")
+            self.assertEqual(pl.load_source(d), {"trust": "none"})
+
+
 class TreeStateTests(unittest.TestCase):
     def repo(self, d):
         import subprocess

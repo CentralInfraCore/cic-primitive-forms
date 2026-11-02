@@ -41,6 +41,21 @@ decide it, and a reuse right earned for tests is not a right for them. A skipped
   type arguments in Go, implicit calls in Rust, `iota` groups), not all of Go or Rust; and tests that draw their cases or measure time are
   only caught as `unstable` after they flip once.
 
+## Trust: what may ever authorize skipping
+
+Report only is safe whoever writes the evidence. Skipping is not, and two things decide it:
+
+- **The evidence.** Its trust is read from what GitHub says about the run that left it (`find_prev.py` writes `source.json`: branch, event), never from
+  the artifact, which is input. Only a push to `main` is `main` evidence. A pull request's own earlier run is `branch` evidence: good for the
+  report and for the iteration, not for skipping.
+- **The planner.** A planner inside a pull request can make any evidence it likes. For a pull request the workflow takes the planner from the base
+  commit (`git archive $BASE_SHA tools/proof-plan`); while the base has none (before this is merged) the one under test runs and the report says so.
+  A push to `main` runs main's own code. A run on `main` is never cancelled by a newer push: its evidence is what the others are compared with.
+
+The report states it on its second line: *Could authorize skipping: N tests* only when both are `main`; otherwise `0 tests` and the reason
+(`pl.authority`). Unknown trust is the least trust, not the most. The cache is an accelerator (the qualification, which is checked against the
+identities it was made for), not the store of record; the signed `ci-evidence` publication is still off.
+
 ## Two traps met while building it (both would have been silent)
 
 - **The key must not depend on the process.** `merkle.py` hashed the internal edges of a cycle in the iteration order of a set, which changes with
