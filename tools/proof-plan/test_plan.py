@@ -191,6 +191,26 @@ class FindPrev(unittest.TestCase):
         self.assertIsNone(find_prev.pick(runs, lambda s: False))
 
 
+class PreferMain(unittest.TestCase):
+    def run_(self, i, branch, event, at):
+        return {"databaseId": i, "headSha": str(i), "conclusion": "success", "headBranch": branch, "event": event, "createdAt": at}
+
+    def test_main_evidence_comes_before_a_newer_branch_run(self):
+        runs = [self.run_(3, "feat", "pull_request", "2026-11-02T12"), self.run_(2, "main", "push", "2026-11-02T10"),
+                self.run_(1, "main", "push", "2026-11-02T09")]
+        order = [r["databaseId"] for r in find_prev.prefer_main(runs)]
+        self.assertEqual(order, [2, 1, 3])   # main newest first, then the branch
+        self.assertEqual(find_prev.pick(find_prev.prefer_main(runs), lambda s: True)["databaseId"], 2)
+
+    def test_without_main_evidence_the_branch_run_is_the_fallback(self):
+        runs = [self.run_(5, "feat", "pull_request", "2026-11-02T12"), self.run_(4, "feat", "push", "2026-11-02T08")]
+        self.assertEqual([r["databaseId"] for r in find_prev.prefer_main(runs)], [5, 4])
+
+    def test_a_push_to_main_is_main_but_a_pull_request_from_a_branch_named_main_is_not(self):
+        self.assertEqual(find_prev.trust_of({"headBranch": "main", "event": "push"}), "main")
+        self.assertEqual(find_prev.trust_of({"headBranch": "main", "event": "pull_request"}), "branch")
+
+
 class Locate(unittest.TestCase):
     def test_evidence_json_is_found_where_the_artifact_put_it(self):
         import tempfile

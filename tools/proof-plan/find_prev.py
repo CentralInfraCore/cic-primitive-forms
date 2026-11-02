@@ -2,7 +2,8 @@
 
     python3 tools/proof-plan/find_prev.py --repo OWNER/NAME --workflow proof-plan.yml --out DIR [--head HEAD] [--branch main] [--branch PRBRANCH] [--sha SHA]
 
-Not only the last commit: the nearest ancestor that has evidence (a run can be missing, expired or failed). The artifact is `proof-evidence`
+Not only the last commit: the nearest ancestor that has evidence (a run can be missing, expired or failed). Main's evidence comes first (`prefer_main`):
+the newest evidence of a branch would be a pull request's own earlier run, which can authorize nothing. The artifact is `proof-evidence`
 (evidence.json). `--branch` is repeatable (default main): a run of the pull request's own branch is as valid as one of main by the content rules (its
 commit must be an ancestor), but it is evidence nobody has authenticated, which is acceptable only while nothing depends on it (report only) and
 only for a branch of this repository; the workflow adds it for those pull requests alone. Prints the commit found, or nothing; exit 0 either way: no evidence is a normal state (the planner then says NO_EVIDENCE).
@@ -19,6 +20,14 @@ def trust_of(run):
     """The trust level of the evidence a run left. It comes from what GitHub says about the run (the branch it ran on and the event), never from
     the content of the artifact, which is input: "main" only for a push to main (a process that only merged code can start), "branch" for the rest."""
     return "main" if (run.get("headBranch") == "main" and run.get("event") == "push") else "branch"
+
+
+def prefer_main(runs):
+    """Main's evidence first (newest first), then the others (newest first). What may authorize skipping is evidence of a push to main; the newest
+    evidence of any branch is, from its second push on, the pull request's own earlier run, which authorizes nothing. A pull request is then set
+    against main's evidence at every push, and its own earlier run is the fallback only when main has none. Pure."""
+    newest_first = sorted(runs, key=lambda r: r.get("createdAt", ""), reverse=True)
+    return sorted(newest_first, key=lambda r: trust_of(r) != "main")   # a stable sort: the order by time stays inside each group
 
 
 def pick(runs, is_ancestor):
@@ -60,7 +69,7 @@ def main():
             print("no run list for %s (%s)" % (branch, ls.stderr.strip()[:200]), file=sys.stderr)
             continue
         runs += json.loads(ls.stdout or "[]")
-    runs.sort(key=lambda r: r.get("createdAt", ""), reverse=True)  # the newest first, whatever the branch
+    runs = prefer_main(runs)
     if a.sha:
         runs = [r for r in runs if r["headSha"] == a.sha]
     anc = lambda sha: subprocess.run(["git", "merge-base", "--is-ancestor", sha, a.head], capture_output=True).returncode == 0

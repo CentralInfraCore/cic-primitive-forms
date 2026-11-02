@@ -24,13 +24,15 @@ permissions:
 env:
   RUST_TOOLCHAIN: "1.99.1"   # as p1
   PHASE: ${{ inputs.phase || 'all' }}
+  # the commit under test: for a pull request its head, not the merge commit GitHub makes (which is ephemeral and in no history); proof-compare uses the head too
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.phase || 'all' }}-${{ github.ref }}   # the workflow name: called by p1-proof it is p1-proof's, so the two runs of one commit do not cancel each other
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}   # a run on main leaves the evidence the others are compared with: it is not cancelled
 jobs:
   plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30   # a run is 2-5 minutes: a hung strace must not hold a runner for an hour and a half
     continue-on-error: true   # report only: never a failure of the pull request
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -63,10 +65,10 @@ jobs:
           # The base is taken only when it is main: a pull request stacked on another branch has a base that anyone can push to, which is
           # no more trusted than the code under test, so that code runs (trust: branch).
           if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
-            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
+            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan tools/shard_plan.py tools/quality_gate.py | tar -x -C "$RUNNER_TEMP/trusted"
             TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
-          elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
-            TRUST=main
+          elif { [ "$EVENT" = push ] || [ "$EVENT" = workflow_dispatch ]; } && [ "$REF" = refs/heads/main ]; then
+            TRUST=main   # a run of main itself (a push, or by hand on main) is main's own code
           fi
           echo "TOOL=$TOOL" >> "$GITHUB_ENV"; echo "TOOLING_TRUST=$TRUST" >> "$GITHUB_ENV"
           echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -79,7 +81,7 @@ jobs:
       - name: p1-proof.yml is what the generator makes from p1.yml (the code under test, not the planner chosen above)
         if: env.PHASE != 'finish'
         run: |
-          python3 -c 'import yaml' 2>/dev/null || pip install pyyaml
+          python3 -c 'import yaml' 2>/dev/null || pip install -r "$GITHUB_WORKSPACE/tools/requirements.txt"   # the pinned requirements of the repository
           cd "$GITHUB_WORKSPACE/tools/proof-plan" && python3 -m unittest test_gen_p1_proof
       - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
         if: env.PHASE != 'finish'
@@ -97,6 +99,11 @@ jobs:
             cmp "$RUNNER_TEMP/pp/typeddeps" "$RUNNER_TEMP/pp2/typeddeps" && cmp "$RUNNER_TEMP/pp/scipdeps" "$RUNNER_TEMP/pp2/scipdeps" \
               && echo 'two builds in this job: identical' || echo 'TWO BUILDS IN THIS JOB DIFFER: the build is not reproducible'; \
             go version -m "$RUNNER_TEMP/pp/typeddeps" | grep -E 'build|vcs|mod' | head -12; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          # the identity of a build is its digest, and the kernel compares it with the one in the earlier evidence (EXTRACTOR_MISMATCH): that is the check
+          # across runs. Within this job the two builds must be the same bytes, and a difference is visible in the run, not only in the summary.
+          if ! cmp -s "$RUNNER_TEMP/pp/typeddeps" "$RUNNER_TEMP/pp2/typeddeps" || ! cmp -s "$RUNNER_TEMP/pp/scipdeps" "$RUNNER_TEMP/pp2/scipdeps"; then
+            echo "::warning::the two extractor builds of this job differ: the build is not reproducible, so no earlier evidence will be accepted"
+          fi
       - name: Find the evidence of an earlier run
         id: prev
         if: env.PHASE != 'finish'
@@ -124,7 +131,7 @@ jobs:
         if: env.PHASE != 'finish'
         run: |
           python3 "$TOOL/plan.py" --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
-            --rust-toolchain "$RUST_TOOLCHAIN" --tooling-trust "$TOOLING_TRUST" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" $PREV_ARG
+            --rust-toolchain "$RUST_TOOLCHAIN" --tooling-trust "$TOOLING_TRUST" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$HEAD_SHA" $PREV_ARG
       - name: Observe the Go tests (the command of p1)
         if: env.PHASE == 'all'
         run: python3 "$TOOL/record.py" observe-go --repo . --out "$RUNNER_TEMP/go.json"
@@ -151,7 +158,10 @@ jobs:
           for l in go rust; do f="$RUNNER_TEMP/observed/proof-observed-$l/observed-$l.json"; if [ -f "$f" ]; then cp "$f" "$RUNNER_TEMP/$l.json"; else echo "no observation of $l: that job did not run"; fi; done
       - name: Install strace (to see which files each test reads)
         if: env.PHASE != 'plan'
-        run: sudo apt-get install -y strace
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y strace
+          # the reads a test is traced to make depend on strace; its version is in the run, not pinned (the runner image fixes it)
+          echo "strace: $(strace --version 2>&1 | head -1)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Trace what the tests read (only the tests whose reads are not already known)
         if: env.PHASE != 'plan'
         continue-on-error: true   # without the reads the evidence falls back to the coarse digest of all data files
@@ -174,22 +184,29 @@ jobs:
         if: always() && env.PHASE == 'plan'
         run: |
           mkdir -p "$RUNNER_TEMP/artifact"
-          cp "$RUNNER_TEMP/plan"/{plan,current,timings}.json "$RUNNER_TEMP/artifact/" || true
+          test -f "$RUNNER_TEMP/plan/plan.json" || { echo "::error::plan.json was not made: the plan phase did not complete"; exit 1; }
+          cp "$RUNNER_TEMP/plan"/{plan,current,timings}.json "$RUNNER_TEMP/artifact/"
           if [ -d "$RUNNER_TEMP/prev" ]; then cp -r "$RUNNER_TEMP/prev" "$RUNNER_TEMP/artifact/prev"; fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always() && env.PHASE == 'plan'
         with:
           name: proof-plan-data
           path: ${{ runner.temp }}/artifact
+          if-no-files-found: error
           retention-days: 7
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always() && env.PHASE != 'plan'
         run: |
           mkdir -p "$RUNNER_TEMP/artifact"
-          cp "$RUNNER_TEMP/out/evidence.json" "$RUNNER_TEMP/out/comparison.json" "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" || true
+          # the evidence of a run is what the next run and proof-compare read: a missing file is an error here, not a warning three jobs later
+          MISSING=0
+          for f in evidence.json comparison.json; do test -f "$RUNNER_TEMP/out/$f" || { echo "::error::$f was not made: the finish did not complete"; MISSING=1; }; done
+          cp "$RUNNER_TEMP/out"/{evidence,comparison}.json "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" 2>/dev/null || true
+          exit $MISSING
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always() && env.PHASE != 'plan'
         with:
           name: proof-evidence
           path: ${{ runner.temp }}/artifact
+          if-no-files-found: error
           retention-days: 90

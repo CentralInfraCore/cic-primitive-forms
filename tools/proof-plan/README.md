@@ -99,6 +99,42 @@ and the commit it was obtained on stay in the evidence. The old key-only mutatio
 
 The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
 
+## Two threads, in parallel
+
+p1 (the required check) and p1-proof run side by side on the same commit:
+- **pull request and push**: one event starts both workflows; `proof-compare` of p1-proof waits for the p1 run of the same head commit and sets the two against
+  each other job by job (and the planner's FALSE_REUSE). Nothing to do.
+- **by hand (a FULL)**: `dual.yml` (`workflow_dispatch`) starts `p1.yml` and `p1-proof.yml` together on one ref, each a FULL, and prints both run ids and commits (a
+  warning if they differ). They are two runs, not one: p1 and p1-proof share artifact names (`rust-mutants-N`, `go-ledger-N`, ...), which cannot live in one run.
+  The sum of job seconds of the two is comparable; the wall time of either is not, because they share the runners. It can only be started once `dual.yml` is on main.
+- The nightly still runs p1 alone, as the independent reference.
+
+## Hardening after review (what was checked, what was changed, what stays by design)
+
+Changed:
+- `find_prev.py` takes **main's evidence first** (`prefer_main`), the newest of any branch only as a fallback. Before, from its second push on a pull request chose its
+  own earlier run (trust `branch`), and nothing could be authorized; now every push is set against main's evidence.
+- The `rust` and `go` jobs of p1-proof run `select_tests.py` from **main's code** when the pull request is on main (the base commit's copy), not the pull request's:
+  the code that decides what to skip and reports what ran is part of what must be trusted. Consequence, on purpose: a change to `select_tests.py` is not exercised
+  by its own pull request, only after the merge.
+- The evidence of a run is checked where it is made: the finish phase fails if `evidence.json` or `comparison.json` is missing, the plan phase if `plan.json` is, and
+  the uploads use `if-no-files-found: error` (before, `cp ... || true` and a warning let a run look finished).
+- `proof-compare` stops waiting when no p1 run of the commit and event appears within 3 minutes (`--grace`): a p1 run that is going to exist starts at once, and a
+  run by hand with no p1 beside it has none; it still waits up to 25 minutes for a run that exists. Not compared is exit 2 either way.
+- `plan.py --sha` is the head commit of a pull request, not the ephemeral merge commit GitHub builds (it is in no history); `proof-compare` already used the head.
+- A run by hand on main is trusted like a push to main in `proof-plan.yml` (it was `branch` there and `main` in `proof-mutplan`).
+- The job timeout is 30 minutes (it was 90); `pyyaml` comes from the pinned `tools/requirements.txt`; strace is updated before it is installed and its version is
+  printed in the run (it is the runner image's, not pinned); a difference between the two extractor builds of a job is a `::warning::`.
+
+Checked and not changed:
+- `proof-compare` is **a gate on purpose**: it fails on a divergence and when it could not compare, while the planner stays `continue-on-error`. If p1-proof becomes a
+  required check, a broken producer then blocks pull requests, which is the intended meaning (an unproven result must not be green).
+- `proof-mutplan` plans again because it needs the decisions against **the evidence at the commit of the nightly**, not against the latest main evidence that
+  `proof-plan` uses; the two plans answer different questions.
+- Evidence of a branch run can be REUSE_ELIGIBLE for the report; it never authorizes skipping, because `authority()` needs the evidence and the planner from main
+  (`plan.json` carries both, `select_tests.skips` checks it).
+- A test run three times per commit (p1, p1-proof's jobs, the planner's own `all` phase on its triggers) is a cost of the transition, not of the design.
+
 ## Trust: what may ever authorize skipping
 
 Report only is safe whoever writes the evidence. Skipping is not, and two things decide it:

@@ -36,12 +36,13 @@ class Generated(unittest.TestCase):
         self.assertNotIn("needs", j)
 
     def test_rust_and_go_wait_for_the_planner_and_change_only_their_test_step(self):
-        for k, cmd in (("rust", "select_tests.py run rust"), ("go", "select_tests.py run go")):
+        for k, cmd in (("rust", 'select_tests.py" run rust'), ("go", 'select_tests.py" run go')):
             self.assertEqual(PROOF["jobs"][k]["needs"], ["inherit", "proof-plan"])
             old, new = P1["jobs"][k]["steps"], PROOF["jobs"][k]["steps"]
-            extra = [s for s in new if "download-artifact" in str(s.get("uses")) or "upload-artifact" in str(s.get("uses"))]
-            self.assertEqual(len(new), len(old) + 2)   # the download of the plan and the upload of what the job observed
-            self.assertEqual(len(extra), 2)
+            extra = [s for s in new if "download-artifact" in str(s.get("uses")) or "upload-artifact" in str(s.get("uses"))
+                     or str(s.get("name", "")).startswith("The code that runs the tests")]
+            self.assertEqual(len(new), len(old) + 3)   # the download of the plan, the choice of the code, the upload of what the job observed
+            self.assertEqual(len(extra), 3)
             changed = [(a, b) for a, b in zip([s for s in new if s not in extra], old) if a != b]
             self.assertEqual(len(changed), 1, k)
             self.assertIn(cmd, changed[0][0]["run"])
@@ -92,6 +93,19 @@ class Generated(unittest.TestCase):
             dl = [s for s in PROOF["jobs"][k]["steps"] if "download-artifact" in str(s.get("uses"))]
             self.assertEqual([s["with"]["name"] for s in dl], ["proof-plan-data"])
 
+    def test_the_test_runner_is_not_the_pull_requests_code(self):
+        for k in ("rust", "go"):
+            steps = PROOF["jobs"][k]["steps"]
+            choose = next(i for i, s in enumerate(steps) if str(s.get("name", "")).startswith("The code that runs the tests"))
+            run = next(i for i, s in enumerate(steps) if '"$PTOOL/select_tests.py"' in str(s.get("run")) and " run " in str(s.get("run")))
+            self.assertLess(choose, run)
+            self.assertIn('"$PTOOL/select_tests.py"', steps[run]["run"])
+            self.assertNotIn("tools/proof-plan/select_tests.py", steps[run]["run"])   # not the workspace's copy
+            script = steps[choose]["run"]
+            self.assertIn('[ "$BASE_REF" = main ]', script)        # only a base that is main is trusted
+            self.assertIn('git archive "$BASE_SHA"', script)       # the base commit's code, not the merge's
+            self.assertIn('PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"', script)   # the fallback is the tree's own: main's on a run of main
+
     def test_the_prediction_job_never_fails_the_pipeline(self):
         j = PROOF["jobs"]["proof-mutplan"]
         self.assertTrue(j["continue-on-error"])
@@ -113,6 +127,35 @@ class Generated(unittest.TestCase):
                         if p.returncode:
                             bad.append((jn, s.get("name", r[:40]), p.stderr[:80]))
         self.assertEqual(bad, [])
+
+    def test_the_trusted_copy_of_the_planner_has_every_sibling_it_imports(self):
+        """The planner of the base commit is extracted with `git archive`; a module of tools/ that tools/proof-plan imports (mutcarry takes shard_plan
+        and quality_gate from the parent directory) must be in that archive, or the self-test of every pull request on main fails to import."""
+        import re
+        here = os.path.dirname(os.path.abspath(__file__))
+        tools = os.path.dirname(here)
+        siblings = {m[:-3] for m in os.listdir(tools) if m.endswith(".py")}
+        used = set()
+        for f in os.listdir(here):
+            if f.endswith(".py"):
+                used |= {m for m in re.findall(r"^import (\w+)", open(os.path.join(here, f)).read(), re.M) if m in siblings}
+        archive = next(l for l in open(os.path.join(os.path.dirname(g.DST), "proof-plan.yml")) if "git archive" in l)
+        self.assertTrue(used)
+        for m in used:
+            self.assertIn("tools/%s.py" % m, archive, m)
+
+    def test_dual_starts_both_methodologies_and_asks_for_nothing_else(self):
+        import re
+        import subprocess
+        d = yaml.safe_load(open(os.path.join(os.path.dirname(g.DST), "dual.yml")))
+        on = d[True] if True in d else d["on"]
+        self.assertEqual(set(on), {"workflow_dispatch"})
+        self.assertEqual(d["permissions"], {"contents": "read", "actions": "write"})
+        run = d["jobs"]["both"]["steps"][0]["run"]
+        self.assertIn("gh workflow run p1.yml", run)
+        self.assertIn("gh workflow run p1-proof.yml", run)
+        p = subprocess.run(["bash", "-n"], input=re.sub(r"\$\{\{.*?\}\}", "X", run, flags=re.S), text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
