@@ -15,6 +15,7 @@ pub mod composed;
 pub mod defaults;
 pub mod diff;
 pub mod diffread;
+pub mod digest_mapping;
 pub mod editscalar;
 pub mod emit;
 pub mod error;
@@ -51,6 +52,12 @@ pub use diff::{
     diff, DeclChange, DiffContext, DiffEvent, DiffResult, DiffView, EventKind, RepresentationChange,
 };
 pub use diffread::{read_diff, read_diff_version, CanonicalDiff, DiffReadError};
+pub use digest_mapping::{
+    map_release, receipt_digest_of, DigestMapping, MappingError, MAPPING_ARTIFACT_ABSENT,
+    MAPPING_ARTIFACT_DUPLICATE, MAPPING_BASE64_LENGTH, MAPPING_BASE64_NOT_CANONICAL,
+    MAPPING_BASE64_SHAPE, MAPPING_DIGEST_FORM, MAPPING_ENVELOPE_NOT_3, MAPPING_FIELD_MISSING,
+    MAPPING_FIELD_TYPE, MAPPING_PROVENANCE_ARTIFACTS_DISAGREE, MAPPING_RECORD_PIN_DISAGREE,
+};
 pub use editscalar::{edit_parsed, edit_scalar, EditResult};
 pub use emit::emit;
 pub use error::{Error, Location, Phase, SchemaProblem, Violation};
