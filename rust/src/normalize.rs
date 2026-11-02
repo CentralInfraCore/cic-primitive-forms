@@ -38,7 +38,7 @@ pub struct NormalizationResult {
 }
 
 fn origins_of(mut found: Vec<(crate::recognize::Path, &'static str)>) -> Vec<ValueOrigin> {
-    found.sort_by(|x, y| x.0.cmp(&y.0));
+    found.sort_by(|a, b| a.0.cmp(&b.0));
     found
         .into_iter()
         .map(|(p, origin)| ValueOrigin {
