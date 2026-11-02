@@ -141,9 +141,14 @@ fn hex_lower(raw: &[u8]) -> String {
 /// The conversion of the contract, section 3: a base64 SHA-256 of exactly 32 bytes, in its one canonical spelling, as `sha256:` and lowercase hex. `field` names the
 /// member the value was read from and goes into the refusal. The value is judged exactly as it is: nothing is trimmed, folded or coerced.
 pub fn receipt_digest_of(value: &Node, field: &str) -> Result<String, MappingError> {
-    let Value::Str(text) = &value.value else {
-        return Err(refused(MAPPING_FIELD_TYPE, field));
-    };
+    match &value.value {
+        Value::Str(text) => digest_of_text(text, field),
+        _ => Err(refused(MAPPING_FIELD_TYPE, field)),
+    }
+}
+
+/// The conversion of a text that is a string: the shape first, then the bytes and their one canonical spelling.
+fn digest_of_text(text: &str, field: &str) -> Result<String, MappingError> {
     if !base64_shape(text) {
         return Err(refused(MAPPING_BASE64_SHAPE, field));
     }
@@ -156,10 +161,10 @@ pub fn receipt_digest_of(value: &Node, field: &str) -> Result<String, MappingErr
 fn get<'a>(record: &'a Node, path: &str) -> Option<&'a Node> {
     let mut cur = record;
     for part in path.split('.') {
-        let Value::Map(entries) = &cur.value else {
-            return None;
-        };
-        cur = &entries.iter().find(|e| e.key == part)?.value;
+        match &cur.value {
+            Value::Map(entries) => cur = &entries.iter().find(|e| e.key == part)?.value,
+            _ => return None,
+        }
     }
     Some(cur)
 }
@@ -183,34 +188,43 @@ fn is_receipt_digest(s: &str) -> bool {
     })
 }
 
+/// Whether an `artifacts.files` entry is the one of `path` (exact string equality).
+fn is_entry_of(entry: &Node, path: &str) -> bool {
+    match get(entry, "path") {
+        Some(Node {
+            value: Value::Str(p),
+            ..
+        }) => p == path,
+        _ => false,
+    }
+}
+
 /// The digest of the one `artifacts.files` entry of `path`, as it is.
 fn artifact_digest(files: &[Node], path: &str) -> Result<String, MappingError> {
-    let found: Vec<&Node> = files
-        .iter()
-        .filter(|f| matches!(get(f, "path"), Some(Node { value: Value::Str(p), .. }) if p == path))
-        .collect();
-    let [entry] = found.as_slice() else {
-        return Err(refused(
-            if found.is_empty() {
-                MAPPING_ARTIFACT_ABSENT
-            } else {
-                MAPPING_ARTIFACT_DUPLICATE
-            },
-            path,
-        ));
-    };
-    let field = format!("artifacts.files[{path}].digest");
-    let Some(Node {
-        value: Value::Str(digest),
-        ..
-    }) = get(entry, "digest")
-    else {
-        return Err(refused(MAPPING_FIELD_TYPE, &field));
-    };
-    if !is_receipt_digest(digest) {
-        return Err(refused(MAPPING_DIGEST_FORM, &field));
+    let found: Vec<&Node> = files.iter().filter(|f| is_entry_of(f, path)).collect();
+    match found.as_slice() {
+        [] => Err(refused(MAPPING_ARTIFACT_ABSENT, path)),
+        [entry] => entry_digest(entry, path),
+        _ => Err(refused(MAPPING_ARTIFACT_DUPLICATE, path)),
     }
-    Ok(digest.clone())
+}
+
+/// The digest member of the one entry of `path`: a string of the receipt form.
+fn entry_digest(entry: &Node, path: &str) -> Result<String, MappingError> {
+    let field = format!("artifacts.files[{path}].digest");
+    match get(entry, "digest") {
+        Some(Node {
+            value: Value::Str(digest),
+            ..
+        }) => {
+            if is_receipt_digest(digest) {
+                Ok(digest.clone())
+            } else {
+                Err(refused(MAPPING_DIGEST_FORM, &field))
+            }
+        }
+        _ => Err(refused(MAPPING_FIELD_TYPE, &field)),
+    }
 }
 
 /// Maps an authenticated envelope 3 release record to the three receipt digests, or refuses with one reason (contract sections 4 and 5). `pin` is
@@ -285,13 +299,13 @@ fn grammar_digest(
             receipt_field,
         ));
     }
-    let Some(pinned) = pin.get(path) else {
-        return Err(refused(MAPPING_FIELD_MISSING, &format!("pin.{path}")));
-    };
-    if format!("sha256:{pinned}") != primary {
-        return Err(refused(MAPPING_RECORD_PIN_DISAGREE, receipt_field));
+    match pin.get(path) {
+        None => Err(refused(MAPPING_FIELD_MISSING, &format!("pin.{path}"))),
+        Some(pinned) if format!("sha256:{pinned}") != primary => {
+            Err(refused(MAPPING_RECORD_PIN_DISAGREE, receipt_field))
+        }
+        Some(_) => Ok(primary),
     }
-    Ok(primary)
 }
 
 #[cfg(test)]
@@ -326,6 +340,15 @@ mod tests {
         assert_eq!(encode_base64(b"Ma"), "TWE=");
         assert_eq!(encode_base64(b"Man"), "TWFu");
         assert_eq!(encode_base64(b""), "");
+    }
+
+    #[test]
+    fn a_path_through_something_that_is_not_a_mapping_is_absent() {
+        // the shared cases remove a member; they never put a scalar where a mapping is expected
+        let record = Node::map(vec![("release", Node::new(Value::Int(1)))]);
+        assert!(get(&record, "release.envelope").is_none());
+        assert!(get(&record, "provenance").is_none());
+        assert!(get(&record, "release").is_some());
     }
 
     #[test]
