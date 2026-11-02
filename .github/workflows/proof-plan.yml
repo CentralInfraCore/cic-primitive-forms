@@ -120,11 +120,28 @@ jobs:
           TRACE=""; if [ -f "$RUNNER_TEMP/trace.json" ]; then TRACE="--trace $RUNNER_TEMP/trace.json"; fi
           python3 "$TOOL/record.py" finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
             $TRACE ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Mutation carry-over, a prediction (the nightly FULL's mutants against this tree; nothing is skipped)
+        # Only where the nightly's artifacts are worth their download (about 140 MB): main, a manual run, and this branch while it is built.
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/proof-aware-planner'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN=$(gh run list --workflow nightly.yml --branch main --status success --limit 1 --json databaseId,headSha -q '.[0] | "\(.databaseId) \(.headSha)"')
+          set -- $RUN; ID=$1; PREV_SHA=$2
+          if [ -z "$ID" ]; then echo "No successful nightly on main: no mutation prediction."; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/nightly"
+          for pat in "rust-mutants-*" "env-rust-mutants-0"; do gh run download "$ID" --repo "$GITHUB_REPOSITORY" -p "$pat" -D "$RUNNER_TEMP/nightly" || true; done
+          git worktree add --detach "$RUNNER_TEMP/prevtree" "$PREV_SHA"
+          { echo '### Mutation carry-over (prediction, nothing is skipped)'; echo "Earlier FULL: nightly run $ID at \`${PREV_SHA:0:7}\`, this tree \`${GITHUB_SHA:0:7}\`"; echo '```'
+            python3 "$TOOL/mutplan.py" --prev-repo "$RUNNER_TEMP/prevtree" --cur-repo . --scipdeps "$RUNNER_TEMP/pp/scipdeps" --rust-toolchain "$RUST_TOOLCHAIN" \
+              --outcomes "$RUNNER_TEMP/nightly" --prev-env "$RUNNER_TEMP/nightly/env-rust-mutants-0/env.json" --out "$RUNNER_TEMP/out/mutation-carry.json"
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/artifact"
-          cp "$RUNNER_TEMP/out/evidence.json" "$RUNNER_TEMP/out/comparison.json" "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" || true
+          cp "$RUNNER_TEMP/out/evidence.json" "$RUNNER_TEMP/out/comparison.json" "$RUNNER_TEMP/out/mutation-carry.json" "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

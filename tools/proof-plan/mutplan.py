@@ -1,6 +1,6 @@
 """Mutation-verdict carry-over, as a PREDICTION (report only; nothing is skipped).
 
-    python3 mutplan.py --prev-graph G0.json --cur-graph G1.json --outcomes DIR [--outcomes DIR ...] [--out report.json]
+    python3 mutplan.py (--prev-graph G0.json | --prev-repo DIR) (--cur-graph G1.json | --cur-repo DIR) --outcomes DIR [--prev-env E] [--out report.json]
 
 Question: a mutant of an earlier FULL run was CaughtMutant. May that verdict stand for the current tree without running it?
 
@@ -21,6 +21,8 @@ import argparse
 import glob
 import json
 import os
+import re
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -124,17 +126,42 @@ def report(rows):
     return "\n".join(lines)
 
 
+PIN = re.compile(r"cargo-mutants@(\d+\.\d+\.\d+)")
+
+
+def env_of_tree(repo, toolchain):
+    """The env.json the nightly would write for this tree: the cargo-mutants version p1.yml pins, and the toolchain's cargo and rustc."""
+    def ver(tool):
+        out = subprocess.run(["rustup", "run", toolchain, tool, "--version"], capture_output=True, text=True).stdout.split()
+        return out[1] if len(out) > 1 else None
+    pins = set(PIN.findall(open(os.path.join(repo, ".github", "workflows", "p1.yml")).read()))
+    return {"cargo": ver("cargo"), "rustc": ver("rustc"), "tools": {"cargo-mutants": pins.pop()} if len(pins) == 1 else None}
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--prev-graph", required=True)
-    ap.add_argument("--cur-graph", required=True)
+    ap.add_argument("--prev-graph")
+    ap.add_argument("--cur-graph")
+    ap.add_argument("--prev-repo", help="checkout of the commit of the earlier run (instead of --prev-graph)")
+    ap.add_argument("--cur-repo", help="checkout of this tree (instead of --cur-graph; also gives --cur-env)")
+    ap.add_argument("--scipdeps")
+    ap.add_argument("--rust-toolchain")
     ap.add_argument("--outcomes", action="append", required=True)
     ap.add_argument("--prev-env", help="env.json of the earlier run (without both env files nothing is carried)")
     ap.add_argument("--cur-env", help="env.json of this run")
     ap.add_argument("--out")
     a = ap.parse_args()
     env = lambda p: json.load(open(p)) if p else None  # noqa: E731
-    rows = predict(json.load(open(a.prev_graph)), json.load(open(a.cur_graph)), load_outcomes(a.outcomes), env(a.prev_env), env(a.cur_env))
+    import rust_graph as rg
+
+    def made(repo):  # the crate is built first: rust-analyzer indexes a built crate differently (plan.py)
+        crate = os.path.join(repo, "rust")
+        subprocess.run(["rustup", "run", a.rust_toolchain, "cargo", "test", "--locked", "--no-run"], cwd=crate, check=True, capture_output=True)
+        return rg.graph(crate, a.scipdeps, a.rust_toolchain)
+    pg = made(a.prev_repo) if a.prev_repo else json.load(open(a.prev_graph))
+    cg = made(a.cur_repo) if a.cur_repo else json.load(open(a.cur_graph))
+    cur_env = env_of_tree(a.cur_repo, a.rust_toolchain) if a.cur_repo and not a.cur_env else env(a.cur_env)
+    rows = predict(pg, cg, load_outcomes(a.outcomes), env(a.prev_env), cur_env)
     print(report(rows))
     if a.out:
         json.dump(rows, open(a.out, "w"), indent=1)
