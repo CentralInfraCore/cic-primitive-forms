@@ -1,0 +1,52 @@
+"""The job-by-job comparison of p1-proof with p1.
+
+    python3 -m unittest test_compare_runs
+"""
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import compare_runs as cr  # noqa: E402
+
+
+def j(name, c):
+    return {"name": name, "conclusion": c}
+
+
+class Compare(unittest.TestCase):
+    def test_equal(self):
+        rows, bad = cr.compare([j("rust", "success"), j("fuzz", "skipped")], [j("proof / rust", "success"), j("proof / fuzz", "skipped")])
+        self.assertEqual(bad, [])
+        self.assertEqual(len(rows), 2)
+
+    def test_a_different_conclusion_diverges(self):
+        _, bad = cr.compare([j("rust", "success")], [j("proof / rust", "failure")])
+        self.assertEqual(bad, [("rust", "success", "failure", False)])
+
+    def test_skipped_is_not_success(self):
+        _, bad = cr.compare([j("rust", "success")], [j("proof / rust", "skipped")])
+        self.assertEqual(len(bad), 1)
+
+    def test_a_job_one_side_lacks_diverges(self):
+        _, bad = cr.compare([j("rust", "success"), j("go", "success")], [j("proof / rust", "success")])
+        self.assertEqual([r[0] for r in bad], ["go"])
+        _, bad = cr.compare([j("rust", "success")], [j("proof / rust", "success"), j("proof / extra", "success")])
+        self.assertEqual([r[0] for r in bad], ["extra"])
+
+    def test_the_jobs_only_p1_proof_has_are_not_compared(self):
+        _, bad = cr.compare([j("rust", "success")], [j("proof / rust", "success"), j("proof / proof-plan / plan", "success"),
+                                                      j("proof / proof-plan", "success"), j("proof / proof-compare", None)])
+        self.assertEqual(bad, [])
+
+    def test_an_unfinished_job_diverges(self):
+        _, bad = cr.compare([j("rust", None)], [j("proof / rust", None)])
+        self.assertEqual(len(bad), 1)   # no conclusion on either side is no evidence of equality
+
+    def test_matrix_names_are_kept(self):
+        _, bad = cr.compare([j("fuzz-target (go A)", "success")], [j("proof / fuzz-target (go A)", "success")])
+        self.assertEqual(bad, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

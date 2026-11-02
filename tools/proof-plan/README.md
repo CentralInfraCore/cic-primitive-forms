@@ -75,6 +75,9 @@ anything in it yet: it runs exactly what p1 runs, which is the baseline the next
 Step 4: the `rust` and `go` jobs of p1-proof wait for `proof-plan`, fetch its plan and run their test step through `select_tests.py run`: the command of p1 minus
 the REUSE_ELIGIBLE tests, but only when the plan is authorized (evidence and planner from main). On a pull request that is never so, and with no plan
 at all (the planner failed) the command is p1's. Run locally with an authorized plan: Rust 233 skipped, the 20 others passed, doctests included; Go 266 skipped, rest passed.
+Step 5: `proof-compare` waits for every other job and for the p1 run of the same commit, compares the conclusions job by job and the planner's FALSE_REUSE, and
+fails on a divergence; when the comparison cannot be made it says NOT COMPARED (not a pass, not a failure).
+
 The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
 
 ## Trust: what may ever authorize skipping
@@ -114,5 +117,6 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `extractor/` | the Go extractors (their own modules) |
 | `gen_p1_proof.py`, `test_gen_p1_proof.py` | generates and checks `p1-proof.yml` from `p1.yml` |
 | `select_tests.py`, `test_select_tests.py` | the commands the decisions imply (`-skip`, `--exact --skip`), checked against the real test lists; report only |
+| `compare_runs.py`, `test_compare_runs.py` | p1-proof against p1, job by job, for the same commit (the `proof-compare` job) |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |

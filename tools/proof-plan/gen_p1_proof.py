@@ -14,6 +14,7 @@ so that the jobs it shares with p1 cannot drift from p1. This first step changes
 * the jobs `rust` and `go` wait for `proof-plan`, fetch its plan and run their test step through `select_tests.py run` (step 4): the command of p1, minus
   the tests whose earlier result may stand. The plan skips nothing unless it is authorized (evidence and planner from main), so on a pull
   request they run exactly what p1 runs; without the plan (the planner failed, no artifact) too;
+* the job `proof-compare` is added (step 5): after every other job of p1-proof it compares their conclusions with those of the p1 run of the same commit;
 * the job `proof-plan` is added (step 2): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
   the `needs` of `quality`: it reports, it decides nothing yet.
 
@@ -121,6 +122,34 @@ def wire_tests(text):
     return text
 
 
+COMPARE_JOB = """
+  proof-compare:
+    name: "proof / proof-compare"
+    needs: [%s]
+    if: ${{ always() && !cancelled() }}   # also when a job before it failed: that is what is compared
+    runs-on: ubuntu-latest
+    timeout-minutes: 40   # it waits for the p1 run of the same commit
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: proof-evidence
+          path: ${{ runner.temp }}/proof
+      - run: |
+          python3 tools/proof-plan/compare_runs.py --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA" --event "$EVENT" --own-run "$GITHUB_RUN_ID" \\
+            --comparison "$RUNNER_TEMP/proof/comparison.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "${PIPESTATUS[0]}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}   # the pull request run is named by the head, not by the merge commit
+"""
+
+
 def generate(src_text):
     t = once(src_text, "name: p1\n", "name: p1-proof\n" + HEADER)
     t, n = re.subn(r"  workflow_call:.*\n(?:    .*\n)+(?=  push:)", "", t)
@@ -129,7 +158,8 @@ def generate(src_text):
     t = once(t, "      caller: p1\n", "      caller: p1-proof\n")
     t = once(t, "      workflows: p1.yml,corpus.yml\n", "      workflows: p1-proof.yml,corpus.yml\n")
     t = prefix_job_names(wire_tests(t))
-    return t.rstrip("\n") + "\n" + PLANNER_JOB
+    ids = re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", t[t.index("\njobs:"):], re.M)
+    return t.rstrip("\n") + "\n" + PLANNER_JOB + COMPARE_JOB % ", ".join(ids + ["proof-plan"])
 
 
 def main(argv):

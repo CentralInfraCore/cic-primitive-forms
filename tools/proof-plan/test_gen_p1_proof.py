@@ -20,7 +20,7 @@ class Generated(unittest.TestCase):
         self.assertEqual(g.main(["--check"]), 0)
 
     def test_same_job_graph(self):
-        self.assertEqual(list(P1["jobs"]) + ["proof-plan"], list(PROOF["jobs"]))
+        self.assertEqual(list(P1["jobs"]) + ["proof-plan", "proof-compare"], list(PROOF["jobs"]))
         for k, j in P1["jobs"].items():
             p = PROOF["jobs"][k]
             for field in ("needs", "if", "strategy", "runs-on", "steps", "outputs", "timeout-minutes"):
@@ -47,7 +47,15 @@ class Generated(unittest.TestCase):
         for k, j in PROOF["jobs"].items():
             needs = j.get("needs", [])
             needs = [needs] if isinstance(needs, str) else needs
-            self.assertEqual("proof-plan" in needs, k in ("rust", "go"), k)
+            self.assertEqual("proof-plan" in needs, k in ("rust", "go", "proof-compare"), k)
+
+    def test_the_compare_job_waits_for_every_other_job_and_nothing_waits_for_it(self):
+        c = PROOF["jobs"]["proof-compare"]
+        self.assertEqual(set(c["needs"]), (set(PROOF["jobs"]) - {"proof-compare"}))
+        self.assertIn("always()", c["if"])
+        for k, j in PROOF["jobs"].items():
+            n = j.get("needs", [])
+            self.assertNotIn("proof-compare", [n] if isinstance(n, str) else n, k)
 
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
