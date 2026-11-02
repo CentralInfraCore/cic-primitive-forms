@@ -70,10 +70,19 @@ jobs:
           if [ "$SAME_REPO" = "true" ]; then BRANCHES="$BRANCHES --branch $HEAD_REF"; fi
           python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
           if [ -f "$RUNNER_TEMP/prev/evidence.json" ]; then echo "dir=$RUNNER_TEMP/prev" >> "$GITHUB_OUTPUT"; fi
+      # The qualification of the extractor builds (the probes) depends on the binaries, the probes and the toolchains, not on the tree under test: it
+      # is kept between runs. plan.py reads the file only if it was made for exactly these identities, probes and toolchains (the key below is only
+      # a way to find it; a file for anything else is ignored and measured again).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/qual
+          key: proof-qual-${{ runner.os }}-${{ hashFiles('tools/proof-plan/**') }}
+          restore-keys: |
+            proof-qual-${{ runner.os }}-
       - name: Plan (decide, nothing is skipped)
         run: |
           python3 tools/proof-plan/plan.py --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
-            --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/plan" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
+            --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
       - name: Observe the Go tests (the command of p1)
         run: python3 tools/proof-plan/record.py observe-go --repo . --out "$RUNNER_TEMP/go.json"
       - name: Observe the Rust tests

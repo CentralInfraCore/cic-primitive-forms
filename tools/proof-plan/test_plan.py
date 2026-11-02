@@ -50,6 +50,37 @@ class Decide(unittest.TestCase):
         self.assertFalse(pl.is_data("go/a.go") or pl.is_data("rust/Cargo.lock") or pl.is_data("docs/x.md"))
 
 
+class QualifyCache(unittest.TestCase):
+    def test_the_probe_digest_follows_the_probes_and_nothing_else(self):
+        self.assertEqual(pl.probe_digest(), pl.probe_digest())
+        self.assertEqual(len(pl.probe_digest()), 64)
+
+    def test_a_cache_for_other_builds_is_ignored_and_one_for_these_is_used(self):
+        import argparse, tempfile, json as _json
+        calls = []
+        orig = (pl.qgo.qualify, pl.qrs.qualify)
+        pl.qgo.qualify = lambda *a, **k: calls.append("go") or frozenset({"go.func"})
+        pl.qrs.qualify = lambda *a, **k: calls.append("rust") or frozenset({"rs.fn"})
+        try:
+            a = argparse.Namespace(typeddeps="t", scipdeps="s", rust_toolchain="1.99.1")
+            tc = {"rustc": "rustc x", "rust-analyzer": "ra x"}
+            ids = {"go": ("G1", {}), "rust": ("R1", {})}
+            with tempfile.TemporaryDirectory() as d:
+                f = os.path.join(d, "q.json")
+                q, _, hit = pl.qualify_cached(a, ids, tc, f)
+                self.assertEqual((hit, calls), (False, ["go", "rust"]))
+                q, _, hit = pl.qualify_cached(a, ids, tc, f)
+                self.assertEqual((hit, calls, q["G1"]), (True, ["go", "rust"], frozenset({"go.func"})))  # nothing was measured again
+                q, _, hit = pl.qualify_cached(a, {"go": ("G2", {}), "rust": ("R1", {})}, tc, f)  # another go binary: not this file's
+                self.assertEqual((hit, calls), (False, ["go", "rust", "go", "rust"]))
+                q, _, hit = pl.qualify_cached(a, ids, {"rustc": "rustc y", "rust-analyzer": "ra x"}, f)  # another compiler
+                self.assertFalse(hit)
+                open(f, "w").write("not json")
+                self.assertFalse(pl.qualify_cached(a, ids, tc, f)[2])
+        finally:
+            pl.qgo.qualify, pl.qrs.qualify = orig
+
+
 class Record(unittest.TestCase):
     def rows(self, status, prev_verdict, obs):
         dec = [{"key": "go:TestX", "status": status, "reasons": []}]

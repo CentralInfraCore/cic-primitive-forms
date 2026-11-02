@@ -133,6 +133,54 @@ def current_evidence(root, a, idents):
     return res, errors
 
 
+PROBE_FILES = ("evidence.py", "build_evidence.py", "merkle.py", "qualify.py", "qualify_rust.py", "rust_graph.py", "repro_rust_dispatch.py")
+
+
+def tool_version(*cmd):
+    """The first line of a tool's version, "unavailable" if it is not there: a cache made with another answer is simply not used."""
+    try:
+        return run(list(cmd)).stdout.strip()
+    except OSError:
+        return "unavailable"
+
+
+def probe_digest():
+    """The digest of everything a qualification is a function of besides the binaries: the kernel, the scripts that run the probes and
+    every fixture of testdata/. A change of any of them is another qualification."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    parts = []
+    for f in PROBE_FILES:
+        parts.append(f + " " + sha(open(os.path.join(here, f), "rb").read()))
+    for base, dirs, files in os.walk(os.path.join(here, "testdata")):
+        dirs.sort()
+        for f in sorted(files):
+            full = os.path.join(base, f)
+            parts.append(os.path.relpath(full, here) + " " + sha(open(full, "rb").read()))
+    return sha(*parts)
+
+
+def qualify_cached(a, idents, tc, cache_file):
+    """(assurance extractors {identity: frozenset}, seconds, hit): the qualification of these two builds, from `cache_file` if it was made for
+    exactly these identities, probes and toolchains, else measured (and written there). The cache is never trusted for more than that: a file
+    for other binaries or other probes is ignored, whatever key the CI cache restored it under."""
+    go_id, rs_id = idents["go"][0], idents["rust"][0]
+    want = {"go": go_id, "rust": rs_id, "probes": probe_digest(), "toolchain": [tc["rustc"], tc["rust-analyzer"]],
+            "go_version": tool_version("go", "version")}
+    t0 = time.time()
+    if cache_file and os.path.exists(cache_file):
+        try:
+            d = json.load(open(cache_file))
+            if d.get("for") == want:
+                return {k: frozenset(v) for k, v in d["qualified"].items()}, time.time() - t0, True
+        except (ValueError, KeyError):
+            pass
+    q = {go_id: qgo.qualify(a.typeddeps, ()), rs_id: qrs.qualify(a.scipdeps, a.rust_toolchain)}
+    if cache_file:
+        os.makedirs(os.path.dirname(os.path.abspath(cache_file)), exist_ok=True)
+        json.dump({"for": want, "qualified": {k: sorted(v) for k, v in q.items()}}, open(cache_file, "w"), indent=1)
+    return q, time.time() - t0, False
+
+
 def decide(prev_tests, cur_tests, assurance):
     """[{key, status, reasons}] for every test of the current tree. Pure: no file, no git, no process."""
     out = []
@@ -166,6 +214,7 @@ def main():
     ap.add_argument("--rust-toolchain", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--prev")
+    ap.add_argument("--qual-cache", help="a file: the qualification of exactly these builds and probes is read from it, or measured and written to it")
     ap.add_argument("--sha", default="")
     a = ap.parse_args()
     root = os.path.abspath(a.repo)
@@ -179,7 +228,8 @@ def main():
     cur, errors = current_evidence(root, a, idents)
     t2 = time.time()
     # the Assurance of these builds is MEASURED here (the probes of qualify.py / qualify_rust.py), never declared
-    assurance = ev.Assurance.of([ev.CONTRACT_V2], [be.RULE_VERSION], {go_id: qgo.qualify(a.typeddeps, ()), rs_id: qrs.qualify(a.scipdeps, a.rust_toolchain)})
+    qualified, _q_s, q_hit = qualify_cached(a, idents, tc, a.qual_cache)
+    assurance = ev.Assurance.of([ev.CONTRACT_V2], [be.RULE_VERSION], qualified)
     t3 = time.time()
     prev, prev_commit = load_prev(a.prev)
     decisions = decide(prev, cur, assurance)
@@ -187,12 +237,13 @@ def main():
     json.dump({"schema": "cic-proof-plan/plan/v1", "commit": a.sha, "previous_commit": prev_commit, "extractor_errors": errors,
                "qualified": {k: sorted(v) for k, v in assurance.extractors.items()}, "decisions": decisions},
               open(os.path.join(a.out, "plan.json"), "w"), indent=1)
-    json.dump({"identity_s": round(t1 - t0, 1), "evidence_s": round(t2 - t1, 1), "qualification_s": round(t3 - t2, 1),
+    json.dump({"identity_s": round(t1 - t0, 1), "evidence_s": round(t2 - t1, 1), "qualification_s": round(t3 - t2, 1), "qualification_cached": q_hit,
                "decision_s": round(time.time() - t3, 1), "total_s": round(time.time() - t0, 1)}, open(os.path.join(a.out, "timings.json"), "w"))
     counts = {}
     for d in decisions:
         counts[d["status"]] = counts.get(d["status"], 0) + 1
-    print("tests %d: %s; previous evidence from %s; extractor errors: %s" % (len(decisions), counts, prev_commit or "none", sorted(errors) or "none"))
+    print("tests %d: %s; previous evidence from %s; extractor errors: %s; qualification %s" % (
+        len(decisions), counts, prev_commit or "none", sorted(errors) or "none", "from the cache" if q_hit else "measured"))
     return 0
 
 
