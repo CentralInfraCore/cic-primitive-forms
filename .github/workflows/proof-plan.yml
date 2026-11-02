@@ -52,8 +52,13 @@ jobs:
         id: prev
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
-          python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" >> "$GITHUB_STEP_SUMMARY" || true
+          # main always; the pull request's own branch too, but only for a branch of this repository (never a fork's artifact)
+          BRANCHES="--branch main"
+          if [ "$SAME_REPO" = "true" ]; then BRANCHES="$BRANCHES --branch $HEAD_REF"; fi
+          python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
           if [ -f "$RUNNER_TEMP/prev/evidence.json" ]; then echo "dir=$RUNNER_TEMP/prev" >> "$GITHUB_OUTPUT"; fi
       - name: Plan (decide, nothing is skipped)
         run: |
