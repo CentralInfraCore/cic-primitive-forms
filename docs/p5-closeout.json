@@ -391,7 +391,7 @@
         "17"
       ],
       "claim": "A verified, signed release cut from the pinned grammar commit, and a receipt that names it.",
-      "reason": "No verified release record is shown to exist for the grammar pin; the receipt layout has no fixture mark, so the separation is in the function name. Examined in the release-origin pre-check (a separate unit)."
+      "reason": "A signed release that contains the grammar pin exists (primitives/@v0.2.1), but it is not verified against a trust anchor pinned outside the record, the base64 to hex mapping of the receipt digests is not a contract, and no receipt names it; the receipt layout has no fixture mark, so the separation is in the function name. Examined in the release-origin pre-check and its addendum (separate units)."
     },
     {
       "id": "reference-resolution",
