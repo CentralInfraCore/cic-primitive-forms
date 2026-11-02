@@ -65,7 +65,7 @@ jobs:
           # The base is taken only when it is main: a pull request stacked on another branch has a base that anyone can push to, which is
           # no more trusted than the code under test, so that code runs (trust: branch).
           if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
-            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
+            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan tools/shard_plan.py tools/quality_gate.py | tar -x -C "$RUNNER_TEMP/trusted"
             TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
           elif { [ "$EVENT" = push ] || [ "$EVENT" = workflow_dispatch ]; } && [ "$REF" = refs/heads/main ]; then
             TRUST=main   # a run of main itself (a push, or by hand on main) is main's own code

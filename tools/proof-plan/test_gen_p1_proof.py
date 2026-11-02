@@ -128,6 +128,22 @@ class Generated(unittest.TestCase):
                             bad.append((jn, s.get("name", r[:40]), p.stderr[:80]))
         self.assertEqual(bad, [])
 
+    def test_the_trusted_copy_of_the_planner_has_every_sibling_it_imports(self):
+        """The planner of the base commit is extracted with `git archive`; a module of tools/ that tools/proof-plan imports (mutcarry takes shard_plan
+        and quality_gate from the parent directory) must be in that archive, or the self-test of every pull request on main fails to import."""
+        import re
+        here = os.path.dirname(os.path.abspath(__file__))
+        tools = os.path.dirname(here)
+        siblings = {m[:-3] for m in os.listdir(tools) if m.endswith(".py")}
+        used = set()
+        for f in os.listdir(here):
+            if f.endswith(".py"):
+                used |= {m for m in re.findall(r"^import (\w+)", open(os.path.join(here, f)).read(), re.M) if m in siblings}
+        archive = next(l for l in open(os.path.join(os.path.dirname(g.DST), "proof-plan.yml")) if "git archive" in l)
+        self.assertTrue(used)
+        for m in used:
+            self.assertIn("tools/%s.py" % m, archive, m)
+
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
             self.assertTrue(j["name"].startswith("proof / "), k)
