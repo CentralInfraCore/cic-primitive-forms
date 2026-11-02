@@ -95,7 +95,7 @@ pub struct FlatReceipt {
 
 fn is_digest(s: &str) -> bool {
     s.strip_prefix("sha256:").is_some_and(|hex| {
-        hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        hex.len() == 32 * 2 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
     })
 }
 
