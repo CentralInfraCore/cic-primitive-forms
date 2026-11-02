@@ -10,7 +10,9 @@ so that the jobs it shares with p1 cannot drift from p1. This first step changes
 * every job gets the display name `proof / <job>`: the checks of a workflow are named by the job alone (`rust`, `quality` ...) and the ruleset
   of `main` requires those names, so a second job called `quality` would be confusable with the required one;
 * `workflow_call` goes (nightly.yml calls p1, not p1-proof);
-* the `inherit` job asks about p1-proof.yml, not p1.yml.
+* the `inherit` job asks about p1-proof.yml, not p1.yml;
+* the job `proof-plan` is added (step 2): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
+  the `needs` of `quality`: it reports, it decides nothing yet.
 
 Each substitution must match exactly once, otherwise the generator stops: a change in p1.yml that the generator does not understand is an
 error, not a silently wrong copy. The job graph (ids, needs, if) is untouched, which the test checks.
@@ -67,6 +69,16 @@ def prefix_job_names(text):
     return "\n".join(out + lines[end:])
 
 
+PLANNER_JOB = """
+  proof-plan:
+    name: "proof / proof-plan"
+    uses: ./.github/workflows/proof-plan.yml
+    permissions:
+      contents: read
+      actions: read   # the planner finds and downloads the evidence artifact of an earlier run
+"""
+
+
 def generate(src_text):
     t = once(src_text, "name: p1\n", "name: p1-proof\n" + HEADER)
     t, n = re.subn(r"  workflow_call:.*\n(?:    .*\n)+(?=  push:)", "", t)
@@ -74,7 +86,8 @@ def generate(src_text):
         raise Unsupported("workflow_call block not found exactly once")
     t = once(t, "      caller: p1\n", "      caller: p1-proof\n")
     t = once(t, "      workflows: p1.yml,corpus.yml\n", "      workflows: p1-proof.yml,corpus.yml\n")
-    return prefix_job_names(t)
+    t = prefix_job_names(t)
+    return t.rstrip("\n") + "\n" + PLANNER_JOB
 
 
 def main(argv):

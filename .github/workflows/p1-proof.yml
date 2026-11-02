@@ -1596,3 +1596,10 @@ jobs:
           (cd rust && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/rust.jsonl" cargo +"$RUST_TOOLCHAIN" test --locked --test parity_patch_dump)
           (cd go && PARITY_PATCH_IN="$P/in.jsonl" PARITY_PATCH_OUT="$P/go.jsonl" go test -count=1 -run '^TestDumpPatchOutcomes$' .)
           python3 tools/parity/patch_proof.py "$P/in.jsonl" "$P/rust.jsonl" "$P/go.jsonl" --lang "$LANGUAGE"
+
+  proof-plan:
+    name: "proof / proof-plan"
+    uses: ./.github/workflows/proof-plan.yml
+    permissions:
+      contents: read
+      actions: read   # the planner finds and downloads the evidence artifact of an earlier run

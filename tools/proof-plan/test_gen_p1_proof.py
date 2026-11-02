@@ -20,11 +20,18 @@ class Generated(unittest.TestCase):
         self.assertEqual(g.main(["--check"]), 0)
 
     def test_same_job_graph(self):
-        self.assertEqual(list(P1["jobs"]), list(PROOF["jobs"]))
+        self.assertEqual(list(P1["jobs"]) + ["proof-plan"], list(PROOF["jobs"]))
         for k, j in P1["jobs"].items():
             p = PROOF["jobs"][k]
             for field in ("needs", "if", "strategy", "runs-on", "steps", "outputs", "timeout-minutes"):
                 self.assertEqual(j.get(field), p.get(field), (k, field))
+
+    def test_the_planner_job_is_called_not_waited_for(self):
+        j = PROOF["jobs"]["proof-plan"]
+        self.assertEqual(j["uses"], "./.github/workflows/proof-plan.yml")
+        self.assertNotIn("needs", j)
+        for k, other in PROOF["jobs"].items():
+            self.assertNotIn("proof-plan", [other.get("needs")] if isinstance(other.get("needs"), str) else other.get("needs", []), k)
 
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
