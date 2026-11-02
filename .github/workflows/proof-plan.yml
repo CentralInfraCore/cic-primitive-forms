@@ -43,11 +43,21 @@ jobs:
           workspaces: rust -> target
       - name: Self-test of the planner
         run: python3 -m unittest tools/proof-plan/test_plan.py tools/proof-plan/test_merkle.py
-      - name: Build the extractors (the identity of a build is the digest of its binary)
+      - name: Build the extractors (reproducibly: the identity of a build is the digest of its binary)
+        env:
+          CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner
         run: |
-          mkdir -p "$RUNNER_TEMP/pp"
-          (cd tools/proof-plan/extractor/typeddeps && go build -trimpath -o "$RUNNER_TEMP/pp/typeddeps" .)
-          (cd tools/proof-plan/extractor/scipdeps && go build -trimpath -o "$RUNNER_TEMP/pp/scipdeps" .)
+          # -trimpath: no build paths. -buildvcs=false: no commit/time stamp (a binary that carries the revision is another extractor at
+          # every commit, so the evidence of the commit before is never accepted). Built twice and compared: the identity must not depend on the run.
+          for d in "$RUNNER_TEMP/pp" "$RUNNER_TEMP/pp2"; do
+            mkdir -p "$d"
+            (cd tools/proof-plan/extractor/typeddeps && go build -trimpath -buildvcs=false -o "$d/typeddeps" .)
+            (cd tools/proof-plan/extractor/scipdeps && go build -trimpath -buildvcs=false -o "$d/scipdeps" .)
+          done
+          { echo '### Extractor builds'; echo '```'; sha256sum "$RUNNER_TEMP"/pp/typeddeps "$RUNNER_TEMP"/pp/scipdeps; \
+            cmp "$RUNNER_TEMP/pp/typeddeps" "$RUNNER_TEMP/pp2/typeddeps" && cmp "$RUNNER_TEMP/pp/scipdeps" "$RUNNER_TEMP/pp2/scipdeps" \
+              && echo 'two builds in this job: identical' || echo 'TWO BUILDS IN THIS JOB DIFFER: the build is not reproducible'; \
+            go version -m "$RUNNER_TEMP/pp/typeddeps" | grep -E 'build|vcs|mod' | head -12; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Find the evidence of an earlier run
         id: prev
         env:
