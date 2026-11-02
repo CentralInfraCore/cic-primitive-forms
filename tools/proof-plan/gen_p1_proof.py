@@ -82,6 +82,9 @@ def prefix_job_names(text):
 PLANNER_JOB = """
   proof-plan:
     name: "proof / proof-plan"
+    needs: inherit
+    # p1 skips its checks when the tree of a push is the one a pull request was already checked on (inherit); nothing is decided or compared then
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}
     uses: ./.github/workflows/proof-plan.yml
     with:
       phase: plan
@@ -91,8 +94,8 @@ PLANNER_JOB = """
 
   proof-finish:
     name: "proof / proof-finish"
-    needs: [rust, go, proof-plan]
-    if: ${{ always() && !cancelled() }}   # also when a test job failed: that is what the evidence has to say
+    needs: [inherit, rust, go, proof-plan]
+    if: ${{ always() && !cancelled() && needs.inherit.outputs.inherited != 'true' }}   # also when a test job failed: that is what the evidence has to say
     uses: ./.github/workflows/proof-plan.yml
     with:
       phase: finish
@@ -188,12 +191,15 @@ COMPARE_JOB = """
           name: proof-evidence
           path: ${{ runner.temp }}/proof
       - run: |
+          # an inherited tree: the planner did not run (nothing to decide, nothing was run), so the planner's own comparison is not asked for; the jobs are
+          NOPLAN=""; if [ "$INHERITED" = true ]; then NOPLAN="--no-planner"; fi
           python3 tools/proof-plan/compare_runs.py --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA" --event "$EVENT" --own-run "$GITHUB_RUN_ID" \\
-            --comparison "$RUNNER_TEMP/proof/comparison.json" | tee -a "$GITHUB_STEP_SUMMARY"
+            --comparison "$RUNNER_TEMP/proof/comparison.json" $NOPLAN | tee -a "$GITHUB_STEP_SUMMARY"
           exit "${PIPESTATUS[0]}"
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
+          INHERITED: ${{ needs.inherit.outputs.inherited }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}   # the pull request run is named by the head, not by the merge commit
 """
 

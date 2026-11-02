@@ -109,6 +109,13 @@ p1 (the required check) and p1-proof run side by side on the same commit:
   The sum of job seconds of the two is comparable; the wall time of either is not, because they share the runners. It can only be started once `dual.yml` is on main.
 - The nightly still runs p1 alone, as the independent reference.
 
+## An inherited tree costs nothing
+
+When a push to main is the very tree a pull request already checked, p1's `inherit` skips its checks (15 seconds in all). p1-proof's `proof-plan`, `proof-finish` and
+`proof-mutplan` do the same (before, they ran for 3 minutes, on that one run measured: 77 s, 59 s and 136 s, with nothing to decide or compare). `proof-compare`
+still runs and compares the jobs, without asking for the planner's comparison (`--no-planner`). The evidence of a push to main is made by the planner's own workflow
+(`proof-plan.yml`, phase `all`), which this does not touch.
+
 ## Hardening after review (what was checked, what was changed, what stays by design)
 
 Changed:

@@ -83,6 +83,7 @@ def main():
     ap.add_argument("--timeout", type=int, default=1500)
     ap.add_argument("--grace", type=int, default=180, help="seconds to wait for a p1 run to appear at all")
     ap.add_argument("--informational", action="store_true")
+    ap.add_argument("--no-planner", action="store_true", help="the planner did not run on purpose (an inherited tree): its comparison is not asked for")
     a = ap.parse_args()
     print("### p1-proof against p1, commit `%s`" % a.sha[:7])
     not_compared = 0 if a.informational else 2
@@ -102,7 +103,9 @@ def main():
     except (RuntimeError, ValueError, KeyError) as e:
         print("**NOT COMPARED**: %s. This is not a pass." % e)
         return not_compared
-    false_reuse = planner_false_reuse(a.comparison)
+    false_reuse = 0 if a.no_planner else planner_false_reuse(a.comparison)
+    if a.no_planner:
+        print("(the planner did not run: the tree was already checked on a pull request; only the jobs are compared)")
     if false_reuse is None:
         print("**NOT COMPARED**: the planner's comparison.json is missing or unreadable, so FALSE_REUSE was not checked. This is not a pass.")
         return not_compared

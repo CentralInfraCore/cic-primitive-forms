@@ -4,8 +4,8 @@
 MUTPLAN_JOB = r"""
   proof-mutplan:
     name: "proof / proof-mutplan"
-    needs: scope
-    if: ${{ !cancelled() }}
+    needs: [scope, inherit]
+    if: ${{ !cancelled() && needs.inherit.outputs.inherited != 'true' }}   # an inherited tree (see proof-plan): nothing to predict
     runs-on: ubuntu-latest
     timeout-minutes: 40
     continue-on-error: true   # a prediction: it never fails the pipeline, and without it every mutant runs
