@@ -54,11 +54,11 @@ jobs:
           # request the planner is taken from the base commit; if the base has none (before this is merged) the one under test is used and the
           # report says so. A push to main is main's own code.
           TOOL="$GITHUB_WORKSPACE/tools/proof-plan"; TRUST=branch
-          if [ "$EVENT" = pull_request ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
+          # The base is taken only when it is main: a pull request stacked on another branch has a base that anyone can push to, which is
+          # no more trusted than the code under test, so that code runs (trust: branch).
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
             mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
-            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"
-            # the base is trusted only when it is main: a pull request stacked on another branch (base.ref) has a base that anyone can push to
-            if [ "$BASE_REF" = main ]; then TRUST=main; fi
+            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
           elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
             TRUST=main
           fi
