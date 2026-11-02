@@ -10,7 +10,9 @@ name: proof-plan
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    # main; and this branch while the work on it goes on with the pull request closed, so that p1 does not run at every push (it runs once when
+    # the pull request is opened again). Remove the branch from this list when it is merged.
+    branches: ["main", "feat/proof-aware-planner"]
   pull_request:
 permissions:
   contents: read
@@ -62,10 +64,10 @@ jobs:
         id: prev
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.head_ref }}
-          SAME_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}   # the branch of a pull request, or of a push
+          SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
-          # main always; the pull request's own branch too, but only for a branch of this repository (never a fork's artifact)
+          # main always; the own branch of a pull request or a push too, but only a branch of this repository (never a fork's artifact)
           BRANCHES="--branch main"
           if [ "$SAME_REPO" = "true" ]; then BRANCHES="$BRANCHES --branch $HEAD_REF"; fi
           python3 tools/proof-plan/find_prev.py --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
