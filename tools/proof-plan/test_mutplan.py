@@ -65,6 +65,35 @@ class Rule(unittest.TestCase):
         self.assertEqual(run(p, c), (False, "DEPENDENCY_CHANGED"))
 
 
+class Outcomes(unittest.TestCase):
+    def write(self, d, name, summary, sub="rust-mutants-0"):
+        import json
+        os.makedirs(os.path.join(d, sub), exist_ok=True)
+        json.dump({"outcomes": [{"scenario": "Baseline", "summary": "Success"},
+                                {"scenario": {"Mutant": {"name": name}}, "summary": summary, "phase_results": [{"duration": 2.0}]}]},
+                  open(os.path.join(d, sub, "outcomes.json"), "w"))
+
+    def test_the_log_artifact_does_not_count_a_mutant_twice(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "m1", "CaughtMutant", "rust-mutants-0")
+            self.write(d, "m1", "CaughtMutant", "rust-mutants-log-0/mutants.out")
+            got = mp.load_outcomes([d])
+            self.assertEqual([(m["name"], s) for m, s, _ in got], [("m1", "CaughtMutant")])
+
+    def test_two_verdicts_for_one_name_are_not_trusted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "m1", "CaughtMutant", "a")
+            self.write(d, "m1", "MissedMutant", "b")
+            self.assertEqual([s for _, s, _ in mp.load_outcomes([d])], ["CONFLICT"])
+            rows = mp.predict(graph(), graph(), mp.load_outcomes([d]), TOOL_ENV, TOOL_ENV)
+            self.assertFalse(rows[0]["carry"])
+
+
+TOOL_ENV = {"cargo": "1", "rustc": "1", "tools": {"cargo-mutants": "27.1.0"}}
+
+
 class Tool(unittest.TestCase):
     E = {"cargo": "1.99.1", "rustc": "1.99.1", "tools": {"cargo-mutants": "27.1.0"}, "python": "3.14"}
 

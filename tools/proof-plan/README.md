@@ -47,13 +47,13 @@ decide it, and a reuse right earned for tests is not a right for them. A skipped
 current tree: the enclosing function node is unchanged (source and Merkle key), and every test that reached it before is still there,
 still reaches it, with the same key (tests added since only add kills). Missed, Timeout and Unviable are always run. Nothing is skipped.
 
-Measured on two real nightly FULL runs (Rust only; `541ad60` -> `033b671`, 3138 mutants, graphs made locally with Rust 1.99.1):
+Measured on two real nightly FULL runs (Rust only; `541ad60` -> `033b671`, 1569 mutants, graphs made locally with Rust 1.99.1):
 
-- predicted carry 2628 of 3138 (83.7%), 85.1% of the mutant seconds; set against the real outcomes of the later run: 0 false carries.
+- predicted carry 1314 of 1569 (83.7%), 85.1% of the mutant seconds (a first version counted every mutant twice, because the artifacts `rust-mutants-N` and `rust-mutants-log-N` hold the same `outcomes.json`: the absolute numbers were doubled, the shares were not; corrected, with a test); set against the real outcomes of the later run: 0 false carries.
   This is the weak half of the evidence: the two commits differ in tests and docs only, so a rule that carried everything would have
   scored the same.
-- sensitivity control: one semantic edit in `checked()` (`access.rs`) drops the carry to 478 (15.2%): 10 mutants of the function itself
-  (CODE_CHANGED), 4 of what depends on it, 2136 whose reaching tests changed. The rule is conservative on purpose: it cannot tell
+- sensitivity control: one semantic edit in `checked()` (`access.rs`) drops the carry to 239 (15.2%): 5 mutants of the function itself
+  (CODE_CHANGED), 2 of what depends on it, 1068 whose reaching tests changed. The rule is conservative on purpose: it cannot tell
   which of the reaching tests killed a mutant (cargo-mutants does not say), so all of them must hold.
 
 The tool check is in (`env.json`: mutation tool, cargo, rustc must agree; missing or different carries nothing).
