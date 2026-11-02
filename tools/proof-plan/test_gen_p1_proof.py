@@ -33,7 +33,7 @@ class Generated(unittest.TestCase):
     def test_the_planner_job_is_called(self):
         j = PROOF["jobs"]["proof-plan"]
         self.assertEqual(j["uses"], "./.github/workflows/proof-plan.yml")
-        self.assertNotIn("needs", j)
+        self.assertEqual(j["needs"], "inherit")
 
     def test_rust_and_go_wait_for_the_planner_and_change_only_their_test_step(self):
         for k, cmd in (("rust", 'select_tests.py" run rust'), ("go", 'select_tests.py" run go')):
@@ -83,7 +83,7 @@ class Generated(unittest.TestCase):
     def test_the_planner_has_two_phases_around_the_tests_and_does_not_run_them(self):
         a, f = PROOF["jobs"]["proof-plan"], PROOF["jobs"]["proof-finish"]
         self.assertEqual((a["with"]["phase"], f["with"]["phase"]), ("plan", "finish"))
-        self.assertEqual(set(f["needs"]), {"rust", "go", "proof-plan"})
+        self.assertEqual(set(f["needs"]), {"inherit", "rust", "go", "proof-plan"})
         self.assertIn("always()", f["if"])
         for k in ("rust", "go"):
             text = "\n".join(str(s.get("run", "")) for s in PROOF["jobs"][k]["steps"])
@@ -106,10 +106,27 @@ class Generated(unittest.TestCase):
             self.assertIn('git archive "$BASE_SHA"', script)       # the base commit's code, not the merge's
             self.assertIn('PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"', script)   # the fallback is the tree's own: main's on a run of main
 
+    def test_the_planner_jobs_do_not_run_on_an_inherited_tree(self):
+        """A push whose tree a pull request already checked runs nothing in p1 (inherit): the planner's jobs would only cost time (3 minutes against 15 seconds)
+        and have nothing to decide or to compare. Each of them says so in its condition; the condition keeps a status function, so a skipped inherit (a pull
+        request has none) does not skip them."""
+        for k in ("proof-plan", "proof-finish", "proof-mutplan"):
+            cond = PROOF["jobs"][k]["if"]
+            self.assertIn("needs.inherit.outputs.inherited != 'true'", cond, k)
+            self.assertTrue("!cancelled()" in cond or "always()" in cond, k)
+            n = PROOF["jobs"][k]["needs"]
+            self.assertIn("inherit", [n] if isinstance(n, str) else n, k)
+        # the compare still runs (it compares the jobs of the two runs, which are both skipped) but does not ask for the planner's comparison
+        cmp_ = PROOF["jobs"]["proof-compare"]
+        run = next(s["run"] for s in cmp_["steps"] if "compare_runs.py" in str(s.get("run")))
+        self.assertIn("--no-planner", run)
+        env = next(s["env"] for s in cmp_["steps"] if "compare_runs.py" in str(s.get("run")))
+        self.assertEqual(env["INHERITED"], "${{ needs.inherit.outputs.inherited }}")
+
     def test_the_prediction_job_never_fails_the_pipeline(self):
         j = PROOF["jobs"]["proof-mutplan"]
         self.assertTrue(j["continue-on-error"])
-        self.assertEqual(j["needs"], "scope")
+        self.assertEqual(j["needs"], ["scope", "inherit"])
 
     def test_every_shell_script_of_the_two_workflows_parses(self):
         """A quoting slip in a `run:` block fails only when the step runs, and a job with continue-on-error hides it behind a green mark."""
