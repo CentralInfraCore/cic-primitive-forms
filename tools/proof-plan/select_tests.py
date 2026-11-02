@@ -1,6 +1,7 @@
 """From the planner's decisions to the commands that run only what has to run (REPORT ONLY in this step: nothing here is obeyed by a job).
 
-    python3 select_tests.py --plan plan.json --repo . --rust-toolchain T      prints what would be skipped and checks the commands against the real test lists
+    python3 select_tests.py check --plan plan.json --repo . --rust-toolchain T     prints what would be skipped and checks the commands against the real test lists
+    python3 select_tests.py run go|rust --plan plan.json --repo . [--rust-toolchain T]   runs the tests of p1-proof's job: the p1 command, minus the skips if authorized
 
 The form is "everything except the tests whose earlier result may stand": Go `-skip '^(A|B)$'`, Rust `--exact --skip name` per test target. A test the
 plan does not know, a target it does not list and the doctests keep running, so a gap in the plan can only run more, never less.
@@ -87,12 +88,76 @@ def check_rust(root, tc, names):
     return ok, lines
 
 
+def load_plan(path):
+    """The plan, or None when there is none or it cannot be read: no plan means no skip, the p1 command."""
+    try:
+        return json.load(open(path))
+    except (OSError, ValueError):
+        return None
+
+
+def skips(plan, lang):
+    """The tests to skip in this run: the REUSE_ELIGIBLE ones when the plan is authorized, else none."""
+    try:
+        return eligible(plan, lang) if plan and authorized(plan) else []
+    except (KeyError, TypeError, AttributeError):
+        return []
+
+
+def run_go(plan, repo):
+    names = skips(plan, "go")
+    print("p1-proof go: %d test(s) skipped" % len(names), flush=True)
+    return subprocess.run(go_command(names), cwd=os.path.join(repo, "go")).returncode
+
+
+def rust_executables(repo, tc):
+    b = subprocess.run(["rustup", "run", tc, "cargo", "test", "--locked", "--no-run", "--message-format=json"], cwd=os.path.join(repo, "rust"),
+                       capture_output=True, text=True)
+    if b.returncode:
+        sys.stderr.write(b.stderr)
+        return None
+    exes = []
+    for line in b.stdout.splitlines():
+        try:
+            m = json.loads(line)
+        except ValueError:
+            continue
+        if m.get("reason") == "compiler-artifact" and m.get("executable") and m["profile"]["test"]:
+            exes.append((m["target"]["name"].replace("-", "_"), m["executable"]))
+    return exes
+
+
+def run_rust(plan, repo, tc):
+    names = skips(plan, "rust")
+    crate = os.path.join(repo, "rust")
+    if not names:
+        print("p1-proof rust: no test skipped, the command of p1", flush=True)
+        return subprocess.run(["cargo", "+" + tc, "test", "--locked"], cwd=crate).returncode
+    exes = rust_executables(repo, tc)
+    if exes is None:   # the selection could not be made: run everything
+        return subprocess.run(["cargo", "+" + tc, "test", "--locked"], cwd=crate).returncode
+    groups = rust_groups(names)
+    print("p1-proof rust: %d test(s) skipped in %d target(s)" % (len(names), len(groups)), flush=True)
+    env = dict(os.environ, CARGO_MANIFEST_DIR=crate)
+    worst = 0
+    for target, exe in exes:
+        extra = ["--exact"] + [x for n in sorted(groups.get(target, [])) for x in ("--skip", n)] if target in groups else []
+        worst = worst or subprocess.run([exe] + extra, cwd=crate, env=env).returncode
+    # the doctests are not in the plan: they always run
+    return worst or subprocess.run(["cargo", "+" + tc, "test", "--locked", "--doc"], cwd=crate).returncode
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=["check", "run"])
+    ap.add_argument("lang", nargs="?", choices=["go", "rust"])
     ap.add_argument("--plan", required=True)
     ap.add_argument("--repo", default=".")
-    ap.add_argument("--rust-toolchain", required=True)
+    ap.add_argument("--rust-toolchain")
     a = ap.parse_args()
+    if a.cmd == "run":
+        plan = load_plan(a.plan)
+        return run_go(plan, a.repo) if a.lang == "go" else run_rust(plan, a.repo, a.rust_toolchain)
     plan = json.load(open(a.plan))
     auth = authorized(plan)
     go, rs = eligible(plan, "go"), eligible(plan, "rust")

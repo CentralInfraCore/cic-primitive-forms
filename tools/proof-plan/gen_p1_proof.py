@@ -11,6 +11,9 @@ so that the jobs it shares with p1 cannot drift from p1. This first step changes
   of `main` requires those names, so a second job called `quality` would be confusable with the required one;
 * `workflow_call` goes (nightly.yml calls p1, not p1-proof);
 * the `inherit` job asks about p1-proof.yml, not p1.yml;
+* the jobs `rust` and `go` wait for `proof-plan`, fetch its plan and run their test step through `select_tests.py run` (step 4): the command of p1, minus
+  the tests whose earlier result may stand. The plan skips nothing unless it is authorized (evidence and planner from main), so on a pull
+  request they run exactly what p1 runs; without the plan (the planner failed, no artifact) too;
 * the job `proof-plan` is added (step 2): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
   the `needs` of `quality`: it reports, it decides nothing yet.
 
@@ -79,6 +82,45 @@ PLANNER_JOB = """
 """
 
 
+DOWNLOAD = """      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true   # no plan: the test step runs the command of p1
+        with:
+          name: proof-evidence
+          path: ${{ runner.temp }}/proof
+"""
+CHECKOUT = "      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0\n"
+TEST_STEPS = {
+    "rust": ('      - run: cargo +"$RUST_TOOLCHAIN" test --locked\n        working-directory: rust\n',
+             '      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN"\n'),
+    "go": ("      - run: go test -race -count=1 -rapid.checks=1000 ./...\n        working-directory: go\n",
+           '      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo .\n'),
+}
+
+
+def job_block(text, job):
+    """(start, end) of the text of a job: from its key to the next job key."""
+    m = re.search(r"^  %s:\n" % re.escape(job), text, re.M)
+    if not m:
+        raise Unsupported("job %s not found" % job)
+    n = re.search(r"^  [A-Za-z0-9_-]+:\s*$", text[m.end():], re.M)
+    return m.start(), (m.end() + n.start() if n else len(text))
+
+
+def wire_tests(text):
+    for job, (old, new) in TEST_STEPS.items():
+        a, b = job_block(text, job)
+        block = text[a:b]
+        for what, was, now in (("needs", "    needs: inherit\n", "    needs: [inherit, proof-plan]\n"), ("checkout", CHECKOUT, CHECKOUT + DOWNLOAD), ("test step", old, new)):
+            # the first checkout of the job is the first step; a later one (the engine's) is another step
+            if block.count(was) != (1 if what != "checkout" else block.count(was)) or block.count(was) < 1:
+                raise Unsupported("job %s: expected exactly one %s, found %d" % (job, what, block.count(was)))
+            if what == "checkout" and not block.split("    steps:\n", 1)[1].startswith(CHECKOUT):
+                raise Unsupported("job %s: the first step is not the checkout" % job)
+            block = block.replace(was, now, 1)
+        text = text[:a] + block + text[b:]
+    return text
+
+
 def generate(src_text):
     t = once(src_text, "name: p1\n", "name: p1-proof\n" + HEADER)
     t, n = re.subn(r"  workflow_call:.*\n(?:    .*\n)+(?=  push:)", "", t)
@@ -86,7 +128,7 @@ def generate(src_text):
         raise Unsupported("workflow_call block not found exactly once")
     t = once(t, "      caller: p1\n", "      caller: p1-proof\n")
     t = once(t, "      workflows: p1.yml,corpus.yml\n", "      workflows: p1-proof.yml,corpus.yml\n")
-    t = prefix_job_names(t)
+    t = prefix_job_names(wire_tests(t))
     return t.rstrip("\n") + "\n" + PLANNER_JOB
 
 

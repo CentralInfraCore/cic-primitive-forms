@@ -150,7 +150,7 @@ jobs:
         continue-on-error: true
         run: |
           if [ ! -f "$TOOL/select_tests.py" ]; then echo "The planner in use has no select_tests.py yet: no selection check." | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; fi
-          python3 "$TOOL/select_tests.py" --plan "$RUNNER_TEMP/plan/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" | tee -a "$GITHUB_STEP_SUMMARY"
+          python3 "$TOOL/select_tests.py" check --plan "$RUNNER_TEMP/plan/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always()
         run: |

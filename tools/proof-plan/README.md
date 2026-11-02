@@ -72,6 +72,11 @@ name `proof / <job>` for every job (the checks of a workflow are named by the jo
 `workflow_call`, and `inherit` asking about p1-proof.yml. The job graph (ids, `needs`, `if`) is p1's, and the test says so. The planner does not decide
 anything in it yet: it runs exactly what p1 runs, which is the baseline the next steps are compared with.
 
+Step 4: the `rust` and `go` jobs of p1-proof wait for `proof-plan`, fetch its plan and run their test step through `select_tests.py run`: the command of p1 minus
+the REUSE_ELIGIBLE tests, but only when the plan is authorized (evidence and planner from main). On a pull request that is never so, and with no plan
+at all (the planner failed) the command is p1's. Run locally with an authorized plan: Rust 233 skipped, the 20 others passed, doctests included; Go 266 skipped, rest passed.
+The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
+
 ## Trust: what may ever authorize skipping
 
 Report only is safe whoever writes the evidence. Skipping is not, and two things decide it:

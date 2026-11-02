@@ -51,6 +51,22 @@ class Select(unittest.TestCase):
         self.assertIn(["--test", "validate"], [cmds[1][i:i + 2] for i in range(len(cmds[1]) - 1)])
         self.assertIn("--exact", cmds[0])
 
+    def test_skips_only_with_an_authorized_plan(self):
+        self.assertEqual(st.skips(plan(), "go"), ["TestA"])
+        for bad in (plan(trust="branch"), plan(tooling="branch"), None, {}, {"decisions": 5}):
+            self.assertEqual(st.skips(bad, "go"), [], bad)
+            self.assertEqual(st.skips(bad, "rust"), [], bad)
+
+    def test_a_missing_or_broken_plan_file_is_no_plan(self):
+        self.assertIsNone(st.load_plan("/nonexistent/plan.json"))
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            f.write("{not json")
+        try:
+            self.assertIsNone(st.load_plan(f.name))
+        finally:
+            os.unlink(f.name)
+
     def test_nothing_to_skip_gives_no_rust_command(self):
         self.assertEqual(st.rust_commands([]), [])
 

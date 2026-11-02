@@ -24,14 +24,30 @@ class Generated(unittest.TestCase):
         for k, j in P1["jobs"].items():
             p = PROOF["jobs"][k]
             for field in ("needs", "if", "strategy", "runs-on", "steps", "outputs", "timeout-minutes"):
+                if k in ("rust", "go") and field in ("needs", "steps"):
+                    continue   # wired to the planner: see the tests below
                 self.assertEqual(j.get(field), p.get(field), (k, field))
 
-    def test_the_planner_job_is_called_not_waited_for(self):
+    def test_the_planner_job_is_called(self):
         j = PROOF["jobs"]["proof-plan"]
         self.assertEqual(j["uses"], "./.github/workflows/proof-plan.yml")
         self.assertNotIn("needs", j)
-        for k, other in PROOF["jobs"].items():
-            self.assertNotIn("proof-plan", [other.get("needs")] if isinstance(other.get("needs"), str) else other.get("needs", []), k)
+
+    def test_rust_and_go_wait_for_the_planner_and_change_only_their_test_step(self):
+        for k, cmd in (("rust", "select_tests.py run rust"), ("go", "select_tests.py run go")):
+            self.assertEqual(PROOF["jobs"][k]["needs"], ["inherit", "proof-plan"])
+            old, new = P1["jobs"][k]["steps"], PROOF["jobs"][k]["steps"]
+            self.assertEqual(len(new), len(old) + 1)   # the download of the plan
+            changed = [(a, b) for a, b in zip([s for s in new if "download-artifact" not in str(s.get("uses"))], old) if a != b]
+            self.assertEqual(len(changed), 1, k)
+            self.assertIn(cmd, changed[0][0]["run"])
+            self.assertTrue(any("download-artifact" in str(s.get("uses")) and s.get("continue-on-error") for s in new))
+
+    def test_nothing_else_waits_for_the_planner(self):
+        for k, j in PROOF["jobs"].items():
+            needs = j.get("needs", [])
+            needs = [needs] if isinstance(needs, str) else needs
+            self.assertEqual("proof-plan" in needs, k in ("rust", "go"), k)
 
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
