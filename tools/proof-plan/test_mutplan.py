@@ -1,0 +1,121 @@
+"""The carry-over rule of mutplan.py on a small graph: every clause of the rule must fail closed.
+
+    python3 -m unittest test_mutplan
+"""
+import copy
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mutplan as mp  # noqa: E402
+
+SCHEMA = "cic-lab/typeddeps/v2"
+
+
+def graph(f_src="f1", t_src="t1", tests=("t",)):
+    nodes = [{"id": "f()", "file": "src/a.rs", "line": 10, "end_line": 20, "test": False, "src_sha256": f_src, "deps": []}]
+    for t in tests:
+        nodes.append({"id": t, "file": "tests/x.rs", "line": 1, "end_line": 5, "test": True, "entry": True, "src_sha256": t_src,
+                      "deps": ["f()"]})
+    return {"schema": SCHEMA, "nodes": nodes}
+
+
+MUT = {"name": "m", "file": "src/a.rs", "span": {"start": {"line": 12}}}
+
+
+def run(prev, cur, summary="CaughtMutant"):
+    return mp.decide(MUT, summary, mp.index(prev), mp.index(cur))
+
+
+class Rule(unittest.TestCase):
+    def test_unchanged_is_carried(self):
+        self.assertEqual(run(graph(), graph()), (True, "CARRY"))
+
+    def test_only_caught_is_carried(self):
+        for s in ("MissedMutant", "Timeout", "Unviable"):
+            self.assertFalse(run(graph(), graph(), s)[0], s)
+
+    def test_code_of_the_function_changed(self):
+        self.assertEqual(run(graph(), graph(f_src="f2")), (False, "CODE_CHANGED"))
+
+    def test_a_reaching_test_changed(self):
+        self.assertEqual(run(graph(), graph(t_src="t2")), (False, "A_REACHING_TEST_CHANGED"))
+
+    def test_a_reaching_test_lost(self):
+        self.assertEqual(run(graph(tests=("t", "u")), graph(tests=("t",))), (False, "A_REACHING_TEST_LOST"))
+
+    def test_a_test_added_only_adds_kills(self):
+        self.assertEqual(run(graph(), graph(tests=("t", "u"))), (True, "CARRY"))
+
+    def test_no_test_reaches_it(self):
+        self.assertEqual(run(graph(tests=()), graph(tests=())), (False, "NO_TEST_REACHES"))
+
+    def test_the_node_is_gone(self):
+        cur = copy.deepcopy(graph())
+        cur["nodes"][0]["id"] = "g()"
+        cur["nodes"][1]["deps"] = ["g()"]
+        self.assertEqual(run(graph(), cur), (False, "NODE_GONE"))
+
+    def test_a_dependency_of_the_function_changed(self):
+        p, c = graph(), graph()
+        for g, h in ((p, "h1"), (c, "h2")):
+            g["nodes"][0]["deps"] = ["h()"]
+            g["nodes"].append({"id": "h()", "file": "src/b.rs", "line": 1, "end_line": 3, "test": False, "src_sha256": h, "deps": []})
+        self.assertEqual(run(p, c), (False, "DEPENDENCY_CHANGED"))
+
+
+class Outcomes(unittest.TestCase):
+    def write(self, d, name, summary, sub="rust-mutants-0"):
+        import json
+        os.makedirs(os.path.join(d, sub), exist_ok=True)
+        json.dump({"outcomes": [{"scenario": "Baseline", "summary": "Success"},
+                                {"scenario": {"Mutant": {"name": name}}, "summary": summary, "phase_results": [{"duration": 2.0}]}]},
+                  open(os.path.join(d, sub, "outcomes.json"), "w"))
+
+    def test_the_log_artifact_does_not_count_a_mutant_twice(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "m1", "CaughtMutant", "rust-mutants-0")
+            self.write(d, "m1", "CaughtMutant", "rust-mutants-log-0/mutants.out")
+            got = mp.load_outcomes([d])
+            self.assertEqual([(m["name"], s) for m, s, _ in got], [("m1", "CaughtMutant")])
+
+    def test_two_verdicts_for_one_name_are_not_trusted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, "m1", "CaughtMutant", "a")
+            self.write(d, "m1", "MissedMutant", "b")
+            self.assertEqual([s for _, s, _ in mp.load_outcomes([d])], ["CONFLICT"])
+            rows = mp.predict(graph(), graph(), mp.load_outcomes([d]), TOOL_ENV, TOOL_ENV)
+            self.assertFalse(rows[0]["carry"])
+
+
+TOOL_ENV = {"cargo": "1", "rustc": "1", "tools": {"cargo-mutants": "27.1.0"}}
+
+
+class Tool(unittest.TestCase):
+    E = {"cargo": "1.99.1", "rustc": "1.99.1", "tools": {"cargo-mutants": "27.1.0"}, "python": "3.14"}
+
+    def test_same_tool_ignores_python(self):
+        self.assertTrue(mp.same_tool(self.E, dict(self.E, python="3.15")))
+
+    def test_other_tool_version(self):
+        self.assertFalse(mp.same_tool(self.E, dict(self.E, tools={"cargo-mutants": "27.2.0"})))
+
+    def test_other_rustc(self):
+        self.assertFalse(mp.same_tool(self.E, dict(self.E, rustc="1.100.0")))
+
+    def test_unknown_is_not_equal(self):
+        self.assertFalse(mp.same_tool(None, self.E))
+        self.assertFalse(mp.same_tool({}, {}))
+
+    def test_nothing_is_carried_without_the_same_tool(self):
+        rows = mp.predict(graph(), graph(), [(MUT, "CaughtMutant", 1.0)])
+        self.assertEqual((rows[0]["carry"], rows[0]["reason"]), (False, "TOOL_OR_FLAGS_NOT_THE_SAME"))
+        rows = mp.predict(graph(), graph(), [(MUT, "CaughtMutant", 1.0)], self.E, self.E)
+        self.assertTrue(rows[0]["carry"])
+
+
+if __name__ == "__main__":
+    unittest.main()

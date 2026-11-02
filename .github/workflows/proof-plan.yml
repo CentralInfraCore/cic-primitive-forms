@@ -1,0 +1,152 @@
+name: proof-plan
+# The proof-aware execution planner, REPORT ONLY (tools/proof-plan/README.md).
+#
+# It decides, for every Go and Rust test, whether an earlier result could stand (REUSE_ELIGIBLE / RERUN_REQUIRED / UNVERIFIABLE), then runs the
+# tests anyway and sets the decision against what they did. Nothing is skipped and no other workflow depends on this one; it is not a
+# required check and a failure of it changes nothing. The evidence of a run is left as the artifact `proof-evidence`, which the next run
+# finds (the newest successful run on main whose commit is an ancestor of the tested commit).
+#
+# It does not replace p1: the gates of p1 keep their meaning, and everything without a rule of its own stays a run.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+permissions:
+  contents: read
+  actions: read   # to find and download the artifact of an earlier run
+env:
+  RUST_TOOLCHAIN: "1.99.1"   # as p1
+concurrency:
+  group: proof-plan-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}   # a run on main leaves the evidence the others are compared with: it is not cancelled
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true   # report only: never a failure of the pull request
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0   # the ancestors of the commit
+      - uses: ./.github/actions/upstream-pinned
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: |
+            go/go.sum
+            tools/proof-plan/extractor/typeddeps/go.sum
+            tools/proof-plan/extractor/scipdeps/go.sum
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rust-analyzer
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust -> target
+      - name: Choose the planner (from the base of a pull request if it has one, else the code under test)
+        id: tooling
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          # A planner in a pull request can make any evidence it likes, so a decision made by it can be reported but never obeyed. For a pull
+          # request the planner is taken from the base commit; if the base has none (before this is merged) the one under test is used and the
+          # report says so. A push to main is main's own code.
+          TOOL="$GITHUB_WORKSPACE/tools/proof-plan"; TRUST=branch
+          if [ "$EVENT" = pull_request ] && [ -n "$BASE_SHA" ] && git cat-file -e "$BASE_SHA:tools/proof-plan/plan.py" 2>/dev/null; then
+            mkdir -p "$RUNNER_TEMP/trusted"; git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted"
+            TOOL="$RUNNER_TEMP/trusted/tools/proof-plan"; TRUST=main
+          elif [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
+            TRUST=main
+          fi
+          echo "TOOL=$TOOL" >> "$GITHUB_ENV"; echo "TOOLING_TRUST=$TRUST" >> "$GITHUB_ENV"
+          echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Self-test of the planner
+        run: cd "$TOOL" && python3 -m unittest test_plan test_merkle test_mutplan
+      - name: p1-proof.yml is what the generator makes from p1.yml (the code under test, not the planner chosen above)
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || pip install pyyaml
+          cd "$GITHUB_WORKSPACE/tools/proof-plan" && python3 -m unittest test_gen_p1_proof
+      - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
+        env:
+          CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner
+        run: |
+          # -trimpath: no build paths. -buildvcs=false: no commit/time stamp (a binary that carries the revision is another extractor at
+          # every commit, so the evidence of the commit before is never accepted). Built twice and compared: the identity must not depend on the run.
+          for d in "$RUNNER_TEMP/pp" "$RUNNER_TEMP/pp2"; do
+            mkdir -p "$d"
+            (cd "$TOOL/extractor/typeddeps" && go build -trimpath -buildvcs=false -o "$d/typeddeps" .)
+            (cd "$TOOL/extractor/scipdeps" && go build -trimpath -buildvcs=false -o "$d/scipdeps" .)
+          done
+          { echo '### Extractor builds'; echo '```'; sha256sum "$RUNNER_TEMP"/pp/typeddeps "$RUNNER_TEMP"/pp/scipdeps; \
+            cmp "$RUNNER_TEMP/pp/typeddeps" "$RUNNER_TEMP/pp2/typeddeps" && cmp "$RUNNER_TEMP/pp/scipdeps" "$RUNNER_TEMP/pp2/scipdeps" \
+              && echo 'two builds in this job: identical' || echo 'TWO BUILDS IN THIS JOB DIFFER: the build is not reproducible'; \
+            go version -m "$RUNNER_TEMP/pp/typeddeps" | grep -E 'build|vcs|mod' | head -12; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Find the evidence of an earlier run
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}   # the branch of a pull request, or of a push
+          SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          # main always; the own branch of a pull request or a push too, but only a branch of this repository (never a fork's artifact)
+          BRANCHES="--branch main"
+          if [ "$SAME_REPO" = "true" ]; then BRANCHES="$BRANCHES --branch $HEAD_REF"; fi
+          python3 "$TOOL/find_prev.py" --repo "$GITHUB_REPOSITORY" --workflow proof-plan.yml --out "$RUNNER_TEMP/prev" $BRANCHES >> "$GITHUB_STEP_SUMMARY" || true
+          if [ -f "$RUNNER_TEMP/prev/evidence.json" ]; then echo "dir=$RUNNER_TEMP/prev" >> "$GITHUB_OUTPUT"; fi
+      # The qualification of the extractor builds (the probes) depends on the binaries, the probes and the toolchains, not on the tree under test: it
+      # is kept between runs. plan.py reads the file only if it was made for exactly these identities, probes and toolchains (the key below is only
+      # a way to find it; a file for anything else is ignored and measured again).
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/qual
+          key: proof-qual-${{ runner.os }}-${{ hashFiles('tools/proof-plan/**', '!**/__pycache__/**') }}   # the self-test leaves .pyc files: they must not move the key
+          restore-keys: |
+            proof-qual-${{ runner.os }}-
+      - name: Plan (decide, nothing is skipped)
+        run: |
+          python3 "$TOOL/plan.py" --repo . --typeddeps "$RUNNER_TEMP/pp/typeddeps" --scipdeps "$RUNNER_TEMP/pp/scipdeps" \
+            --rust-toolchain "$RUST_TOOLCHAIN" --tooling-trust "$TOOLING_TRUST" --out "$RUNNER_TEMP/plan" --qual-cache "$RUNNER_TEMP/qual/qualification.json" --sha "$GITHUB_SHA" ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }}
+      - name: Observe the Go tests (the command of p1)
+        run: python3 "$TOOL/record.py" observe-go --repo . --out "$RUNNER_TEMP/go.json"
+      - name: Observe the Rust tests
+        run: python3 "$TOOL/record.py" observe-rust --repo . --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/rust.json"
+      - name: Install strace (to see which files each test reads)
+        run: sudo apt-get install -y strace
+      - name: Trace what the tests read (only the tests whose reads are not already known)
+        continue-on-error: true   # without the reads the evidence falls back to the coarse digest of all data files
+        run: |
+          python3 "$TOOL/record.py" trace --repo . --plan "$RUNNER_TEMP/plan" --rust-toolchain "$RUST_TOOLCHAIN" \
+            ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/trace.json"
+      - name: The Proof-Aware Execution Report and the evidence of this run
+        run: |
+          TRACE=""; if [ -f "$RUNNER_TEMP/trace.json" ]; then TRACE="--trace $RUNNER_TEMP/trace.json"; fi
+          python3 "$TOOL/record.py" finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
+            $TRACE ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Mutation carry-over, a prediction (the nightly FULL's mutants against this tree; nothing is skipped)
+        # Only where the nightly's artifacts are worth their download (about 140 MB): main and a manual run.
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN=$(gh run list --workflow nightly.yml --branch main --status success --limit 1 --json databaseId,headSha -q '.[0] | "\(.databaseId) \(.headSha)"')
+          set -- $RUN; ID=$1; PREV_SHA=$2
+          if [ -z "$ID" ]; then echo "No successful nightly on main: no mutation prediction."; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/nightly"
+          for pat in "rust-mutants-*" "env-rust-mutants-0"; do gh run download "$ID" --repo "$GITHUB_REPOSITORY" -p "$pat" -D "$RUNNER_TEMP/nightly" || true; done
+          git worktree add --detach "$RUNNER_TEMP/prevtree" "$PREV_SHA"
+          { echo '### Mutation carry-over (prediction, nothing is skipped)'; echo "Earlier FULL: nightly run $ID at \`${PREV_SHA:0:7}\`, this tree \`${GITHUB_SHA:0:7}\`"; echo '```'
+            python3 "$TOOL/mutplan.py" --prev-repo "$RUNNER_TEMP/prevtree" --cur-repo . --scipdeps "$RUNNER_TEMP/pp/scipdeps" --rust-toolchain "$RUST_TOOLCHAIN" \
+              --outcomes "$RUNNER_TEMP/nightly" --prev-env "$RUNNER_TEMP/nightly/env-rust-mutants-0/env.json" --out "$RUNNER_TEMP/out/mutation-carry.json"
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifact"
+          cp "$RUNNER_TEMP/out/evidence.json" "$RUNNER_TEMP/out/comparison.json" "$RUNNER_TEMP/out/mutation-carry.json" "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/plan/timings.json" "$RUNNER_TEMP/artifact/" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: proof-evidence
+          path: ${{ runner.temp }}/artifact
+          retention-days: 90
