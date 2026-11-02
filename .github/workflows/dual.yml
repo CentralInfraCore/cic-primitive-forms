@@ -1,0 +1,36 @@
+name: dual
+# Both methodologies on ONE commit, side by side (docs/ and tools/proof-plan/README.md, "Two threads").
+#
+# On a pull request or a push, p1 and p1-proof already run in parallel: the same event starts both. A run by hand is different: p1-proof alone has no p1
+# to be compared with (proof-compare says NOT COMPARED), and the nightly runs p1 alone. This workflow starts p1 and p1-proof together by hand on the
+# same ref, each as a FULL (a run by hand is a FULL in both), so that proof-compare can set the one against the other at the same commit.
+#
+# They are two runs, not one: the two share the names of their artifacts (rust-mutants-N, go-ledger-N ...), which cannot live in one run. The runs
+# are not slowed by each other's jobs only as far as the runners allow: the sum of job seconds is comparable, the wall time of either is not
+# (a shared pool of concurrent runners). Needs this file, p1.yml and p1-proof.yml on the default branch to be started (workflow_dispatch).
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write   # to start the two runs; nothing else
+concurrency:
+  group: dual-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  both:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Start p1 and p1-proof on the same ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref_name }}
+        run: |
+          gh workflow run p1.yml --repo "$GITHUB_REPOSITORY" --ref "$REF"
+          gh workflow run p1-proof.yml --repo "$GITHUB_REPOSITORY" --ref "$REF"
+          sleep 20
+          # both must have started on the same commit, or proof-compare will not find its p1: a push in the seconds between would split them
+          A=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow p1.yml --event workflow_dispatch --branch "$REF" --limit 1 --json databaseId,headSha -q '.[0] | "\(.databaseId) \(.headSha)"')
+          B=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow p1-proof.yml --event workflow_dispatch --branch "$REF" --limit 1 --json databaseId,headSha -q '.[0] | "\(.databaseId) \(.headSha)"')
+          { echo '### Two threads'; echo "- p1: run ${A% *} at \`${A#* }\`"; echo "- p1-proof: run ${B% *} at \`${B#* }\`"; } | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "${A#* }" != "${B#* }" ]; then echo "::warning::the two runs started on different commits: proof-compare will not find its p1"; fi

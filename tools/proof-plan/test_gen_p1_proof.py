@@ -144,6 +144,19 @@ class Generated(unittest.TestCase):
         for m in used:
             self.assertIn("tools/%s.py" % m, archive, m)
 
+    def test_dual_starts_both_methodologies_and_asks_for_nothing_else(self):
+        import re
+        import subprocess
+        d = yaml.safe_load(open(os.path.join(os.path.dirname(g.DST), "dual.yml")))
+        on = d[True] if True in d else d["on"]
+        self.assertEqual(set(on), {"workflow_dispatch"})
+        self.assertEqual(d["permissions"], {"contents": "read", "actions": "write"})
+        run = d["jobs"]["both"]["steps"][0]["run"]
+        self.assertIn("gh workflow run p1.yml", run)
+        self.assertIn("gh workflow run p1-proof.yml", run)
+        p = subprocess.run(["bash", "-n"], input=re.sub(r"\$\{\{.*?\}\}", "X", run, flags=re.S), text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+
     def test_every_job_is_named_apart_from_the_required_checks(self):
         for k, j in PROOF["jobs"].items():
             self.assertTrue(j["name"].startswith("proof / "), k)
