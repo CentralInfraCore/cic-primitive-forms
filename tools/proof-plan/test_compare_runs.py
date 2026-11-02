@@ -48,5 +48,27 @@ class Compare(unittest.TestCase):
         self.assertEqual(bad, [])
 
 
+class Planner(unittest.TestCase):
+    def write(self, content):
+        import tempfile
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        f.write(content)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        return f.name
+
+    def test_a_missing_file_is_not_zero(self):
+        self.assertIsNone(cr.planner_false_reuse("/nonexistent/comparison.json"))
+        self.assertIsNone(cr.planner_false_reuse(None))
+
+    def test_broken_or_unexpected_shapes_are_not_zero(self):
+        for bad in ("{not json", "{}", '{"false_reuse": 3}', '{"false_reuse": null}'):
+            self.assertIsNone(cr.planner_false_reuse(self.write(bad)), bad)
+
+    def test_the_rows_are_counted(self):
+        self.assertEqual(cr.planner_false_reuse(self.write('{"false_reuse": []}')), 0)
+        self.assertEqual(cr.planner_false_reuse(self.write('{"false_reuse": [{"key": "a"}, {"key": "b"}]}')), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
