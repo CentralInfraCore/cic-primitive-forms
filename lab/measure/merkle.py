@@ -72,7 +72,7 @@ def keys(graph):
             h.update(("node %s %s\n" % (m, nodes[m]["src_sha256"])).encode())
         outside = set()
         for m in comp:
-            for d in deps[m]:
+            for d in sorted(deps[m]):  # a set is iterated in an order that changes with PYTHONHASHSEED: sorted, or the key is not a function of the graph
                 if d in members:
                     h.update(("cycle %s %s\n" % (m, d)).encode())
                 elif d in nodes:

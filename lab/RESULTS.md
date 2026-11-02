@@ -442,6 +442,24 @@ What this does not show:
 * The numbers belong to these builds (rust-analyzer and `scipdeps` identity in the JSON) and to Rust 1.99.1 on this machine, not to the pinned CI.
 <!-- rust-levels:end -->
 
+### 10.6 Erratum: the Merkle key was not a function of the graph
+
+`merkle.py` hashed the internal edges of a cycle in the iteration order of a Python set, which changes with `PYTHONHASHSEED`: the same graph
+gave different keys in different processes (found while building `tools/proof-plan`, where an unchanged tree looked changed in 230 of 253 Rust
+tests and about half of the Go tests). 140 Rust and 48 Go nodes lie in cycles. Fixed (`sorted`), with a test that runs the keys under eight
+hash seeds and fails on the old code.
+
+What it touched, and what I cannot say:
+
+* The error made two equal closures look different, never two different closures equal: **no false reuse can come from it**; the 0 false
+  reuse results (replays, mutants, controls) stand. It could only lower reuse.
+* `kernel_backtest.py` made the keys of each language in one process, so its comparisons were consistent: **re-run with deterministic keys,
+  the decisions are identical** (Go 12782 / 1995 / 126, Rust 10386 / 1520 / 1770; 23168 of 29096 eligible, 79.6%).
+* The mutant shadows made the baseline and the mutants in one process: unaffected.
+* **Not re-measured:** the 24973 of section 4 (85.8%) and its 55.4% come from the `cache.json` of an earlier session, which may have been built
+  by several invocations of `backtest.py`, that is, several hash seeds. If it was, those two numbers are underestimates. The exposure analysis
+  (section 9) reproduced the same 24973 from the same cache, which shows it is self-consistent, not that it is deterministic.
+
 ## 11. Reproducing
 
 Toolchains: Go 1.27.2, Rust 1.99.1 with `llvm-tools` and `rust-analyzer`, `strace`, `cargo-mutants` 27.1.0 and the pinned

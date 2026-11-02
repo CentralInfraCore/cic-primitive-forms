@@ -72,3 +72,20 @@ class MerkleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Deterministic(unittest.TestCase):
+    """The key is a function of the graph, not of the process: the same graph gives the same keys under any hash seed."""
+
+    def test_keys_do_not_depend_on_the_hash_seed(self):
+        import subprocess
+        # a cycle with several internal edges from one member: the case in which the order of a set decided the digest
+        code = (
+            "import sys, json, hashlib; sys.path.insert(0, %r); import merkle;"
+            "g = {'nodes': [{'id': i, 'src_sha256': 's' + i, 'deps': d} for i, d in "
+            "(('a', ['b', 'c', 'd']), ('b', ['a', 'c', 'd']), ('c', ['a', 'b', 'd']), ('d', ['a', 'b', 'c', 'x']), ('t', ['a']))]};"
+            "k = merkle.keys(g)[0]; print(hashlib.sha256(json.dumps(sorted(k.items())).encode()).hexdigest())"
+        ) % os.path.dirname(os.path.abspath(__file__))
+        outs = {subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
+                               env=dict(os.environ, PYTHONHASHSEED=str(seed))).stdout.strip() for seed in range(8)}
+        self.assertEqual(len(outs), 1, "the keys of one graph differ between processes: %s" % sorted(outs))
