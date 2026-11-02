@@ -53,15 +53,24 @@ def sha(*parts):
     return h.hexdigest()
 
 
-def blob_lines(root, pick):
-    """`path blob-id` lines of the tracked files `pick` accepts (git ls-files -s)."""
-    out = run(["git", "-C", root, "ls-files", "-s"], check=True).stdout.splitlines()
-    rows = []
-    for line in out:
+def tracked_blobs(root):
+    """{path: blob id} of the tracked files as they are in the WORKING TREE: the index for a file git sees as unchanged, the hash of the file for one
+    modified since (`git ls-files -s` alone would show the content of the index, and a file changed after the last `git add` would look the same)."""
+    rows = {}
+    for line in run(["git", "-C", root, "ls-files", "-s"], check=True).stdout.splitlines():
         meta, path = line.split("\t", 1)
-        if pick(path):
-            rows.append("%s %s" % (path, meta.split()[1]))
+        rows[path] = meta.split()[1]
+    for path in filter(None, run(["git", "-C", root, "ls-files", "-m", "-z"], check=True).stdout.split("\0")):
+        if os.path.exists(os.path.join(root, path)):
+            rows[path] = run(["git", "-C", root, "hash-object", "--", path], check=True).stdout.strip()
+        else:
+            rows[path] = "deleted"
     return rows
+
+
+def blob_lines(root, pick):
+    """`path blob-id` lines of the tracked files `pick` accepts."""
+    return ["%s %s" % (path, blob) for path, blob in sorted(tracked_blobs(root).items()) if pick(path)]
 
 
 def is_data(path):
@@ -72,6 +81,36 @@ def data_digest(root):
     """Every tracked file under go/, rust/, testdata/, corpus/ that is not Go or Rust source or a manifest. Coarse on purpose: a change of
     any of them is a change for every test (the older rule of the lab, before data edges): it only ever costs a rerun."""
     return sha(*blob_lines(root, is_data))
+
+
+class TreeState:
+    """The content of the tracked files of a tree, by what git holds: a blob id per file, the names in a directory. What a test read is a
+    dependency on exactly this. A path git does not track (a build output, a temporary file) has the constant id "-": not a dependency."""
+
+    def __init__(self, root):
+        self.blob, self.children = tracked_blobs(root), {}
+        for path in self.blob:
+            parts = path.split("/")
+            for i in range(len(parts)):
+                self.children.setdefault("/".join(parts[:i]), set()).add(parts[i])
+
+    def content(self, path, kind):
+        if kind == "dir":
+            return sha(*sorted(self.children.get(path.rstrip("/"), ())))
+        return self.blob.get(path, "-")
+
+
+def reads_digest(state, reads):
+    """The digest of the content, in this tree, of the paths a test read ({path: kind}); equal digests mean no file it read has changed."""
+    return sha(*["%s %s %s" % (p, k, state.content(p, k)) for p, k in sorted(reads.items())])
+
+
+def opaque_of(reads, traced_ok):
+    """The reads a decision cannot rest on: an unresolved path, or a traced run that failed (its reads may be incomplete)."""
+    out = [p for p, k in reads.items() if k == "opaque"]
+    if not traced_ok:
+        out.append("the traced run of the test failed: its reads may be incomplete")
+    return out
 
 
 def env_digests(root, tc):
@@ -107,8 +146,20 @@ def summaries(graph, ident, prov, name_of):
     return out
 
 
-def current_evidence(root, a, idents):
+def with_data(e, key, prev_tests, data, state):
+    """The evidence `e` of a test with its data fields. If the earlier evidence of the test recorded what it read, the digest is that of those
+    files in this tree (a data edge); if not, the coarse digest of all data files."""
+    p = prev_tests.get(key)
+    if p is not None and "data_reads" in p:
+        return dict(e, data_reads=p["data_reads"], data_dependencies_digest=reads_digest(state, p["data_reads"]),
+                    opaque_reads=list(p.get("opaque_reads", [])))
+    return dict(e, data_dependencies_digest=data, opaque_reads=[])
+
+
+def current_evidence(root, a, idents, prev_tests=None):
     """{test key: evidence without verdict} for every Go and Rust test of the tree, and the errors of the extractors."""
+    prev_tests = prev_tests or {}
+    state = TreeState(root)
     data = data_digest(root)
     env = env_digests(root, a.rust_toolchain)
     res, errors = {}, {}
@@ -117,7 +168,7 @@ def current_evidence(root, a, idents):
         errors["go"] = r.stderr[-400:]
     else:
         for k, e in summaries(json.loads(r.stdout), *idents["go"], lambda i: "go:" + i.rsplit("/", 1)[-1].rsplit(".", 1)[-1]).items():
-            res[k] = dict(e, data_dependencies_digest=data, environment_digest=env["go"], opaque_reads=[])
+            res[k] = with_data(dict(e, environment_digest=env["go"]), k, prev_tests, data, state)
     try:
         # rust-analyzer indexes a crate that has been built (build script outputs, proc-macro expansions) differently from one that has
         # not: on the same source, 230 of 253 Rust keys differed between the two states. The state is made the same, the built one, before
@@ -127,7 +178,7 @@ def current_evidence(root, a, idents):
             raise subprocess.CalledProcessError(b.returncode, "cargo test --no-run", stderr=b.stderr)
         g = rg.graph(os.path.join(root, "rust"), a.scipdeps, a.rust_toolchain)
         for k, e in summaries(g, *idents["rust"], lambda i: "rust:" + runner_key(i)).items():
-            res[k] = dict(e, data_dependencies_digest=data, environment_digest=env["rust"], opaque_reads=[])
+            res[k] = with_data(dict(e, environment_digest=env["rust"]), k, prev_tests, data, state)
     except subprocess.CalledProcessError as e:
         errors["rust"] = ((e.stderr or b"")[-400:]).decode("utf-8", "replace") if isinstance(e.stderr, bytes) else str(e.stderr)[-400:]
     return res, errors
@@ -225,13 +276,13 @@ def main():
     rs_id, rs_prov = be.extractor_identity(a.scipdeps, (), name="scipdeps", chain=(("rust-analyzer", tc["rust-analyzer-path"]),))
     idents = {"go": (go_id, go_prov), "rust": (rs_id, rs_prov)}
     t1 = time.time()
-    cur, errors = current_evidence(root, a, idents)
+    prev, prev_commit = load_prev(a.prev)
+    cur, errors = current_evidence(root, a, idents, prev)
     t2 = time.time()
     # the Assurance of these builds is MEASURED here (the probes of qualify.py / qualify_rust.py), never declared
     qualified, _q_s, q_hit = qualify_cached(a, idents, tc, a.qual_cache)
     assurance = ev.Assurance.of([ev.CONTRACT_V2], [be.RULE_VERSION], qualified)
     t3 = time.time()
-    prev, prev_commit = load_prev(a.prev)
     decisions = decide(prev, cur, assurance)
     json.dump({"schema": SCHEMA, "commit": a.sha, "tests": cur}, open(os.path.join(a.out, "current.json"), "w"))
     json.dump({"schema": "cic-proof-plan/plan/v1", "commit": a.sha, "previous_commit": prev_commit, "extractor_errors": errors,

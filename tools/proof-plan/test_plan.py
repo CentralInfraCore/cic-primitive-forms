@@ -50,6 +50,52 @@ class Decide(unittest.TestCase):
         self.assertFalse(pl.is_data("go/a.go") or pl.is_data("rust/Cargo.lock") or pl.is_data("docs/x.md"))
 
 
+class TreeStateTests(unittest.TestCase):
+    def repo(self, d):
+        import subprocess
+        def git(*args):
+            subprocess.run(["git", "-C", d, "-c", "user.email=t@t", "-c", "user.name=t"] + list(args), check=True, capture_output=True)
+        git("init", "-q")
+        os.makedirs(os.path.join(d, "corpus"))
+        open(os.path.join(d, "corpus", "v.yaml"), "w").write("a\n")
+        open(os.path.join(d, "corpus", "w.yaml"), "w").write("w\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "x")
+        return git
+
+    def test_a_file_changed_after_the_last_add_is_seen_as_changed(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.repo(d)
+            reads = {"corpus/v.yaml": "path", "corpus": "dir"}
+            before = pl.reads_digest(pl.TreeState(d), reads)
+            open(os.path.join(d, "corpus", "v.yaml"), "a").write("more\n")  # not git-added
+            after = pl.reads_digest(pl.TreeState(d), reads)
+            self.assertNotEqual(before, after)
+            self.assertEqual(pl.reads_digest(pl.TreeState(d), {"corpus/w.yaml": "path"}), pl.reads_digest(pl.TreeState(d), {"corpus/w.yaml": "path"}))
+
+    def test_what_a_test_did_not_read_does_not_move_its_digest(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.repo(d)
+            reads = {"corpus/w.yaml": "path"}
+            before = pl.reads_digest(pl.TreeState(d), reads)
+            open(os.path.join(d, "corpus", "v.yaml"), "a").write("more\n")
+            self.assertEqual(before, pl.reads_digest(pl.TreeState(d), reads))
+
+    def test_a_deleted_file_and_a_new_tracked_file_in_a_listed_directory(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            git = self.repo(d)
+            listing = {"corpus": "dir"}
+            before = pl.reads_digest(pl.TreeState(d), listing)
+            os.remove(os.path.join(d, "corpus", "w.yaml"))
+            self.assertNotEqual(before, pl.reads_digest(pl.TreeState(d), {"corpus/w.yaml": "path"} | {"corpus": "dir"}) )
+            open(os.path.join(d, "corpus", "n.yaml"), "w").write("n\n")
+            git("add", "corpus/n.yaml")
+            self.assertNotEqual(before, pl.reads_digest(pl.TreeState(d), listing))
+
+
 class QualifyCache(unittest.TestCase):
     def test_the_probe_digest_follows_the_probes_and_nothing_else(self):
         self.assertEqual(pl.probe_digest(), pl.probe_digest())

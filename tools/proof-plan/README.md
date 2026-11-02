@@ -29,8 +29,12 @@ decide it, and a reuse right earned for tests is not a right for them. A skipped
 - It skips nothing. Turning decisions into a plan that the jobs obey is a later step, taken only after real runs show `FALSE_REUSE = 0` and a
   net saving that is measured (the report counts the cost of the planner against the test time it could have spared; Rust has no per-test
   time, so it is not counted).
-- Data is coarse: any change of a data file is a change for every test (the lab measured 55% reuse under this rule against 86% with data
-  edges recorded under `strace`). Data edges are the next increment.
+- Data edges: each test is run alone under `strace` (`trace.py`, ported from the lab) and the evidence keeps the files it read; the next run
+  compares the content, in the new tree, of exactly those files (and the listing of the directories it listed). A test with an unresolved read,
+  or whose traced run failed, is never reused. Reads are measured for the tests that are not REUSE_ELIGIBLE and carried on for those that are
+  (the same closure, data and environment: the same files; the lab made the same assumption). Without earlier edges the digest falls back to
+  the coarse one (any data file changes every test). Tested locally on this tree: a file read by 2 tests changes 2 decisions, a file nobody
+  reads none, `corpus/pins.yaml` (68 tests) 68.
 - The evidence store is the artifact of the previous run (90 days). The signed publication of `evidence.yml` / branch `ci-evidence` is off
   (`EVIDENCE_ENABLED`) and is the owner's decision; this record is not signed and is not the record of `docs/TEST-EVIDENCE.md`.
 - Two things in the lab history were weak and are weak here: the claims cover the **mechanisms the probes name** (interface conversions and

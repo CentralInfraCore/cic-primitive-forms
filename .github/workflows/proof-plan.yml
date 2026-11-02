@@ -89,10 +89,18 @@ jobs:
         run: python3 tools/proof-plan/record.py observe-go --repo . --out "$RUNNER_TEMP/go.json"
       - name: Observe the Rust tests
         run: python3 tools/proof-plan/record.py observe-rust --repo . --rust-toolchain "$RUST_TOOLCHAIN" --out "$RUNNER_TEMP/rust.json"
+      - name: Install strace (to see which files each test reads)
+        run: sudo apt-get install -y strace
+      - name: Trace what the tests read (only the tests whose reads are not already known)
+        continue-on-error: true   # without the reads the evidence falls back to the coarse digest of all data files
+        run: |
+          python3 tools/proof-plan/record.py trace --repo . --plan "$RUNNER_TEMP/plan" --rust-toolchain "$RUST_TOOLCHAIN" \
+            ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/trace.json"
       - name: The Proof-Aware Execution Report and the evidence of this run
         run: |
-          python3 tools/proof-plan/record.py finish --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
-            ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
+          TRACE=""; if [ -f "$RUNNER_TEMP/trace.json" ]; then TRACE="--trace $RUNNER_TEMP/trace.json"; fi
+          python3 tools/proof-plan/record.py finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
+            $TRACE ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Lay the artifact out flat (upload-artifact keeps the common parent of several paths)
         if: always()
         run: |
