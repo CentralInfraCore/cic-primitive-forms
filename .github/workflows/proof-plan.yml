@@ -10,9 +10,7 @@ name: proof-plan
 on:
   workflow_dispatch:
   push:
-    # main; and this branch while the work on it goes on with the pull request closed, so that p1 does not run at every push (it runs once when
-    # the pull request is opened again). Remove the branch from this list when it is merged.
-    branches: ["main", "feat/proof-aware-planner"]
+    branches: ["main"]
   pull_request:
 permissions:
   contents: read
@@ -121,8 +119,8 @@ jobs:
           python3 "$TOOL/record.py" finish --repo . --plan "$RUNNER_TEMP/plan" --observed "$RUNNER_TEMP/go.json" --observed "$RUNNER_TEMP/rust.json" \
             $TRACE ${{ steps.prev.outputs.dir && format('--prev {0}', steps.prev.outputs.dir) || '' }} --out "$RUNNER_TEMP/out" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Mutation carry-over, a prediction (the nightly FULL's mutants against this tree; nothing is skipped)
-        # Only where the nightly's artifacts are worth their download (about 140 MB): main, a manual run, and this branch while it is built.
-        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/proof-aware-planner'
+        # Only where the nightly's artifacts are worth their download (about 140 MB): main and a manual run.
+        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
