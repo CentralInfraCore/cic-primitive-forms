@@ -43,7 +43,7 @@ jobs:
           workspaces: rust -> target
       - name: Self-test of the planner
         run: python3 -m unittest tools/proof-plan/test_plan.py tools/proof-plan/test_merkle.py
-      - name: Build the extractors (reproducibly: the identity of a build is the digest of its binary)
+      - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
         env:
           CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner
         run: |
