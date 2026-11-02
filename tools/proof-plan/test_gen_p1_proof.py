@@ -36,12 +36,13 @@ class Generated(unittest.TestCase):
         self.assertNotIn("needs", j)
 
     def test_rust_and_go_wait_for_the_planner_and_change_only_their_test_step(self):
-        for k, cmd in (("rust", "select_tests.py run rust"), ("go", "select_tests.py run go")):
+        for k, cmd in (("rust", 'select_tests.py" run rust'), ("go", 'select_tests.py" run go')):
             self.assertEqual(PROOF["jobs"][k]["needs"], ["inherit", "proof-plan"])
             old, new = P1["jobs"][k]["steps"], PROOF["jobs"][k]["steps"]
-            extra = [s for s in new if "download-artifact" in str(s.get("uses")) or "upload-artifact" in str(s.get("uses"))]
-            self.assertEqual(len(new), len(old) + 2)   # the download of the plan and the upload of what the job observed
-            self.assertEqual(len(extra), 2)
+            extra = [s for s in new if "download-artifact" in str(s.get("uses")) or "upload-artifact" in str(s.get("uses"))
+                     or str(s.get("name", "")).startswith("The code that runs the tests")]
+            self.assertEqual(len(new), len(old) + 3)   # the download of the plan, the choice of the code, the upload of what the job observed
+            self.assertEqual(len(extra), 3)
             changed = [(a, b) for a, b in zip([s for s in new if s not in extra], old) if a != b]
             self.assertEqual(len(changed), 1, k)
             self.assertIn(cmd, changed[0][0]["run"])
@@ -91,6 +92,19 @@ class Generated(unittest.TestCase):
             self.assertEqual([s["with"]["name"] for s in up], ["proof-observed-" + k])
             dl = [s for s in PROOF["jobs"][k]["steps"] if "download-artifact" in str(s.get("uses"))]
             self.assertEqual([s["with"]["name"] for s in dl], ["proof-plan-data"])
+
+    def test_the_test_runner_is_not_the_pull_requests_code(self):
+        for k in ("rust", "go"):
+            steps = PROOF["jobs"][k]["steps"]
+            choose = next(i for i, s in enumerate(steps) if str(s.get("name", "")).startswith("The code that runs the tests"))
+            run = next(i for i, s in enumerate(steps) if '"$PTOOL/select_tests.py"' in str(s.get("run")) and " run " in str(s.get("run")))
+            self.assertLess(choose, run)
+            self.assertIn('"$PTOOL/select_tests.py"', steps[run]["run"])
+            self.assertNotIn("tools/proof-plan/select_tests.py", steps[run]["run"])   # not the workspace's copy
+            script = steps[choose]["run"]
+            self.assertIn('[ "$BASE_REF" = main ]', script)        # only a base that is main is trusted
+            self.assertIn('git archive "$BASE_SHA"', script)       # the base commit's code, not the merge's
+            self.assertIn('PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"', script)   # the fallback is the tree's own: main's on a run of main
 
     def test_the_prediction_job_never_fails_the_pipeline(self):
         j = PROOF["jobs"]["proof-mutplan"]

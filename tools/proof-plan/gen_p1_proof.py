@@ -119,11 +119,28 @@ OBSERVED = """      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b48
           if-no-files-found: ignore
           retention-days: 7
 """
+# The code that decides what to skip and observes what ran must not be the pull request's: a pull request on main runs main's select_tests.py (the
+# base commit's), anything else the tree's own (a push to main or a run by hand on main is main's code already). Without this a pull request could
+# skip its own failing tests and report whatever it likes as the observation the evidence is made of.
+CHOOSE = r"""      - name: The code that runs the tests is main's when the pull request is on main
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ]; then
+            git fetch -q --depth=1 origin "$BASE_SHA" && git cat-file -e "$BASE_SHA:tools/proof-plan/select_tests.py" \
+              && mkdir -p "$RUNNER_TEMP/trusted" && git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted" \
+              && PTOOL="$RUNNER_TEMP/trusted/tools/proof-plan"
+          fi
+          echo "PTOOL=$PTOOL" >> "$GITHUB_ENV"; echo "Test runner code: $PTOOL"
+"""
 TEST_STEPS = {
     "rust": ('      - run: cargo +"$RUST_TOOLCHAIN" test --locked\n        working-directory: rust\n',
-             '      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"\n' + OBSERVED % ("rust", "rust")),
+             CHOOSE + '      - run: python3 "$PTOOL/select_tests.py" run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"\n' + OBSERVED % ("rust", "rust")),
     "go": ("      - run: go test -race -count=1 -rapid.checks=1000 ./...\n        working-directory: go\n",
-           '      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"\n' + OBSERVED % ("go", "go")),
+           CHOOSE + '      - run: python3 "$PTOOL/select_tests.py" run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"\n' + OBSERVED % ("go", "go")),
 }
 
 

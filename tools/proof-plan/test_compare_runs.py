@@ -48,6 +48,17 @@ class Compare(unittest.TestCase):
         self.assertEqual(bad, [])
 
 
+class Waiting(unittest.TestCase):
+    def test_no_p1_run_after_the_grace_is_an_answer_not_a_wait(self):
+        self.assertIsNone(cr.gives_up(None, 60, 180, 1500))
+        self.assertIn("appeared", cr.gives_up(None, 180, 180, 1500))
+
+    def test_a_run_that_exists_is_waited_for_up_to_the_timeout(self):
+        run = {"status": "in_progress"}
+        self.assertIsNone(cr.gives_up(run, 1000, 180, 1500))
+        self.assertIn("not complete", cr.gives_up(run, 1500, 180, 1500))
+
+
 class Planner(unittest.TestCase):
     def write(self, content):
         import tempfile

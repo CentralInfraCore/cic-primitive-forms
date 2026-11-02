@@ -107,7 +107,20 @@ jobs:
         working-directory: rust
       - run: cargo +"$RUST_TOOLCHAIN" clippy --locked --all-targets -- -D warnings
         working-directory: rust
-      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"
+      - name: The code that runs the tests is main's when the pull request is on main
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ]; then
+            git fetch -q --depth=1 origin "$BASE_SHA" && git cat-file -e "$BASE_SHA:tools/proof-plan/select_tests.py" \
+              && mkdir -p "$RUNNER_TEMP/trusted" && git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted" \
+              && PTOOL="$RUNNER_TEMP/trusted/tools/proof-plan"
+          fi
+          echo "PTOOL=$PTOOL" >> "$GITHUB_ENV"; echo "Test runner code: $PTOOL"
+      - run: python3 "$PTOOL/select_tests.py" run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ always() }}
         continue-on-error: true
@@ -159,7 +172,20 @@ jobs:
         working-directory: go
       - run: go vet ./...
         working-directory: go
-      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"
+      - name: The code that runs the tests is main's when the pull request is on main
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          PTOOL="$GITHUB_WORKSPACE/tools/proof-plan"
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ] && [ -n "$BASE_SHA" ]; then
+            git fetch -q --depth=1 origin "$BASE_SHA" && git cat-file -e "$BASE_SHA:tools/proof-plan/select_tests.py" \
+              && mkdir -p "$RUNNER_TEMP/trusted" && git archive "$BASE_SHA" tools/proof-plan | tar -x -C "$RUNNER_TEMP/trusted" \
+              && PTOOL="$RUNNER_TEMP/trusted/tools/proof-plan"
+          fi
+          echo "PTOOL=$PTOOL" >> "$GITHUB_ENV"; echo "Test runner code: $PTOOL"
+      - run: python3 "$PTOOL/select_tests.py" run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ always() }}
         continue-on-error: true

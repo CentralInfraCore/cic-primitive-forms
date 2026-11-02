@@ -56,6 +56,17 @@ def planner_false_reuse(path):
     return len(v) if isinstance(v, list) else None
 
 
+def gives_up(run, elapsed, grace, timeout):
+    """Why to stop waiting, or None. A p1 run of this commit and event starts within seconds of this run when it is going to exist, so when none has
+    appeared after `grace` seconds none will (a run by hand with no p1 beside it): waiting out `timeout` for it would only delay the same answer.
+    A run that exists but is not complete is waited for up to `timeout`."""
+    if run is None and elapsed >= grace:
+        return "no p1 run of this commit and event appeared in %d s" % grace
+    if elapsed >= timeout:
+        return "the p1 run was not complete in %d s" % timeout
+    return None
+
+
 def find_p1_run(repo, sha, event):
     runs = gh("repos/%s/actions/workflows/p1.yml/runs?head_sha=%s&event=%s&per_page=20" % (repo, sha, event),
               ".workflow_runs[] | {id, status, conclusion, run_number}")
@@ -70,23 +81,23 @@ def main():
     ap.add_argument("--own-run", required=True)
     ap.add_argument("--comparison")
     ap.add_argument("--timeout", type=int, default=1500)
+    ap.add_argument("--grace", type=int, default=180, help="seconds to wait for a p1 run to appear at all")
     ap.add_argument("--informational", action="store_true")
     a = ap.parse_args()
     print("### p1-proof against p1, commit `%s`" % a.sha[:7])
     not_compared = 0 if a.informational else 2
-    deadline = time.time() + a.timeout
+    t0 = time.time()
     run = None
     try:
         while True:
             run = find_p1_run(a.repo, a.sha, a.event)
             if run and run["status"] == "completed":
                 break
-            if time.time() > deadline:
-                break
+            why = gives_up(run, time.time() - t0, a.grace, a.timeout)
+            if why:
+                print("**NOT COMPARED**: %s. This is not a pass." % why)
+                return not_compared
             time.sleep(20)
-        if not run or run["status"] != "completed":
-            print("**NOT COMPARED**: %s. This is not a pass." % ("no p1 run of this commit found" if not run else "the p1 run was not complete in %d s" % a.timeout))
-            return not_compared
         rows, bad = compare(jobs_of(a.repo, run["id"]), jobs_of(a.repo, a.own_run))
     except (RuntimeError, ValueError, KeyError) as e:
         print("**NOT COMPARED**: %s. This is not a pass." % e)
