@@ -64,6 +64,14 @@ file (`id<TAB>shard<TAB>shards<TAB>verdict`), so any edit of the file renames ev
 carry-over needs the stable mutant id of `docs/C-STABLE-MUTANT-ID-PLAN.md` (or a listing that records file and line per id) first; `go-mutesting`
 is also not available in the local setup, so it was not tried. It is not a saving until a later real run confirms the carried verdicts.
 
+## p1-proof: a pipeline next to p1 (step 1 of the build)
+
+`.github/workflows/p1-proof.yml` is **generated** from `p1.yml` by `gen_p1_proof.py` (`--check` in the self-test of `proof-plan.yml`; do not edit it
+by hand). p1 stays as it is and stays the required check. Step 1 changes only what two pipelines side by side need: the workflow name, a display
+name `proof / <job>` for every job (the checks of a workflow are named by the job alone and the ruleset of `main` requires those names), no
+`workflow_call`, and `inherit` asking about p1-proof.yml. The job graph (ids, `needs`, `if`) is p1's, and the test says so. The planner does not decide
+anything in it yet: it runs exactly what p1 runs, which is the baseline the next steps are compared with.
+
 ## Trust: what may ever authorize skipping
 
 Report only is safe whoever writes the evidence. Skipping is not, and two things decide it:
@@ -99,5 +107,6 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `build_evidence.py`, `merkle.py` | evidence of one test from an extractor graph; Merkle keys |
 | `qualify.py`, `qualify_rust.py`, `rust_graph.py`, `repro_rust_dispatch.py`, `testdata/` | probes that qualify an extractor build |
 | `extractor/` | the Go extractors (their own modules) |
+| `gen_p1_proof.py`, `test_gen_p1_proof.py` | generates and checks `p1-proof.yml` from `p1.yml` |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |

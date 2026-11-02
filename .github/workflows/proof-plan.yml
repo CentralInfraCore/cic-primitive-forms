@@ -62,6 +62,10 @@ jobs:
           echo "Planner: $TOOL (trust: $TRUST)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Self-test of the planner
         run: cd "$TOOL" && python3 -m unittest test_plan test_merkle test_mutplan
+      - name: p1-proof.yml is what the generator makes from p1.yml (the code under test, not the planner chosen above)
+        run: |
+          python3 -c 'import yaml' 2>/dev/null || pip install pyyaml
+          cd "$GITHUB_WORKSPACE/tools/proof-plan" && python3 -m unittest test_gen_p1_proof
       - name: Build the extractors reproducibly (the identity of a build is the digest of its binary)
         env:
           CGO_ENABLED: "0"   # static: the result must not depend on the C toolchain of the runner
