@@ -197,6 +197,171 @@ func TestDigestMappingErrorText(t *testing.T) {
 	}
 }
 
+// The shared cases take a member away or change its value; they never put the wrong KIND of node on the way to it. The cases below do, one defect at a time, on the record
+// of cic-primitives v0.2.1 (the first of the shared cases), so that the refusal has to come from the check that is meant to give it.
+
+func mappingGoodRecord(t *testing.T) (*Node, map[string]string) {
+	t.Helper()
+	f := readMappingCases(t)
+	for _, c := range f.Cases {
+		if c.Kind == "map" && c.Refuse == nil {
+			return mappingNodeOf(t, c.Record), c.Pin
+		}
+	}
+	t.Fatal("no accepted map case in the shared file")
+	return nil, nil
+}
+
+// mappingSet replaces the value at a dotted path (a number is a sequence index) of a copy of the record.
+func mappingSet(t *testing.T, record *Node, path string, value *Node) *Node {
+	t.Helper()
+	out := mappingCopy(record)
+	cur := out
+	parts := strings.Split(path, ".")
+	for i, part := range parts {
+		last := i == len(parts)-1
+		if cur.Kind == KindSeq {
+			idx, err := strconv.Atoi(part)
+			if err != nil || idx >= len(cur.Items) {
+				t.Fatalf("bad path %q", path)
+			}
+			if last {
+				cur.Items[idx] = value
+				return out
+			}
+			cur = cur.Items[idx]
+			continue
+		}
+		found := false
+		for j := range cur.Entries {
+			if cur.Entries[j].Key == part {
+				found = true
+				if last {
+					cur.Entries[j].Value = value
+					return out
+				}
+				cur = cur.Entries[j].Value
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("bad path %q", path)
+		}
+	}
+	return out
+}
+
+func mappingCopy(n *Node) *Node {
+	if n == nil {
+		return nil
+	}
+	c := *n
+	c.Items = make([]*Node, len(n.Items))
+	for i, it := range n.Items {
+		c.Items[i] = mappingCopy(it)
+	}
+	c.Entries = make([]Entry, len(n.Entries))
+	for i, e := range n.Entries {
+		c.Entries[i] = Entry{Key: e.Key, Value: mappingCopy(e.Value)}
+	}
+	return &c
+}
+
+func mappingWant(t *testing.T, record *Node, pin map[string]string, reason, field string) {
+	t.Helper()
+	_, err := MapRelease(record, pin)
+	var me *MappingError
+	if !errors.As(err, &me) {
+		t.Fatalf("expected %s (%s), got %v", reason, field, err)
+	}
+	if me.Reason != reason || me.Field != field {
+		t.Fatalf("got %s (%s), want %s (%s)", me.Reason, me.Field, reason, field)
+	}
+}
+
+func TestDigestMappingTheWrongKindOfNodeOnTheWay(t *testing.T) {
+	good, pin := mappingGoodRecord(t)
+	str := &Node{Kind: KindStr, Str: "x"}
+	one := &Node{Kind: KindInt, Int: 1}
+
+	// a parent that is not a mapping is a path that is not there
+	mappingWant(t, mappingSet(t, good, "release", one), pin, MappingEnvelopeNot3, "release.envelope")
+	mappingWant(t, mappingSet(t, good, "provenance", str), pin, MappingEnvelopeNot3, "provenance.envelope")
+
+	// an envelope that is not an integer is refused whatever its other fields hold: a node of another kind that carries the number 3
+	for _, k := range []Kind{KindBool, KindStr, KindUnsupported, KindNull} {
+		n := &Node{Kind: k, Int: 3, Str: "3", Bool: true}
+		mappingWant(t, mappingSet(t, good, "release.envelope", n), pin, MappingEnvelopeNot3, "release.envelope")
+	}
+
+	// artifacts.files: null is missing, not a type error
+	mappingWant(t, mappingSet(t, good, "artifacts.files", &Node{Kind: KindNull}), pin, MappingFieldMissing, "artifacts.files")
+
+	// an element of the list that is not a mapping is not an entry; it is skipped and the path stays absent when it was the only one
+	for _, k := range []*Node{{Kind: KindNull}, str, one, {Kind: KindSeq}} {
+		rec := mappingSet(t, good, "artifacts.files.1", k)
+		mappingWant(t, rec, pin, MappingArtifactAbsent, mappingCheckGrammar)
+	}
+	// a nil element must not panic either
+	rec := mappingCopy(good)
+	files := mappingGet(rec, "artifacts.files")
+	files.Items[1] = nil
+	mappingWant(t, rec, pin, MappingArtifactAbsent, mappingCheckGrammar)
+
+	// an entry whose path is missing, null or not a string is not the entry of any path
+	for _, p := range []*Node{{Kind: KindNull}, one, {Kind: KindSeq}, {Kind: KindMap}} {
+		rec := mappingSet(t, good, "artifacts.files.1.path", p)
+		mappingWant(t, rec, pin, MappingArtifactAbsent, mappingCheckGrammar)
+	}
+	noPath := mappingCopy(good)
+	entry := mappingGet(noPath, "artifacts.files").Items[1]
+	entry.Entries = entry.Entries[:0]
+	mappingWant(t, noPath, pin, MappingArtifactAbsent, mappingCheckGrammar)
+}
+
+// The scan for a key stops at the first entry that has it, and a later entry of the same key never wins.
+func TestDigestMappingFirstEntryOfAKeyWins(t *testing.T) {
+	good, pin := mappingGoodRecord(t)
+	rec := mappingCopy(good)
+	env := mappingGet(rec, "release")
+	for i, e := range env.Entries {
+		if e.Key == "envelope" {
+			// a second `envelope` after the right one, with a wrong value: the first is the one that is read
+			env.Entries = append(env.Entries[:i+1], append([]Entry{{Key: "envelope", Value: &Node{Kind: KindInt, Int: 9}}}, env.Entries[i+1:]...)...)
+			break
+		}
+	}
+	if _, err := MapRelease(rec, pin); err != nil {
+		t.Fatalf("the first envelope is 3: %v", err)
+	}
+	// and the other way round: a wrong first entry is not rescued by a right second one
+	rec2 := mappingCopy(good)
+	env2 := mappingGet(rec2, "release")
+	for i, e := range env2.Entries {
+		if e.Key == "envelope" {
+			env2.Entries = append(env2.Entries[:i], append([]Entry{{Key: "envelope", Value: &Node{Kind: KindInt, Int: 9}}}, env2.Entries[i:]...)...)
+			break
+		}
+	}
+	mappingWant(t, rec2, pin, MappingEnvelopeNot3, "release.envelope")
+}
+
+// Every character of the text is judged, the first one too.
+func TestDigestMappingEveryPositionOfTheShapeIsChecked(t *testing.T) {
+	good := "HVazYxdg737P2bMy2Enkj5ej1VfF+TQ4pDub86G3p2s="
+	for i := 0; i < 43; i++ {
+		bad := good[:i] + "-" + good[i+1:]
+		_, err := ReceiptDigestOf(&Node{Kind: KindStr, Str: bad}, "f")
+		var me *MappingError
+		if !errors.As(err, &me) || me.Reason != MappingBase64Shape {
+			t.Fatalf("a '-' at position %d: %v", i, err)
+		}
+	}
+	if _, err := ReceiptDigestOf(&Node{Kind: KindStr, Str: good}, "f"); err != nil {
+		t.Fatalf("the unchanged value: %v", err)
+	}
+}
+
 // A nil record or a nil node is the same as an absent member, never a panic.
 func TestDigestMappingNilInput(t *testing.T) {
 	_, err := MapRelease(nil, nil)
