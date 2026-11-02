@@ -19,7 +19,9 @@ so that the jobs it shares with p1 cannot drift from p1. This first step changes
   (mutplan.py) on every run, and writes them out as carried verdicts only when it runs on main; `quality-mutation-rust` leaves the carried mutants
   out of its run (`-E`) and puts their earlier outcomes into its report (mutcarry.py), which the gate reads as before. That shard only runs in a
   classic FULL (the nightly, a run by hand), never in a pull request, where mutants are measured by cargo-gamma;
-* the job `proof-plan` is added (step 2): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
+* the job `proof-finish` is added (step 7): the second phase of the planner, after the test jobs: it compares the decisions with what those jobs
+  observed in their own runs (select_tests.py --observed-out), traces the reads of the tests that ran, and writes the evidence. The planner does not run the tests again;
+* the job `proof-plan` is added (step 2), now only the first phase (decide): the planner of proof-plan.yml, called as a reusable workflow. Nothing waits for it and it is not in
   the `needs` of `quality`: it reports, it decides nothing yet.
 
 Each substitution must match exactly once, otherwise the generator stops: a change in p1.yml that the generator does not understand is an
@@ -81,24 +83,47 @@ PLANNER_JOB = """
   proof-plan:
     name: "proof / proof-plan"
     uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: plan
     permissions:
       contents: read
       actions: read   # the planner finds and downloads the evidence artifact of an earlier run
+
+  proof-finish:
+    name: "proof / proof-finish"
+    needs: [rust, go, proof-plan]
+    if: ${{ always() && !cancelled() }}   # also when a test job failed: that is what the evidence has to say
+    uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: finish
+    permissions:
+      contents: read
+      actions: read
 """
 
 
 DOWNLOAD = """      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true   # no plan: the test step runs the command of p1
         with:
-          name: proof-evidence
+          name: proof-plan-data
           path: ${{ runner.temp }}/proof
 """
 CHECKOUT = "      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0\n"
+# what the job's own run of the tests showed, for the finish phase of the planner (which does not run the tests again)
+OBSERVED = """      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        continue-on-error: true
+        with:
+          name: proof-observed-%s
+          path: ${{ runner.temp }}/observed-%s.json
+          if-no-files-found: ignore
+          retention-days: 7
+"""
 TEST_STEPS = {
     "rust": ('      - run: cargo +"$RUST_TOOLCHAIN" test --locked\n        working-directory: rust\n',
-             '      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN"\n'),
+             '      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"\n' + OBSERVED % ("rust", "rust")),
     "go": ("      - run: go test -race -count=1 -rapid.checks=1000 ./...\n        working-directory: go\n",
-           '      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo .\n'),
+           '      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"\n' + OBSERVED % ("go", "go")),
 }
 
 
@@ -165,7 +190,7 @@ def generate(src_text):
     t = once(t, "      workflows: p1.yml,corpus.yml\n", "      workflows: p1-proof.yml,corpus.yml\n")
     t = prefix_job_names(gen_mutation.wire(wire_tests(t), job_block, Unsupported))
     ids = re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", t[t.index("\njobs:"):], re.M)
-    return t.rstrip("\n") + "\n" + PLANNER_JOB + gen_mutation.MUTPLAN_JOB + COMPARE_JOB % ", ".join(ids + ["proof-plan", "proof-mutplan"])
+    return t.rstrip("\n") + "\n" + PLANNER_JOB + gen_mutation.MUTPLAN_JOB + COMPARE_JOB % ", ".join(ids + ["proof-plan", "proof-finish", "proof-mutplan"])
 
 
 def main(argv):

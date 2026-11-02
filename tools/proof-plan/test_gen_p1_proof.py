@@ -20,7 +20,7 @@ class Generated(unittest.TestCase):
         self.assertEqual(g.main(["--check"]), 0)
 
     def test_same_job_graph(self):
-        self.assertEqual(list(P1["jobs"]) + ["proof-plan", "proof-mutplan", "proof-compare"], list(PROOF["jobs"]))
+        self.assertEqual(list(P1["jobs"]) + ["proof-plan", "proof-finish", "proof-mutplan", "proof-compare"], list(PROOF["jobs"]))
         for k, j in P1["jobs"].items():
             p = PROOF["jobs"][k]
             for field in ("needs", "if", "strategy", "runs-on", "steps", "outputs", "timeout-minutes"):
@@ -39,8 +39,10 @@ class Generated(unittest.TestCase):
         for k, cmd in (("rust", "select_tests.py run rust"), ("go", "select_tests.py run go")):
             self.assertEqual(PROOF["jobs"][k]["needs"], ["inherit", "proof-plan"])
             old, new = P1["jobs"][k]["steps"], PROOF["jobs"][k]["steps"]
-            self.assertEqual(len(new), len(old) + 1)   # the download of the plan
-            changed = [(a, b) for a, b in zip([s for s in new if "download-artifact" not in str(s.get("uses"))], old) if a != b]
+            extra = [s for s in new if "download-artifact" in str(s.get("uses")) or "upload-artifact" in str(s.get("uses"))]
+            self.assertEqual(len(new), len(old) + 2)   # the download of the plan and the upload of what the job observed
+            self.assertEqual(len(extra), 2)
+            changed = [(a, b) for a, b in zip([s for s in new if s not in extra], old) if a != b]
             self.assertEqual(len(changed), 1, k)
             self.assertIn(cmd, changed[0][0]["run"])
             self.assertTrue(any("download-artifact" in str(s.get("uses")) and s.get("continue-on-error") for s in new))
@@ -49,7 +51,7 @@ class Generated(unittest.TestCase):
         for k, j in PROOF["jobs"].items():
             needs = j.get("needs", [])
             needs = [needs] if isinstance(needs, str) else needs
-            self.assertEqual("proof-plan" in needs, k in ("rust", "go", "proof-compare"), k)
+            self.assertEqual("proof-plan" in needs, k in ("rust", "go", "proof-finish", "proof-compare"), k)
             self.assertEqual("proof-mutplan" in needs, k in ("quality-mutation-rust", "proof-compare"), k)
 
     def test_the_compare_job_waits_for_every_other_job_and_nothing_waits_for_it(self):
@@ -76,6 +78,19 @@ class Generated(unittest.TestCase):
         merge_at = next(i for i, s in enumerate(j["steps"]) if "mutcarry.py merge" in str(s.get("run")))
         upload_at = next(i for i, s in enumerate(j["steps"]) if "upload-artifact" in str(s.get("uses")) and s["with"]["name"].startswith("rust-mutants-$"))
         self.assertLess(merge_at, upload_at, names)
+
+    def test_the_planner_has_two_phases_around_the_tests_and_does_not_run_them(self):
+        a, f = PROOF["jobs"]["proof-plan"], PROOF["jobs"]["proof-finish"]
+        self.assertEqual((a["with"]["phase"], f["with"]["phase"]), ("plan", "finish"))
+        self.assertEqual(set(f["needs"]), {"rust", "go", "proof-plan"})
+        self.assertIn("always()", f["if"])
+        for k in ("rust", "go"):
+            text = "\n".join(str(s.get("run", "")) for s in PROOF["jobs"][k]["steps"])
+            self.assertIn("--observed-out", text)
+            up = [s for s in PROOF["jobs"][k]["steps"] if "upload-artifact" in str(s.get("uses"))]
+            self.assertEqual([s["with"]["name"] for s in up], ["proof-observed-" + k])
+            dl = [s for s in PROOF["jobs"][k]["steps"] if "download-artifact" in str(s.get("uses"))]
+            self.assertEqual([s["with"]["name"] for s in dl], ["proof-plan-data"])
 
     def test_the_prediction_job_never_fails_the_pipeline(self):
         j = PROOF["jobs"]["proof-mutplan"]

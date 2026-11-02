@@ -104,14 +104,17 @@ def trace_reads(root, decisions, prev_tests, tc, jobs):
             "carried": len(decisions) - len(want)}
 
 
-def classify(decisions, prev_tests, observed):
-    """(rows, summary): for every decided test the kind of agreement between the decision and the observed outcome. Pure."""
+def classify(decisions, prev_tests, observed, skipped=frozenset()):
+    """(rows, summary): for every decided test the kind of agreement between the decision and the observed outcome. Pure.
+    A test the job did not run because the plan skipped it (`skipped`) is CARRIED: nothing was observed and the earlier verdict stands."""
     rows, summary = [], {}
     for d in decisions:
         key, status = d["key"], d["status"]
         obs = (observed.get(key) or {}).get("outcome")
         pv = (prev_tests.get(key) or {}).get("verdict")
-        if obs is None:
+        if obs is None and key in skipped and status == "REUSE_ELIGIBLE" and pv == "pass":
+            kind = "CARRIED"
+        elif obs is None:
             kind = "NOT_OBSERVED"
         elif status == "REUSE_ELIGIBLE":
             kind = "CONSISTENT" if (pv == "pass" and obs == "PASS") else ("FALSE_REUSE" if (pv == "pass" and obs == "FAIL") else "OTHER")
@@ -125,12 +128,24 @@ def classify(decisions, prev_tests, observed):
     return rows, summary
 
 
-def new_evidence(current, prev_tests, observed, sha, trace=None, state=None):
+def new_evidence(current, prev_tests, observed, sha, trace=None, state=None, skipped=frozenset()):
     """The evidence of this tree with the observed verdicts. A test whose key and environment did not move and whose outcome flipped is
     `unstable` (and stays so): the outcome is then not a function of its closure, and the kernel will not reuse it."""
     out = {}
     for key, e in current.items():
         o = (observed.get(key) or {}).get("outcome")
+        p0 = prev_tests.get(key)
+        if o is None and key in skipped and p0 is not None and p0.get("verdict") == "pass":
+            # skipped by the plan: the earlier verdict and where it was obtained stand (the data it read is the earlier one too)
+            ne = dict(e, verdict="pass", provenance=p0.get("provenance", {}), carried=True)
+            if "data_reads" in p0 and state is not None:
+                ne["data_reads"] = p0["data_reads"]
+                ne["opaque_reads"] = list(p0.get("opaque_reads", []))
+                ne["data_dependencies_digest"] = pl.reads_digest(state, p0["data_reads"])
+            if p0.get("stability") == "unstable":
+                ne["stability"] = "unstable"
+            out[key] = ne
+            continue
         if o is None:
             continue  # not observed: no verdict, no evidence
         ne = dict(e, verdict="pass" if o == "PASS" else "fail", provenance={"evidence_id": "%s %s" % (sha[:12], key), "commit": sha})
@@ -214,7 +229,7 @@ def main():
     f.add_argument("--repo", default=".")
     f.add_argument("--trace")
     f.add_argument("--plan", required=True)
-    f.add_argument("--observed", action="append", required=True)
+    f.add_argument("--observed", action="append", required=True, help="may be repeated; a file that is not there is a job that did not run")
     f.add_argument("--prev")
     f.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -239,17 +254,22 @@ def main():
     plan = json.load(open(os.path.join(a.plan, "plan.json")))
     cur = json.load(open(os.path.join(a.plan, "current.json")))
     timings = json.load(open(os.path.join(a.plan, "timings.json")))
-    observed = {}
+    observed, skipped = {}, set()
     for p in a.observed:
-        observed.update(json.load(open(p))["tests"])
+        if not os.path.exists(p):
+            print("no observation in %s: that job did not run" % p, file=sys.stderr)
+            continue
+        d = json.load(open(p))
+        observed.update(d["tests"])
+        skipped |= set(d.get("skipped", []))
     prev_tests, _ = pl.load_prev(a.prev)
-    rows, summary = classify(plan["decisions"], prev_tests, observed)
+    rows, summary = classify(plan["decisions"], prev_tests, observed, skipped)
     false_reuse = [r_ for r_ in rows if r_["kind"] == "FALSE_REUSE"]
     os.makedirs(a.out, exist_ok=True)
     trace = json.load(open(a.trace)) if a.trace else None
     state = pl.TreeState(os.path.abspath(a.repo)) if trace is not None else None
     json.dump({"schema": pl.SCHEMA, "commit": plan["commit"],
-               "tests": new_evidence(cur["tests"], prev_tests, observed, plan["commit"], (trace or {}).get("tests"), state)},
+               "tests": new_evidence(cur["tests"], prev_tests, observed, plan["commit"], (trace or {}).get("tests"), state, skipped)},
               open(os.path.join(a.out, "evidence.json"), "w"))
     json.dump({"rows": rows, "summary": summary, "false_reuse": false_reuse}, open(os.path.join(a.out, "comparison.json"), "w"))
     sys.stdout.write(report(plan, rows, summary, {"go": observed}, timings, false_reuse,

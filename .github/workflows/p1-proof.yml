@@ -96,7 +96,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true   # no plan: the test step runs the command of p1
         with:
-          name: proof-evidence
+          name: proof-plan-data
           path: ${{ runner.temp }}/proof
       - uses: ./.github/actions/upstream-pinned
       - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rustfmt,clippy
@@ -107,7 +107,15 @@ jobs:
         working-directory: rust
       - run: cargo +"$RUST_TOOLCHAIN" clippy --locked --all-targets -- -D warnings
         working-directory: rust
-      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN"
+      - run: python3 tools/proof-plan/select_tests.py run rust --plan "$RUNNER_TEMP/proof/plan.json" --repo . --rust-toolchain "$RUST_TOOLCHAIN" --observed-out "$RUNNER_TEMP/observed-rust.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        continue-on-error: true
+        with:
+          name: proof-observed-rust
+          path: ${{ runner.temp }}/observed-rust.json
+          if-no-files-found: ignore
+          retention-days: 7
       # P5-1 (ADR 0014, decision A): the canonical-bytes table is the engine's own vectors at the pinned commit, plus own vectors against a reference written apart
       - id: engine
         run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
@@ -140,7 +148,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true   # no plan: the test step runs the command of p1
         with:
-          name: proof-evidence
+          name: proof-plan-data
           path: ${{ runner.temp }}/proof
       - uses: ./.github/actions/upstream-pinned
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -151,7 +159,15 @@ jobs:
         working-directory: go
       - run: go vet ./...
         working-directory: go
-      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo .
+      - run: python3 tools/proof-plan/select_tests.py run go --plan "$RUNNER_TEMP/proof/plan.json" --repo . --observed-out "$RUNNER_TEMP/observed-go.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() }}
+        continue-on-error: true
+        with:
+          name: proof-observed-go
+          path: ${{ runner.temp }}/observed-go.json
+          if-no-files-found: ignore
+          retention-days: 7
       # P5-2: the same cases against the engine's Go module (the Rust peer is in the rust job)
       - id: engine
         run: echo "commit=$(sed -n 's/^commit //p' testdata/p5/engine-pin.txt)" >> "$GITHUB_OUTPUT"
@@ -1635,9 +1651,22 @@ jobs:
   proof-plan:
     name: "proof / proof-plan"
     uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: plan
     permissions:
       contents: read
       actions: read   # the planner finds and downloads the evidence artifact of an earlier run
+
+  proof-finish:
+    name: "proof / proof-finish"
+    needs: [rust, go, proof-plan]
+    if: ${{ always() && !cancelled() }}   # also when a test job failed: that is what the evidence has to say
+    uses: ./.github/workflows/proof-plan.yml
+    with:
+      phase: finish
+    permissions:
+      contents: read
+      actions: read
 
   proof-mutplan:
     name: "proof / proof-mutplan"
@@ -1728,7 +1757,7 @@ jobs:
 
   proof-compare:
     name: "proof / proof-compare"
-    needs: [inherit, quality-gate-selftest, evidence-selftest, rust, go, branch-coverage, scope, quality-lines, plan, quality-mutation-rust, quality-mutation-go, diff-plan, diff-mutation-rust, diff-mutation-go, diff-gamma, fast-list, fast-mutation-rust, fast-mutation-go, shadow-gamma, quality, fuzz-target, fuzz, seeded-defects-shard, seeded-defects, parity, edit-proof, diff-proof, patch-proof, proof-plan, proof-mutplan]
+    needs: [inherit, quality-gate-selftest, evidence-selftest, rust, go, branch-coverage, scope, quality-lines, plan, quality-mutation-rust, quality-mutation-go, diff-plan, diff-mutation-rust, diff-mutation-go, diff-gamma, fast-list, fast-mutation-rust, fast-mutation-go, shadow-gamma, quality, fuzz-target, fuzz, seeded-defects-shard, seeded-defects, parity, edit-proof, diff-proof, patch-proof, proof-plan, proof-finish, proof-mutplan]
     if: ${{ always() && !cancelled() }}   # also when a job before it failed: that is what is compared
     runs-on: ubuntu-latest
     timeout-minutes: 40   # it waits for the p1 run of the same commit

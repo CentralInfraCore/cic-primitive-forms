@@ -91,6 +91,12 @@ report equals the report of a full run of the same tree mutant by mutant (33 of 
 it shows the mechanism is exact, not that the saving is large (the rule is conservative: 3 of 31 here, 83.7% between the two nightlies, whose commits
 changed no crate code).
 
+Step 7 (review: the tests ran twice): in p1-proof the planner is two phases around the jobs. `proof-plan` (phase `plan`) decides; `rust` and `go` run the
+tests through `select_tests.py run ... --observed-out` and leave what each test did as `proof-observed-<lang>`; `proof-finish` (phase `finish`) traces the reads
+of the tests that ran, sets the decisions against those observations and writes the evidence. The planner no longer runs the tests for itself in p1-proof (it
+still does in its own workflow, `proof-plan.yml` on its own triggers, which stays the measuring harness). A test the plan skipped is CARRIED: its earlier verdict
+and the commit it was obtained on stay in the evidence. The old key-only mutation prediction step of that workflow is gone; `proof-mutplan` replaces it.
+
 The job runs the `select_tests.py` of the tree under test: that is acceptable while p1-proof is not a required check, and after the merge it is main's own code.
 
 ## Trust: what may ever authorize skipping
@@ -132,5 +138,6 @@ identities it was made for), not the store of record; the signed `ci-evidence` p
 | `select_tests.py`, `test_select_tests.py` | the commands the decisions imply (`-skip`, `--exact --skip`), checked against the real test lists; report only |
 | `compare_runs.py`, `test_compare_runs.py` | p1-proof against p1, job by job, for the same commit (the `proof-compare` job) |
 | `mutcarry.py`, `gen_mutation.py`, `test_mutcarry.py` | carried mutation verdicts into a shard's report; the p1-proof wiring of `quality-mutation-rust` |
+| `test_record_carry.py` | a test the plan skipped is carried, not observed |
 | `mutplan.py` | mutation carry-over prediction (report only) |
 | `test_plan.py`, `test_mutplan.py` | self-test of the pure parts |

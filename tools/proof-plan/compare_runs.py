@@ -16,7 +16,7 @@ import sys
 import time
 
 PREFIX = "proof / "
-ONLY_HERE = {"proof-plan / plan", "proof-compare", "proof-plan", "proof-mutplan"}   # jobs p1-proof has and p1 does not
+ONLY_HERE = {"proof-plan / plan", "proof-finish / plan", "proof-compare", "proof-plan", "proof-finish", "proof-mutplan"}   # jobs p1-proof has and p1 does not
 
 
 def gh(path, jq):

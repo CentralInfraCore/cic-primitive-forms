@@ -1,7 +1,8 @@
 """From the planner's decisions to the commands that run only what has to run (REPORT ONLY in this step: nothing here is obeyed by a job).
 
     python3 select_tests.py check --plan plan.json --repo . --rust-toolchain T     prints what would be skipped and checks the commands against the real test lists
-    python3 select_tests.py run go|rust --plan plan.json --repo . [--rust-toolchain T]   runs the tests of p1-proof's job: the p1 command, minus the skips if authorized
+    python3 select_tests.py run go|rust --plan plan.json --repo . [--rust-toolchain T] [--observed-out F]   runs the tests of p1-proof's job: the p1 command, minus the
+        skips if authorized, and keeps what each test did (the planner does not run the tests again)
 
 The form is "everything except the tests whose earlier result may stand": Go `-skip '^(A|B)$'`, Rust `--exact --skip name` per test target. A test the
 plan does not know, a target it does not list and the doctests keep running, so a gap in the plan can only run more, never less.
@@ -14,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import plan as pl  # noqa: E402
@@ -104,10 +106,31 @@ def skips(plan, lang):
         return []
 
 
-def run_go(plan, repo):
+def run_go(plan, repo, observed_out=None):
+    """The p1 command with `-json` (the same tests, the same flags), echoed as the text `go test` prints, and what each test did is kept
+    for the planner: the job observes its own run, nothing runs twice for the planner."""
     names = skips(plan, "go")
     print("p1-proof go: %d test(s) skipped" % len(names), flush=True)
-    return subprocess.run(go_command(names), cwd=os.path.join(repo, "go")).returncode
+    cmd = go_command(names)
+    cmd.insert(cmd.index("./..."), "-json")
+    t0 = time.time()
+    p = subprocess.Popen(cmd, cwd=os.path.join(repo, "go"), stdout=subprocess.PIPE, text=True)
+    tests = {}
+    for line in p.stdout:
+        try:
+            e = json.loads(line)
+        except ValueError:
+            sys.stdout.write(line)   # not an event (a build error, a panic): as it comes
+            continue
+        if e.get("Action") == "output":
+            sys.stdout.write(e.get("Output", ""))
+        t = e.get("Test")
+        if t and "/" not in t and e.get("Action") in ("pass", "fail", "skip"):
+            tests["go:" + t] = {"outcome": e["Action"].upper(), "elapsed": e.get("Elapsed", 0.0)}
+    rc = p.wait()
+    if observed_out:
+        json.dump({"tests": tests, "skipped": ["go:" + n for n in names], "wall_s": round(time.time() - t0, 1), "exit": rc}, open(observed_out, "w"))
+    return rc
 
 
 def rust_executables(repo, tc):
@@ -127,24 +150,37 @@ def rust_executables(repo, tc):
     return exes
 
 
-def run_rust(plan, repo, tc):
+RESULT = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|ignored)", re.M)
+
+
+def run_rust(plan, repo, tc, observed_out=None):
+    """Every test binary `cargo test` would run, run one after the other (a failing binary stops the rest, as in `cargo test`), with the skips of the
+    plan; then the doctests through cargo. What each test did is kept for the planner. If the binaries cannot be made the command of p1 runs."""
     names = skips(plan, "rust")
     crate = os.path.join(repo, "rust")
-    if not names:
-        print("p1-proof rust: no test skipped, the command of p1", flush=True)
-        return subprocess.run(["cargo", "+" + tc, "test", "--locked"], cwd=crate).returncode
     exes = rust_executables(repo, tc)
-    if exes is None:   # the selection could not be made: run everything
+    if exes is None:
+        print("p1-proof rust: the test binaries could not be listed, the command of p1", flush=True)
         return subprocess.run(["cargo", "+" + tc, "test", "--locked"], cwd=crate).returncode
     groups = rust_groups(names)
     print("p1-proof rust: %d test(s) skipped in %d target(s)" % (len(names), len(groups)), flush=True)
     env = dict(os.environ, CARGO_MANIFEST_DIR=crate)
-    worst = 0
+    tests, worst, t0 = {}, 0, time.time()
     for target, exe in exes:
-        extra = ["--exact"] + [x for n in sorted(groups.get(target, [])) for x in ("--skip", n)] if target in groups else []
-        worst = worst or subprocess.run([exe] + extra, cwd=crate, env=env).returncode
+        extra = ["--exact"] + [x for n in sorted(groups[target]) for x in ("--skip", n)] if target in groups else []
+        p = subprocess.run([exe] + extra, cwd=crate, env=env, capture_output=True, text=True)
+        sys.stdout.write(p.stdout)
+        sys.stderr.write(p.stderr)
+        for m in RESULT.finditer(p.stdout):
+            tests["rust:%s::%s" % (target, m.group(1))] = {"outcome": {"ok": "PASS", "FAILED": "FAIL", "ignored": "SKIP"}[m.group(2)]}
+        if p.returncode:
+            worst = p.returncode
+            break
     # the doctests are not in the plan: they always run
-    return worst or subprocess.run(["cargo", "+" + tc, "test", "--locked", "--doc"], cwd=crate).returncode
+    rc = worst or subprocess.run(["cargo", "+" + tc, "test", "--locked", "--doc"], cwd=crate).returncode
+    if observed_out:
+        json.dump({"tests": tests, "skipped": ["rust:" + n for n in names], "wall_s": round(time.time() - t0, 1), "exit": rc}, open(observed_out, "w"))
+    return rc
 
 
 def main():
@@ -154,10 +190,11 @@ def main():
     ap.add_argument("--plan", required=True)
     ap.add_argument("--repo", default=".")
     ap.add_argument("--rust-toolchain")
+    ap.add_argument("--observed-out", help="where `run` writes what each test did (for the planner's finish phase)")
     a = ap.parse_args()
     if a.cmd == "run":
         plan = load_plan(a.plan)
-        return run_go(plan, a.repo) if a.lang == "go" else run_rust(plan, a.repo, a.rust_toolchain)
+        return run_go(plan, a.repo, a.observed_out) if a.lang == "go" else run_rust(plan, a.repo, a.rust_toolchain, a.observed_out)
     plan = json.load(open(a.plan))
     auth = authorized(plan)
     go, rs = eligible(plan, "go"), eligible(plan, "rust")
