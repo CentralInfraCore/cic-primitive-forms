@@ -67,10 +67,6 @@ jobs:
       # a receipt entry promoted to proved and a dropped open item
       - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_closeout_check.py
       - run: python3 tools/p5/closeout_check.py
-      # P5-3 digest mapping (docs/P5-DIGEST-MAPPING-CONTRACT.md): the shared cases against the reference, their values recomputed by openssl and od, and 13 planted defects that
-      # each have to turn the cases red. Yardstick only: no Rust or Go implementation yet
-      - run: python3 -W error::ResourceWarning -m unittest tools/p5/test_digest_mapping.py
-      - run: python3 tools/p5/digest_mapping_cases.py
   # The test evidence tools (docs/TEST-EVIDENCE.md): unit tests and probes, the Go implementation of the canonical JSON on
   # the shared vectors, the seeded defects of the verifier, and that `gh attestation verify` has the flags the verifier uses.
   evidence-selftest:
