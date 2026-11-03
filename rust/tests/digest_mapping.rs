@@ -3,10 +3,11 @@
 //! `go/digestmapping_test.go` and the Python reference `tools/p5/digest_mapping.py`.
 
 use cic_primitive_forms::{
-    map_release, receipt_digest_of, Entry, MappingError, Node, Value, MAPPING_ARTIFACT_ABSENT,
-    MAPPING_ARTIFACT_DUPLICATE, MAPPING_BASE64_LENGTH, MAPPING_BASE64_NOT_CANONICAL,
-    MAPPING_BASE64_SHAPE, MAPPING_DIGEST_FORM, MAPPING_ENVELOPE_NOT_3, MAPPING_FIELD_MISSING,
-    MAPPING_FIELD_TYPE, MAPPING_PROVENANCE_ARTIFACTS_DISAGREE, MAPPING_RECORD_PIN_DISAGREE,
+    emit, map_release, parse, receipt_digest_of, Entry, Error, MappingError, Node, Value,
+    MAPPING_ARTIFACT_ABSENT, MAPPING_ARTIFACT_DUPLICATE, MAPPING_BASE64_LENGTH,
+    MAPPING_BASE64_NOT_CANONICAL, MAPPING_BASE64_SHAPE, MAPPING_DIGEST_FORM,
+    MAPPING_ENVELOPE_NOT_3, MAPPING_FIELD_MISSING, MAPPING_FIELD_TYPE,
+    MAPPING_PROVENANCE_ARTIFACTS_DISAGREE, MAPPING_RECORD_PIN_DISAGREE,
 };
 use serde_json::Value as J;
 use std::collections::BTreeMap;
@@ -167,5 +168,56 @@ fn a_non_string_node_is_a_type_error_never_a_panic() {
     ] {
         let e = receipt_digest_of(&Node::new(v), "x").unwrap_err();
         assert_eq!((e.reason, e.field.as_str()), (MAPPING_FIELD_TYPE, "x"));
+    }
+}
+
+/// A mapping with the same key twice is two documents to two readers, and a record that is read for its digests must not be one. The mapping does not choose between
+/// the two keys; it is only ever given a Node that `parse` made, and `parse` refuses a duplicate key (`DUPLICATE_KEY`) in every place the mapping reads. Both halves
+/// are shown on the record of v0.2.1 written out as YAML: it goes through `parse` and `map_release`, and the same text with one key twice does not get past `parse`.
+#[test]
+fn a_duplicate_key_never_reaches_the_mapping() {
+    let (_, all) = cases();
+    let good = all
+        .iter()
+        .find(|c| c["kind"] == "map" && c["refuse"].is_null())
+        .expect("an accepted map case");
+    let pin: BTreeMap<String, String> = good["pin"]
+        .as_object()
+        .expect("pin")
+        .iter()
+        .map(|(k, v)| (k.clone(), v.as_str().expect("pin value").to_string()))
+        .collect();
+    let text = emit(&node_of(&good["record"]));
+
+    let parsed = parse(&text).expect("the record written out parses");
+    assert!(map_release(&parsed, &pin).is_ok());
+
+    // the key lines the mapping reads, each repeated once under its own indentation with a different value
+    for line in [
+        "  envelope: 3",
+        "  build_hash: ",
+        "  grammar_sha256: ",
+        "  grammar_schema_sha256: ",
+        "      path: ",
+        "      digest: ",
+        "  files:",
+    ] {
+        let i = text
+            .find(line)
+            .unwrap_or_else(|| panic!("the written record has no line {line:?}:\n{text}"));
+        let end = text[i..].find('\n').map(|n| n + i).expect("a line end");
+        let repeated = if line == "  files:" {
+            line.to_string()
+        } else {
+            format!("{}x", &text[i..end])
+        };
+        let dup = format!("{}\n{}{}", &text[..end], repeated, &text[end..]);
+        match parse(&dup) {
+            Err(Error::Contract(v)) => assert_eq!(
+                v[0].code, "DUPLICATE_KEY",
+                "a repeated {line:?} is refused, but not as a duplicate key"
+            ),
+            other => panic!("a repeated {line:?} is not refused: {other:?}"),
+        }
     }
 }
