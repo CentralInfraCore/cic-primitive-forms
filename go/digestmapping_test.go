@@ -319,31 +319,39 @@ func TestDigestMappingTheWrongKindOfNodeOnTheWay(t *testing.T) {
 	mappingWant(t, noPath, pin, MappingArtifactAbsent, mappingCheckGrammar)
 }
 
-// The scan for a key stops at the first entry that has it, and a later entry of the same key never wins.
-func TestDigestMappingFirstEntryOfAKeyWins(t *testing.T) {
+// A mapping with the same key twice is two documents to two readers, and a record that is read for its digests must not be one. The mapping does not choose between the
+// two keys (it would make a choice a norm); it is only ever given a Node that Parse made, and Parse refuses a duplicate key (DUPLICATE_KEY), in every place the mapping
+// reads. Both halves are shown on the record of v0.2.1 written out as YAML: it goes through Parse and MapRelease, and the same text with one key twice does not get past Parse.
+func TestDigestMappingADuplicateKeyNeverReachesIt(t *testing.T) {
 	good, pin := mappingGoodRecord(t)
-	rec := mappingCopy(good)
-	env := mappingGet(rec, "release")
-	for i, e := range env.Entries {
-		if e.Key == "envelope" {
-			// a second `envelope` after the right one, with a wrong value: the first is the one that is read
-			env.Entries = append(env.Entries[:i+1], append([]Entry{{Key: "envelope", Value: &Node{Kind: KindInt, Int: 9}}}, env.Entries[i+1:]...)...)
-			break
+	text := Emit(good)
+
+	parsed, err := Parse(text)
+	if err != nil {
+		t.Fatalf("the record written out does not parse: %v", err)
+	}
+	if _, err := MapRelease(parsed, pin); err != nil {
+		t.Fatalf("the record that went through Emit and Parse is refused: %v", err)
+	}
+
+	// the key lines the mapping reads, each repeated once under its own indentation with a different value
+	for _, line := range []string{"  envelope: 3", "  build_hash: ", "  grammar_sha256: ", "  grammar_schema_sha256: ", "      path: ", "      digest: ", "  files:"} {
+		i := strings.Index(text, line)
+		if i < 0 {
+			t.Fatalf("the written record has no line %q:\n%s", line, text)
+		}
+		end := strings.IndexByte(text[i:], '\n') + i
+		repeated := text[i:end] + "x"
+		if line == "  files:" {
+			repeated = text[i:end]
+		}
+		dup := text[:end] + "\n" + repeated + text[end:]
+		_, perr := Parse(dup)
+		var e *Error
+		if !errors.As(perr, &e) || e.Code() != "DUPLICATE_KEY" {
+			t.Fatalf("a repeated %q is not refused as DUPLICATE_KEY: %v", strings.TrimSpace(line), perr)
 		}
 	}
-	if _, err := MapRelease(rec, pin); err != nil {
-		t.Fatalf("the first envelope is 3: %v", err)
-	}
-	// and the other way round: a wrong first entry is not rescued by a right second one
-	rec2 := mappingCopy(good)
-	env2 := mappingGet(rec2, "release")
-	for i, e := range env2.Entries {
-		if e.Key == "envelope" {
-			env2.Entries = append(env2.Entries[:i], append([]Entry{{Key: "envelope", Value: &Node{Kind: KindInt, Int: 9}}}, env2.Entries[i:]...)...)
-			break
-		}
-	}
-	mappingWant(t, rec2, pin, MappingEnvelopeNot3, "release.envelope")
 }
 
 // Every character of the text is judged, the first one too.
