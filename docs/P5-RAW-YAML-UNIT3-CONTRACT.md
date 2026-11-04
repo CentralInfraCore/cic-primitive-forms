@@ -82,7 +82,7 @@ Anything the documents do not decide, notably a **missing final newline**, CRLF 
 * **block scalars and folding:** a digest written as `|` or `>` (a trailing newline makes it another string), a value continued on the next line, a trailing space, a `#` right after the value.
 * **limits:** 1 MiB, depth 64, 100 000 nodes, one below and one above each.
 
-**4.3 Pinned divergence inputs (not admitted: outside `P_parity`, hence outside `P_effective`).** The inputs of `testdata/p1/parity-known.txt` and the `known_divergences` of `testdata/p1/parity.json`, with the expectation *not in `P`* (they are not required to be refused by each parser separately; they are required not to be admitted).
+**4.3 Pinned divergence inputs (outside `P_parity`, hence outside `P_effective`; their `allowed` label is set independently).** The inputs of `testdata/p1/parity-known.txt` and the `known_divergences` of `testdata/p1/parity.json`, with the expectation *not in `P`* (they are not required to be refused by each parser separately; they are required not to be admitted).
 
 **Undetermined cases.** If the repository has no documented verdict for a construction, the case does **not** get an expected answer invented for it. It goes into a committed **undetermined list** (id, construction, why), is counted in the report, and is judged only by the fail-closed rule: it is not in `P_allowed`, hence not admitted, until the owner classifies it (and the classification becomes a documented rule with its own cases). An undetermined list that grows is a visible event, not a pass.
 
@@ -93,7 +93,7 @@ Per case, five independent questions, all asked on every case:
 1. **parity:** is `b` in `P_parity` (Rust and Go accept and agree on the tree)? Where they accept, is the tree the one in `parse_expect`? Where `parse_expect` is `refuse`, did both refuse with the stated class? A parser too strict for an `accept` case is a finding, not a pass.
 2. **allowed:** is the case's `allowed` label `true` for everything that parity admits? A case in `P_parity` whose label is `false` (both parsers accept a forbidden construct) is a **blocking finding**, red even when the parsers agree: this is the common-mode check, and it is how the acceptance set differs from parser agreement. An `undetermined` label never counts as allowed.
 3. **mapping:** for a case whose tree both parsers accepted, the mapping outcome of each of Rust, Go and Python-on-the-same-tree equals `mapping_expect`. This verdict is independent of the parse verdicts: a correct `accept` followed by a correct mapping refusal is green.
-4. **fail closed:** every case where Rust and Go differ in any way is a **finding** listed by id, never normalized, and the harness shows that such a case is not in `P_effective`; a pinned divergence input must be in none of the three sets.
+4. **fail closed:** every case where Rust and Go differ in any way is a **finding** listed by id, never normalized, and the harness shows that such a case is not in `P_effective`. Every pinned Rust/Go divergence must be outside `P_parity` and therefore outside `P_effective`; its membership in `P_allowed` is determined independently, by the documented table (a text the subset allows can be read differently by the two parsers: it is then in `P_allowed`, not in `P_parity`, not admitted).
 5. **difference from Python:** for every case in `P_effective`, compare the Python reader's tree with the admitted tree **on the members the mapping reads** (`release.envelope`, `release.build_hash`, `provenance.envelope`, `provenance.grammar_*`, `artifacts.files` and what it holds) and on the rest. Classes:
    * *same*: nothing to report;
    * *different outside the members read*: counted and listed, not blocking;
@@ -108,9 +108,9 @@ Each makes the whole run red, none can be waived by a flag (all of Unit 2, secti
 
 * an input line whose bytes do not match its stated hex or digest; a reader that was not run or whose source digest could not be taken;
 * a result line outside the vocabulary (a code that is not a parser code, a mapping reason outside the 11 of the contract, `CRASH` or `TIMEOUT`);
-* a case with `allowed: false` or `undetermined` that is in `P_parity` and not listed as an accepted finding (two parsers agreeing on a forbidden construct), or a case with `allowed: true` and `parse_expect: accept` that is not in `P_parity`;
+* a case with `allowed: false` or `undetermined` that is in `P_parity` and not listed as an accepted finding (two parsers agreeing on a forbidden construct). A listed finding is a recorded *measurement difference* only: a case with `allowed: false` or `undetermined` is **never** a production admission, listed or not, or a case with `allowed: true` and `parse_expect: accept` that is not in `P_parity`;
 * a parse outcome judged against a mapping expectation or the reverse (the two are separate fields; a case that mixes them is a fault of the input file);
-* a case where Rust and Go differ that is not reported as a finding, or a pinned divergence input that is admitted;
+* a case where Rust and Go differ that is not reported as a finding, or a pinned divergence input that is in `P_parity` (so admitted);
 * a blocking difference from Python that is not in the known-differences file; a known difference that no longer occurs or occurs with another answer;
 * an undetermined entry whose case is admitted without an owner classification;
 * a class below its floor (a thin run), with the floors written in the report.
@@ -142,13 +142,13 @@ By **one local command**; **nothing under `.github/workflows` changes**. Whether
 |---|---|---|
 | D1 | The acceptance set is `P_effective = P_parity ∩ P_allowed`; `P_parity` alone is not an acceptance rule | yes; no tie-break between the two parsers |
 | D2 | PyYAML is an oracle of difference only, never part of admission; a difference on a member the mapping reads, on an admitted input, is blocking | yes |
-| D3 | Policy for CRLF, lone CR, tab, BOM, NBSP and the other text-level cases: refuse rather than support | refuse, fail closed; each is listed with the class it belongs to |
+| D3 | Policy for CRLF, lone CR, tab, BOM, NBSP and the other text-level cases: refuse rather than support | refuse, fail closed; the documented-forbidden constructs are refused now, and each `undetermined` category is first classified normatively (a documented rule with its own cases) |
 | D4 | A duplicate key anywhere in the document (also in a member the mapping does not read) refuses the whole document | yes, as the Forms parsers already do |
 | D5 | The pinned Rust/Go divergences: stay open as listed findings outside `P_effective` (not closed in this unit) | listed, none admitted; the narrowing of the flow scan is its own work |
 | D6 | The undetermined list: who classifies, and whether an undetermined case may ever be admitted | the owner classifies; until then never admitted |
-| D7 | Size, seed, floors and the memory/time limits | a few tens of thousands of cases, seeded; floors and limits in the report |
+| D7 | Size, seed, floors and the memory/time limits | a few tens of thousands of cases, seeded; the concrete seed, size, floors and resource limits are fixed in the Unit 3a implementation plan and written in the report |
 | D8 | Which parser decides in the production API: it must parse the **same bytes it authenticated**, with the Forms parsers, and never receive a tree parsed elsewhere | yes, and this stays the condition for ever lifting the hold on the production receipt API |
-| D9 | How production enforces `P_allowed`: (a) the two parsers compared plus a subset gate implementing the documented table, or (b) one parser proven to implement exactly that rule | not decided here; whichever is chosen is itself a mechanism under test of this differential. Until decided the harness reports parity-but-not-allowed cases as blocking |
+| D9 | How production enforces `P_allowed`: (a) the two parsers compared plus a subset gate implementing the documented table, or (b) one parser proven to implement exactly that rule | direction (a) as the first proof target: the two parsers compared plus an independent, normative subset gate; the final choice, and the performance and integration decision for production, are not made here. Whichever is chosen is itself a mechanism under test of this differential; until decided the harness reports parity-but-not-allowed cases as blocking |
 
 ## 11. Not claimed
 
