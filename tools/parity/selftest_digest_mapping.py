@@ -138,6 +138,10 @@ def breakages(inp, dumps, known, floors, workdir):
         case("a crash written as a defined reason is a crash (%s)" % impl, lambda t, impl=impl: replace_line(t, impl, 5, lambda l: json.dumps({"id": json.loads(l)["id"], "ok": False, "reason": "CRASH", "detail": "X"}) + "\n"))
         case("an answer that is not JSON (%s)" % impl, lambda t, impl=impl: replace_line(t, impl, 5, lambda l: "{not json\n"))
         case("an empty dump (%s)" % impl, lambda t, impl=impl: t.__setitem__(impl, ""))
+    for impl in IMPLS:
+        case("a bad unfinished last line (%s)" % impl, lambda t, impl=impl: t.__setitem__(impl, t[impl] + '{"id": "zz-extra", "ok": true'))
+        case("a complete dump without its final newline (%s)" % impl, lambda t, impl=impl: t.__setitem__(impl, t[impl][:-1]))
+        case("an extra complete line after the last case (%s)" % impl, lambda t, impl=impl: t.__setitem__(impl, t[impl] + t[impl].splitlines(True)[-1]))
     case("a case missing from all three", lambda t: [drop(t, i, k) for i in IMPLS] and None)
 
     # another input set in one dump: the same Python reference on a different seed
@@ -161,6 +165,11 @@ def breakages(inp, dumps, known, floors, workdir):
         out.append({"name": "an input file that is not the generator's output", "red": False})
     except SystemExit:
         out.append({"name": "an input file that is not the generator's output", "red": True})
+
+    # the evidence flag: no selftest, a dirty tree or a red compare is never evidence
+    ev = [rdm.evidence_of(True, False, {"passed": True}), rdm.evidence_of(True, False, None), rdm.evidence_of(False, False, {"passed": True}),
+          rdm.evidence_of(True, True, {"passed": True}), rdm.evidence_of(True, False, {"passed": False})]
+    out.append({"name": "evidence needs a clean tree, a green compare and a passed selftest (and not a missing one)", "red": ev == [True, False, False, False, False]})
 
     # known differences
     first = cases[0]["id"]

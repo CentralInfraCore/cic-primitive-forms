@@ -108,6 +108,11 @@ def git(*args):
     return p.stdout.strip() if p.returncode == 0 else None
 
 
+def evidence_of(clean, is_red, selftest):
+    """A report is evidence only for a clean tree, a green compare AND a selftest that ran and passed. Without a selftest it is a diagnostic success at most."""
+    return bool(clean) and not is_red and selftest is not None and bool(selftest.get("passed"))
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "digest-mapping-diff"))
@@ -140,7 +145,7 @@ def main(argv):
     report = {
         "contract": "docs/P5-DIGEST-MAPPING-UNIT2-CONTRACT.md",
         "repository": {"commit": git("rev-parse", "HEAD"), "clean": clean},
-        "evidence": bool(clean) and not rep["is_red"],
+        "evidence": False,
         "input": {"sha256": digest, "parameters": params, "shared_cases": len(shared_cases()),
                   "generator_sha256": cmp_.sha256_file(os.path.join(HERE, "gen_digest_mapping.py"))},
         "implementations": {i: {"source": SOURCES[i], "source_sha256": cmp_.sha256_file(os.path.join(ROOT, SOURCES[i])), "dump_sha256": cmp_.sha256_file(dumps[i])} for i in cmp_.IMPLS},
@@ -152,13 +157,15 @@ def main(argv):
         "result": {k: rep[k] for k in ("cases", "green", "red_cases", "known_differences", "classes", "red", "errors", "is_red")},
         "selftest": None,
     }
-    if not clean and not a.allow_dirty:
-        report["evidence"] = False
+    report["selftest_definitions"] = {"file": "tools/parity/selftest_digest_mapping.py", "sha256": cmp_.sha256_file(os.path.join(HERE, "selftest_digest_mapping.py")),
+                                      "identifies": "the planted defects, the comparison breakages and the equivalent changes of this run (their definitions are in that file)"}
     sys.stdout.write("compare: cases %d, green %d, red %d, errors %d\n" % (rep["cases"], rep["green"], rep["red_cases"], len(rep["errors"])))
     if not a.no_selftest:
         import selftest_digest_mapping as st
         report["selftest"] = st.run_all(a.out, env, dumps, inp, a.rust_target_dir)
-        report["evidence"] = report["evidence"] and report["selftest"]["passed"]
+    else:
+        report["evidence_note"] = "run with --no-selftest: diagnostic only, never evidence"
+    report["evidence"] = evidence_of(clean, rep["is_red"], report["selftest"])
     with open(os.path.join(a.out, "report.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=1, sort_keys=True)
         f.write("\n")

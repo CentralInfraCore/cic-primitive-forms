@@ -27,10 +27,20 @@ def sha256_file(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def physical_lines(text, errors, what):
+    """Every physical line, the last one included. A file that does not end in a newline is red (an unfinished last line is never dropped silently)."""
+    parts = text.split("\n")
+    if parts[-1] != "":
+        errors.append("%s: the last line has no newline (an unfinished line)" % what)
+    else:
+        parts = parts[:-1]
+    return parts
+
+
 def read_lines(path, errors, what):
     rows = []
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f.read().split("\n")[:-1], 1):
+    with open(path, encoding="utf-8", newline="") as f:
+        for n, line in enumerate(physical_lines(f.read(), errors, what), 1):
             try:
                 rows.append(json.loads(line))
             except ValueError:
@@ -87,11 +97,9 @@ def compare(input_path, dumps, known=None, floors=None):
     errors = []
     cases = []
     ids = set()
-    with open(input_path, encoding="utf-8") as f:
+    with open(input_path, encoding="utf-8", newline="") as f:
         text = f.read()
-    if text and not text.endswith("\n"):
-        errors.append("input: the last line has no newline")
-    for n, line in enumerate(text.split("\n")[:-1], 1):
+    for n, line in enumerate(physical_lines(text, errors, "input"), 1):
         try:
             c = json.loads(line)
         except ValueError:
