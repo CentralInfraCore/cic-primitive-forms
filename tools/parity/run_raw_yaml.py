@@ -34,7 +34,7 @@ SOURCES = {
     "rust": ["rust/src/parse.rs", "rust/src/node.rs", "rust/src/error.rs", "rust/src/digest_mapping.rs", "rust/tests/parity_raw_yaml_dump.rs"],
     "python": ["tools/parity/dump_raw_yaml_py.py", "tools/p5/digest_mapping.py"],
 }
-STARTUP = 5         # seconds a reader process gets to answer its FIRST case after it starts (loading), on top of the per-case limit
+STARTUP = 5         # seconds a reader process gets to START (to create its output file); it is not part of any case's time, and a reader that does not start stops the run: that is not a verdict on a case
 TIMEOUT = gen.LIMITS["case_timeout_seconds"]
 MEMORY = gen.LIMITS["memory_bytes"]
 
@@ -139,17 +139,32 @@ def run_dump(launch, lines, env, workdir, name="reader"):
         cmd, cwd, extra = launch(inp, outp)
         proc = subprocess.Popen(cmd, cwd=cwd, env=dict(env, **extra), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, preexec_fn=limits, start_new_session=True)
         state = {"n": 0, "off": 0}
-        last, seen, killed = time.monotonic(), 0, False
+        began = time.monotonic()
+        started = False                       # the reader creates its output file when it is READY, before it reads the first case: that is when the first case's clock starts
+        last, seen, killed, never_started = began, 0, False, False
         while proc.poll() is None:
-            n = count_lines(outp, state)
-            if n != seen:
-                seen, last = n, time.monotonic()
-            grace = STARTUP if seen == 0 else 0
-            if time.monotonic() - last > TIMEOUT + grace:
-                os.killpg(proc.pid, signal.SIGKILL)
-                killed = True
-                break
+            now = time.monotonic()
+            if not started:
+                if os.path.exists(outp):
+                    started, last = True, now
+                elif now - began > STARTUP:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    never_started = True
+                    break
+            else:
+                n = count_lines(outp, state)
+                if n != seen:
+                    seen, last = n, now
+                if now - last > TIMEOUT:      # exactly the per-case limit: the start-up time is not part of it and not added to it
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    killed = True
+                    break
             time.sleep(0.02)
+        proc.wait()
+        if never_started or (not started and not os.path.exists(outp)):
+            tail = (proc.stderr.read() or b"")[-300:].decode("utf-8", "replace").replace("\n", " ").strip()
+            proc.stderr.close()
+            raise SystemExit("a reader did not start (no output file within %s s, exit %s): %s" % (STARTUP, proc.returncode, tail[-200:]))
         proc.wait()
         err = (proc.stderr.read() or b"")[-300:].decode("utf-8", "replace").replace("\n", " ").strip()
         proc.stderr.close()

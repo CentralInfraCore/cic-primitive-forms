@@ -13,7 +13,7 @@ What the three readers answer for the same RAW BYTES, and what the system may th
   mapping       where both parsers accepted, their mapping answers equal `mapping_expect`.
   python        the oracle's reading against the admitted tree on the members the mapping reads; PyYAML never decides anything.
 
-Everything fail-closed makes the run red (exit 1): unknown / missing / duplicate / reordered ids, a line outside the vocabulary, an unfinished last line, CRASH and TIMEOUT, a thin class,
+Everything fail-closed makes the run red (exit 1): unknown / missing / duplicate / reordered ids, a line outside the vocabulary, an unfinished last line, CRASH and TIMEOUT of ANY reader (the Python oracle included), a thin class,
 a pinned divergence that is in P_parity (and a pinned divergence that no longer diverges is named as its own event), a forbidden construct in P_parity, a blocking Python difference that
 is not a known difference, a known difference that no longer occurs. A Rust/Go difference where nothing was promised is a FINDING: listed by id, never normalized, not red by itself.
 """
@@ -172,10 +172,9 @@ def compare(input_path, dumps, known=None, floors=None, subtypes=None):
             add_red(c, "an answer is missing or outside the vocabulary")
             continue
         rust, go, py = a["rust"], a["go"], a["python"]
-        if (not py["ok"]) and py["class"] in ("CRASH", "TIMEOUT"):
-            events["python_unavailable"].append(cid)       # the oracle is not under proof: listed, not red
-            py = {"ok": False, "class": "python_error", "code": py["class"]}
-        bad = [i for i in ("rust", "go") if (not a[i]["ok"]) and a[i]["class"] in ("CRASH", "TIMEOUT")]
+        if (not py["ok"]) and py["class"] == "python_error":
+            events["python_error"].append(cid)             # PyYAML itself failed on this text (a recursion limit, for example): a fact about the oracle, listed, not red
+        bad = [i for i in IMPLS if (not a[i]["ok"]) and a[i]["class"] in ("CRASH", "TIMEOUT")]      # a resource failure of ANY reader process is red, the Python oracle included
         if bad:
             classes[cls]["red"] += 1
             add_red(c, "%s: %s" % ("+".join(bad), "/".join(a[i]["class"] for i in bad)))

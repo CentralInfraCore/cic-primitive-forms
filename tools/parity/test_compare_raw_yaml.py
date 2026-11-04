@@ -86,6 +86,15 @@ class Compare(unittest.TestCase):
             rep = self.run_compare(cases, bad, copy.deepcopy(rows), copy.deepcopy(rows))
             self.assertTrue(rep["is_red"] and rep["red_cases"] == 1)
 
+    def test_a_crash_or_timeout_of_the_python_oracle_is_red_too_but_an_error_of_pyyaml_itself_is_only_listed(self):
+        cases, rows = self.base()
+        for cls in ("CRASH", "TIMEOUT"):
+            rep = self.run_compare(cases, rows, copy.deepcopy(rows), [no("c1", cls), rows[1]])
+            self.assertTrue(rep["is_red"] and rep["red_cases"] == 1, cls)
+        rep = self.run_compare(cases, rows, copy.deepcopy(rows), [no("c1", "python_error"), rows[1]])
+        self.assertFalse(rep["is_red"], rep)
+        self.assertEqual(rep["events"]["python_error"], ["c1"])
+
     def test_a_word_outside_the_vocabulary_is_red(self):
         cases, rows = self.base()
         bad = [dict(no("c1"), **{"class": "mystery"}), rows[1]]

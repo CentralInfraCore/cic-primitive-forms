@@ -20,9 +20,12 @@ import run_raw_yaml as rr  # noqa: E402
 READER = r'''
 import json, os, sys, time
 pidfile = os.environ.get("TEST_PIDFILE")
+time.sleep(float(os.environ.get("TEST_STARTUP_DELAY", "0")))         # a slow start: not part of any case
+out = open(os.environ["PARITY_RAW_YAML_OUT"], "w")                   # the output file is the "ready" signal
 cases = [json.loads(l) for l in open(os.environ["PARITY_RAW_YAML_IN"]) if l.strip()]
-out = open(os.environ["PARITY_RAW_YAML_OUT"], "w")
 for c in cases:
+    if c["id"] == "slow":
+        time.sleep(float(os.environ.get("TEST_SLOW", "0")))
     if c["id"] == "boom":
         x = bytearray(2 * 1024 ** 3)          # past the memory limit of the runner
     if c["id"] == "hang":
@@ -42,8 +45,8 @@ class Enforced(unittest.TestCase):
         with open(script, "w") as f:
             f.write(READER)
 
-        def launch(inp, outp):
-            return [sys.executable, script], d, {"PARITY_RAW_YAML_IN": inp, "PARITY_RAW_YAML_OUT": outp, "TEST_PIDFILE": pidfile}
+        def launch(inp, outp, extra=None):
+            return [sys.executable, script], d, dict({"PARITY_RAW_YAML_IN": inp, "PARITY_RAW_YAML_OUT": outp, "TEST_PIDFILE": pidfile}, **(extra or {}))
 
         lines = [json.dumps({"id": i}) for i in ("a", "boom", "b", "hang", "c")]
         old = (rr.MEMORY, rr.TIMEOUT, rr.STARTUP)
@@ -66,6 +69,37 @@ class Enforced(unittest.TestCase):
         self.assertEqual(len(pids), 1)
         with self.assertRaises(ProcessLookupError):
             os.kill(pids[0], 0)
+
+    def drive(self, ids, extra, timeout, startup):
+        d = tempfile.mkdtemp()
+        script = os.path.join(d, "reader.py")
+        with open(script, "w") as f:
+            f.write(READER)
+        launch = lambda inp, outp: ([sys.executable, script], d, dict({"PARITY_RAW_YAML_IN": inp, "PARITY_RAW_YAML_OUT": outp}, **extra))
+        old = (rr.MEMORY, rr.TIMEOUT, rr.STARTUP)
+        rr.MEMORY, rr.TIMEOUT, rr.STARTUP = 4 * 1024 ** 3, timeout, startup
+        began = time.monotonic()
+        try:
+            out, stats = rr.run_dump(launch, [json.dumps({"id": i}) for i in ids], dict(os.environ), d, "t")
+        finally:
+            rr.MEMORY, rr.TIMEOUT, rr.STARTUP = old
+        return {json.loads(l)["id"]: json.loads(l) for l in out}, stats, time.monotonic() - began
+
+    def test_the_limit_of_the_first_case_is_the_limit_and_the_start_up_time_is_neither_part_of_it_nor_added_to_it(self):
+        # a slow start (3 s) is not held against the case; the first case then gets exactly the limit (2 s), not limit plus start-up grace (2 + 6)
+        got, stats, took = self.drive(["slow", "b"], {"TEST_STARTUP_DELAY": "3", "TEST_SLOW": "5"}, timeout=2, startup=6)
+        self.assertEqual(got["slow"]["class"], "TIMEOUT")
+        self.assertEqual(got["b"]["class"], "syntax")
+        # 3 s start twice (the restart) + 2 s limit: well under the 3 + 8 s a limit-plus-grace would have taken for the first case alone, and the case was killed near 2 s
+        self.assertLess(took, 3 + 2 + 3 + 3, took)
+        self.assertGreater(took, 3 + 2 - 0.5)
+        # a case that answers within the limit after a slow start is not a timeout
+        got, _, _ = self.drive(["slow", "b"], {"TEST_STARTUP_DELAY": "3", "TEST_SLOW": "1"}, timeout=2, startup=6)
+        self.assertEqual({k: v["class"] for k, v in got.items()}, {"slow": "syntax", "b": "syntax"})
+
+    def test_a_reader_that_does_not_start_stops_the_run_it_is_not_a_verdict_on_a_case(self):
+        with self.assertRaises(SystemExit):
+            self.drive(["a"], {"TEST_STARTUP_DELAY": "30"}, timeout=2, startup=1)
 
 
 if __name__ == "__main__":
