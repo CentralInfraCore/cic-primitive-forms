@@ -9,3 +9,4 @@ __pycache__/
 /upstream
 /tools/p5/engine-harness-rust/target/
 /build/digest-mapping-diff/
+/build/

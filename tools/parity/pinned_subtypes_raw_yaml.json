@@ -1,0 +1,272 @@
+{
+ "2d2d2d0a613a0a2d202d2d20310a": {
+  "decision": "decision D10, review of PR #160 on 2026-11-05: source positions are not part of P_parity; positions are diagnostic and audit evidence",
+  "original": {
+   "go": [
+    [
+     2,
+     1,
+     4
+    ],
+    [
+     2,
+     1,
+     4
+    ],
+    [
+     3,
+     1,
+     7
+    ],
+    [
+     3,
+     3,
+     9
+    ]
+   ],
+   "rust": [
+    [
+     2,
+     1,
+     4
+    ],
+    [
+     2,
+     1,
+     4
+    ],
+    [
+     3,
+     3,
+     9
+    ],
+    [
+     3,
+     3,
+     9
+    ]
+   ]
+  },
+  "subtype": "positions_only"
+ },
+ "3f207c0a3a20620a": {
+  "decision": "decision D10, review of PR #160 on 2026-11-05: source positions are not part of P_parity; positions are diagnostic and audit evidence",
+  "original": {
+   "go": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     3,
+     2
+    ],
+    [
+     2,
+     3,
+     6
+    ]
+   ],
+   "rust": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     2,
+     1,
+     4
+    ],
+    [
+     2,
+     3,
+     6
+    ]
+   ]
+  },
+  "subtype": "positions_only"
+ },
+ "613a0a0a2d202d232d2031": {
+  "decision": "decision D10, review of PR #160 on 2026-11-05: source positions are not part of P_parity; positions are diagnostic and audit evidence",
+  "original": {
+   "go": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     3,
+     1,
+     4
+    ],
+    [
+     3,
+     3,
+     6
+    ]
+   ],
+   "rust": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     3,
+     3,
+     6
+    ],
+    [
+     3,
+     3,
+     6
+    ]
+   ]
+  },
+  "subtype": "positions_only"
+ },
+ "6974656d733a0a20202d6974656d733a0a20202d202d313a20610a202020206b323a20620a": {
+  "decision": "decision D10, review of PR #160 on 2026-11-05: source positions are not part of P_parity; positions are diagnostic and audit evidence",
+  "original": {
+   "go": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     2,
+     3,
+     9
+    ],
+    [
+     2,
+     3,
+     9
+    ],
+    [
+     3,
+     3,
+     19
+    ],
+    [
+     3,
+     5,
+     21
+    ],
+    [
+     3,
+     5,
+     21
+    ],
+    [
+     3,
+     9,
+     25
+    ],
+    [
+     4,
+     5,
+     31
+    ],
+    [
+     4,
+     9,
+     35
+    ]
+   ],
+   "rust": [
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     1,
+     1,
+     0
+    ],
+    [
+     2,
+     3,
+     9
+    ],
+    [
+     2,
+     3,
+     9
+    ],
+    [
+     3,
+     5,
+     21
+    ],
+    [
+     3,
+     5,
+     21
+    ],
+    [
+     3,
+     5,
+     21
+    ],
+    [
+     3,
+     9,
+     25
+    ],
+    [
+     4,
+     5,
+     31
+    ],
+    [
+     4,
+     9,
+     35
+    ]
+   ]
+  },
+  "subtype": "positions_only"
+ },
+ "efbbbf613a207b783a20312c20783a2c20783a20327d0a": {
+  "decision": "decision D10, review of PR #160 on 2026-11-05: source positions are not part of P_parity; positions are diagnostic and audit evidence",
+  "original": {
+   "go": [
+    [
+     1,
+     15,
+     17
+    ]
+   ],
+   "rust": [
+    [
+     1,
+     11,
+     13
+    ]
+   ]
+  },
+  "subtype": "refusal_position_only"
+ }
+}
