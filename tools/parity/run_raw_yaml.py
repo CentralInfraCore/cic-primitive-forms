@@ -5,7 +5,7 @@
     run_raw_yaml.py [--out DIR] [--seed N] [--rust-target-dir DIR]
 
 Builds the byte-level input (tools/parity/gen_raw_yaml.py, regenerated and compared), runs the Rust and Go dumps and the Python oracle on the SAME bytes, compares (parity, construction,
-allowed, mapping, difference from Python) and writes one report. The memory limit (RLIMIT_AS) and the wall-clock limit are ENFORCED on every reader process: the input is cut in chunks, a
+allowed, mapping, difference from Python) and writes one report. The memory limit (RLIMIT_AS) and the wall-clock limit are ENFORCED on every reader process: a
 chunk that dies or overruns is re-run one case at a time, and the case that kills or overruns its process is recorded as CRASH or TIMEOUT, which is red. Unit 3c (the selftest and the
 evidence report) is on hold, so this report is never marked as evidence. Not a CI step; no file under .github/workflows is touched.
 """
@@ -15,8 +15,10 @@ import json
 import os
 import platform
 import resource
+import signal
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -25,14 +27,14 @@ import compare_raw_yaml as cmp_  # noqa: E402
 import gen_raw_yaml as gen  # noqa: E402
 
 KNOWN = os.path.join(HERE, "known_differences_raw_yaml.json")
+SUBTYPES = os.path.join(HERE, "pinned_subtypes_raw_yaml.json")
 FLOORS = os.path.join(HERE, "floors_raw_yaml.json")
 SOURCES = {
     "go": ["go/parse.go", "go/node.go", "go/errors.go", "go/digestmapping.go", "go/parity_raw_yaml_dump_test.go"],
     "rust": ["rust/src/parse.rs", "rust/src/node.rs", "rust/src/error.rs", "rust/src/digest_mapping.rs", "rust/tests/parity_raw_yaml_dump.rs"],
     "python": ["tools/parity/dump_raw_yaml_py.py", "tools/p5/digest_mapping.py"],
 }
-CHUNK = 100
-SLACK = 60          # seconds on top of the per-case limit before the runner kills a reader process that is not answering at all
+STARTUP = 5         # seconds a reader process gets to answer its FIRST case after it starts (loading), on top of the per-case limit
 TIMEOUT = gen.LIMITS["case_timeout_seconds"]
 MEMORY = gen.LIMITS["memory_bytes"]
 
@@ -57,18 +59,8 @@ def limits():
     resource.setrlimit(resource.RLIMIT_AS, (MEMORY, MEMORY))   # read at call time: the tests lower it
 
 
-def run_limited(cmd, cwd, env, wall):
-    """-> (returncode or None on a wall-clock overrun, stderr tail). The memory limit is applied to the process itself."""
-    try:
-        p = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=wall, preexec_fn=limits)
-        return p.returncode, (p.stdout + p.stderr)[-400:]
-    except subprocess.TimeoutExpired:
-        return None, "wall-clock overrun"
-
-
-def build_binaries(env, rust_target):
-    go_bin = os.path.join(ROOT, "build", "raw-yaml-go.test")
-    os.makedirs(os.path.dirname(go_bin), exist_ok=True)
+def build_binaries(env, rust_target, out_dir):
+    go_bin = os.path.join(out_dir, "raw-yaml-go.test")        # a build product of this run, written outside the tree's tracked files
     p = subprocess.run(["go", "test", "-c", "-o", go_bin, "."], cwd=os.path.join(ROOT, "go"), env=env, capture_output=True, text=True)
     if p.returncode:
         raise SystemExit("the Go test binary did not build:\n" + (p.stdout + p.stderr)[-1500:])
@@ -91,51 +83,90 @@ def build_binaries(env, rust_target):
     return go_bin, rust_bin
 
 
-def reader_cmd(lang, binary):
-    if lang == "go":
-        return [binary, "-test.run", "^TestDumpRawYAMLOutcomes$", "-test.count=1"], os.path.join(ROOT, "go")
-    return [binary, "--exact", "dump_raw_yaml_outcomes", "--test-threads=1"], os.path.join(ROOT, "rust")
+def reader_launch(lang, binary):
+    """-> a function (inp, outp) -> (cmd, cwd, env_extra) for a reader that is given its files by the environment."""
+    def launch(inp, outp):
+        if lang == "go":
+            cmd, cwd = [binary, "-test.run", "^TestDumpRawYAMLOutcomes$", "-test.count=1"], os.path.join(ROOT, "go")
+        else:
+            cmd, cwd = [binary, "--exact", "dump_raw_yaml_outcomes", "--test-threads=1"], os.path.join(ROOT, "rust")
+        return cmd, cwd, {"PARITY_RAW_YAML_IN": inp, "PARITY_RAW_YAML_OUT": outp}
+    return launch
 
 
-def run_dump(lang, binary, lines, env, workdir, cmd_override=None):
-    """-> the dump lines for `lines` (cases as JSON text). Chunked; a chunk that fails is re-run one case at a time; a case that kills or overruns its process is CRASH or TIMEOUT."""
-    cmd, cwd = cmd_override or reader_cmd(lang, binary)
-    out = []
-    stats = {"chunks": 0, "rerun_chunks": 0, "crash": 0, "timeout": 0}
+def python_launch(inp, outp):
+    return [sys.executable, os.path.join(HERE, "dump_raw_yaml_py.py"), inp, outp], ROOT, {}
 
-    def attempt(batch, wall):
-        inp = os.path.join(workdir, "%s-chunk-in.jsonl" % lang)
-        outp = os.path.join(workdir, "%s-chunk-out.jsonl" % lang)
+
+def count_lines(path, state):
+    """The number of COMPLETE lines in a growing file (state keeps the offset); an unfinished last line is not counted."""
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return state["n"]
+    if size > state["off"]:
+        with open(path, "rb") as f:
+            f.seek(state["off"])
+            data = f.read(size - state["off"])
+        state["n"] += data.count(b"\n")
+        state["off"] = size
+    return state["n"]
+
+
+def complete_lines(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return []
+    parts = data.split(b"\n")
+    return [x.decode("utf-8") for x in parts[:-1]]
+
+
+def run_dump(launch, lines, env, workdir, name="reader"):
+    """-> (the dump lines, stats). The reader is a PROCESS that writes one line per case as it goes. This function SUPERVISES it: it kills the whole process group of a reader that does not
+    finish a case within the limit (the case is TIMEOUT), and a reader that dies on a case (the memory limit, a crash, a panic) leaves that case CRASH. In both cases the run restarts
+    after the culprit with a fresh process, so the work of an overrun case never continues in the background and cannot take CPU or memory from the next one."""
+    out, stats = [], {"restarts": 0, "crash": 0, "timeout": 0}
+    idx = 0
+    while idx < len(lines):
+        inp = os.path.join(workdir, "%s-in.jsonl" % name)
+        outp = os.path.join(workdir, "%s-out.jsonl" % name)
         with open(inp, "w", encoding="utf-8") as f:
-            f.write("".join(l + "\n" for l in batch))
+            f.write("".join(l + "\n" for l in lines[idx:]))
         if os.path.exists(outp):
             os.unlink(outp)
-        e = dict(env, PARITY_RAW_YAML_IN=inp, PARITY_RAW_YAML_OUT=outp, PARITY_RAW_YAML_TIMEOUT=str(TIMEOUT))
-        rc, tail = run_limited(cmd, cwd, e, wall)
-        if rc == 0 and os.path.exists(outp):
-            with open(outp, encoding="utf-8") as f:
-                got = f.read().splitlines()
-            if len(got) == len(batch):
-                return got, None
-        return None, ("TIMEOUT" if rc is None else "CRASH", "exit %s: %s" % (rc, tail.strip().replace("\n", " ")[-160:]))
-
-    for i in range(0, len(lines), CHUNK):
-        batch = lines[i:i + CHUNK]
-        stats["chunks"] += 1
-        got, why = attempt(batch, TIMEOUT * len(batch) + 2 * SLACK)
-        if got is not None:
-            out += got
-            continue
-        stats["rerun_chunks"] += 1
-        for line in batch:
-            got, why = attempt([line], TIMEOUT + SLACK)
-            if got is not None:
-                out += got
-            else:
-                cid = json.loads(line)["id"]
-                kind, detail = why
-                stats["crash" if kind == "CRASH" else "timeout"] += 1
-                out.append(json.dumps({"id": cid, "ok": False, "class": kind, "code": kind, "detail": detail}, sort_keys=True))
+        cmd, cwd, extra = launch(inp, outp)
+        proc = subprocess.Popen(cmd, cwd=cwd, env=dict(env, **extra), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, preexec_fn=limits, start_new_session=True)
+        state = {"n": 0, "off": 0}
+        last, seen, killed = time.monotonic(), 0, False
+        while proc.poll() is None:
+            n = count_lines(outp, state)
+            if n != seen:
+                seen, last = n, time.monotonic()
+            grace = STARTUP if seen == 0 else 0
+            if time.monotonic() - last > TIMEOUT + grace:
+                os.killpg(proc.pid, signal.SIGKILL)
+                killed = True
+                break
+            time.sleep(0.02)
+        proc.wait()
+        err = (proc.stderr.read() or b"")[-300:].decode("utf-8", "replace").replace("\n", " ").strip()
+        proc.stderr.close()
+        done = complete_lines(outp)
+        out += done
+        idx += len(done)
+        if idx >= len(lines):
+            break
+        culprit = json.loads(lines[idx])["id"]
+        stats["restarts"] += 1
+        if killed:
+            stats["timeout"] += 1
+            out.append(json.dumps({"id": culprit, "ok": False, "class": "TIMEOUT", "code": "TIMEOUT", "detail": "killed after %s s without an answer" % TIMEOUT}, sort_keys=True))
+        else:
+            stats["crash"] += 1
+            out.append(json.dumps({"id": culprit, "ok": False, "class": "CRASH", "code": "CRASH", "detail": "exit %s: %s" % (proc.returncode, err[-160:])}, sort_keys=True))
+        idx += 1
     return out, stats
 
 
@@ -169,20 +200,17 @@ def main(argv):
             raise SystemExit("the input file is not the deterministic output of the generator: refusing to run")
     digest = sha256_text(text)
     lines = text.splitlines()
-    go_bin, rust_bin = build_binaries(env, a.rust_target_dir)
+    go_bin, rust_bin = build_binaries(env, a.rust_target_dir, a.out)
     dumps, stats = {}, {}
-    for lang, binary in (("go", go_bin), ("rust", rust_bin)):
-        got, stats[lang] = run_dump(lang, binary, lines, env, a.out)
+    for lang, launch in (("go", reader_launch("go", go_bin)), ("rust", reader_launch("rust", rust_bin)), ("python", python_launch)):
+        got, stats[lang] = run_dump(launch, lines, env, a.out, lang)
         dumps[lang] = os.path.join(a.out, "dump-%s.jsonl" % lang)
         with open(dumps[lang], "w", encoding="utf-8") as f:
             f.write("".join(l + "\n" for l in got))
-    dumps["python"] = os.path.join(a.out, "dump-python.jsonl")
-    rc, tail = run_limited([sys.executable, os.path.join(HERE, "dump_raw_yaml_py.py"), inp, dumps["python"]], ROOT, dict(os.environ), TIMEOUT * len(lines))
-    if rc != 0:
-        raise SystemExit("the Python dump failed: " + tail)
     known = json.load(open(KNOWN, encoding="utf-8"))
     floors = json.load(open(FLOORS, encoding="utf-8"))
-    rep = cmp_.compare(inp, dumps, known, floors)
+    subtypes = json.load(open(SUBTYPES, encoding="utf-8"))
+    rep = cmp_.compare(inp, dumps, known, floors, subtypes)
     status = git("status", "--porcelain", "-uall")
     rel_out = os.path.relpath(os.path.abspath(a.out), ROOT)
     clean = status is not None and all(l[3:].strip('"').startswith(rel_out + "/") or l[3:].strip('"') == rel_out or l[3:].strip('"').startswith("build/") for l in status.splitlines())
@@ -199,11 +227,13 @@ def main(argv):
                   "skipped_unrepresentable": len(cs.skipped), "undetermined_constructions": len(cs.undetermined)},
         "implementations": {i: {"files": {f: cmp_.sha256_file(os.path.join(ROOT, f)) for f in SOURCES[i] if os.path.exists(os.path.join(ROOT, f))}, "dump_sha256": cmp_.sha256_file(dumps[i])} for i in cmp_.IMPLS},
         "known_differences": {"file": "tools/parity/known_differences_raw_yaml.json", "sha256": cmp_.sha256_file(KNOWN), "entries": len(known["entries"])},
+        "pinned_subtypes": {"file": "tools/parity/pinned_subtypes_raw_yaml.json", "sha256": cmp_.sha256_file(SUBTYPES), "declared_non_semantic": len(subtypes)},
         "floors": {"file": "tools/parity/floors_raw_yaml.json", "sha256": cmp_.sha256_file(FLOORS), "values": floors},
-        "limits": {"case_timeout_seconds": TIMEOUT, "memory_bytes_per_reader_process": MEMORY, "how": "RLIMIT_AS on every reader process; chunks of %d cases, a failed chunk re-run one case at a time; in-process per-case timeout in the Rust and Go dumps" % CHUNK},
+        "limits": {"case_timeout_seconds": TIMEOUT, "startup_grace_seconds": STARTUP, "memory_bytes_per_reader_process": MEMORY,
+                   "how": "every reader is a process under RLIMIT_AS; the runner supervises it, kills its whole process group when a case takes longer than the limit (TIMEOUT), records a case that kills the process as CRASH, and restarts after it; no timer runs inside the readers"},
         "reader_runs": stats,
         "versions": {"python": platform.python_version(), "pyyaml": __import__("yaml").__version__, "go": version(["go", "version"], env), "rustc": version(["rustc", "--version"], env), "cargo": version(["cargo", "--version"], env)},
-        "result": {k: rep[k] for k in ("cases", "green", "red_cases", "pinned", "p_effective", "findings_rust_go", "events", "python", "classes", "red", "errors", "is_red")},
+        "result": {k: rep[k] for k in ("cases", "green", "red_cases", "pinned", "p_effective", "findings_rust_go", "position_findings", "events", "python", "classes", "red", "errors", "is_red")},
     }
     with open(os.path.join(a.out, "report.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=1, sort_keys=True)

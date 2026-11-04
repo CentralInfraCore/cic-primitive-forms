@@ -1,4 +1,540 @@
-{"entries": [
- {"kind": "python_accepts_forms_refuses", "class_prefix": "dup", "forms_class": "duplicate_key",
-  "reason": "PyYAML safe_load takes the last of two equal keys without an error; both Forms parsers refuse the document with DUPLICATE_KEY. Measured, not assumed: every case of the dup classes must show it on every run."}
-]}
+{
+ "entries": [
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00001",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00001",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00002",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00002",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00003",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00003",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00004",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00004",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00005",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00005",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "5d8ac57efac78c81553c9e5897c583410d08f18427251a1a408bbe99d02aa642",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00006",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00006",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "fe90e5b58b5a53094ff8d207f7e491fd826cf1bfce2caa01a5844e304ce05702",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00007",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00007",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00008",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00008",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00009",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00009",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00010",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00010",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00011",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00011",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00012",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00012",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "abb86f2a2de38af8279bf0f544209a4a1bbebfe2bec6d7f3fc9890f617e4f2fb",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00013",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00013",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00014",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00014",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00015",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00015",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00016",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00016",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00017",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00017",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00018",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00018",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "78ede493870f2b5dcd4d23a930215d82340290b649495f256491a600c7acf655",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00019",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "0a2312c01481749b846b5b3488e6bfcd43f57538f5a1c9d3de6b78214529eb91",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00020",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7d5871108353a8c0f97e865b77aa1d9a5856e013443535ba9e58d871fd9e3f5b",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00021",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "0a2312c01481749b846b5b3488e6bfcd43f57538f5a1c9d3de6b78214529eb91",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00022",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7d5871108353a8c0f97e865b77aa1d9a5856e013443535ba9e58d871fd9e3f5b",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00023",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "0a2312c01481749b846b5b3488e6bfcd43f57538f5a1c9d3de6b78214529eb91",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00024",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7d5871108353a8c0f97e865b77aa1d9a5856e013443535ba9e58d871fd9e3f5b",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00025",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00019",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00026",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00020",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00027",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00021",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00028",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00022",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00029",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00023",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00030",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-flow-00024",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d436c3cbe8d62057359af095761d1bed4768d1b6bafa1731855807bfa530400d",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00031",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00032",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7639264c1f3d95f501979cd3badf8ff24868576ca62a66ab2d21a873787f7dfe",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00033",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00034",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7639264c1f3d95f501979cd3badf8ff24868576ca62a66ab2d21a873787f7dfe",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00035",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00036",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "7639264c1f3d95f501979cd3badf8ff24868576ca62a66ab2d21a873787f7dfe",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00037",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00038",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d3a8346c2f8ce40b7ec8ae620ee62633ab0aefa9f1007f46fa80e6f21ffc2c18",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00039",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00040",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d3a8346c2f8ce40b7ec8ae620ee62633ab0aefa9f1007f46fa80e6f21ffc2c18",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00041",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "4e0c9d067fd7402b0db4dd8da21c2887763bdc6c9ac728c9034d7b9d115cbe08",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-00042",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "d3a8346c2f8ce40b7ec8ae620ee62633ab0aefa9f1007f46fa80e6f21ffc2c18",
+   "rust_class": "duplicate_key"
+  },
+  {
+   "acceptance": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md section 5 (the first known difference: PyYAML takes the last of two equal keys) and decision D2, GO in the review of PR #158 on 2026-11-04",
+   "go_class": "duplicate_key",
+   "id": "dup-unread-00001",
+   "kind": "python_accepts_forms_refuses",
+   "python_tree_sha256": "98354114a05991072d1c94deaee3887a07f81d0b9800190ce6990fec84679a93",
+   "rust_class": "duplicate_key"
+  }
+ ]
+}

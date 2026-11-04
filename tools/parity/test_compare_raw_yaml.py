@@ -45,6 +45,15 @@ class Compare(unittest.TestCase):
             mutate(paths)
         return cmp_.compare(paths["input"], {k: paths[k] for k in ("rust", "go", "python")}, known, floors)
 
+    def run_compare_sub(self, cases, rust, go, py, subtypes, known=None):
+        d = tempfile.mkdtemp()
+        paths = {}
+        for name, rows in (("input", cases), ("rust", rust), ("go", go), ("python", py)):
+            paths[name] = os.path.join(d, name)
+            with open(paths[name], "w") as f:
+                f.write("".join(json.dumps(r) + "\n" for r in rows))
+        return cmp_.compare(paths["input"], {k: paths[k] for k in ("rust", "go", "python")}, known, None, subtypes)
+
     def base(self):
         cases = [case("c1"), case("c2")]
         rows = [ok("c1"), ok("c2")]
@@ -108,8 +117,8 @@ class Compare(unittest.TestCase):
         go = [ok("p1"), no("p2"), ok("p3")]
         rep = self.run_compare(c, rust, go, copy.deepcopy(go))
         self.assertTrue(rep["is_red"])
-        self.assertEqual(rep["events"]["pinned_no_longer_diverges"], ["p2"])
-        self.assertEqual(rep["pinned"]["in_parity"], 1)
+        # p1: the same tree and (here) the same positions: it agrees completely; p2: both refuse the same way. Both are "no longer diverges", named as their own event
+        self.assertEqual(rep["events"]["pinned_no_longer_diverges"], ["p1", "p2"])
         self.assertEqual(rep["pinned"]["still_diverge"], 1)
         self.assertEqual(rep["pinned"]["occurrences"], 3)
 
@@ -122,19 +131,59 @@ class Compare(unittest.TestCase):
         rep = self.run_compare(c, rows, copy.deepcopy(rows), py)
         self.assertTrue(rep["is_red"])
         self.assertEqual(rep["events"]["python_differs_on_read_members"][0]["members"], ["release.envelope"])
-        known = {"entries": [{"kind": "read_member_difference", "class_prefix": "built", "reason": "t"}]}
-        self.assertFalse(self.run_compare(c, rows, copy.deepcopy(rows), py, known)["is_red"])
+        entry = {"id": "w1", "kind": "read_member_difference", "members": ["release.envelope"], "python_tree_sha256": cmp_.tree_sha(py_t), "acceptance": "t"}
+        self.assertFalse(self.run_compare(c, rows, copy.deepcopy(rows), py, {"entries": [entry]})["is_red"])
+        # a class is not enough, another id is not enough, and another answer is not enough
+        self.assertTrue(self.run_compare(c, rows, copy.deepcopy(rows), py, {"entries": [dict(entry, id="other")]})["is_red"])
+        self.assertTrue(self.run_compare(c, rows, copy.deepcopy(rows), py, {"entries": [dict(entry, python_tree_sha256="0" * 64)]})["is_red"])
+        self.assertTrue(self.run_compare(c, rows, copy.deepcopy(rows), py, {"entries": [dict(entry, members=["release.build_hash"])]})["is_red"])
+        self.assertTrue(self.run_compare(c, rows, copy.deepcopy(rows), py, {"entries": [{k: v for k, v in entry.items() if k != "acceptance"}]})["is_red"])
 
-    def test_pyyaml_accepting_what_forms_refuses_is_the_safe_direction_and_a_known_difference_must_keep_occurring(self):
-        c = [case("d1", "dup", {"result": "refuse", "class": "duplicate_key"}, allowed=False)]
-        forms = [no("d1", "duplicate_key")]
-        known = {"entries": [{"kind": "python_accepts_forms_refuses", "class_prefix": "dup", "forms_class": "duplicate_key", "reason": "t"}]}
-        rep = self.run_compare(c, forms, copy.deepcopy(forms), [ok("d1")], known)
+    def test_pyyaml_accepting_what_forms_refuses_is_the_safe_direction_and_a_known_difference_is_exact_per_case(self):
+        c = [case("d1", "dup", {"result": "refuse", "class": "duplicate_key"}, allowed=False), case("d2", "dup", {"result": "refuse", "class": "duplicate_key"}, allowed=False)]
+        forms = [no("d1", "duplicate_key"), no("d2", "duplicate_key")]
+        py = [ok("d1"), ok("d2")]
+        mk = lambda i: {"id": i, "kind": "python_accepts_forms_refuses", "rust_class": "duplicate_key", "go_class": "duplicate_key", "python_tree_sha256": cmp_.tree_sha(tree(a=1)), "acceptance": "t"}
+        known = {"entries": [mk("d1"), mk("d2")]}
+        rep = self.run_compare(c, forms, copy.deepcopy(forms), py, known)
         self.assertFalse(rep["is_red"], rep)
-        self.assertEqual(rep["python"]["more_permissive_by_class"], {"dup": 1})
-        # the oracle now refuses as well: the known difference no longer occurs
-        rep = self.run_compare(c, forms, copy.deepcopy(forms), [no("d1", "syntax")], known)
+        self.assertEqual(rep["python"]["more_permissive_by_class"], {"dup": 2})
+        # the oracle now refuses d1: that known difference no longer occurs
+        self.assertTrue(self.run_compare(c, forms, copy.deepcopy(forms), [no("d1", "syntax"), ok("d2")], known)["is_red"])
+        # an entry for d1 only: d2 is the same class and the same answer, but it is not accepted by being in the class (it is counted, not blessed): the entry for d1 still has to match exactly
+        rep = self.run_compare(c, forms, copy.deepcopy(forms), [ok("d1", tree(a=2)), ok("d2")], {"entries": [mk("d1")]})
         self.assertTrue(rep["is_red"])
+
+    def test_semantic_parity_and_position_parity_are_apart_a_position_only_pinned_divergence_must_be_declared(self):
+        pin = {"result": "pinned_divergence"}
+        c = [case("p1", "pinned", pin, "undetermined")]
+        r = dict(ok("p1"), positions=[[1, 1, 0]])
+        g = dict(ok("p1"), positions=[[1, 2, 1]])
+        # not declared: the measured subtype (positions_only) differs from the declared default (semantic): red, a change of classification
+        rep = self.run_compare(c, [r], [g], [ok("p1")])
+        self.assertTrue(rep["is_red"])
+        self.assertEqual(rep["events"]["pinned_subtype_changed"][0]["measured"], "positions_only")
+        sub = {c[0]["bytes_hex"]: {"subtype": "positions_only", "original": {"rust": [[1, 1, 0]], "go": [[1, 2, 1]]}}}
+        d = tempfile.mkdtemp()
+        rep = self.run_compare_sub(c, [r], [g], [ok("p1")], sub)
+        self.assertFalse(rep["is_red"], rep)
+        self.assertEqual(rep["p_effective"]["count"], 0)       # allowed is not true: P_parity holds but nothing is admitted
+        self.assertEqual(rep["position_findings"][0]["kind"], "positions_differ")
+        # the original answers changed: red
+        g2 = dict(ok("p1"), positions=[[9, 9, 9]])
+        self.assertTrue(self.run_compare_sub(c, [r], [g2], [ok("p1")], sub)["is_red"])
+        # declared positions_only but the positions now agree, or the trees now differ: red
+        self.assertTrue(self.run_compare_sub(c, [r], [dict(ok("p1"), positions=[[1, 1, 0]])], [ok("p1")], sub)["is_red"])
+        self.assertTrue(self.run_compare_sub(c, [r], [dict(ok("p1", tree(b=2)), positions=[[1, 2, 1]])], [ok("p1")], sub)["is_red"])
+
+    def test_a_refusal_position_only_divergence_is_declared_and_checked_the_same_way(self):
+        pin = {"result": "pinned_divergence"}
+        c = [case("p1", "pinned", pin, False)]
+        r = dict(no("p1", "duplicate_key"), locations=[[1, 11, 13]])
+        g = dict(no("p1", "duplicate_key"), locations=[[1, 15, 17]])
+        sub = {c[0]["bytes_hex"]: {"subtype": "refusal_position_only", "original": {"rust": [[1, 11, 13]], "go": [[1, 15, 17]]}}}
+        self.assertFalse(self.run_compare_sub(c, [r], [g], [ok("p1")], sub)["is_red"])
+        self.assertTrue(self.run_compare(c, [r], [g], [ok("p1")])["is_red"])
 
     def test_a_mapping_answer_that_is_not_the_expected_one_is_red_only_where_the_parsers_agree(self):
         m = {"expect": None, "refuse": "envelope_not_3", "field": "release.envelope"}

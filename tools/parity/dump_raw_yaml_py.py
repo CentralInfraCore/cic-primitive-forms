@@ -72,13 +72,11 @@ def main(argv):
     ap.add_argument("output")
     a = ap.parse_args(argv)
     sys.setrecursionlimit(5000)
-    out = []
-    with open(a.input, encoding="utf-8") as f:
+    with open(a.input, encoding="utf-8") as f, open(a.output, "w", encoding="utf-8") as out:
         for line in f.read().splitlines():
             if line.strip():
-                out.append(json.dumps(answer(json.loads(line)), sort_keys=True, ensure_ascii=True) + "\n")
-    with open(a.output, "w", encoding="utf-8") as f:
-        f.write("".join(out))
+                out.write(json.dumps(answer(json.loads(line)), sort_keys=True, ensure_ascii=True) + "\n")
+                out.flush()                       # one line per answered case, at once: the runner supervises this process like the others
     return 0
 
 

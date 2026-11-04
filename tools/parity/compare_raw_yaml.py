@@ -6,7 +6,8 @@
 
 What the three readers answer for the same RAW BYTES, and what the system may therefore admit. Five questions per case, asked separately; none stands in for another:
 
-  parity        P_parity: Rust and Go both accept, with the same tree. MEASURED from the two answers, never taken from a label.
+  parity        P_parity = SEMANTIC parity (decision D10): Rust and Go both accept, with the same tree (structure, scalar kinds, values, order). MEASURED from the two answers, never taken
+                from a label. POSITION parity (the same source positions, the same locations of refusals) is measured apart, as diagnostic and audit evidence; it is not part of admission.
   construction  the outcome fixed by construction in the input (`parse_expect`): an accepted tree, a refusal class, nothing (undetermined), or "a pinned divergence".
   allowed       P_effective = P_parity and the case's normative `allowed` label is true. An analysis result, NOT a production admission (D9 is not decided).
   mapping       where both parsers accepted, their mapping answers equal `mapping_expect`.
@@ -34,6 +35,10 @@ READ_MEMBERS = (("release", "envelope"), ("release", "build_hash"), ("provenance
 
 def sha256_file(path):
     return cdm.sha256_file(path)
+
+
+def tree_sha(tree):
+    return hashlib.sha256(json.dumps(tree, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def member(tree, path):
@@ -91,7 +96,7 @@ def mapping_matches(got, expect):
     return got.get("refuse") == expect["refuse"] and got.get("field") == expect["field"]
 
 
-def compare(input_path, dumps, known=None, floors=None):
+def compare(input_path, dumps, known=None, floors=None, subtypes=None):
     errors = []
     cases, ids = [], set()
     with open(input_path, encoding="utf-8", newline="") as f:
@@ -136,7 +141,17 @@ def compare(input_path, dumps, known=None, floors=None):
     red, findings = [], []
     events = collections.defaultdict(list)
     known_entries = list((known or {}).get("entries", []))
+    known_by_id = {}
+    for k in known_entries:
+        if k.get("id") in known_by_id:
+            errors.append("known difference: id %s is listed twice" % k.get("id"))
+        known_by_id[k.get("id")] = k
+        if k.get("id") not in by_id:
+            errors.append("known difference: id %s is not in the input" % k.get("id"))
     known_used = collections.Counter()
+    subtypes = subtypes or {}
+    position_findings = []
+    pinned_subtype_measured = collections.Counter()
     pinned_in_parity = 0
     pinned_ids = set()
     pinned_hex = set()
@@ -157,18 +172,42 @@ def compare(input_path, dumps, known=None, floors=None):
             add_red(c, "an answer is missing or outside the vocabulary")
             continue
         rust, go, py = a["rust"], a["go"], a["python"]
+        if (not py["ok"]) and py["class"] in ("CRASH", "TIMEOUT"):
+            events["python_unavailable"].append(cid)       # the oracle is not under proof: listed, not red
+            py = {"ok": False, "class": "python_error", "code": py["class"]}
         bad = [i for i in ("rust", "go") if (not a[i]["ok"]) and a[i]["class"] in ("CRASH", "TIMEOUT")]
         if bad:
             classes[cls]["red"] += 1
             add_red(c, "%s: %s" % ("+".join(bad), "/".join(a[i]["class"] for i in bad)))
             continue
-        # --- parity: measured
+        # --- parity: measured. Semantic parity is P_parity; position parity is apart (D10)
         both_accept = accepted(rust) and accepted(go)
         parity = both_accept and rust["tree"] == go["tree"]
-        differ = (accepted(rust) != accepted(go)) or (both_accept and rust["tree"] != go["tree"]) or (not accepted(rust) and not accepted(go) and refusal_class(rust) != refusal_class(go))
+        both_refuse = (not accepted(rust)) and (not accepted(go))
+        same_refusal = both_refuse and refusal_class(rust) == refusal_class(go) and rust.get("code") == go.get("code")
+        if both_accept:
+            pos_equal = rust.get("positions") == go.get("positions")
+        elif both_refuse:
+            pos_equal = rust.get("locations") == go.get("locations")
+        else:
+            pos_equal = False
+        differ = (accepted(rust) != accepted(go)) or (both_accept and rust["tree"] != go["tree"]) or (both_refuse and refusal_class(rust) != refusal_class(go))
         if differ:
             findings.append({"id": cid, "class": c["class"], "rust": "accept" if accepted(rust) else rust["class"], "go": "accept" if accepted(go) else go["class"],
                              "kind": "accept_vs_refuse" if accepted(rust) != accepted(go) else ("tree_differs" if both_accept else "refusal_class_differs")})
+        elif (parity or same_refusal) and not pos_equal:
+            position_findings.append({"id": cid, "class": c["class"], "kind": "positions_differ" if parity else "refusal_locations_differ"})
+        if parity:
+            classes[cls]["position_parity" if pos_equal else "position_differs"] += 1
+        # the measured subtype of a divergence (used for the pinned inputs)
+        if parity and not pos_equal:
+            measured = "positions_only"
+        elif same_refusal and not pos_equal:
+            measured = "refusal_position_only"
+        elif parity or same_refusal:
+            measured = "agrees"
+        else:
+            measured = "semantic"
         pe, allowed = c["parse_expect"], c["allowed"]
         effective = parity and allowed is True
         if parity:
@@ -197,14 +236,26 @@ def compare(input_path, dumps, known=None, floors=None):
         elif pe["result"] == "pinned_divergence":
             pinned_ids.add(cid)
             pinned_hex.add(c["bytes_hex"])
-            if parity:
-                pinned_in_parity += 1
-                failed = "a pinned divergence is in P_parity"
-            elif not differ:
-                events["pinned_no_longer_diverges"].append(cid)
-                failed = "a pinned divergence no longer diverges (both refuse the same way): remove it from the pinned list on purpose"
-            else:
+            declared = subtypes.get(c["bytes_hex"], {"subtype": "semantic"})
+            pinned_subtype_measured[measured] += 1
+            if declared["subtype"] != measured:
+                if measured == "agrees":
+                    events["pinned_no_longer_diverges"].append(cid)
+                    failed = "a pinned divergence no longer diverges at all (declared %s): remove it from the pinned list on purpose" % declared["subtype"]
+                else:
+                    events["pinned_subtype_changed"].append({"id": cid, "declared": declared["subtype"], "measured": measured})
+                    failed = "a pinned divergence changed subtype: declared %s, measured %s (a change of the classification is a contract change)" % (declared["subtype"], measured)
+                if measured == "semantic" or declared["subtype"] == "semantic":
+                    pass
+            elif declared["subtype"] == "semantic":
+                pinned_in_parity += 1 if parity else 0
                 classes[cls]["still_diverges"] += 1
+            else:
+                classes[cls]["declared_" + declared["subtype"]] += 1
+                orig = declared.get("original")
+                got_orig = {"rust": rust.get("positions", rust.get("locations")), "go": go.get("positions", go.get("locations"))}
+                if orig is not None and orig != got_orig:
+                    failed = "the original answers of the declared %s divergence changed" % declared["subtype"]
         # --- mapping
         if not failed and c.get("mapping_expect") is not None and parity:
             for impl in ("rust", "go"):
@@ -220,9 +271,9 @@ def compare(input_path, dumps, known=None, floors=None):
                 if py["tree"] != admitted:
                     diff_read = [".".join(m) for m in READ_MEMBERS if member(py["tree"], m) != member(admitted, m)]
                     if diff_read and effective:
-                        hit = [k for k in known_entries if k.get("kind") == "read_member_difference" and c["class"].startswith(k.get("class_prefix", "\0"))]
-                        if hit:
-                            known_used[known_entries.index(hit[0])] += 1
+                        k = known_by_id.get(cid)
+                        if k and k.get("kind") == "read_member_difference" and k.get("members") == diff_read and k.get("python_tree_sha256") == tree_sha(py["tree"]):
+                            known_used[cid] += 1
                         else:
                             events["python_differs_on_read_members"].append({"id": cid, "members": diff_read})
                             failed = failed or "PyYAML reads the admitted input differently on %s" % diff_read
@@ -233,12 +284,13 @@ def compare(input_path, dumps, known=None, floors=None):
         elif py["ok"] and not accepted(rust) and not accepted(go):
             # Python accepts what both Forms parsers refuse: the safe direction, counted per class; a known difference is the stated expectation
             python_more_permissive[cls] += 1
-            for k in known_entries:
-                if k.get("kind") == "python_accepts_forms_refuses" and c["class"].startswith(k["class_prefix"]) and pe["result"] == "refuse":
-                    if py["ok"] and refusal_class(rust) == refusal_class(go) == k["forms_class"]:
-                        known_used[known_entries.index(k)] += 1
-                    else:
-                        failed = failed or "a known difference with another answer"
+            k = known_by_id.get(cid)
+            if k and k.get("kind") == "python_accepts_forms_refuses":
+                exact = (refusal_class(rust) == k.get("rust_class") and refusal_class(go) == k.get("go_class") and k.get("python_tree_sha256") == tree_sha(py["tree"]))
+                if exact:
+                    known_used[cid] += 1
+                else:
+                    failed = failed or "a known difference with another answer"
         elif not py["ok"] and pe["result"] == "refuse":
             classes[cls]["python_also_refuses"] += 1
         if failed:
@@ -247,10 +299,12 @@ def compare(input_path, dumps, known=None, floors=None):
         else:
             classes[cls]["green"] += 1
 
-    for n, k in enumerate(known_entries):
-        if known_used[n] == 0:
-            errors.append("known difference %s/%s no longer occurs" % (k.get("kind"), k.get("class_prefix")))
-    for name in ("forbidden_construct_in_parity", "pinned_no_longer_diverges", "python_differs_on_read_members"):
+    for k in known_entries:
+        if k.get("id") in by_id and known_used[k["id"]] == 0:
+            errors.append("known difference %s (%s) no longer occurs with its exact answers" % (k.get("id"), k.get("kind")))
+        if not k.get("acceptance"):
+            errors.append("known difference %s has no recorded acceptance" % k.get("id"))
+    for name in ("forbidden_construct_in_parity", "pinned_no_longer_diverges", "pinned_subtype_changed", "python_differs_on_read_members"):
         if events.get(name):
             errors.append("%s: %d case(s)" % (name, len(events[name])))
     for cls, floor in (floors or {}).items():
@@ -261,7 +315,9 @@ def compare(input_path, dumps, known=None, floors=None):
         "cases": len(cases),
         "green": sum(v["green"] for v in classes.values()),
         "red_cases": len(red),
-        "pinned": {"occurrences": len(pinned_cases), "distinct_inputs": len({c["bytes_hex"] for c in pinned_cases}),
+        "position_findings": position_findings,
+        "pinned": {"occurrences": len(pinned_cases), "distinct_inputs": len({c["bytes_hex"] for c in pinned_cases}), "measured_subtypes": dict(pinned_subtype_measured),
+                   "declared_non_semantic": {c["bytes_hex"][:16]: subtypes[c["bytes_hex"]]["subtype"] for c in pinned_cases if c["bytes_hex"] in subtypes},
                    "still_diverge": sum(v["still_diverges"] for v in classes.values()), "in_parity": pinned_in_parity},
         "p_effective": {"count": len(admitted_ids), "note": "analysis result, not a production admission (D9 undecided)"},
         "findings_rust_go": findings,
@@ -282,11 +338,13 @@ def main(argv):
         ap.add_argument("--" + impl, required=True)
     ap.add_argument("--known")
     ap.add_argument("--floors")
+    ap.add_argument("--subtypes")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
+    subtypes = json.load(open(a.subtypes, encoding="utf-8")) if a.subtypes else None
     known = json.load(open(a.known, encoding="utf-8")) if a.known else None
     floors = json.load(open(a.floors, encoding="utf-8")) if a.floors else None
-    rep = compare(a.input, {i: getattr(a, i) for i in IMPLS}, known, floors)
+    rep = compare(a.input, {i: getattr(a, i) for i in IMPLS}, known, floors, subtypes)
     if a.json:
         with open(a.json, "w", encoding="utf-8") as f:
             json.dump(rep, f, indent=1, sort_keys=True)
