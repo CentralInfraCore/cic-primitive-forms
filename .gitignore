@@ -8,3 +8,4 @@ __pycache__/
 # the pinned engine checkout and the build of the harness against it (CI puts the checkout at upstream/cic-primitive-engine)
 /upstream
 /tools/p5/engine-harness-rust/target/
+/build/digest-mapping-diff/
