@@ -8,7 +8,7 @@ Whether a pinned input is in P_allowed is decided by the documented subset (docs
 only P_parity and P_effective. The rule per input, applied by the documented-subset reader tools/parity/raw_yaml_subset_ref.py:
 
   allowed false          a refusal the subset document names (a control character, a directive or document-end line, an anchor, a duplicate key, ...): rule "documented:<what>"
-  allowed true           the text parses and none of the documented refusals applies: rule "in-table". A permitted text that two parsers read differently is exactly the case the
+  allowed true           the text parses, none of the documented refusals the reader recognizes applies, and no conservative trigger for the rows it does not check fires (COVERAGE): rule "in-table". A permitted text that two parsers read differently is exactly the case the
                          contract keeps apart from P_parity.
   allowed "undetermined" the reference reader's own library (PyYAML) finds the text invalid and no documented rule names it (rule "yaml-error"), or the refusal is a restriction of
                          the reference reader that the subset document does not name (rule "undocumented:<what>", e.g. a bare scalar as the whole document). The subset document itself lists such
@@ -17,6 +17,7 @@ only P_parity and P_effective. The rule per input, applied by the documented-sub
 """
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,48 @@ import raw_yaml_subset_ref as ref  # noqa: E402
 
 KNOWN = os.path.join(ROOT, "testdata", "p1", "parity-known.txt")
 OUT = os.path.join(HERE, "pinned_classification_raw_yaml.json")
+
+
+# Every refusal row of docs/P1-SUPPORTED-SUBSET.md "Explicitly not supported", and how this classification meets it. `true` is conditional on this table: an input is `true` only when the
+# reference reader accepts it AND none of the conservative triggers below fires. A trigger can only DEMOTE a `true` to `undetermined`, never promote anything.
+COVERAGE = [
+    ("anchors, aliases, tags, merge keys, non-scalar keys, more than one document", "reader: event stream (documented:*)"),
+    ("floats, hex, octal, leading zero, integers beyond 64 bits as plain scalars", "reader: scalar resolution (documented:*)"),
+    ("U+0085, U+2028, U+2029", "reader: pre-scan (documented:character)"),
+    ("control characters, a tab, a BOM after the first character", "reader: pre-scan (documented:character)"),
+    ("a directive line, a document end marker", "reader: pre-scan (documented:directive-or-document-end)"),
+    ("a `---` that is not the first content line (indented ones too), `...`/`%`/`---` inside scalars", "trigger: marker-like line, any indentation (uncovered:marker-like-line)"),
+    ("a word that starts with `!`, `&`, `*` or `?`", "reader: tags/anchors/aliases as events; trigger: such a word anywhere (uncovered:indicator-word)"),
+    ("a `#` right after `]` or `}`", "trigger (uncovered:hash-after-flow-end)"),
+    ("a block scalar in a text that does not end with a line break, or one that holds nothing but line breaks", "trigger (uncovered:block-scalar-edge)"),
+    ("an empty implicit mapping key (`: a`, `{: a}`)", "trigger (uncovered:empty-implicit-key)"),
+    ("text the YAML library rejects", "not normative here: PyYAML is not the Go/Rust library the row names; yaml-error stays undetermined"),
+    ("more than 1 MiB, depth 64, 100 000 nodes", "reader: limits (documented:size, too deep, too many nodes)"),
+    ("duplicate keys", "reader: documented:duplicate-key"),
+    ("a scalar where a mapping or list is declared, a non-record list element, a list inside a record", "schema-level: not a property of the text; out of scope for `allowed`"),
+]
+TRIGGERS = [
+    ("uncovered:marker-like-line", re.compile(r"(?m)^[ ]*(---|\.\.\.|%)(\s|$)")),
+    ("uncovered:indicator-word", re.compile(r"(?m)(^|[\s\[{,])[!&*?]\S")),
+    ("uncovered:hash-after-flow-end", re.compile(r"[\]}]#")),
+    ("uncovered:empty-implicit-key", re.compile(r"(?m)^[ ]*:(\s|$)|\{\s*:")),
+]
+BLOCK_INDICATOR = re.compile(r"(?m)(?::|-)[ ]+[|>][+-]?[0-9]?[ ]*(#.*)?$")
+
+
+def trigger(data):
+    """-> the name of the conservative trigger that fires on this text, or None."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return "uncovered:not-utf-8"
+    for name, rx in TRIGGERS:
+        if rx.search(text):
+            return name
+    m = BLOCK_INDICATOR.search(text)
+    if m and (not text.endswith("\n") or not text[m.end():].strip()):
+        return "uncovered:block-scalar-edge"
+    return None
 
 
 def classify():
@@ -38,7 +81,8 @@ def classify():
         hexs = line.split()[0]
         res, _what, rule = ref.explain(bytes.fromhex(hexs))
         if res == "accept":
-            rows[hexs] = {"allowed": True, "rule": "in-table"}
+            t = trigger(bytes.fromhex(hexs))
+            rows[hexs] = {"allowed": "undetermined", "rule": t} if t else {"allowed": True, "rule": "in-table"}
         elif rule == "yaml-error" or rule.startswith("undocumented:"):
             rows[hexs] = {"allowed": "undetermined", "rule": rule}
         else:

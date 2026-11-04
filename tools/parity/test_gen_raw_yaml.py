@@ -151,7 +151,8 @@ class Generator(unittest.TestCase):
         for r in pinned:
             self.assertEqual(r["parse_expect"]["result"], "pinned_divergence")
             if r["allowed"] == "undetermined":
-                self.assertTrue(r["parse_expect"]["allowed_rule"] in ("yaml-error",) or r["parse_expect"]["allowed_rule"].startswith("undocumented:"), r["id"])
+                rule = r["parse_expect"]["allowed_rule"]
+                self.assertTrue(rule == "yaml-error" or rule.startswith(("undocumented:", "uncovered:")), r["id"])
             if r["allowed"] is False:
                 self.assertTrue(r["parse_expect"]["allowed_rule"].startswith("documented:"), r["id"])
         # the labels do not depend on whether the Rust and Go parsers agree: the committed file is exactly the reading of the documented table
@@ -159,6 +160,23 @@ class Generator(unittest.TestCase):
         import classify_pinned_raw_yaml as cls
         committed = json.loads((ROOT / "tools" / "parity" / "pinned_classification_raw_yaml.json").read_text(encoding="utf-8"))
         self.assertEqual(committed, json.loads(json.dumps(cls.classify(), sort_keys=True)))
+
+    def test_the_pinned_numbers_are_occurrences_and_distinct_inputs_and_true_means_no_known_row_applies(self):
+        sys.path.insert(0, str(ROOT / "tools" / "parity"))
+        import classify_pinned_raw_yaml as cls
+        pinned = [r for r in ROWS if r["class"] == "pinned"]
+        self.assertEqual(len(pinned), 299)
+        self.assertEqual(len({r["bytes_hex"] for r in pinned}), 201)
+        for r in pinned:
+            if r["allowed"] is True:
+                self.assertIsNone(cls.trigger(bytes.fromhex(r["bytes_hex"])), r["id"])
+        # the triggers can fire (a trigger that cannot is no negative coverage)
+        samples = {"uncovered:marker-like-line": b"a: 1\n  ---\n", "uncovered:indicator-word": b"a: x *b\n", "uncovered:hash-after-flow-end": b"a: [1]#c\n",
+                   "uncovered:empty-implicit-key": b"a:\n  : b\n", "uncovered:block-scalar-edge": b"a: |\n"}
+        for name, data in samples.items():
+            self.assertEqual(cls.trigger(data), name)
+        self.assertIsNone(cls.trigger(b"a: 1\nb: [x, 3]\n"))
+        self.assertGreaterEqual(len(cls.COVERAGE), 12)
 
     def test_the_committed_list_is_the_generated_one(self):
         committed = json.loads((ROOT / "tools" / "parity" / "undetermined_raw_yaml.json").read_text(encoding="utf-8"))

@@ -64,8 +64,8 @@
   "rule": "yaml-error"
  },
  "202042613a2022780a20202d2d2d0a20202e2e2e220a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "20205b7c2e2e2e7c5d": {
   "allowed": "undetermined",
@@ -84,8 +84,8 @@
   "rule": "in-table"
  },
  "2020613a2027780a20202d2d2d0a20202e2e2e270a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "2020613a20277827270a20203f202d2079270a": {
   "allowed": true,
@@ -108,8 +108,8 @@
   "rule": "yaml-error"
  },
  "20613a20270a203f3f2d2079270a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:indicator-word"
  },
  "207b3a317d": {
   "allowed": "undetermined",
@@ -220,12 +220,12 @@
   "rule": "yaml-error"
  },
  "2d2d2d0a613a0a2d202d2d20310a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "2d2d2d0a613a205b782c200a7920315d0a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "2d2d2d0a69703a207b673f6174657761793a2067317d0a": {
   "allowed": "undetermined",
@@ -236,8 +236,8 @@
   "rule": "yaml-error"
  },
  "2d2d2d207b3f7d": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "2d2d2d207b613a20312c613a20323a7d": {
   "allowed": "undetermined",
@@ -248,20 +248,20 @@
   "rule": "yaml-error"
  },
  "2d2d2d207b61613a7d": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:marker-like-line"
  },
  "30613a20220a78220a20": {
   "allowed": true,
   "rule": "in-table"
  },
  "3f202361620a3a20620a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:empty-implicit-key"
  },
  "3f207c0a3a20620a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:empty-implicit-key"
  },
  "5b313f20615d": {
   "allowed": "undetermined",
@@ -376,8 +376,8 @@
   "rule": "in-table"
  },
  "613a20220a785c5c222023202626797d0a": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:indicator-word"
  },
  "613a20220d78220d20": {
   "allowed": true,
@@ -396,8 +396,8 @@
   "rule": "in-table"
  },
  "613a2022780a20202a792223": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:indicator-word"
  },
  "613a2022780a20202d2d0af09f998220202e2e2e220a": {
   "allowed": true,
@@ -456,8 +456,8 @@
   "rule": "in-table"
  },
  "613a2027780a2a2e2e0a20207927": {
-  "allowed": true,
-  "rule": "in-table"
+  "allowed": "undetermined",
+  "rule": "uncovered:indicator-word"
  },
  "613a2027780a2e2e0a202079270a": {
   "allowed": true,
