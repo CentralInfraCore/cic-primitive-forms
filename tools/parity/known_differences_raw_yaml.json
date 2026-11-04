@@ -1,0 +1,4 @@
+{"entries": [
+ {"kind": "python_accepts_forms_refuses", "class_prefix": "dup", "forms_class": "duplicate_key",
+  "reason": "PyYAML safe_load takes the last of two equal keys without an error; both Forms parsers refuse the document with DUPLICATE_KEY. Measured, not assumed: every case of the dup classes must show it on every run."}
+]}

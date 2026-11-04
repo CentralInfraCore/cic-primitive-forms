@@ -1,0 +1,36 @@
+# P5-3: raw YAML and the parser boundary, Unit 3b (dump and compare): what it is and what the first run measured
+
+Status: **implemented in this change**, 2026-11-05, local only. It follows `docs/P5-RAW-YAML-UNIT3-CONTRACT.md` (#158) on the cases of Unit 3a (#159). It is the dump and compare half of the proof: **the selftest and the evidence report (Unit 3c) are on hold**, so nothing here is evidence, and `report.json` says so (`evidence: false`). `P_effective` below is an analysis result, not a production admission: decision D9 (how production enforces `P_allowed`) is not made. No workflow file changes; the production receipt API stays on hold.
+
+## What runs
+
+```
+python3 tools/parity/run_raw_yaml.py [--out DIR]        # needs go, cargo, python3 with PyYAML
+```
+
+The same 2223 byte-level cases (hex, so invalid UTF-8, a BOM and control characters reach every reader unchanged) are given to three readers: the Rust `parse` and `map_release` (`rust/tests/parity_raw_yaml_dump.rs`), the Go `Parse` and `MapRelease` (`go/parity_raw_yaml_dump_test.go`), and PyYAML `safe_load` with the Unit 2 mapping reference (`tools/parity/dump_raw_yaml_py.py`, the oracle of difference, never a vote). `tools/parity/compare_raw_yaml.py` asks five separate questions per case: **parity** (Rust and Go both accept with the same tree: measured from the two answers, never taken from a label), **construction** (the outcome fixed by the case), **allowed** (the normative label; `P_effective` = parity and allowed), **mapping** (both parsers' mapping answers equal `mapping_expect`), **python** (PyYAML against the admitted tree on the members the mapping reads). The fail-closed rules of the contract (unknown, missing, duplicate, reordered ids; unfinished last line; CRASH and TIMEOUT; thin class; a pinned divergence in `P_parity`; a pinned divergence that no longer diverges, as its own event; a forbidden construct in `P_parity`; a blocking Python difference; a vanished known difference) each make the run red. `tools/parity/test_compare_raw_yaml.py` (12 tests) keeps the comparison honest on synthetic dumps; it is not the Unit 3c selftest.
+
+**The limits are enforced.** Every reader process runs under `RLIMIT_AS` (6 GiB) and a wall-clock limit; the Rust and Go dumps also time every case in-process (10 s) and write `TIMEOUT`. The input goes in chunks of 100; a chunk that dies or overruns is re-run one case at a time and the case that kills or overruns its process is written as `CRASH` or `TIMEOUT`. `tools/parity/test_run_raw_yaml.py` shows this with a stand-in reader that allocates past the limit and one that never answers: exactly those two are recorded, the rest kept. The Forms parsers take text, so a byte sequence that is not UTF-8 is answered `invalid_utf8` by the dump before the parser is called; the production API will have to decide that itself.
+
+## First run (local; go 1.25.0, rustc 1.99.1, python 3.12.3, PyYAML 6.0.1; input SHA-256 `574538c0…1eebe`, 2223 cases; reproduced twice)
+
+Measured: **2217 green, 6 red.** No reader crashed. The six are findings, not harness faults; none is silenced.
+
+| # | Finding | Facts |
+|---|---|---|
+| F1 | **Go takes longer than the 10 s limit on a 300 KB input** | `limit-over:nodes`: a flow sequence of 150 000 items (300 662 bytes). Rust refuses it with the node limit in time; Go answers `LIMIT_EXCEEDED` after **18.9 s** (about 50 MB resident), so the 10 s limit records `TIMEOUT`. The node limit is checked late, or the scan is not linear. A resource finding about the Go parser, not about acceptance. |
+| F2 | **4 pinned divergences are in `P_parity`** | `pinned-00249`, `-00259`, `-00262`, `-00298`: Rust and Go return the **same tree** (kinds, values, order); the existing parity dump shows they differ only in **source positions**. Under the contract's definition of the tree (no positions) they are in `P_parity`, which contradicts "every pinned divergence is outside `P_parity`". |
+| F3 | **1 pinned divergence no longer diverges at class level** | `pinned-00286` (BOM, then a duplicate key in a flow mapping): both refuse with `DUPLICATE_KEY`; they differ only in the **location** of the violation (`1:15` against `1:11`). Reported as its own event, `pinned_no_longer_diverges`. |
+
+F2 and F3 have one cause: the pinned list was built from a dump that includes positions, and the contract's `P_parity` deliberately does not. **This is a decision for the owner (D10), not something the harness settles**: either positions are part of parity (stricter than admission needs; the 5 stay divergent), or the pinned list gets a subtype `positions_only` and the contract is amended. Until then the run stays red on these five; nothing was edited to make it green.
+
+Measured, not red:
+
+* **Construction and mapping hold where promised.** All 480 `built` (12 styles of valid records), 1068 `tree` and 34 `value` cases: both parsers accept, same tree, the constructed tree, and the mapping answers equal the Unit 1/2 yardstick (including `"3"`, `null` and a block-scalar digest, which are accepted texts the mapping refuses). Every forbidden construct of the catalogue (duplicate keys in 3 spellings at every level, in block and flow style, anchors, aliases, tags, merge keys, tab, control characters, directives, second document, floats, hex, octal, leading zero, 64-bit overflow, the clear limit overruns except F1) is refused by **both** parsers in the stated class; no forbidden construct is in `P_parity`.
+* **`P_effective`: 1584** (analysis only). 294 of the 299 pinned occurrences still diverge between Rust and Go (253 accept against refuse, 23 different trees, 18 different refusal classes); 201 distinct inputs behind the 299 occurrences.
+* **Undetermined constructions in `P_parity`: 19 of 24.** Both parsers accept a missing final newline, CRLF, a lone CR, a leading BOM, an NBSP and a zero-width character in a comment, an empty document, a comment-only document, `null`/`yes`/`no`/`on`/`off`/`y`/`n` as the envelope, and a text of exactly 1 MiB. They are not `allowed`, so not in `P_effective`; the owner's classification (D3) decides each.
+* **PyYAML.** Accepts what both Forms parsers refuse, in the safe direction: all 42 `dup`, 24 `dup-flow` and 1 `dup-unread` cases (the known difference: PyYAML takes the last of two equal keys; the entry in `known_differences_raw_yaml.json` is satisfied on every case and the run goes red if it stops occurring), and also 66 pairs, 26 scalar spellings, 15 injected members, 84 float records, 6 text defects, 2 limit overruns. On 6 undetermined cases PyYAML reads the envelope `yes`, `no`, `on`, `off` as a boolean where both Forms parsers read a string: **a difference on a member the mapping reads, on an input that is both parsers' parity but not allowed, so not admitted**. If D3 ever classifies those spellings as allowed, this becomes a blocking difference. No admitted input differs from PyYAML on a member the mapping reads.
+
+## Not claimed
+
+Not the Unit 3c selftest (planted defects per parser, common-mode runs, oracle changes, harness-echo checks), so the proof is not complete and nothing is evidence. Not D9. Not that `P_effective` is what production may read. The pinned parser divergences are not closed, and neither is F1. The 32 unrepresentable Unit 1 cases remain a coverage gap. The production receipt API stays on hold.
