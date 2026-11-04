@@ -197,11 +197,17 @@ def git(*args):
     return p.stdout.strip() if p.returncode == 0 else None
 
 
+def evidence_of(clean, is_red, selftest):
+    """A report is evidence only for a clean tree, a green compare AND a selftest that ran and passed."""
+    return bool(clean) and not is_red and selftest is not None and bool(selftest.get("passed"))
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "raw-yaml-diff"))
     ap.add_argument("--seed", type=int, default=gen.DEFAULT_SEED)
     ap.add_argument("--rust-target-dir")
+    ap.add_argument("--selftest", action="store_true", help="also run the selftest of Unit 3c (tools/parity/selftest_raw_yaml.py)")
     a = ap.parse_args(argv)
     env = tool_env()
     os.makedirs(a.out, exist_ok=True)
@@ -231,16 +237,17 @@ def main(argv):
     clean = status is not None and all(l[3:].strip('"').startswith(rel_out + "/") or l[3:].strip('"') == rel_out or l[3:].strip('"').startswith("build/") for l in status.splitlines())
     report = {
         "contract": "docs/P5-RAW-YAML-UNIT3-CONTRACT.md",
-        "unit": "3b (dump and compare); 3c (selftest, evidence report) is on hold",
+        "unit": "3b (dump and compare), 3c (selftest, evidence rule)",
         "repository": {"commit": git("rev-parse", "HEAD"), "clean": clean},
         "evidence": False,
-        "evidence_note": "never evidence in Unit 3b: no selftest has been run (Unit 3c), and P_effective is an analysis result, not a production admission (D9)",
+        "evidence_note": "evidence only for a clean tree, a green compare and a passed selftest; P_effective is an analysis result, not a production admission (D9)",
         "selftest": None,
         "input": {"sha256": digest, "seed": a.seed, "cases": len(cs.rows), "generator_sha256": cmp_.sha256_file(os.path.join(HERE, "gen_raw_yaml.py")),
                   "undetermined_list_sha256": cmp_.sha256_file(os.path.join(HERE, "undetermined_raw_yaml.json")),
                   "pinned_classification_sha256": cmp_.sha256_file(os.path.join(HERE, "pinned_classification_raw_yaml.json")),
                   "skipped_unrepresentable": len(cs.skipped), "undetermined_constructions": len(cs.undetermined)},
-        "implementations": {i: {"files": {f: cmp_.sha256_file(os.path.join(ROOT, f)) for f in SOURCES[i] if os.path.exists(os.path.join(ROOT, f))}, "dump_sha256": cmp_.sha256_file(dumps[i])} for i in cmp_.IMPLS},
+        "implementations": {i: {"files": {f: cmp_.sha256_file(os.path.join(ROOT, f)) for f in SOURCES[i] if os.path.exists(os.path.join(ROOT, f))}, "dump_sha256": cmp_.sha256_file(dumps[i]),
+                                "reader_binary_sha256": ({"go": cmp_.sha256_file(go_bin), "rust": cmp_.sha256_file(rust_bin)}.get(i))} for i in cmp_.IMPLS},
         "known_differences": {"file": "tools/parity/known_differences_raw_yaml.json", "sha256": cmp_.sha256_file(KNOWN), "entries": len(known["entries"])},
         "pinned_subtypes": {"file": "tools/parity/pinned_subtypes_raw_yaml.json", "sha256": cmp_.sha256_file(SUBTYPES), "declared_non_semantic": len(subtypes)},
         "floors": {"file": "tools/parity/floors_raw_yaml.json", "sha256": cmp_.sha256_file(FLOORS), "values": floors},
@@ -250,6 +257,12 @@ def main(argv):
         "versions": {"python": platform.python_version(), "pyyaml": __import__("yaml").__version__, "go": version(["go", "version"], env), "rustc": version(["rustc", "--version"], env), "cargo": version(["cargo", "--version"], env)},
         "result": {k: rep[k] for k in ("cases", "green", "red_cases", "pinned", "p_effective", "findings_rust_go", "position_findings", "events", "python", "classes", "red", "errors", "is_red")},
     }
+    if a.selftest:
+        import selftest_raw_yaml as st
+        report["selftest"] = st.run_all(a.out, env, a.rust_target_dir)
+        report["selftest_definitions"] = {"file": "tools/parity/selftest_raw_yaml.py", "sha256": cmp_.sha256_file(os.path.join(HERE, "selftest_raw_yaml.py")),
+                                          "identifies": "the planted defects, the comparison breakages, the oracle changes and the harness checks of this run (their definitions are in that file)"}
+    report["evidence"] = evidence_of(clean, rep["is_red"], report["selftest"])
     with open(os.path.join(a.out, "report.json"), "w", encoding="utf-8") as f:
         json.dump(report, f, indent=1, sort_keys=True)
         f.write("\n")
