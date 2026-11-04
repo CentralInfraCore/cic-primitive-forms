@@ -1,0 +1,254 @@
+{
+ "skipped_unrepresentable": [
+  [
+   "pair-build-final-newline+grammar_schema_sha256-dig-type-empty-list",
+   "block-2"
+  ],
+  [
+   "pair-build-final-newline+grammar_schema_sha256-dig-type-empty-list",
+   "flow-all"
+  ],
+  [
+   "pair-build-final-newline+grammar_schema_sha256-disagree-bit235",
+   "block-2"
+  ],
+  [
+   "pair-build-final-newline+grammar_schema_sha256-disagree-bit235",
+   "flow-all"
+  ],
+  [
+   "pair-build-final-newline+grammar_sha256-art-path-upper",
+   "block-2"
+  ],
+  [
+   "pair-build-final-newline+grammar_sha256-art-path-upper",
+   "flow-all"
+  ],
+  [
+   "pair-build-final-newline+grammar_sha256-dig-sha512",
+   "block-2"
+  ],
+  [
+   "pair-build-final-newline+grammar_sha256-dig-sha512",
+   "flow-all"
+  ],
+  [
+   "pair-env-provenance-0+build-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-env-provenance-0+build-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-env-provenance-4+grammar_sha256-dig-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-env-provenance-4+grammar_sha256-dig-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-env-release-2+grammar_schema_sha256-dig-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-env-release-2+grammar_schema_sha256-dig-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-grammar_schema_sha256-art-path-type-int+grammar_schema_sha256-prov-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-grammar_schema_sha256-art-path-type-int+grammar_schema_sha256-prov-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-grammar_sha256-dig-mixed-case+grammar_sha256-prov-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-grammar_sha256-dig-mixed-case+grammar_sha256-prov-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-grammar_sha256-pin-absent+grammar_schema_sha256-dig-final-newline",
+   "block-2"
+  ],
+  [
+   "pair-grammar_sha256-pin-absent+grammar_schema_sha256-dig-final-newline",
+   "flow-all"
+  ],
+  [
+   "pair-grammar_sha256-prov-final-newline+grammar_schema_sha256-dig-base64",
+   "block-2"
+  ],
+  [
+   "pair-grammar_sha256-prov-final-newline+grammar_schema_sha256-dig-base64",
+   "flow-all"
+  ],
+  [
+   "rec-build-final-newline",
+   "block-2"
+  ],
+  [
+   "rec-build-final-newline",
+   "flow-all"
+  ],
+  [
+   "rec-grammar_schema_sha256-dig-final-newline",
+   "block-2"
+  ],
+  [
+   "rec-grammar_schema_sha256-dig-final-newline",
+   "flow-all"
+  ],
+  [
+   "rec-grammar_schema_sha256-prov-final-newline",
+   "block-2"
+  ],
+  [
+   "rec-grammar_schema_sha256-prov-final-newline",
+   "flow-all"
+  ],
+  [
+   "rec-grammar_sha256-dig-final-newline",
+   "block-2"
+  ],
+  [
+   "rec-grammar_sha256-dig-final-newline",
+   "flow-all"
+  ],
+  [
+   "rec-grammar_sha256-prov-final-newline",
+   "block-2"
+  ],
+  [
+   "rec-grammar_sha256-prov-final-newline",
+   "flow-all"
+  ]
+ ],
+ "undetermined": [
+  {
+   "construction": "undetermined:missing-final-newline",
+   "id": "undetermined-missing-final-newline-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:crlf",
+   "id": "undetermined-crlf-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:lone-cr",
+   "id": "undetermined-lone-cr-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:leading-bom",
+   "id": "undetermined-leading-bom-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:nbsp-in-comment",
+   "id": "undetermined-nbsp-in-comment-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:zero-width-in-comment",
+   "id": "undetermined-zero-width-in-comment-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:utf16-le-bom",
+   "id": "undetermined-utf16-le-bom-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:utf16-be-bom",
+   "id": "undetermined-utf16-be-bom-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:invalid-utf8-in-comment",
+   "id": "undetermined-invalid-utf8-in-comment-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:overlong-utf8-in-comment",
+   "id": "undetermined-overlong-utf8-in-comment-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:empty-document",
+   "id": "undetermined-empty-document-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:only-a-comment",
+   "id": "undetermined-only-a-comment-00001",
+   "why": "no rule in docs/P1-SUPPORTED-SUBSET.md decides it"
+  },
+  {
+   "construction": "undetermined:plain-null",
+   "id": "undetermined-plain-null-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-null",
+   "id": "undetermined-plain-null-00002",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-yes",
+   "id": "undetermined-plain-yes-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-no",
+   "id": "undetermined-plain-no-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-on",
+   "id": "undetermined-plain-on-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-off",
+   "id": "undetermined-plain-off-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-y",
+   "id": "undetermined-plain-y-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-n",
+   "id": "undetermined-plain-n-00001",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-yes",
+   "id": "undetermined-plain-yes-00002",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:plain-no",
+   "id": "undetermined-plain-no-00002",
+   "why": "a plain spelling YAML 1.1 reads as null or a boolean; the subset says every other plain scalar is a string, the documents do not list this one"
+  },
+  {
+   "construction": "undetermined:size-at-limit",
+   "id": "undetermined-size-at-limit-00001",
+   "why": "exactly 1 MiB: the limit text says 'more than 1 MiB'"
+  },
+  {
+   "construction": "undetermined:depth-64",
+   "id": "undetermined-depth-64-00001",
+   "why": "depth 64: the table lists 'depth 64' without saying whether the limit is at or above it"
+  }
+ ]
+}
