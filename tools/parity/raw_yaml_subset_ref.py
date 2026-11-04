@@ -53,19 +53,26 @@ def scalar(ev):
 
 
 def read(data):
+    """-> ("accept", tree) | ("refuse", class)"""
+    return explain(data)[:2]
+
+
+def explain(data):
+    """-> ("accept", tree, None) | ("refuse", class, rule). The rule says WHY: "documented:<what>" for a refusal the subset document names, "yaml-error" when PyYAML itself finds
+    the text invalid (which is one library's verdict, not a documented rule)."""
     if len(data) > MAX_BYTES:
-        return ("refuse", "syntax")
+        return ("refuse", "syntax", "documented:size")
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
-        return ("refuse", "syntax")
+        return ("refuse", "syntax", "yaml-error")
     for i, ch in enumerate(text):
         c = ord(ch)
         if c in CONTROL or ch == "\t" or c in LINE_BREAKS or (c == 0xFEFF and i > 0):
-            return ("refuse", "syntax")
+            return ("refuse", "syntax", "documented:character")
     for line in text.split("\n"):
         if line.startswith("%") or line.rstrip() == "...":
-            return ("refuse", "syntax")
+            return ("refuse", "syntax", "documented:directive-or-document-end")
     duplicate = False
     try:
         root, stack, documents, nodes = None, [], 0, 0
@@ -103,11 +110,14 @@ def read(data):
                     _put(stack, node, ev)
                 else:
                     root = node
-    except (yaml.YAMLError, Syntax):
-        return ("refuse", "syntax")
+    except yaml.YAMLError:
+        return ("refuse", "syntax", "yaml-error")
+    except Syntax as e:
+        # a scalar as the whole document is this reader's own restriction (records are mappings); the subset document names no rule for it
+        return ("refuse", "syntax", ("undocumented:" if str(e) == "a scalar document" else "documented:") + str(e))
     if root is None:
-        return ("refuse", "syntax")
-    return ("refuse", "duplicate_key") if duplicate else ("accept", root)
+        return ("refuse", "syntax", "yaml-error")
+    return ("refuse", "duplicate_key", "documented:duplicate-key") if duplicate else ("accept", root, None)
 
 
 def _put(stack, node, ev):

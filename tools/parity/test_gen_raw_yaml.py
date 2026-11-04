@@ -110,8 +110,9 @@ class Generator(unittest.TestCase):
                 self.assertIsNone(r["mapping_expect"], r["id"])
             if pe == "accept":
                 self.assertIs(r["allowed"], True, r["id"])
-            if pe in ("undetermined", "pinned_divergence"):
+            if pe == "undetermined":
                 self.assertEqual(r["allowed"], "undetermined", r["id"])
+            if pe in ("undetermined", "pinned_divergence"):
                 self.assertIsNone(r["mapping_expect"], r["id"])
             if r["mapping_expect"] is not None:
                 self.assertEqual(pe, "accept", r["id"])
@@ -141,6 +142,23 @@ class Generator(unittest.TestCase):
             lines = [l.split()[0] for l in f.read().splitlines() if l.strip() and not l.startswith("#")]
         pinned = {r["bytes_hex"] for r in ROWS if r["class"] == "pinned"}
         self.assertEqual(pinned, set(lines))
+
+    def test_a_pinned_divergence_has_its_own_normative_allowed_label_not_a_blanket_undetermined(self):
+        pinned = [r for r in ROWS if r["class"] == "pinned"]
+        labels = collections.Counter(str(r["allowed"]) for r in pinned)
+        self.assertGreater(labels["True"], 0, "no pinned input is allowed: the point that a permitted text can be read differently by two parsers is lost")
+        self.assertGreater(labels["False"], 0)
+        for r in pinned:
+            self.assertEqual(r["parse_expect"]["result"], "pinned_divergence")
+            if r["allowed"] == "undetermined":
+                self.assertTrue(r["parse_expect"]["allowed_rule"] in ("yaml-error",) or r["parse_expect"]["allowed_rule"].startswith("undocumented:"), r["id"])
+            if r["allowed"] is False:
+                self.assertTrue(r["parse_expect"]["allowed_rule"].startswith("documented:"), r["id"])
+        # the labels do not depend on whether the Rust and Go parsers agree: the committed file is exactly the reading of the documented table
+        sys.path.insert(0, str(ROOT / "tools" / "parity"))
+        import classify_pinned_raw_yaml as cls
+        committed = json.loads((ROOT / "tools" / "parity" / "pinned_classification_raw_yaml.json").read_text(encoding="utf-8"))
+        self.assertEqual(committed, json.loads(json.dumps(cls.classify(), sort_keys=True)))
 
     def test_the_committed_list_is_the_generated_one(self):
         committed = json.loads((ROOT / "tools" / "parity" / "undetermined_raw_yaml.json").read_text(encoding="utf-8"))

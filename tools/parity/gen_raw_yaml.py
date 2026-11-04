@@ -9,7 +9,7 @@ One JSON line per case: {"id", "class", "bytes_hex", "parse_expect", "allowed", 
 THE LABELS COME FROM NONE OF THE READERS. They are fixed by construction, in three separate fields that are never merged:
 
   parse_expect   {"result": "accept", "tree": typed tree} | {"result": "refuse", "class": "syntax" | "duplicate_key" | "any"} | {"result": "undetermined"}
-                 | {"result": "pinned_divergence"}            ("any": a refusal of either class; used where the documents do not fix which of two refusals wins)
+                 | {"result": "pinned_divergence", "allowed_rule": ...}            ("any": a refusal of either class; used where the documents do not fix which of two refusals wins)
   allowed        true | false | "undetermined"                membership in P_allowed, from docs/P1-SUPPORTED-SUBSET.md, never from a parser
   mapping_expect null | {"expect": {three digests} | null, "refuse": reason | null, "field": member | null}      only where the tree is accepted
 
@@ -469,16 +469,22 @@ def build_text_level(cs, rng):
 
 
 def build_pinned(cs):
-    """The inputs the Rust and Go parsers are known to read differently (testdata/p1/parity-known.txt): they are required to be outside P_parity, hence not admitted."""
+    """The inputs the Rust and Go parsers are known to read differently (testdata/p1/parity-known.txt). The divergence decides only P_parity and P_effective (they are required to be
+    outside both). Their `allowed` label is set independently, by the documented subset, in the committed tools/parity/pinned_classification_raw_yaml.json (see
+    classify_pinned_raw_yaml.py): true, false, or an undetermined that names its reason."""
     if not os.path.exists(KNOWN_TXT):
         return
+    with open(os.path.join(HERE, "pinned_classification_raw_yaml.json"), encoding="utf-8") as f:
+        classification = json.load(f)
     with open(KNOWN_TXT, encoding="utf-8") as f:
         lines = f.read().splitlines()
     for line in lines:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        cs.add("pinned", bytes.fromhex(line.split()[0]), {"result": "pinned_divergence"}, "undetermined", why="a pinned Rust/Go parser divergence: its allowed label is set independently")
+        hexs = line.split()[0]
+        c = classification[hexs]
+        cs.add("pinned", bytes.fromhex(hexs), {"result": "pinned_divergence", "allowed_rule": c["rule"]}, c["allowed"])
 
 
 def generate(seed=DEFAULT_SEED):
