@@ -38,6 +38,35 @@ def typed(v):
     return {"k": "other", "v": type(v).__name__}
 
 
+class _StrictLoader(yaml.SafeLoader):
+    """TEST ONLY (selftest, Unit 3c): a PyYAML that refuses a duplicate key instead of taking the last."""
+
+
+def _no_duplicates(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            raise yaml.constructor.ConstructorError(None, None, "duplicate key", key_node.start_mark)
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicates)
+VARIANT = None
+
+
+def load(text):
+    if VARIANT == "strict-duplicates":
+        return yaml.load(text, Loader=_StrictLoader)
+    value = yaml.safe_load(text)
+    if VARIANT == "stringify-envelope" and isinstance(value, dict):
+        for who in ("release", "provenance"):
+            if isinstance(value.get(who), dict) and isinstance(value[who].get("envelope"), int):
+                value[who]["envelope"] = str(value[who]["envelope"])
+    return value
+
+
 def answer(case):
     cid = case["id"]
     data = bytes.fromhex(case["bytes_hex"])
@@ -46,7 +75,7 @@ def answer(case):
     except UnicodeDecodeError:
         return {"id": cid, "ok": False, "class": "invalid_utf8", "code": "INVALID_UTF8"}
     try:
-        value = yaml.safe_load(text)
+        value = load(text)
     except yaml.YAMLError as e:
         return {"id": cid, "ok": False, "class": "syntax", "code": type(e).__name__}
     except Exception as e:  # noqa: BLE001  # the oracle failing is a fact about the oracle
@@ -70,7 +99,10 @@ def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("input")
     ap.add_argument("output")
+    ap.add_argument("--variant", choices=["strict-duplicates", "stringify-envelope"], help="TEST ONLY: a deliberately changed oracle, for the selftest")
     a = ap.parse_args(argv)
+    global VARIANT
+    VARIANT = a.variant
     sys.setrecursionlimit(5000)
     with open(a.input, encoding="utf-8") as f, open(a.output, "w", encoding="utf-8") as out:
         for line in f.read().splitlines():
