@@ -207,10 +207,15 @@ func (w *walker) mapping(n *yaml.Node, depth int) (*Node, error) {
 }
 
 // table turns the YAML library's line and column into the ADR 0007 coordinates.
+//
+// A column is a count of runes, and the byte offset of a column is found by decoding the line from its start. Doing that from the start for every node costs the length of the line for each
+// node, which is quadratic on a long line (a flow collection of 80 000 items on one line took 12 s): the profile of that input is 98% in this function. So the offsets of a line are
+// remembered as they are found (offs[line-1][i] is the offset after i runes) and a later, further column only extends them; the answer is the same as decoding from the line start.
 type table struct {
 	body       string
 	bomLen     int
 	lineStarts []int
+	offs       [][]int
 }
 
 func newTable(body string, bomLen int) *table {
@@ -226,18 +231,26 @@ func newTable(body string, bomLen int) *table {
 			starts = append(starts, i+1)
 		}
 	}
-	return &table{body: body, bomLen: bomLen, lineStarts: starts}
+	return &table{body: body, bomLen: bomLen, lineStarts: starts, offs: make([][]int, len(starts))}
 }
 
 func (t *table) pos(line, col int) *Pos {
 	if line > len(t.lineStarts) {
 		line = len(t.lineStarts)
 	}
-	off := t.lineStarts[line-1]
-	for c := 1; c < col; c++ {
-		_, size := utf8.DecodeRuneInString(t.body[off:])
-		off += size
+	o := t.offs[line-1]
+	if o == nil {
+		o = []int{t.lineStarts[line-1]}
 	}
+	// o[i] is the byte offset after i runes from the start of the line; column c is after c-1 runes (a column below 1 is the start of the line, as it always was)
+	idx := max(col, 1) - 1
+	for len(o) <= idx {
+		last := o[len(o)-1]
+		_, size := utf8.DecodeRuneInString(t.body[last:])
+		o = append(o, last+size)
+	}
+	t.offs[line-1] = o
+	off := o[idx]
 	return &Pos{Line: line, Column: col, Offset: t.bomLen + off}
 }
 
