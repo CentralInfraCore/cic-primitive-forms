@@ -70,7 +70,9 @@ EXTRA = {
 # that is red for another reason is a broken harness (or a reader built from stale or mutated code), not a finding.
 # An accepted finding is bound to the EXACT result it was accepted with, not to the id: the Go reader times out, the Rust reader refuses with the node limit, PyYAML accepts. Any other
 # answer on that id (the Rust reader crashing, the Go reader answering something else) is a new finding, and the baseline is red.
-ACCEPTED_FINDINGS = {
+ACCEPTED_FINDINGS = {}     # F1 (issue #161, the Go parser quadratic on a long line) was fixed; an unmodified run that is red now stops the selftest. A new accepted finding needs its exact result, as below.
+# A synthetic accepted finding, the shape of the former F1, to keep the guard itself under test:
+SYNTHETIC_ACCEPTED_FINDING = {
     "limit-over-nodes-00001": {
         "why": "F1, issue #161: the Go parser is quadratic on a long flow sequence (TIMEOUT)",
         "go": {"ok": False, "class": "TIMEOUT"},
@@ -319,12 +321,12 @@ def run_all(out, env, rust_target, report_lines=None):
     f1 = "limit-over-nodes-00001"
     good = {"go": {"ok": False, "class": "TIMEOUT"}, "rust": {"ok": False, "class": "syntax", "code": "LIMIT_EXCEEDED"}, "python": {"ok": True}}
     guard = [
-        ("an unmodified run red on another id stops the selftest", bool(unexpected_baseline_red([f1, "value-block-digest-00003"], {f1: good}, {f1: "go: TIMEOUT"}))),
-        ("the accepted finding with exactly its accepted result is accepted", not unexpected_baseline_red([f1], {f1: good}, {f1: "go: TIMEOUT"})),
-        ("the accepted id with the Rust reader crashing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, rust={"ok": False, "class": "CRASH", "code": "CRASH"})}, {f1: "go: TIMEOUT"}))),
-        ("the accepted id with the Go reader answering something else is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, go={"ok": False, "class": "CRASH"})}, {f1: "go: TIMEOUT"}))),
-        ("the accepted id with a different red reason is a new finding", bool(unexpected_baseline_red([f1], {f1: good}, {f1: "rust: CRASH"}))),
-        ("the accepted id with PyYAML refusing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, python={"ok": False})}, {f1: "go: TIMEOUT"}))),
+        ("an unmodified run red on another id stops the selftest", bool(unexpected_baseline_red([f1, "value-block-digest-00003"], {f1: good}, {f1: "go: TIMEOUT"}, SYNTHETIC_ACCEPTED_FINDING))),
+        ("the accepted finding with exactly its accepted result is accepted", not unexpected_baseline_red([f1], {f1: good}, {f1: "go: TIMEOUT"}, SYNTHETIC_ACCEPTED_FINDING)),
+        ("the accepted id with the Rust reader crashing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, rust={"ok": False, "class": "CRASH", "code": "CRASH"})}, {f1: "go: TIMEOUT"}, SYNTHETIC_ACCEPTED_FINDING))),
+        ("the accepted id with the Go reader answering something else is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, go={"ok": False, "class": "CRASH"})}, {f1: "go: TIMEOUT"}, SYNTHETIC_ACCEPTED_FINDING))),
+        ("the accepted id with a different red reason is a new finding", bool(unexpected_baseline_red([f1], {f1: good}, {f1: "rust: CRASH"}, SYNTHETIC_ACCEPTED_FINDING))),
+        ("the accepted id with PyYAML refusing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, python={"ok": False})}, {f1: "go: TIMEOUT"}, SYNTHETIC_ACCEPTED_FINDING))),
     ]
     for name, held in guard:
         A.append({"name": "baseline guard: " + name, "red": held, "ok": held})
@@ -456,11 +458,11 @@ def run_all(out, env, rust_target, report_lines=None):
     return result
 
 
-def unexpected_baseline_red(red_ids, answers=None, reasons=None):
+def unexpected_baseline_red(red_ids, answers=None, reasons=None, accepted=None):
     """The red ids that are not accepted findings, and the accepted ones whose result is not exactly the accepted result. `answers`: {id: {"go": row, "rust": row, "python": row}}, `reasons`: {id: why}."""
     bad = []
     for i in red_ids:
-        f = ACCEPTED_FINDINGS.get(i)
+        f = (ACCEPTED_FINDINGS if accepted is None else accepted).get(i)
         if f is None:
             bad.append(i)
         elif answers is not None:
