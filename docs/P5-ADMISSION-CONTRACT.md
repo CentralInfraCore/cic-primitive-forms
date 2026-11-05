@@ -49,7 +49,7 @@ The decisions are **not taken in bulk**. One record per construction, reviewed o
 
 ### 4.1 The constructions that are `undetermined` today
 
-Measured in the differential at the head of `main` (`d43ffc2`, go 1.25.0, rustc 1.99.1, python 3.12.3, PyYAML 6.0.1; the case `undetermined:*` of `tools/parity/gen_raw_yaml.py`, record with the construction applied). "Accept" means the reader accepted the text and read the same tree as for the plain record; "mapping" is the Unit 2 outcome on that tree. Each row is a decision to be taken on its own; the last column is a **proposal** for the decision, not the decision.
+Measured in the differential run on the content of `d43ffc2` (the run was made on the fix commit `3c88e82` before the squash; go 1.25.0, rustc 1.99.1, python 3.12.3, PyYAML 6.0.1; the case `undetermined:*` of `tools/parity/gen_raw_yaml.py`, record with the construction applied). "Accept" means the reader accepted the text and read the same tree as for the plain record; "mapping" is the Unit 2 outcome on that tree. Each row is a decision to be taken on its own; the last column is a **proposal** for the decision, not the decision.
 
 | # | Construction | Rust | Go | PyYAML | What a decision has to settle | Proposal (not a decision) |
 |---|---|---|---|---|---|---|
@@ -123,4 +123,4 @@ The gate and the structure are **mechanisms under test of the differential**, no
 
 ## 8. Not claimed
 
-This is a design. No gate exists, no construction of 4.1 is decided, and `P_effective` is not an admission. The measurements in 4.1 are of the differential at the head of `main` and show what the readers do, not what they should do. Nothing here proves the authenticity of a release, the trust anchor or the time of a signature (`docs/P5-TRUST-MODEL-PLAN.md`), and nothing changes the production receipt API, which stays on hold and takes the **bytes** of an authenticated record.
+This is a design. No gate exists, no construction of 4.1 is decided, and `P_effective` is not an admission. The measurements in 4.1 are of one local run of the differential on the content of `d43ffc2` and show what the readers do, not what they should do. Nothing here proves the authenticity of a release, the trust anchor or the time of a signature (`docs/P5-TRUST-MODEL-PLAN.md`), and nothing changes the production receipt API, which stays on hold and takes the **bytes** of an authenticated record.
