@@ -68,7 +68,17 @@ EXTRA = {
 }
 # The findings the unmodified run is ALLOWED to be red on. The selftest sets them aside to get a green baseline, and refuses to run if the unmodified run is red on anything else: a baseline
 # that is red for another reason is a broken harness (or a reader built from stale or mutated code), not a finding.
-ACCEPTED_FINDINGS = {"limit-over-nodes-00001": "F1, issue #161: the Go parser is quadratic on a long flow sequence (TIMEOUT)"}
+# An accepted finding is bound to the EXACT result it was accepted with, not to the id: the Go reader times out, the Rust reader refuses with the node limit, PyYAML accepts. Any other
+# answer on that id (the Rust reader crashing, the Go reader answering something else) is a new finding, and the baseline is red.
+ACCEPTED_FINDINGS = {
+    "limit-over-nodes-00001": {
+        "why": "F1, issue #161: the Go parser is quadratic on a long flow sequence (TIMEOUT)",
+        "go": {"ok": False, "class": "TIMEOUT"},
+        "rust": {"ok": False, "class": "syntax", "code": "LIMIT_EXCEEDED"},
+        "python": {"ok": True},
+        "red_reason": "go: TIMEOUT",
+    },
+}
 # the same defect in Rust and Go at once, by name (both entries of PLANTED are applied)
 COMMON_MODE = ["a duplicate key is accepted", "a tab is accepted", "a merge key is followed", "a float or radix number is read as a string", "a byte order mark inside the text is accepted",
                "a block scalar's trailing newline is dropped"]
@@ -176,9 +186,11 @@ def run_all(out, env, rust_target, report_lines=None):
     paths = {i: os.path.join(out, "dump-%s.jsonl" % i) for i in IMPLS}
     base_full = cmp_.compare(os.path.join(out, "input.jsonl"), paths, known, floors, subtypes)
     removed = sorted(r["id"] for r in base_full["red"])
-    unexpected = unexpected_baseline_red(removed)
+    by_id_rows = {lang: {json.loads(l)["id"]: json.loads(l) for l in dumps_full[lang]} for lang in IMPLS}
+    answers = {i: {lang: by_id_rows[lang][i] for lang in IMPLS} for i in removed}
+    unexpected = unexpected_baseline_red(removed, answers, {r["id"]: r["why"] for r in base_full["red"]})
     if unexpected or base_full["errors"]:
-        result = {"passed": False, "why": "the unmodified run is red on something that is not an accepted finding", "unexpected_red": unexpected, "errors": base_full["errors"][:5], "accepted_findings": ACCEPTED_FINDINGS}
+        result = {"passed": False, "why": "the unmodified run is red on something that is not an accepted finding", "unexpected_red": unexpected, "errors": base_full["errors"][:5], "accepted_findings": {k: v["why"] for k, v in ACCEPTED_FINDINGS.items()}}
         write(os.path.join(out, "selftest.json"), json.dumps(result, indent=1, sort_keys=True) + "\n")
         return result
     keep = [i for i, r in enumerate(rows) if r["id"] not in set(removed)]
@@ -296,7 +308,18 @@ def run_all(out, env, rust_target, report_lines=None):
     case("a pinned subtype whose original answers changed", lambda t: None, st={k: dict(v, original={"rust": [[0, 0, 0]], "go": [[0, 0, 1]]}) for k, v in subtypes.items()})
     case("a thin class", lambda t: None, fl=dict(floors, built=10 ** 9))
     A.append(_evidence_rule_check())
-    A.append({"name": "an unmodified run that is red on something that is not an accepted finding stops the selftest", "red": bool(unexpected_baseline_red(["limit-over-nodes-00001", "value-block-digest-00003"])) and not unexpected_baseline_red(["limit-over-nodes-00001"]), "ok": bool(unexpected_baseline_red(["limit-over-nodes-00001", "value-block-digest-00003"])) and not unexpected_baseline_red(["limit-over-nodes-00001"])})
+    f1 = "limit-over-nodes-00001"
+    good = {"go": {"ok": False, "class": "TIMEOUT"}, "rust": {"ok": False, "class": "syntax", "code": "LIMIT_EXCEEDED"}, "python": {"ok": True}}
+    guard = [
+        ("an unmodified run red on another id stops the selftest", bool(unexpected_baseline_red([f1, "value-block-digest-00003"], {f1: good}, {f1: "go: TIMEOUT"}))),
+        ("the accepted finding with exactly its accepted result is accepted", not unexpected_baseline_red([f1], {f1: good}, {f1: "go: TIMEOUT"})),
+        ("the accepted id with the Rust reader crashing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, rust={"ok": False, "class": "CRASH", "code": "CRASH"})}, {f1: "go: TIMEOUT"}))),
+        ("the accepted id with the Go reader answering something else is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, go={"ok": False, "class": "CRASH"})}, {f1: "go: TIMEOUT"}))),
+        ("the accepted id with a different red reason is a new finding", bool(unexpected_baseline_red([f1], {f1: good}, {f1: "rust: CRASH"}))),
+        ("the accepted id with PyYAML refusing is a new finding", bool(unexpected_baseline_red([f1], {f1: dict(good, python={"ok": False})}, {f1: "go: TIMEOUT"}))),
+    ]
+    for name, held in guard:
+        A.append({"name": "baseline guard: " + name, "red": held, "ok": held})
     a_ok = all((x.get("ok") if "ok" in x else x["red"]) for x in A)
 
     # ---- B. planted defects, one parser at a time
@@ -324,10 +347,13 @@ def run_all(out, env, rust_target, report_lines=None):
         B.append({"defect": name, "language": lang, "red_cases": red["red_cases"], "red_classes": red_classes, "expected": targets, "red": red["is_red"],
                   "events": sorted(red["events"].keys()), "green_after_restore": not green["is_red"], "ok": red["is_red"] and hit and not green["is_red"]})
 
-    # ---- C. the same defect in Rust and Go
+    # ---- C. the same defect in Rust and Go. For the cases the defect is aimed at, it is not enough that the run turned red: Rust and Go must AGREE (semantically), the agreed answer must be
+    # the wrong one (not the constructed one), and the run must be red for exactly the reason that the normative check gives: a forbidden construct in P_parity (allowed false) for a text that
+    # must be refused, "a tree that is not the constructed one" for a text that must be accepted. Parity must NOT be what caught it.
     C = []
     for name in COMMON_MODE:
         rows_ = [p for p in PLANTED if p[0] == name]
+        aimed = sorted({tg for p in rows_ for tg in p[5]})
         dumps = dict(s_paths)
         try:
             for _, lang, rel, old, new, _t in rows_:
@@ -341,9 +367,25 @@ def run_all(out, env, rust_target, report_lines=None):
                 if rel in trees.pristine:
                     trees.restore(rel)
         rep = compare(dumps)
-        # both wrong the same way: parity holds, so what catches it is the label (allowed false) or the constructed tree, never parity
-        caught = rep["events"].get("forbidden_construct_in_parity", [])
-        C.append({"defect": name, "red": rep["is_red"], "red_cases": rep["red_cases"], "forbidden_construct_in_parity": len(caught), "ok": rep["is_red"] and (len(caught) > 0 or rep["red_cases"] > 0)})
+        by = {lang: {json.loads(l)["id"]: json.loads(l) for l in lines_of(dumps[lang])} for lang in ("rust", "go")}
+        lab = {json.loads(l)["id"]: json.loads(l) for l in s_lines}
+        reds = {r["id"]: r["why"] for r in rep["red"]}
+        in_aim = lambda i: any(cls[i] == tg or cls[i].startswith(tg) for tg in aimed)
+        targets = [i for i in reds if in_aim(i)]
+        agree = [i for i in targets if by["rust"][i]["ok"] and by["go"][i]["ok"] and by["rust"][i]["tree"] == by["go"][i]["tree"]]
+        wrong = [i for i in agree if by["rust"][i]["tree"] != (lab[i]["parse_expect"].get("tree"))]
+        def exact(i):
+            pe = lab[i]["parse_expect"]["result"]
+            if pe == "refuse":
+                return "forbidden construct in P_parity" in reds[i]
+            if pe == "accept":
+                return "not the constructed one" in reds[i]
+            return False
+        exact_reason = [i for i in agree if exact(i)]
+        forbidden = rep["events"].get("forbidden_construct_in_parity", [])
+        ok = bool(targets) and len(agree) == len(targets) == len(wrong) == len(exact_reason)
+        C.append({"defect": name, "red": rep["is_red"], "aimed_classes": aimed, "red_target_cases": len(targets), "rust_and_go_agree": len(agree), "agreed_answer_is_not_the_constructed_one": len(wrong),
+                  "red_for_the_normative_reason": len(exact_reason), "forbidden_construct_in_parity": len(forbidden), "other_red_cases": rep["red_cases"] - len(targets), "ok": ok})
 
     # ---- the equivalent changes: they must stay green
     EQ = []
@@ -403,8 +445,21 @@ def run_all(out, env, rust_target, report_lines=None):
     return result
 
 
-def unexpected_baseline_red(red_ids):
-    return [i for i in red_ids if i not in ACCEPTED_FINDINGS]
+def unexpected_baseline_red(red_ids, answers=None, reasons=None):
+    """The red ids that are not accepted findings, and the accepted ones whose result is not exactly the accepted result. `answers`: {id: {"go": row, "rust": row, "python": row}}, `reasons`: {id: why}."""
+    bad = []
+    for i in red_ids:
+        f = ACCEPTED_FINDINGS.get(i)
+        if f is None:
+            bad.append(i)
+        elif answers is not None:
+            for lang in ("go", "rust", "python"):
+                row = answers[i][lang]
+                if any(row.get(k) != v for k, v in f[lang].items()):
+                    bad.append("%s (%s answered %s, accepted %s)" % (i, lang, {k: row.get(k) for k in f[lang]}, f[lang]))
+            if reasons is not None and reasons.get(i) != f["red_reason"]:
+                bad.append("%s (red for %r, accepted for %r)" % (i, reasons.get(i), f["red_reason"]))
+    return bad
 
 
 def _swap_lines(t, impl, a, b):
