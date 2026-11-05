@@ -79,6 +79,14 @@ ACCEPTED_FINDINGS = {
         "red_reason": "go: TIMEOUT",
     },
 }
+# Within the classes a common-mode defect is aimed at, some cases are refused by ANOTHER rule that the defect does not touch (the float defect leaves `03` to the leading-zero rule and
+# `99999999999999999999` to the 64-bit rule). The aim is the set of cases the defect is meant to let through, decided from the text of the case, never from what turned red.
+import re as _re
+AIM = {
+    "a merge key is followed": lambda text: bool(_re.search(r"(?m)^ *<<: ", text)),
+    "a block scalar's trailing newline is dropped": lambda text: bool(_re.search(r"(?m)^  \w+: [|>]$", text)),     # the clip indicators keep the trailing newline; |- and >- strip it anyway
+    "a float or radix number is read as a string": lambda text: bool(_re.search(r"(?m)^  envelope: (3\.0|3e0|\.5|5\.|1e3|\.inf|\.nan|0x3|0o3|\+3\.0|-\.inf)$", text)),
+}
 # the same defect in Rust and Go at once, by name (both entries of PLANTED are applied)
 COMMON_MODE = ["a duplicate key is accepted", "a tab is accepted", "a merge key is followed", "a float or radix number is read as a string", "a byte order mark inside the text is accepted",
                "a block scalar's trailing newline is dropped"]
@@ -370,9 +378,12 @@ def run_all(out, env, rust_target, report_lines=None):
         by = {lang: {json.loads(l)["id"]: json.loads(l) for l in lines_of(dumps[lang])} for lang in ("rust", "go")}
         lab = {json.loads(l)["id"]: json.loads(l) for l in s_lines}
         reds = {r["id"]: r["why"] for r in rep["red"]}
-        in_aim = lambda i: any(cls[i] == tg or cls[i].startswith(tg) for tg in aimed)
-        targets = [i for i in reds if in_aim(i)]
-        agree = [i for i in targets if by["rust"][i]["ok"] and by["go"][i]["ok"] and by["rust"][i]["tree"] == by["go"][i]["tree"]]
+        aim_text = AIM.get(name, lambda text: True)
+        in_aim = lambda i: any(cls[i] == tg or cls[i].startswith(tg) for tg in aimed) and aim_text(bytes.fromhex(lab[i]["bytes_hex"]).decode("utf-8", "replace"))
+        # the aimed set comes from the INPUT, not from what turned red: a case the defect should have let through and did not is a miss
+        targets = [i for i in lab if in_aim(i)]
+        missed = [i for i in targets if i not in reds]
+        agree = [i for i in targets if i in reds and by["rust"][i]["ok"] and by["go"][i]["ok"] and by["rust"][i]["tree"] == by["go"][i]["tree"]]
         wrong = [i for i in agree if by["rust"][i]["tree"] != (lab[i]["parse_expect"].get("tree"))]
         def exact(i):
             pe = lab[i]["parse_expect"]["result"]
@@ -383,8 +394,8 @@ def run_all(out, env, rust_target, report_lines=None):
             return False
         exact_reason = [i for i in agree if exact(i)]
         forbidden = rep["events"].get("forbidden_construct_in_parity", [])
-        ok = bool(targets) and len(agree) == len(targets) == len(wrong) == len(exact_reason)
-        C.append({"defect": name, "red": rep["is_red"], "aimed_classes": aimed, "red_target_cases": len(targets), "rust_and_go_agree": len(agree), "agreed_answer_is_not_the_constructed_one": len(wrong),
+        ok = bool(targets) and not missed and len(agree) == len(targets) == len(wrong) == len(exact_reason)
+        C.append({"defect": name, "red": rep["is_red"], "aimed_classes": aimed, "aimed_cases": len(targets), "aimed_cases_still_green": len(missed), "rust_and_go_agree": len(agree), "agreed_answer_is_not_the_constructed_one": len(wrong),
                   "red_for_the_normative_reason": len(exact_reason), "forbidden_construct_in_parity": len(forbidden), "other_red_cases": rep["red_cases"] - len(targets), "ok": ok})
 
     # ---- the equivalent changes: they must stay green
