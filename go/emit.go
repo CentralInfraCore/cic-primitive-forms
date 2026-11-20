@@ -29,6 +29,7 @@ func Emit(n *Node) string {
 	return b.String()
 }
 
+// indent writes n spaces.
 func indent(b *strings.Builder, n int) {
 	b.WriteString(strings.Repeat(" ", n))
 }
@@ -51,6 +52,7 @@ func inline(n *Node) string {
 	}
 }
 
+// isBlock reports whether n is written as a block: a non-empty sequence or mapping. An empty one is written inline as [] or {}.
 func isBlock(n *Node) bool {
 	switch n.Kind {
 	case KindSeq:
@@ -61,6 +63,7 @@ func isBlock(n *Node) bool {
 	return false
 }
 
+// blockSeq writes the items of a block sequence, one "-" line each, indented by level spaces.
 func blockSeq(b *strings.Builder, items []*Node, level int) {
 	for _, it := range items {
 		indent(b, level)
@@ -69,6 +72,7 @@ func blockSeq(b *strings.Builder, items []*Node, level int) {
 	}
 }
 
+// blockMap writes the entries of a block mapping in their order, indented by level spaces.
 func blockMap(b *strings.Builder, n *Node, level int) {
 	for _, e := range n.Entries {
 		key := str(e.Key)
@@ -141,10 +145,14 @@ func plainSafe(s string) bool {
 	return err == nil && n.Kind == KindStr && n.Str == s
 }
 
+// isLineOrBOM reports whether c is U+2028, U+2029 or the byte order mark, which quoted writes escaped although they are not
+// control characters.
 func isLineOrBOM(c rune) bool {
 	return c == 0x2028 || c == 0x2029 || c == 0xFEFF
 }
 
+// quoted is s as a double-quoted YAML scalar: \" \\ \n \r \t short, other control characters, U+2028, U+2029 and U+FEFF as
+// \u with four upper-case hex digits, everything else literal.
 func quoted(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')

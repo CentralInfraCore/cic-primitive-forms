@@ -25,17 +25,24 @@ import (
 
 // The codes of the phase diff (ADR 0008).
 const (
-	CodeDiffContextMismatch  = "DIFF_CONTEXT_MISMATCH"
+	// CodeDiffContextMismatch: the two views were read under different DiffContexts and are not compared.
+	CodeDiffContextMismatch = "DIFF_CONTEXT_MISMATCH"
+	// CodeDiffUnsupportedValue: an operand holds a float or an integer beyond 64 bits, reported at the first such position.
 	CodeDiffUnsupportedValue = "DIFF_UNSUPPORTED_VALUE"
 )
 
 // The kinds of an event of a diff.
 const (
-	EventAdded                   = "added"
-	EventRemoved                 = "removed"
-	EventValueChange             = "value_change"
+	// EventAdded: a node present in B only, reported once at its top with its expanded fragment in Next.
+	EventAdded = "added"
+	// EventRemoved: a node present in A only, reported once at its top with its expanded fragment in Previous.
+	EventRemoved = "removed"
+	// EventValueChange: the logical value of a scalar or opaque position differs (Previous, Next).
+	EventValueChange = "value_change"
+	// EventPolicyDeclarationChange: one or more declaration fields of an expanded position differ (Changed).
 	EventPolicyDeclarationChange = "policy_declaration_change"
-	EventSetChange               = "set_change"
+	// EventSetChange: the elements of a set differ (Added, Removed).
+	EventSetChange = "set_change"
 )
 
 // DiffContext identifies what a view was read under: the schema and its digest, the grammar and its digest, and the surface. Two views with
@@ -83,6 +90,8 @@ type DiffResult struct {
 	Representation []RepresentationChange
 }
 
+// diffFailure is the ErrContract *Error with one diff-phase violation of code, at the logical path path and naming the operand
+// ("a", "b" or "" when the failure concerns both), with no source location.
 func diffFailure(code, path, operand string) *Error {
 	return &Error{Kind: ErrContract, Violations: []Violation{{Code: code, Phase: PhaseDiff, Location: Location{NotApplicable: true}, LogicalPath: path, Operand: operand}}}
 }
@@ -182,8 +191,8 @@ func readView(v DiffView, root Shape, a []string, g Grammar, operand string) (*N
 	return out, prov, nil
 }
 
-// scopeEntries reads the scope into canonical paths, drops the entries that lie inside another one and the repeated ones, and says whether the
-// scope is the whole document (no scope given). A scope that is empty but given compares nothing.
+// scopeEntries reads the scope into canonical paths and drops the entries that lie inside another one and the repeated ones. A nil scope
+// is the whole document: one entry, the empty path. A scope that is empty but given yields no entry and compares nothing.
 func scopeEntries(root Shape, scope []string) ([][]seg, error) {
 	if scope == nil {
 		return [][]seg{nil}, nil
@@ -210,6 +219,7 @@ func scopeEntries(root Shape, scope []string) ([][]seg, error) {
 	return keep, nil
 }
 
+// segsOf converts parsed path segments to the internal seg form.
 func segsOf(p []PathSeg) []seg {
 	out := make([]seg, len(p))
 	for i, s := range p {
@@ -274,4 +284,5 @@ func Diff(va, vb DiffView, root Shape, a []string, g Grammar, scope []string) (*
 	return d.result, nil
 }
 
+// operandName is the name of operand i of Diff: "a" for 0, "b" for 1.
 func operandName(i int) string { return [...]string{"a", "b"}[i] }

@@ -25,7 +25,9 @@ const BasisBinding = "binding_attested"
 
 // The origins of a document (ADR 0010).
 const (
-	OriginAuthored     = "authored"
+	// OriginAuthored: the document was written by its author; the zero Context means this.
+	OriginAuthored = "authored"
+	// OriginMaterialized: the document was produced by materialization and comes with an attestation and its attested positions.
 	OriginMaterialized = "materialized"
 )
 
@@ -48,6 +50,9 @@ type Context struct {
 	AttestedPositions []string
 }
 
+// check verifies the context against root before anything is expanded or collapsed: the origin is authored, materialized or
+// empty; the attestation and the positions are present exactly for a materialized document; no position repeats; and each
+// one parses, resolves and names a primitive position. A failure is ORIGIN_ATTESTATION_MISMATCH or the path error.
 func (c Context) check(root Shape) error {
 	materialized := c.Origin == OriginMaterialized
 	if c.Origin != "" && c.Origin != OriginAuthored && !materialized {
@@ -81,6 +86,7 @@ func (c Context) check(root Shape) error {
 	return nil
 }
 
+// pathContractError turns a path error into a contract *Error holding its one violation.
 func pathContractError(e *PathError) error {
 	return &Error{Kind: ErrContract, Violations: []Violation{e.Violation()}}
 }
@@ -100,6 +106,8 @@ type Origin struct {
 // Provenance is the origin of each primitive position, keyed by its canonical logical path (ADR 0006).
 type Provenance map[string]Origin
 
+// policyDefaults is the symbolic default of every policy field of an expanded position under g: access and modify inherit,
+// inherit in the bound grammar's spelling of ModeInherit, default_injection null, conformance implemented.
 func policyDefaults(g Grammar) (map[string]*Node, error) {
 	inherit, err := WriteMode(ModeInherit, g)
 	if err != nil {
@@ -114,6 +122,7 @@ func policyDefaults(g Grammar) (map[string]*Node, error) {
 	}, nil
 }
 
+// cloneTree is a deep copy of n (positions kept), so an output never shares a node with its input.
 func cloneTree(n *Node) *Node {
 	c := *n
 	if n.Items != nil {
@@ -184,6 +193,9 @@ func CollapsePosition(n *Node, authoredExpanded bool, basis string, a []string, 
 	return cloneTree(value), nil
 }
 
+// formWalker is the state of one recursive Expand, Collapse or Normalize walk over a document along its schema: the expanded key
+// set, the bound grammar, the provenance it fills (Expand) or reads (Collapse), and the attested positions that are never
+// shortened.
 type formWalker struct {
 	a        []string
 	g        Grammar
@@ -197,6 +209,7 @@ type formWalker struct {
 	members   bool            // Normalize: read the rule members of every authored expanded wrapper (readWrapper, #90)
 }
 
+// pathText is the canonical logical path of a position; a path that cannot be written (an empty text) is an Unsupported error.
 func pathText(path []seg) (string, error) {
 	t := logicalPath(path)
 	if t == "" {
@@ -243,6 +256,9 @@ func (w *formWalker) record(n *Node, shape Shape, path []seg, expand bool) (*Nod
 	return w.fields(n, shape.Fields, path, expand)
 }
 
+// fields maps the entries of the mapping n against the declared fields, in document order: each declared key's value is
+// processed as a position, an undeclared key is UNKNOWN_FIELD, and an entry the normalization inserted is dropped when
+// collapsing. When the walk inserts defaults, the absent optional fields' defaults are appended after.
 func (w *formWalker) fields(n *Node, fields []NamedShape, path []seg, expand bool) (*Node, error) {
 	if n.Kind != KindMap {
 		return nil, unsupported("a %s value where a mapping is declared", kindName(n))

@@ -62,17 +62,21 @@ func descend(s slot, path []seg, a []string) (slot, bool, error) {
 	return s, true, nil
 }
 
+// differ is the state of one Diff: the expanded key set, the provenance of both expanded views (for the writing of each
+// position) and the result the comparison appends to.
 type differ struct {
 	a            []string
 	provA, provB Provenance
 	result       *DiffResult
 }
 
+// emit appends the event e found at path, keeping the path's segment keys for sort.
 func (d *differ) emit(e DiffEvent, path []seg) {
 	e.order = keysOf(path)
 	d.result.Changes = append(d.result.Changes, e)
 }
 
+// keysOf is the sort key of a path: the key of each segment, in order.
 func keysOf(path []seg) []string {
 	out := make([]string, len(path))
 	for i, s := range path {
@@ -173,6 +177,7 @@ func (d *differ) position(shape Shape, na, nb *Node, path []seg) error {
 	return d.value(shape, entry(na, valueKey), entry(nb, valueKey), text, path)
 }
 
+// writing names how a position was authored: "expanded" (a wrapper) or "short" (a bare value).
 func writing(expanded bool) string {
 	if expanded {
 		return "expanded"
@@ -218,6 +223,8 @@ type element struct {
 	order int
 }
 
+// elements identifies every element of a list (each has an identity: the views were validated), with the index of its case in
+// the declaration.
 func (d *differ) elements(list *Node, shape Shape) []element {
 	out := make([]element, 0, len(list.Items))
 	for _, it := range list.Items {
@@ -227,6 +234,8 @@ func (d *differ) elements(list *Node, shape Shape) []element {
 	return out
 }
 
+// compareElements orders list elements by the declaration order of their case, then by the key of their identity; 0 means the
+// same element.
 func compareElements(x, y element) int {
 	if c := cmp.Compare(x.order, y.order); c != 0 {
 		return c
@@ -282,6 +291,7 @@ func compareScalars(x, y *Node) int {
 	return 0
 }
 
+// sortedScalars is a sorted copy of the set elements items (compareScalars) with the repeated ones dropped.
 func sortedScalars(items []*Node) []*Node {
 	out := slices.Clone(items)
 	slices.SortStableFunc(out, compareScalars)
@@ -317,6 +327,8 @@ func (d *differ) positionFragment(n *Node, shape Shape) *Node {
 	return out
 }
 
+// valueFragment is the logical fragment of the value a position holds: a composite as a record fragment, a set sorted, a list's
+// records in element order; a null or a scalar as it is.
 func (d *differ) valueFragment(v *Node, shape Shape) *Node {
 	if v.Kind == KindNull {
 		return v
@@ -338,6 +350,8 @@ func (d *differ) valueFragment(v *Node, shape Shape) *Node {
 	return v
 }
 
+// recordFragment is the fragment of a record: its present declared fields in schema order, each as a position fragment.
+// Keys the schema does not declare are left out.
 func (d *differ) recordFragment(rec *Node, fields []NamedShape) *Node {
 	out := &Node{Kind: KindMap, Entries: make([]Entry, 0, len(rec.Entries))}
 	for _, f := range fields {

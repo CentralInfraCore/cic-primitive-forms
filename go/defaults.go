@@ -23,8 +23,10 @@ import "slices"
 
 // The two origins of a value (P3 design, section 2). Never "inherited": inheritance concerns policy rules.
 const (
+	// ValueOriginAuthored: the value is written in the input document.
 	ValueOriginAuthored = "authored"
-	ValueOriginDefault  = "default"
+	// ValueOriginDefault: the value is a schema default inserted for an absent field.
+	ValueOriginDefault = "default"
 )
 
 // ValueOrigin is the origin of one declared position that the output document holds.
@@ -70,12 +72,15 @@ func ApplyDefaults(doc *Node, root Shape, a []string) (*Defaulted, error) {
 	return res, nil
 }
 
+// defaulter is the state of one ApplyDefaults walk: the origin of every declared position it visits, and the first
+// error that stops it.
 type defaulter struct {
 	found []found
 	// err is set when a default would be inserted at a position whose logical path cannot be written: its origin would have no key.
 	err error
 }
 
+// record notes the origin of the position path (carried in the Code of a Violation so the found ordering applies).
 func (d *defaulter) record(path []seg, origin string) {
 	d.found = append(d.found, found{path: path, v: Violation{LogicalPath: logicalPath(path), Code: origin}})
 }

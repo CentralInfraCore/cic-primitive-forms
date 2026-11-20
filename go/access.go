@@ -41,6 +41,7 @@ var supportedGrammars = []int64{1, 2}
 // SupportedGrammars returns a copy of the grammar versions the pinned contract defines.
 func SupportedGrammars() []int64 { return slices.Clone(supportedGrammars) }
 
+// isSupported reports whether version is one of the grammar versions the pinned contract defines.
 func isSupported(version int64) bool { return slices.Contains(supportedGrammars, version) }
 
 // Grammar is a grammar version, bound once for a whole document.
@@ -49,8 +50,11 @@ type Grammar struct{ version int64 }
 // Version is the bound version.
 func (g Grammar) Version() int64 { return g.version }
 
+// binding is the ErrBinding *Error carrying the upstream grammar-binding code (GRAMMAR_VERSION_MISSING,
+// UNKNOWN_GRAMMAR_VERSION, GRAMMAR_VERSION_CONFLICT, GRAMMAR_DIGEST_MISMATCH).
 func binding(code string) error { return &Error{Kind: ErrBinding, BindingCode: code, Detail: code} }
 
+// isMissing reports whether a grammar version is absent: no node at all or an explicit null.
 func isMissing(v *Node) bool { return v == nil || v.Kind == KindNull }
 
 // checked: a version is an integer that is one of SupportedGrammars.
@@ -130,16 +134,21 @@ type Mode int
 
 // The three states.
 const (
+	// ModeInherit takes the parent's rule (grammar 1: true; grammar 2: "inherit").
 	ModeInherit Mode = iota
+	// ModeNoInherit does not take the parent's rule (grammar 1: false; grammar 2: "no-inherit").
 	ModeNoInherit
+	// ModeReset is the reset state (grammar 1: the integer 0; grammar 2: "reset").
 	ModeReset
 )
 
 // ModeInvalid is what ReadMode returns together with a violation: never one of the three states.
 const ModeInvalid Mode = -1
 
+// modeNames are the grammar-2 spellings, indexed by Mode.
 var modeNames = []string{"inherit", "no-inherit", "reset"}
 
+// invalid is a validation-phase Violation with code, anchored at the position of n.
 func invalid(code string, n *Node) *Violation {
 	return &Violation{Code: code, Phase: PhaseValidate, Location: loc(n.Pos)}
 }
@@ -222,8 +231,10 @@ type Rule struct {
 // uses \s, which in Python is the Unicode White_Space property plus U+001C to U+001F.
 func patternSpace(c rune) bool { return unicode.IsSpace(c) || (c >= 0x1c && c <= 0x1f) }
 
+// isLetter reports whether c is an ASCII letter.
 func isLetter(c rune) bool { return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' }
 
+// isAttr reports whether a is a CertPattern attribute name: [A-Za-z][A-Za-z0-9.-]*, non-empty.
 func isAttr(a string) bool {
 	for i, c := range a {
 		if i == 0 && !isLetter(c) {
