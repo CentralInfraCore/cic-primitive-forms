@@ -20,6 +20,7 @@ import gen_inputs  # noqa: E402
 
 
 def inputs():
+    """HAND + EXTRA + REGRESSIONS of gen_inputs.py with repeats dropped, in first-seen order: the texts the corpus pins."""
     seen, out = set(), []
     for t in gen_inputs.HAND + gen_inputs.EXTRA + gen_inputs.REGRESSIONS:
         if t not in seen:
@@ -29,12 +30,16 @@ def inputs():
 
 
 def same(r, g):
+    """True when the two outcomes agree for the corpus: equal, or both refusals with non-contract codes (the same answer,
+    a different reason).
+    """
     if r == g:
         return True
     return "err" in r and "err" in g and "CONTRACT" not in (r["err"], g["err"])
 
 
 def depth(j):
+    """The nesting depth of a decoded JSON value (0 for a scalar); used to leave out trees serde_json could not read back."""
     if isinstance(j, dict):
         return 1 + max((depth(v) for v in j.values()), default=0)
     if isinstance(j, list):
@@ -43,6 +48,10 @@ def depth(j):
 
 
 def main():
+    """Dispatch on the subcommand: `inputs` writes the corpus inputs hex-encoded; `merge` checks both dumps against the dump
+    format (compare.invalid), splits the inputs into agreed cases and known divergences, drops trees deeper than 60 and writes
+    the corpus JSON.
+    """
     if sys.argv[1] == "inputs":
         with open(sys.argv[2], "w") as f:
             for t in inputs():
