@@ -24,6 +24,9 @@ TRICKY = ["it's", 'say "hi" \\', "a: b", "a #b", " lead", "trail ", "true", "12"
 
 
 def typed(v):
+    """The typed-value form the dumps take ({"string": v}, {"integer": n}, {"boolean": b}, {"null": true}); a dict or a list becomes {"map": true} /
+    {"seq": true}, a composite the edit must refuse.
+    """
     if v is None:
         return {"null": True}
     if isinstance(v, dict):
@@ -113,6 +116,7 @@ def build(r):
 
 
 def render(r, lines):
+    """Join the lines with a drawn line end (LF, CRLF or lone CR), usually with a final one, and sometimes put a BOM in front."""
     eol = r.choice(["\n", "\n", "\n", "\r\n", "\r"])
     text = eol.join(lines) + (eol if r.random() < 0.85 else "")
     if r.random() < 0.1:
@@ -121,6 +125,9 @@ def render(r, lines):
 
 
 def draw_value(r, path, current):
+    """The new value of an edit at `path`: usually one of the kind the field holds, sometimes a value of a wrong kind or a composite, a TRICKY string
+    for a string field, or `current` itself (a no-op).
+    """
     kind = ("integer" if path.endswith(("count", "prefix", "metric")) else "boolean" if path.endswith("enabled") else "string")
     roll = r.random()
     if roll < 0.12:
@@ -149,6 +156,10 @@ def quoted_case(r, i):
 
 
 def case(r, i):
+    """One input of the edit differential: a drawn document, a path (one of its positions or one that is not editable or not there), the new value,
+    the original and whether its token is canonical, the path to edit back (None for a list key that needs escaping), and sometimes an independent
+    second position for the two orders of two edits. 15% of the cases are quoted_case.
+    """
     if r.random() < 0.15:
         return quoted_case(r, i)
     lines, fields = build(r)
@@ -173,6 +184,7 @@ def case(r, i):
 
 
 def main():
+    """Write --count cases from the seed to OUT, one JSON object per line with sorted keys."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=3000)
