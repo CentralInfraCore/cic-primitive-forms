@@ -57,10 +57,12 @@ OPAQUE = [None, 0, False, True, "s", "", [1, 2], [2, 1], {"x": 1, "y": 2}, {"y":
 
 
 def P(value, expanded=False, decl=None):
+    """A position of the generator's own form: the value, whether it is written expanded, and the drawn declaration fields (the others take the defaults)."""
     return {"v": value, "x": expanded, "d": decl or {}}
 
 
 def draw_decl(r):
+    """Declaration fields for an expanded position: each of the five drawn with probability 0.3 from its values, the rest left at the default."""
     d = {}
     for k, choices in (("access", ACCESS), ("modify", ACCESS), ("inherit", INHERIT), ("default_injection", DEFAULT_INJECTION), ("conformance", CONFORMANCE)):
         if r.random() < 0.3:
@@ -69,16 +71,19 @@ def draw_decl(r):
 
 
 def pos(r, value):
+    """Wrap a value as a position: one in five is written expanded, half of those with drawn declaration fields."""
     if r.random() < 0.2:
         return P(value, True, draw_decl(r) if r.random() < 0.5 else {})
     return P(value)
 
 
 def scalar_value(r, kind):
+    """A scalar of the declared type (string, integer or boolean) from the generator's pools."""
     return {"string": lambda: r.choice(WORDS), "integer": lambda: r.choice(INTS), "boolean": lambda: r.choice([True, False])}[kind]()
 
 
 def gen_value(r, spec):
+    """A value for a spec of diff_model's form: a scalar, a copy of an opaque value, a set of up to four members, a composite or a list."""
     kind, body = spec
     if kind == "scalar":
         return scalar_value(r, body)
@@ -93,14 +98,17 @@ def gen_value(r, spec):
 
 
 def gen_record(r, fields, p):
+    """A record of the given fields, each present with probability `p` as a drawn position."""
     return {n: pos(r, gen_value(r, s)) for n, s in fields.items() if r.random() < p}
 
 
 def key_value(r, name, case):
+    """A value for the key component `name` from small pools, so that identities collide and repeat across documents."""
     return {"name": r.choice(KEYS), "zone": r.choice(["z", "y"]), "port": r.choice(PORTS), "ref": r.choice(REFS), "vlan_id": r.choice([7, 8, 100])}[name]
 
 
 def gen_element(r, cases):
+    """A list element of a randomly chosen case: every key component present, each other field with probability 0.6."""
     ci = r.randrange(len(cases))
     _, key, fields = cases[ci]
     rec = {}
@@ -113,6 +121,7 @@ def gen_element(r, cases):
 
 
 def ident(rec, cases):
+    """The identity of an element in the generator's form: the case is selected by field presence, as ADR 0002 selects it."""
     for _, key, fields in cases:
         if all(k in fields for k in rec) and all(k in rec for k in key):
             return tuple((k, rec[k]["v"]) for k in key)
@@ -120,6 +129,7 @@ def ident(rec, cases):
 
 
 def gen_list(r, body):
+    """Up to four elements with distinct identities (a drawn duplicate is skipped)."""
     cases = body[1]
     out, seen = [], set()
     for _ in range(r.randint(0, 4)):
@@ -132,12 +142,17 @@ def gen_list(r, body):
 
 
 def gen_doc(r):
+    """A document over TREE: each top-level field present with probability 0.55."""
     return {n: pos(r, gen_value(r, s)) for n, s in FIELDS.items() if r.random() < 0.55}
 
 
 # --- the edits that make B out of A ---------------------------------------------------------------------------------------------------------
 
 def edit(r, doc):
+    """B out of A: one to four edits on a copy of the document.
+
+    A missing field is added; a present one is removed, has its writing (short or expanded) flipped, gets new declaration fields, or has its value edited.
+    """
     doc = copy.deepcopy(doc)
     for _ in range(r.randint(1, 4)):
         name = r.choice(sorted(FIELDS))
@@ -158,6 +173,11 @@ def edit(r, doc):
 
 
 def edit_value(r, p, spec):
+    """Edit the value of a position in place.
+
+    A scalar or opaque value is redrawn; a set loses or gains a member; a composite gets one or two field edits; a list loses an element, gains one with a new
+    identity, has a key component changed (one identity goes, another comes; undone if it would collide), has a free field edited, or is reversed.
+    """
     kind, body = spec
     if kind in ("scalar", "opaque"):
         p["v"] = gen_value(r, spec)
@@ -218,6 +238,7 @@ def edit_value(r, p, spec):
 # --- rendering ----------------------------------------------------------------------------------------------------------------------------------
 
 def render_value(v, spec, shuffle):
+    """The plain JSON of a value; with `shuffle` every list and set is reversed (the order ADR 0008 says is no difference)."""
     kind, body = spec
     if v is None:
         return None
@@ -233,6 +254,7 @@ def render_value(v, spec, shuffle):
 
 
 def render_position(p, spec, shuffle):
+    """The plain JSON of a position: the value itself when short, otherwise the wrapper with every declaration field (defaults filled in)."""
     value = render_value(p["v"], spec, shuffle)
     if not p["x"]:
         return value
@@ -242,6 +264,7 @@ def render_position(p, spec, shuffle):
 
 
 def render_record(rec, fields, shuffle):
+    """The plain JSON of a record; with `shuffle` the fields are written in reverse order as well."""
     items = list(rec.items())
     if shuffle:
         items = items[::-1]
@@ -249,6 +272,7 @@ def render_record(rec, fields, shuffle):
 
 
 def render(doc, shuffle=False):
+    """The plain JSON of a whole document over TREE, optionally with every list, set and mapping in another order."""
     return render_record(doc, FIELDS, shuffle)
 
 
@@ -277,6 +301,11 @@ def place_paths(doc):
 
 
 def draw_scope(r, a, b):
+    """A scope for the pair, or (None, None) for an unscoped diff (45 in 100).
+
+    One to three places of either document, sometimes with an element neither has, the root, a repeated entry and an entry that contains another. Returns
+    the paths as texts (for the implementations) and as segments (for the model).
+    """
     if r.random() < 0.45:
         return None, None
     pool = place_paths(a) + place_paths(b)
@@ -319,6 +348,7 @@ def inject(r, a_docs, b_docs):
 
 
 def case(r, i):
+    """One input line: A, B (an edit of A, or an independent draw in 15 of 100), their shuffled renderings, a scope, and an injected fault in 10 of 100."""
     a = gen_doc(r)
     b = gen_doc(r) if r.random() < 0.15 else edit(r, a)
     scope, scope_segs = draw_scope(r, a, b)
@@ -330,6 +360,7 @@ def case(r, i):
 
 
 def main():
+    """Write the tree line and `--count` cases from `--seed` to the output file."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=3000)

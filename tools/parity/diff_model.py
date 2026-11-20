@@ -2,14 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """An independent model of `diff` (ADR 0008), written in Python from the ADR, for the differential of P4 step D3b.
 
-    diff_model.py --selftest          run the model on every vector of corpus/diff (tree `main`): it must reproduce all 66 canonical strings
+    diff_model.py --selftest          run the model on every vector of corpus/diff (tree `main`): it must reproduce every positive vector's canonical string
 
 The model is the third opinion next to the Rust and the Go implementations. It shares no code with them: it works on plain JSON-like trees (dict = mapping,
 list = sequence, `{"__u": "1.5"}` = an unsupported number), writes the canonical bytes with `json.dumps` (sorted keys, no whitespace, no ASCII escaping: the
 rule of ADR 0008 for the strings the model meets), and reads the schema in the tree notation of the corpus (`trees:` of corpus/diff/vectors.yaml).
 Its author is the author of the implementations, so it is a cross-check against transcription errors and shared bugs of the code, not an independent reading of
-the ADR; what makes it worth having is that it has to reproduce the 66 hand-derived vectors first (the same bar as the code), and that its structure is not the
-code's (events are built bottom-up from the expanded trees, the order is one sort at the end, the canonical bytes are not written by hand).
+the ADR; what makes it worth having is that it has to reproduce the positive ones of the 66 hand-derived vectors first (the same bar as the code), and that
+its structure is not the code's (events are built bottom-up from the expanded trees, the order is one sort at the end, the canonical bytes are not written by
+hand).
 
 It models VALID operands only. A refusal (invalid view, unsupported number, context mismatch) is checked by the generator's own expectation, not here.
 """
@@ -22,6 +23,7 @@ A_KEYS = set(DECL) | {"value"}
 
 
 class Model(Exception):
+    """The model cannot answer: a list element no single case fits, null against a collection, or a scope path below a value of the wrong shape."""
     pass
 
 
@@ -33,6 +35,11 @@ def tj(v):
 # --- the schema in the notation of the corpus ----------------------------------------------------------------------------------------------
 
 def parse_field(spec):
+    """One field of the corpus tree notation in the model's form.
+
+    ("opaque", None), ("scalar", type), ("set", type), ("comp", fields) or ("list", (is_choice, [(case name, key, fields)])); a list without `choice` is one
+    unnamed case.
+    """
     if spec == "opaque":
         return ("opaque", None)
     (kind, body), = spec.items()
@@ -49,16 +56,19 @@ def parse_field(spec):
 
 
 def parse_tree(tree):
+    """The fields of a tree of the corpus notation, each read by parse_field."""
     return {n: parse_field(s) for n, s in tree.items()}
 
 
 # --- reading a view: the expanded form ---------------------------------------------------------------------------------------------------
 
 def is_wrapper(x):
+    """True for the expanded writing of a position: a mapping with exactly the five declaration fields and `value`."""
     return isinstance(x, dict) and set(x) == A_KEYS
 
 
 def through(x):
+    """The value of a position, looking through the expanded wrapper (an identity component may be written expanded)."""
     return x["value"] if is_wrapper(x) else x
 
 
@@ -77,6 +87,7 @@ def identify(rec, choice, cases):
 
 
 def expand_position(raw, spec):
+    """A position in expanded form: its declaration (the defaults for a short writing), its expanded value, and whether it was written expanded."""
     expanded = is_wrapper(raw)
     value = raw["value"] if expanded else raw
     decl = {k: raw[k] for k in DECL} if expanded else dict(DEFAULTS)
@@ -84,10 +95,15 @@ def expand_position(raw, spec):
 
 
 def expand_record(raw, fields):
+    """Every present field of a record, expanded against its declared spec."""
     return {n: expand_position(v, fields[n]) for n, v in raw.items()}
 
 
 def expand_value(v, spec):
+    """A value in expanded form: a composite becomes an expanded record, a list becomes (case index, identity, expanded record) triples.
+
+    Scalars, opaque values, sets and null are kept as they are. Raises Model when a list element does not select exactly one case.
+    """
     kind, body = spec
     if v is None or kind in ("scalar", "opaque", "set"):
         return v
@@ -104,12 +120,14 @@ def expand_value(v, spec):
 # --- paths ---------------------------------------------------------------------------------------------------------------------------------------
 
 def key_text(v):
+    """One identity component as a path writes it: an integer in decimal, a string in double quotes with backslash and quote escaped."""
     if isinstance(v, int) and not isinstance(v, bool):
         return str(v)
     return '"' + v.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 def path_text(segs):
+    """The text of a path: `$`, then `.name` for a field and `[{k=v,...}]` for a list element, its components in the declared key order."""
     out = "$"
     for s in segs:
         if s[0] == "f":
@@ -127,12 +145,14 @@ def seg_order(s):
 
 
 def path_order(segs):
+    """The sort key of a path: the seg_order of each segment, so a path sorts before the paths below it."""
     return tuple(seg_order(s) for s in segs)
 
 
 # --- fragments -----------------------------------------------------------------------------------------------------------------------------------
 
 def scalar_order(v):
+    """The sort key of a scalar in a set or a list identity: null, then booleans, then integers numerically, then strings by UTF-8 bytes."""
     if v is None:
         return (0, 0)
     if isinstance(v, bool):
@@ -143,6 +163,7 @@ def scalar_order(v):
 
 
 def sorted_set(items):
+    """The members of a set in scalar_order, duplicates removed by their typed canonical text (1 and true stay two members)."""
     seen, out = set(), []
     for x in sorted(items, key=scalar_order):
         if tj(x) not in seen:
@@ -152,6 +173,10 @@ def sorted_set(items):
 
 
 def frag_value(v, spec):
+    """The fragment of an expanded value as an added or removed event carries it.
+
+    Sets sorted and without duplicates, list elements in the order of case index then identity, records recursively; scalars and opaque values as they are.
+    """
     kind, body = spec
     if v is None:
         return None
@@ -166,29 +191,38 @@ def frag_value(v, spec):
 
 
 def frag_position(p, spec):
+    """The fragment of a position: always the expanded writing, its five declaration fields and the fragment of its value."""
     out = dict(p["decl"])
     out["value"] = frag_value(p["value"], spec)
     return out
 
 
 def frag_record(rec, fields):
+    """The fragment of an expanded record: every present field as frag_position."""
     return {n: frag_position(p, fields[n]) for n, p in rec.items()}
 
 
 # --- the diff -------------------------------------------------------------------------------------------------------------------------------------
 
 class Diff:
+    """The events of one diff, collected while two expanded trees are walked; diff() sorts them once at the end.
+
+    `changes` holds (path order, kind, event), `rep` holds (path order, representation entry): the walk itself promises no order.
+    """
     def __init__(self):
         self.changes = []
         self.rep = []
 
     def event(self, segs, kind, **fields):
+        """Collect an event of `kind` at `segs`; the event gets its `kind` and the text of its path besides the given fields."""
         self.changes.append((path_order(segs), kind, dict(fields, kind=kind, path=path_text(segs))))
 
     def gone(self, kind, segs, frag):
+        """Collect an `added` event (the fragment as `next`) or a `removed` one (the fragment as `previous`) at `segs`."""
         self.event(segs, kind, **({"next": frag} if kind == "added" else {"previous": frag}))
 
     def record(self, fields, ra, rb, segs):
+        """Compare two expanded records field by field: a field in both is compared as a position, a field in one only is added or removed."""
         for name, spec in fields.items():
             here = segs + [("f", name)]
             if name in ra and name in rb:
@@ -199,6 +233,9 @@ class Diff:
                 self.gone("added", here, frag_position(rb[name], spec))
 
     def position(self, spec, pa, pb, segs):
+        """Compare two positions: one policy_declaration_change naming every declaration field that differs, a representation entry when one is short
+        and the other expanded, then the values.
+        """
         changed = {k: {"previous": pa["decl"][k], "next": pb["decl"][k]} for k in DECL if tj(pa["decl"][k]) != tj(pb["decl"][k])}
         if changed:
             self.event(segs, "policy_declaration_change", changed=changed)
@@ -209,6 +246,12 @@ class Diff:
         self.value(spec, pa["value"], pb["value"], segs)
 
     def value(self, spec, va, vb, segs):
+        """Compare two values of one spec.
+
+        A scalar or opaque value gives a value_change when the typed texts differ; a set gives one set_change with the members added and removed; a composite is
+        compared as a record; list elements are matched by (case, identity), compared when both have them and otherwise added or removed. Null against null is no
+        change, null against a collection raises Model.
+        """
         kind, body = spec
         if kind in ("scalar", "opaque"):
             if tj(va) != tj(vb):
@@ -268,6 +311,7 @@ def locate(root_rec, fields, segs):
 
 
 def reduce_scope(entries):
+    """The scope entries that count: an entry below another entry and a repeated entry are dropped, the rest keep their order."""
     keep = []
     for i, e in enumerate(entries):
         inside = any(len(o) < len(e) and e[:len(o)] == o for o in entries)
@@ -340,6 +384,10 @@ def parse_path_text(text):
 
 
 def selftest():
+    """Run the model on the positive `diff` and `diff_stability` vectors of corpus/diff (every variant of a stability case) against tree `main`.
+
+    Prints each mismatch with the expected canonical string; returns 1 on any mismatch or when fewer than 58 strings were reproduced, else 0. Needs PyYAML.
+    """
     import os
     import yaml
     here = os.path.dirname(os.path.abspath(__file__))

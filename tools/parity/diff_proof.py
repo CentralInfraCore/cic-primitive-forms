@@ -20,10 +20,12 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 import seeded_defects as sd  # noqa: E402
 
 def compare(inputs, rust, go):
+    """Run compare_diff.py on the given inputs and dumps and return the finished process."""
     return subprocess.run([sys.executable, os.path.join(HERE, "compare_diff.py"), inputs, rust, go, "--show", "1"], capture_output=True, text=True)
 
 
 def dump(lang, module, inputs, out, env):
+    """Make the `parity_diff_dump` of one language in the module directory, with the inputs and the output file passed through the environment."""
     e = dict(env, PARITY_DIFF_IN=inputs, PARITY_DIFF_OUT=out)
     cmd = (["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--test", "parity_diff_dump"] if lang == "rust"
            else ["go", "test", "-count=1", "-run", "^TestDumpDiffOutcomes$", "."])
@@ -31,6 +33,10 @@ def dump(lang, module, inputs, out, env):
 
 
 def main():
+    """Check the unmutated dumps, then plant each "diff:" defect in a prepared copy of its language and compare its dump with the other language's.
+
+    Returns 1 when a defect is not seen or stops the dump from being written, 2 when CIC_PRIMITIVES_ROOT or CIC_REGISTRY_ROOT is not set.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs")
     ap.add_argument("rust")

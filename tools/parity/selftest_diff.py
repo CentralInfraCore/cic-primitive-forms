@@ -19,21 +19,28 @@ EMPTY = '{"changes":[],"representation":[],"version":1}'
 
 
 def load(path):
+    """The JSON lines of a file, blank lines skipped, in file order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def write(path, rows):
+    """Write rows as JSON lines with sorted keys, so a broken copy can be handed to compare_diff.py."""
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n")
 
 
 def first(rows, pred):
+    """The index of the first row that satisfies `pred` (StopIteration when the dumps have none)."""
     return next(i for i, r in enumerate(rows) if pred(r))
 
 
 def main():
+    """Build every break on copies of the dumps, run compare_diff.py on each, and return 1 if one stays green or crashes.
+
+    The unbroken dumps must pass both with and without the model as well.
+    """
     inputs_p, rust_p, go_p = sys.argv[1:4]
     head, *cases = load(inputs_p)
     rust, go = load(rust_p), load(go_p)

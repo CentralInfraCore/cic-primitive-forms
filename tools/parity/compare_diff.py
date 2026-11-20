@@ -34,19 +34,23 @@ EMPTY = '{"changes":[],"representation":[],"version":1}'
 
 
 def load(path):
+    """The JSON lines of a file, blank lines skipped, in file order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def canon(v):
+    """The canonical text of a JSON value as ADR 0008 writes it: sorted keys, no white space, no ASCII escaping."""
     return json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def segs_of(raw):
+    """Scope segments read back from the JSON of gen_diff.py (lists) into the tuples diff_model.py takes."""
     return [("f", s[1]) if s[0] == "f" else ("i", tuple((k, v) for k, v in s[1])) for s in raw]
 
 
 def mirror_event(e):
+    """The event of B to A that matches an event of A to B: added and removed exchanged with their fragment, previous and next exchanged."""
     m = dict(e)
     if e["kind"] == "added":
         m = {"kind": "removed", "path": e["path"], "previous": e["next"]}
@@ -62,10 +66,14 @@ def mirror_event(e):
 
 
 def mirror_rep(r):
+    """A representation entry turned round: previous and next exchanged."""
     return {"kind": r["kind"], "path": r["path"], "previous": r["next"], "next": r["previous"]}
 
 
 def check_inversion(ab, ba, i, problems):
+    """Check that B to A is A to B turned round: the mirrored events (as a set, then their paths in order, because exchanging added and removed
+    can reorder two events at one path) and the mirrored representation entries.
+    """
     x, y = json.loads(ab), json.loads(ba)
     if [mirror_event(e) for e in x["changes"]] != y["changes"]:
         # the order is by path then kind, and exchanging added and removed can change the order of two events at one path: compare as sets, then the order
@@ -78,6 +86,11 @@ def check_inversion(ab, ba, i, problems):
 
 
 def check_case(case, rr, gr, problems, stats):
+    """Check the four answers of one input and add to `problems` and `stats`.
+
+    The two languages must be byte for byte equal first; an injected fault must then give the stated error with the operand of its side; a valid pair must be
+    accepted, match the model (unless COMPARE_DIFF_NO_MODEL is set), and keep stability, identity, the canonical form and inversion.
+    """
     i = case["id"]
     for name in ("ab", "ba", "aa", "abs"):
         if rr[name] != gr[name]:
@@ -144,10 +157,12 @@ def check_case(case, rr, gr, problems, stats):
 
 
 def _no_float(text):
+    """parse_float hook: a float in the canonical bytes is an error, not a number."""
     raise ValueError("a float in the canonical bytes: " + text)
 
 
 def main():
+    """Compare the dumps line by line with the inputs, print the problems and the counts, and return 1 on any problem or a thin run."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs")
     ap.add_argument("rust")
