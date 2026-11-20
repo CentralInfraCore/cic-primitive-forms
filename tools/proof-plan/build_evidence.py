@@ -30,6 +30,7 @@ class BuilderError(Exception):
 
 
 def _digest(path):
+    """The hex SHA-256 of the file at `path`; BuilderError if it cannot be read."""
     try:
         with open(path, "rb") as f:
             return hashlib.sha256(f.read()).hexdigest()
@@ -68,6 +69,12 @@ def closure(nodes, subject):
 
 def build_evidence(graph, keys, subject_id, extractor, provenance, data_digest, environment_digest, opaque_reads=(), verdict=None,
                    kind="test", rule_version=RULE_VERSION, evidence_id=None):
+    """The evidence record (contract v2, evidence.py) for `subject_id` from the extractor's `graph`.
+
+    Collects the constructs and the opaque dependencies of the subject's closure and marks the analysis INCOMPLETE, with one
+    reason per gap, when the graph has another schema, the subject has no node, or a node of the closure reports no constructs
+    or no COMPLETE analysis. `code_closure_digest` is the subject's Merkle key from `keys`, or an `unknown:no-key:` placeholder
+    that never matches a real key. `verdict` is attached only when given; `evidence_id` is added to the provenance."""
     nodes = {n["id"]: n for n in graph.get("nodes", [])} if isinstance(graph, dict) else {}
     unresolved, constructs, opaque = [], set(), []
     if not isinstance(graph, dict) or graph.get("schema") != GRAPH_SCHEMA:

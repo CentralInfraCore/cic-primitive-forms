@@ -41,10 +41,12 @@ HEADER = ("# GENERATED from p1.yml by tools/proof-plan/gen_p1_proof.py: do not e
 
 
 class Unsupported(Exception):
+    """p1.yml has changed in a way the generator does not understand (a substitution did not match exactly once)."""
     pass
 
 
 def once(text, old, new):
+    """`text` with `old` replaced by `new`; Unsupported unless `old` occurs exactly once."""
     if text.count(old) != 1:
         raise Unsupported("expected exactly one %r in p1.yml, found %d" % (old, text.count(old)))
     return text.replace(old, new)
@@ -157,6 +159,9 @@ def job_block(text, job):
 
 
 def wire_tests(text):
+    """Rewire the `rust` and `go` jobs onto the plan: they also need proof-plan, download its plan after their first checkout,
+    choose main's select_tests.py on a pull request to main (CHOOSE), and run their tests through `select_tests.py run`, uploading
+    what they observed. Unsupported when a job's `needs`, first checkout step or test command is not the one expected."""
     for job, (old, new) in TEST_STEPS.items():
         a, b = job_block(text, job)
         block = text[a:b]
@@ -205,6 +210,9 @@ COMPARE_JOB = """
 
 
 def generate(src_text):
+    """The text of p1-proof.yml made from the text of p1.yml (the substitutions listed in the module doc).
+
+    Pure; raises Unsupported when any substitution does not match exactly once. proof-compare needs every job of the result."""
     t = once(src_text, "name: p1\n", "name: p1-proof\n" + HEADER)
     t, n = re.subn(r"  workflow_call:.*\n(?:    .*\n)+(?=  push:)", "", t)
     if n != 1:
@@ -217,6 +225,7 @@ def generate(src_text):
 
 
 def main(argv):
+    """Write p1-proof.yml, or with --check compare it with the generator's output and return 1 on a difference."""
     out = generate(open(SRC).read())
     if "--check" in argv:
         have = open(DST).read() if os.path.exists(DST) else None

@@ -1,4 +1,4 @@
-"""From the planner's decisions to the commands that run only what has to run (REPORT ONLY in this step: nothing here is obeyed by a job).
+"""From the planner's decisions to the commands that run only what has to run (`check` only reports; `run` is the test step of p1-proof's rust and go jobs).
 
     python3 select_tests.py check --plan plan.json --repo . --rust-toolchain T     prints what would be skipped and checks the commands against the real test lists
     python3 select_tests.py run go|rust --plan plan.json --repo . [--rust-toolchain T] [--observed-out F]   runs the tests of p1-proof's job: the p1 command, minus the
@@ -25,18 +25,22 @@ LIB = "cic_primitive_forms"
 
 
 def eligible(plan, lang):
+    """The sorted test names (key without the `<lang>:` prefix) the plan calls REUSE_ELIGIBLE for `lang`; authority is not checked here."""
     return sorted(d["key"][len(lang) + 1:] for d in plan["decisions"] if d["status"] == "REUSE_ELIGIBLE" and d["key"].startswith(lang + ":"))
 
 
 def authorized(plan):
+    """True when the plan may authorize skipping: its earlier evidence and its planner both come from main (plan.authority)."""
     return pl.authority(plan.get("previous_source") or {"trust": "none"}, plan.get("tooling_trust"))[0]
 
 
 def go_skip_regex(names):
+    """The anchored `-skip` pattern matching exactly the given Go test names (escaped), or None for no names."""
     return "^(" + "|".join(re.escape(n) for n in names) + ")$" if names else None
 
 
 def go_command(names):
+    """The p1 Go test command (`go test` with the gate's flags), with `-skip` for `names` when there are any."""
     cmd = ["go", "test"] + GO_FLAGS
     if names:
         cmd += ["-skip", go_skip_regex(names)]
@@ -53,6 +57,7 @@ def rust_groups(names):
 
 
 def rust_target_args(target):
+    """The cargo arguments that select a test target: `--lib` for the library crate, `--test <name>` for an integration test."""
     return ["--lib"] if target == LIB else ["--test", target]
 
 
@@ -63,6 +68,7 @@ def rust_commands(names):
 
 
 def go_listed(root):
+    """The sorted names of the Go tests and fuzz targets that exist (`go test -list` over ./...)."""
     out = subprocess.run(["go", "test", "-list", ".*", "./..."], cwd=os.path.join(root, "go"), capture_output=True, text=True, check=True).stdout
     return sorted({l for l in out.splitlines() if l.startswith(("Test", "Fuzz"))})
 
@@ -134,6 +140,7 @@ def run_go(plan, repo, observed_out=None):
 
 
 def rust_executables(repo, tc):
+    """[(target, executable)] of the Rust test binaries `cargo test --no-run` builds, or None (stderr echoed) when the build fails."""
     b = subprocess.run(["rustup", "run", tc, "cargo", "test", "--locked", "--no-run", "--message-format=json"], cwd=os.path.join(repo, "rust"),
                        capture_output=True, text=True)
     if b.returncode:
@@ -184,6 +191,8 @@ def run_rust(plan, repo, tc, observed_out=None):
 
 
 def main():
+    """`run`: run the language's tests with the plan's skips (none without a readable plan) and return their exit code. `check`:
+    print what would be skipped and verify the skip commands against the real test listings; 1 on a mismatch, else 0."""
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["check", "run"])
     ap.add_argument("lang", nargs="?", choices=["go", "rust"])
