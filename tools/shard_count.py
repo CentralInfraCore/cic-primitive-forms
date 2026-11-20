@@ -17,6 +17,11 @@ import sys
 
 
 def shard_count(budget, lang, mutants):
+    """Return the shard count for `mutants` mutants of `lang` under the budget manifest.
+
+    The larger of the size bound and the time bound, clamped to [1, max_shards]. Raises
+    ValueError for a negative mutant count or a fixed cost that leaves no usable budget.
+    """
     if mutants < 0:
         raise ValueError("a negative number of mutants")
     usable = budget["budget_seconds"] - budget["fixed_seconds"]
@@ -28,6 +33,7 @@ def shard_count(budget, lang, mutants):
 
 
 def main():
+    """Parse the command line, print the count and write `<lang>_n` and `<lang>_shards` to --github-output."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lang", required=True, choices=("rust", "go"))
     ap.add_argument("--mutants", required=True, type=int)

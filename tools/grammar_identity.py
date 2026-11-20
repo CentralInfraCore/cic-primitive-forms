@@ -56,10 +56,12 @@ def sorted_by_path(entries):
 
 
 def manifest_text(entries):
+    """The manifest in `sha256sum` format: one `<sha256>  <path>` line per file, LF ends, in path-byte order."""
     return "".join("%s  %s\n" % (sha, path) for path, sha in sorted_by_path(entries))
 
 
 def manifest_digest(entries):
+    """The manifest digest: SHA-256 (hex) of the manifest text's UTF-8 bytes."""
     return hashlib.sha256(manifest_text(entries).encode("utf-8")).hexdigest()
 
 
@@ -69,15 +71,21 @@ def pin_name(repo, commit, digest):
 
 
 def git(repo, *args):
+    """Run git in `repo` without raising; returns the CompletedProcess (stdout as bytes)."""
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, check=False)
 
 
 def blob(repo, commit, path):
+    """The raw blob bytes of `path` at `commit`, or None when it is not there."""
     r = git(repo, "cat-file", "blob", "%s:%s" % (commit, path))
     return r.stdout if r.returncode == 0 else None
 
 
 def compute(repo, commit):
+    """Return [(path, sha256)] of the accepted file set at `commit` in `repo`.
+
+    Exits (SystemExit) when a file of GRAMMAR_FILES is missing from the commit.
+    """
     entries = []
     for p in GRAMMAR_FILES:
         data = blob(repo, commit, p)
@@ -88,6 +96,7 @@ def compute(repo, commit):
 
 
 def load_pins(path):
+    """Load the `grammar` section of a pins file: {pin name: pin}."""
     with open(path, encoding="utf-8") as fh:
         return yaml.safe_load(fh)["grammar"]
 
@@ -128,6 +137,7 @@ REASONS = ("GRAMMAR_REPO_UNREADABLE", "COMMIT_MISMATCH", "FILESET_MISMATCH", "FI
 
 
 def run_verify(pins_path, repo):
+    """Verify every grammar pin of the pins file against `repo`; print ok/FAIL lines and return the exit status (no pin is a failure)."""
     pins = load_pins(pins_path)
     if not pins:
         print("GRAMMAR IDENTITY: FAIL (no grammar pin)")
@@ -149,6 +159,11 @@ def run_verify(pins_path, repo):
 # --- self-test: a throwaway Git repository with seeded faults ----------------------
 
 def make_repo(root, tweak=None):
+    """Create a throwaway Git repository at `root` holding synthetic GRAMMAR_FILES, committed once.
+
+    The files carry CRLF line ends to prove that nothing is normalized. Returns (commit,
+    a git runner for that repository, its environment); `tweak` is unused.
+    """
     os.makedirs(root)
     env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
     def run(*a):
@@ -166,6 +181,13 @@ def make_repo(root, tweak=None):
 
 
 def selftest():
+    """Seeded-fault proof that `verify` can fail for every reason, on a throwaway repository.
+
+    Checks that the unmodified pin reproduces, that the digest matches an independent
+    `sha256sum` pipeline, that ordering is by path bytes rather than by line, that every
+    REASONS entry is triggered by some fault, and that a dirty working tree does not matter
+    (the blob of the commit is read). Returns 0 only if all of that holds.
+    """
     work = tempfile.mkdtemp(prefix="grammar-id-")
     failed = 0
     try:
@@ -240,6 +262,7 @@ def selftest():
 
 
 def main():
+    """Parse the command line and run `compute`, `commit`, `verify` or `selftest`; returns the exit status."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("compute"); c.add_argument("--repo", required=True); c.add_argument("--commit", required=True)

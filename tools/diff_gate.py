@@ -82,6 +82,7 @@ HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
 
 def git(root, *args):
+    """Run git in `root` and return its stdout; raises CalledProcessError on a non-zero exit."""
     # a text file with a byte that is not UTF-8 (and no NUL) is diffed as text: decoding it strictly crashed the scope job (#115). The bytes survive as
     # surrogate escapes; such a file is never product code, so its lines are not read, and nothing here writes them back out.
     return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True, errors="surrogateescape", check=True).stdout
@@ -115,6 +116,11 @@ def parse_diff(text):
 
 
 def balanced(lines):
+    """True when the opening and closing (), [] and {} of the lines net out to zero.
+
+    String and rune literals and `//` comments are stripped first. It is the check that a
+    pure-addition hunk is a whole item, not a fragment of an existing body.
+    """
     depth = 0
     for ln in lines:
         code = re.sub(r'"(?:\\.|[^"\\])*"|`[^`]*`|\'(?:\\.|[^\'\\])\'', "", ln.split("//")[0])
@@ -186,6 +192,7 @@ def only_imports_grow(kind_, removed, added):
 
 
 def read_head(root, head, path):
+    """The lines of `path` at revision `head`, or [] when the file does not exist there."""
     try:
         return git(root, "show", "%s:%s" % (head, path)).splitlines()
     except subprocess.CalledProcessError:
@@ -243,6 +250,7 @@ def rust_target(path):
 
 
 class MeasureError(Exception):
+    """The coverage of the changed tests could not be measured; the scope falls back to `full`."""
     pass
 
 
@@ -284,6 +292,7 @@ def carry_lines(base_lines, head_lines, lines):
 
 
 def merge_ranges(ranges):
+    """Merge [first, last] line ranges that overlap or touch into a sorted, disjoint list."""
     out = []
     for a, b in sorted(ranges):
         if out and a <= out[-1][1] + 1:
@@ -294,6 +303,7 @@ def merge_ranges(ranges):
 
 
 def to_ranges(lines):
+    """Turn a set of line numbers into merged [first, last] ranges."""
     return merge_ranges([[n, n] for n in lines])
 
 
@@ -359,6 +369,14 @@ def measure(root, base, head, widen, product_rust, product_go, run=run_coverage)
 
 
 def classify(root, base, head):
+    """Classify the change base..head and collect the product lines it touches.
+
+    Returns (verdict, product_rust, product_go). The verdict holds `mode` (`diff` or
+    `full`), the `reasons` for `full`, informational `notes` and `widen`: the changed tests,
+    per language and target, whose base coverage could narrow a `full` back to `diff`
+    (it is `full` with the PENDING reason until `--measure` runs them). product_rust and
+    product_go map a product file to (changed line ranges, its lines at head).
+    """
     diff = parse_diff(git(root, "diff", "--unified=0", "--no-renames", base, head))
     reasons, product_rust, product_go, notes = [], {}, {}, []
     widen = {}   # {"go": {"go": {test}}, "rust": {target: {test}}}: the changed tests whose coverage joins the diff (#92)
@@ -457,6 +475,13 @@ def narrowed(verdict, run_measure):
 
 
 def write_outputs(out, verdict, product_rust, product_go):
+    """Write scope.json, rust.patch and diff-lines.json into `out`; return the final verdict.
+
+    rust.patch is a synthetic unified diff of the changed rust/src lines with paths relative
+    to the crate root (what `cargo mutants --in-diff` matches); diff-lines.json maps each
+    product Go file to its changed line ranges. The returned verdict adds the file lists and
+    range counts that scope.json records.
+    """
     os.makedirs(out, exist_ok=True)
     patch = []
     for path, (ranges, lines) in sorted(product_rust.items()):
@@ -492,6 +517,7 @@ def changed_original_lines(original, changed):
 
 
 def in_diff(lines_file, rel, original, changed):
+    """True when the mutant (`changed` against `original`) changes a line inside the diff ranges recorded for `rel`."""
     with open(lines_file, encoding="utf-8") as fh:
         ranges = json.load(fh).get(rel, [])
     touched = changed_original_lines(original, changed)
@@ -499,6 +525,7 @@ def in_diff(lines_file, rel, original, changed):
 
 
 def main():
+    """Parse the command line and run `scope` or `in-diff`; returns the exit status."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("scope")
