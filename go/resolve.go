@@ -21,29 +21,44 @@ type RuleKind int
 // The effective rule kinds: a list of CertPatterns (possibly empty: a terminal "nobody"), the symbols open and owner, none (a
 // reset barrier with no local rule) and unknown (the walk had to read something that is not known).
 const (
+	// RuleList is a list of CertPatterns in Patterns; the empty list is a terminal "nobody".
 	RuleList RuleKind = iota
+	// RuleOpen is the symbol open: anyone.
 	RuleOpen
+	// RuleOwner is the symbol owner: the owner of the object.
 	RuleOwner
+	// RuleNone is a reset barrier with no local rule below it (Reason RESET_NO_LOCAL_RULE); not a permission.
 	RuleNone
+	// RuleUnknown is a rule the walk could not find because it had to read something not known; not a permission.
 	RuleUnknown
 )
 
 // The layers an effective rule is found in.
 const (
-	LayerField           = "field"
-	LayerSurfaceRule     = "surface_rule"
-	LayerObjectDefault   = "object_default"
-	LayerFieldInherited  = "field_inherited"
+	// LayerField: the target position's own explicit rule (layer 1).
+	LayerField = "field"
+	// LayerSurfaceRule: a surface rule of the containing object for the requested surface (layer 2).
+	LayerSurfaceRule = "surface_rule"
+	// LayerObjectDefault: the containing object's declared default_access / default_modify (layer 3).
+	LayerObjectDefault = "object_default"
+	// LayerFieldInherited: the nearest explicit rule a carrier passes down (layer 4a).
+	LayerFieldInherited = "field_inherited"
+	// LayerPolicyInherited: a surface rule or default of an ancestor's PolicySurface (layer 4b).
 	LayerPolicyInherited = "policy_inherited"
-	LayerSystem          = "system"
-	LayerNone            = "none"
+	// LayerSystem: the documented system default, open for access and owner for modify (layer 5).
+	LayerSystem = "system"
+	// LayerNone: the layer of a rule that is none or unknown.
+	LayerNone = "none"
 )
 
 // The reasons of a rule that is none or unknown (the reference codes).
 const (
-	ReasonResetNoLocalRule     = "RESET_NO_LOCAL_RULE"
+	// ReasonResetNoLocalRule: a reset barrier was crossed and no rule was found below it.
+	ReasonResetNoLocalRule = "RESET_NO_LOCAL_RULE"
+	// ReasonPolicyContextUnknown: the walk had to read the PolicySurface of an object whose policy is unknown.
 	ReasonPolicyContextUnknown = "POLICY_CONTEXT_UNKNOWN"
-	ReasonContextIncomplete    = "CONTEXT_INCOMPLETE"
+	// ReasonContextIncomplete: the object, or a parent the walk needs, is not in the graph (or the parent chain loops).
+	ReasonContextIncomplete = "CONTEXT_INCOMPLETE"
 	// ReasonUnknownOperation: the operation is neither "access" nor "modify"; nothing is read for it (#85).
 	ReasonUnknownOperation = "UNKNOWN_OPERATION"
 )
@@ -67,8 +82,11 @@ type PolicyState int
 
 // absent: known to have none (transparent); unknown: not known (an error where the walk has to read it); declared: Surface.
 const (
+	// PolicyAbsent: the object is known to declare no PolicySurface; it is transparent.
 	PolicyAbsent PolicyState = iota
+	// PolicyUnknown: the object's policy is not known; a walk that has to read it yields an unknown rule.
 	PolicyUnknown
+	// PolicyDeclared: the object declares the PolicySurface in Surface.
 	PolicyDeclared
 )
 
@@ -102,10 +120,13 @@ type PolicyObject struct {
 // PolicyGraph maps an object ID to the object.
 type PolicyGraph map[string]*PolicyObject
 
+// unknownRule is the unknown effective rule with reason.
 func unknownRule(reason string) EffectiveRule {
 	return EffectiveRule{Kind: RuleUnknown, Layer: LayerNone, Reason: reason}
 }
 
+// fromRule is the effective rule of a declared PolicyRule found in layer and declared at source: the symbol open or owner, or a
+// copy of its pattern list.
 func fromRule(r *PolicyRule, layer, source string) EffectiveRule {
 	switch r.Symbol {
 	case "open":

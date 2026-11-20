@@ -85,6 +85,8 @@ func read(body string, bomLen int, limits Limits) (*Node, error) {
 	return w.node(doc.Content[0], 0)
 }
 
+// walker converts the yaml.v3 node tree into a Node tree: it maps positions through table, applies
+// the subset's refusals node by node, and counts nodes and depth against limits.
 type walker struct {
 	table  *table
 	limits Limits
@@ -93,6 +95,7 @@ type walker struct {
 	endsWithBreak bool
 }
 
+// count adds one node to the running total and fails with a limit error once it exceeds MaxNodes.
 func (w *walker) count() error {
 	w.nodes++
 	if w.nodes > w.limits.MaxNodes {
@@ -101,6 +104,7 @@ func (w *walker) count() error {
 	return nil
 }
 
+// isPlain reports whether n is a plain scalar: not quoted and not a literal or folded block scalar.
 func isPlain(n *yaml.Node) bool {
 	return n.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle|yaml.LiteralStyle|yaml.FoldedStyle) == 0
 }
@@ -118,6 +122,7 @@ func common(n *yaml.Node) error {
 	return nil
 }
 
+// at is the ADR 0007 position of n.
 func (w *walker) at(n *yaml.Node) *Pos {
 	return w.table.pos(n.Line, n.Column)
 }
@@ -173,6 +178,8 @@ func (w *walker) node(n *yaml.Node, depth int) (*Node, error) {
 	}
 }
 
+// mapping converts a mapping node. Keys must be scalars and not the merge key `<<`; the first
+// repeated key fails with the contract error DUPLICATE_KEY (phase parse) at that key's position.
 func (w *walker) mapping(n *yaml.Node, depth int) (*Node, error) {
 	out := &Node{Kind: KindMap, Pos: w.at(n), Entries: []Entry{}}
 	// The keys so far: a duplicate is found in expected O(1), not by comparing with every
@@ -218,6 +225,7 @@ type table struct {
 	offs       [][]int
 }
 
+// newTable records where each line of body starts; `\n`, `\r\n` and a lone `\r` each end a line.
 func newTable(body string, bomLen int) *table {
 	starts := []int{0}
 	for i := 0; i < len(body); i++ {
@@ -234,6 +242,9 @@ func newTable(body string, bomLen int) *table {
 	return &table{body: body, bomLen: bomLen, lineStarts: starts, offs: make([][]int, len(starts))}
 }
 
+// pos is the position of the library's 1-based line and column: the byte offset is found by
+// walking col-1 runes from the line start (memoised per line) and the BOM length is added. A line
+// past the last is clamped to the last line.
 func (t *table) pos(line, col int) *Pos {
 	if line > len(t.lineStarts) {
 		line = len(t.lineStarts)
@@ -255,13 +266,19 @@ func (t *table) pos(line, col int) *Pos {
 }
 
 var (
+	// A decimal integer spelling, with an optional sign; group 1 is the digits.
 	decimalRe = regexp.MustCompile(`^[+-]?([0-9]+)$`)
 	// A float spelling: a decimal point with digits on either side, or an exponent, or an
 	// infinity or a NaN.
 	floatRe = regexp.MustCompile(`^[+-]?(\.[0-9]+|[0-9]+\.[0-9]*)([eE][+-]?[0-9]+)?$|^[+-]?[0-9]+[eE][+-]?[0-9]+$|^[+-]?\.(inf|Inf|INF)$|^\.(nan|NaN|NAN)$`)
+	// A hexadecimal or octal spelling (`0x…`, `0o…`).
 	radixRe = regexp.MustCompile(`^0[xo][0-9a-fA-F]+$`)
 )
 
+// resolvePlain sets out to the value of the plain scalar s: null (empty, `~`, three spellings of
+// null), a boolean (three spellings of case each), a decimal int64, or else a string. A spelling
+// that looks like a number the subset does not carry (leading zero, beyond int64, float, hex or
+// octal) is refused as unsupported rather than read as a string.
 func resolvePlain(s string, out *Node) error {
 	switch s {
 	case "", "~", "null", "Null", "NULL":

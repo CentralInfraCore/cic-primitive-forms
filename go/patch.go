@@ -15,11 +15,16 @@ import "slices"
 
 // The codes of the phase patch (ADR 0013).
 const (
-	CodePatchContextMismatch  = "PATCH_CONTEXT_MISMATCH"
+	// CodePatchContextMismatch: the context does not match the schema given, or the diff version is not 1 (row 2).
+	CodePatchContextMismatch = "PATCH_CONTEXT_MISMATCH"
+	// CodePatchUnsupportedEvent: an event or a target the first unit does not apply (row 3); the whole patch is refused.
 	CodePatchUnsupportedEvent = "PATCH_UNSUPPORTED_EVENT"
-	CodePatchDuplicateTarget  = "PATCH_DUPLICATE_TARGET"
-	CodePatchTargetAbsent     = "PATCH_TARGET_ABSENT"
-	CodePatchConflict         = "PATCH_CONFLICT"
+	// CodePatchDuplicateTarget: two events name the same path; the error names the later one (row 3a).
+	CodePatchDuplicateTarget = "PATCH_DUPLICATE_TARGET"
+	// CodePatchTargetAbsent: the path resolves against the schema but A does not hold the position (row 5).
+	CodePatchTargetAbsent = "PATCH_TARGET_ABSENT"
+	// CodePatchConflict: A holds the position and its value is not `previous`, type-strict (row 6).
+	CodePatchConflict = "PATCH_CONFLICT"
 )
 
 // PhasePatch is the phase of Patch itself (ADR 0013).
@@ -45,6 +50,8 @@ type PatchResult struct {
 	Spans    []PatchSpan
 }
 
+// patchFailure is the contract error of phase patch with one violation of code at path, anchored at at, or not_applicable when
+// at is nil.
 func patchFailure(code, path string, at *Pos) *Error {
 	loc := Location{NotApplicable: true}
 	if at != nil {

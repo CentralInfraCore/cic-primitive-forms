@@ -29,6 +29,7 @@ type NormalizationResult struct {
 	ValueOrigins []ValueOrigin
 }
 
+// originsOf lists the value origins of the walk in path order (fs is sorted in place by the canonical segment order of ADR 0007).
 func originsOf(fs []found) []ValueOrigin {
 	slices.SortStableFunc(fs, func(x, y found) int { return slices.Compare(x.keys(), y.keys()) })
 	out := make([]ValueOrigin, 0, len(fs))

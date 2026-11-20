@@ -39,6 +39,7 @@ type PolicySurface struct {
 	InheritPolicyDeclared bool
 }
 
+// policyPath is the schema path of the PolicySurface, the prefix of every path a policy problem names.
 const policyPath = "spec.policy_surface"
 
 // policy reads spec.policy_surface. Every refusal is recorded and the walk goes on, so one compile names
@@ -111,6 +112,9 @@ func (c *compiler) defaultRule(n *Node, symbol, path string) *PolicyRule {
 	return nil
 }
 
+// surfaceRules reads surface_rules: a list of mappings with a non-empty `surface` and optional `access` / `modify` rules. A
+// member written `inherit` declares no rule for that operation; declaring one operation twice for one surface is
+// SURFACE_RULE_CONFLICT. Every refusal is recorded and the entry is still kept, in schema order.
 func (c *compiler) surfaceRules(n *Node, path string) []SurfaceRule {
 	if n.Kind != KindSeq {
 		c.record(schemaErr(SchemaInvalid, path, "a list is required"))

@@ -57,6 +57,8 @@ type grammarProfile struct {
 	AccessGrammar int64
 }
 
+// grammarProfiles are the grammar pins this library carries a profile for; CompileSchema refuses any other pin with
+// GRAMMAR_PIN_UNKNOWN.
 var grammarProfiles = map[string]grammarProfile{
 	// devel at 73ae469: the temporary P0 compatibility profile of ADR 0002, not a release contract.
 	"cic-primitives-73ae469-6a188078": {ItemChoice: true, AccessGrammar: 1},
@@ -96,16 +98,21 @@ type CompiledSchema struct {
 	UnevaluatedContracts []string
 }
 
+// sprintf is fmt.Sprintf.
 func sprintf(format string, a ...any) string { return fmt.Sprintf(format, a...) }
 
+// schemaErr is an ErrSchema *Error with one problem of code at the schema path; Detail is the path and the formatted detail.
 func schemaErr(code, path, format string, a ...any) *Error {
 	detail := sprintf(format, a...)
 	return &Error{Kind: ErrSchema, SchemaCode: code, Detail: path + ": " + detail,
 		Problems: []SchemaProblem{{Code: code, Path: path, Detail: detail}}}
 }
 
+// pinnedRef is the only reference spelling the slice accepts: cic:<namespace>:<Name>@vX.Y.Z, pinned to an exact version.
 var pinnedRef = regexp.MustCompile(`^cic:[a-z0-9_-]+:[A-Za-z0-9_]+@v[0-9]+\.[0-9]+\.[0-9]+$`)
 
+// compiler is the state of one schema compile: the grammar profile it reads under, whether any list used item_choice, the
+// paths of the nodes with an unevaluated contract, and every refusal recorded so far.
 type compiler struct {
 	profile     grammarProfile
 	itemChoice  bool
@@ -127,6 +134,9 @@ func CompileSchema(in SchemaInput) (*CompiledSchema, error) {
 	return compileWith(in, grammarProfiles)
 }
 
+// compileWith is CompileSchema against a given table of grammar profiles. The binding checks come first, in order (digest,
+// grammar pin, surface), then the parse and the unpinned references, each failing at once; the node and policy refusals are
+// all collected and returned together, the first one giving the error's SchemaCode.
 func compileWith(in SchemaInput, profiles map[string]grammarProfile) (*CompiledSchema, error) {
 	if SHA256Hex(in.Bytes) != in.SHA256 {
 		return nil, binding(SchemaDigestMismatch)
@@ -180,7 +190,7 @@ func compileWith(in SchemaInput, profiles map[string]grammarProfile) (*CompiledS
 	return out, nil
 }
 
-// str is a string member, "" when absent or not a string.
+// strMember is the string member key of n, "" when absent or not a string.
 func strMember(n *Node, key string) string {
 	if v := lookup(n, key); v != nil && v.Kind == KindStr {
 		return v.Str
@@ -227,6 +237,8 @@ func (c *compiler) refs(spec *Node, surface string) *Error {
 	return nil
 }
 
+// fields compiles a list of schema nodes into named shapes, in order. A node without a non-empty string name, a duplicate name
+// and a node that does not compile are recorded and left out; the walk goes on with the rest.
 func (c *compiler) fields(list *Node, path string) []NamedShape {
 	var out []NamedShape
 	seen := map[string]bool{}
@@ -263,6 +275,8 @@ func boolMember(n *Node, key, path string) (v, ok bool, err *Error) {
 	return m.Bool, true, nil
 }
 
+// presence reads the mandatory/optional axis: mandatory when neither is written. Each member takes only the value true, and both
+// together are a contradiction.
 func (c *compiler) presence(n *Node, path string) (Presence, *Error) {
 	mand, hasM, err := boolMember(n, "mandatory", path)
 	if err != nil {
@@ -284,8 +298,11 @@ func (c *compiler) presence(n *Node, path string) (Presence, *Error) {
 	return Mandatory, nil // neither written means mandatory (shape.yaml)
 }
 
+// scalarTypes are the scalar types the slice processes, by their schema spelling.
 var scalarTypes = map[string]ScalarType{"string": ScalarString, "integer": ScalarInteger, "boolean": ScalarBoolean}
 
+// scalarType reads the scalar type member key: string, integer or boolean. number and bytes are SCHEMA_SHAPE_UNSUPPORTED,
+// anything else SCHEMA_INVALID.
 func (c *compiler) scalarType(n *Node, key, path string) (ScalarType, *Error) {
 	v := lookup(n, key)
 	if v == nil || v.Kind != KindStr {
@@ -300,6 +317,7 @@ func (c *compiler) scalarType(n *Node, key, path string) (ScalarType, *Error) {
 	return zero[ScalarType](), schemaErr(SchemaInvalid, path+"."+key, "unknown scalar type %q", v.Str)
 }
 
+// forbid refuses the node at path with SCHEMA_INVALID when it has any of keys, naming the first one present.
 func forbid(n *Node, path string, keys ...string) *Error {
 	for _, k := range keys {
 		if lookup(n, k) != nil {
@@ -309,6 +327,9 @@ func forbid(n *Node, path string, keys ...string) *Error {
 	return nil
 }
 
+// node compiles one schema node into a Shape: presence, nullable, Role, the shape_type and its members, and the default. A
+// default is allowed only on an optional node whose Role takes one (ADR 0011), never null, and only if it is a valid value of
+// the node itself; it is kept as a copy. A node that declares a contract is listed as unevaluated.
 func (c *compiler) node(n *Node, path string) (Shape, *Error) {
 	var s Shape
 	var err *Error
@@ -393,6 +414,8 @@ func defaultFits(s Shape, d *Node) bool {
 	return err == nil && len(v.Violations) == 0
 }
 
+// collection compiles a collection node into s: a set of one scalar type, or a declared list (item_fields or item_choice,
+// exclusive). min_items is read; max_items is refused as unsupported rather than ignored.
 func (c *compiler) collection(n *Node, path string, s *Shape) *Error {
 	if err := forbid(n, path, "scalar_type", "fields", "cases"); err != nil {
 		return err
@@ -440,6 +463,7 @@ func (c *compiler) collection(n *Node, path string, s *Shape) *Error {
 	return schemaErr(SchemaInvalid, path, "a list needs item_fields or item_choice")
 }
 
+// intMember reads a non-negative integer member; ok is false when it is absent.
 func intMember(n *Node, key, path string) (int, bool, *Error) {
 	m := lookup(n, key)
 	if m == nil {
@@ -462,6 +486,8 @@ func keyFields(list *Node) []string {
 	return out
 }
 
+// itemFields compiles the item_fields of a list into a single-case Elements. The key is the role: key field when there is
+// exactly one and no item_key; several key fields need an item_key naming exactly them, which then gives the key order.
 func (c *compiler) itemFields(owner, list *Node, path string) (*Elements, *Error) {
 	if list.Kind != KindSeq || len(list.Items) == 0 {
 		return nil, schemaErr(SchemaInvalid, path+".item_fields", "at least one element field is required")
@@ -486,6 +512,7 @@ func (c *compiler) itemFields(owner, list *Node, path string) (*Elements, *Error
 	return &Elements{Cases: []Case{{Fields: fields, Key: order}}}, nil
 }
 
+// names is a list of strings as written, or nil when n is not a list or holds a non-string.
 func names(n *Node) []string {
 	if n.Kind != KindSeq {
 		return nil
@@ -500,6 +527,7 @@ func names(n *Node) []string {
 	return out
 }
 
+// sameSet reports whether a and b hold the same strings and a holds none twice.
 func sameSet(a, b []string) bool {
 	x, y := slices.Clone(a), slices.Clone(b)
 	slices.Sort(x)
@@ -507,6 +535,9 @@ func sameSet(a, b []string) bool {
 	return slices.Equal(x, y) && len(slices.Compact(x)) == len(x)
 }
 
+// itemChoiceCases compiles an item_choice into a choice Elements, if the grammar profile defines it. It needs at least two
+// cases, each with a unique name, at least one field and a key naming exactly its role: key fields; no two cases may have the
+// same key set (C17).
 func (c *compiler) itemChoiceCases(choice *Node, path string) (*Elements, *Error) {
 	if !c.profile.ItemChoice {
 		return nil, schemaErr(SchemaFeatureNotInGrammar, path+".item_choice", "the pinned grammar does not define item_choice")
@@ -549,6 +580,7 @@ func (c *compiler) itemChoiceCases(choice *Node, path string) (*Elements, *Error
 	return els, nil
 }
 
+// orEmpty is n, or a null node when n is nil.
 func orEmpty(n *Node) *Node {
 	if n == nil {
 		return &Node{Kind: KindNull}

@@ -10,6 +10,8 @@ package forms
 
 import "slices"
 
+// roleAxes is a Role read into its three axes: one authority, the structural values in written order, and at most one lifecycle
+// value ("" for none).
 type roleAxes struct {
 	authority  string
 	structural []string
@@ -24,9 +26,12 @@ func (r roleAxes) takesDefault() bool {
 }
 
 var (
+	// authorities are the values of the authority axis.
 	authorities = []string{"config", "state", "operational"}
+	// structurals are the values of the structural axis.
 	structurals = []string{"key", "reference"}
-	lifecycles  = []string{"derived", "volatile"}
+	// lifecycles are the values of the lifecycle axis.
+	lifecycles = []string{"derived", "volatile"}
 )
 
 // shortRoles are the short forms and what they stand for. `key` does not fix the authority: it adds the structural
@@ -59,6 +64,9 @@ func readRole(n *Node, path string) (roleAxes, *Error) {
 	return roleAxes{}, schemaErr(SchemaInvalid, path, "a Role is a string or a mapping of its axes")
 }
 
+// readLongRole reads the long form of a Role, a mapping of authority, structural and lifecycle (authority config when not
+// written). An unknown value or member, a repeated structural value, a lifecycle with the authority config, or a derived or
+// volatile key is SCHEMA_INVALID.
 func readLongRole(r *Node, path string) (roleAxes, *Error) {
 	out := roleAxes{authority: "config"}
 	for _, e := range r.Entries {

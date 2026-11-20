@@ -21,8 +21,11 @@ type SpanStyle string
 
 // The styles of SpanStyle.
 const (
-	SpanPlain        SpanStyle = "plain"
+	// SpanPlain is an unquoted scalar.
+	SpanPlain SpanStyle = "plain"
+	// SpanSingleQuoted is a scalar in single quotes; the span includes the quotes.
 	SpanSingleQuoted SpanStyle = "single_quoted"
+	// SpanDoubleQuoted is a scalar in double quotes; the span includes the quotes.
 	SpanDoubleQuoted SpanStyle = "double_quoted"
 )
 
@@ -32,6 +35,7 @@ type Span struct {
 	Style      SpanStyle
 }
 
+// editFailure is the contract error of phase edit with one violation of code for path, anchored at at (unavailable when nil).
 func editFailure(code string, at *Pos, path string) *Error {
 	loc := Location{}
 	if at != nil {
@@ -40,6 +44,7 @@ func editFailure(code string, at *Pos, path string) *Error {
 	return &Error{Kind: ErrContract, Violations: []Violation{{Code: code, Phase: PhaseEdit, Location: loc, LogicalPath: path}}}
 }
 
+// pathFailure is a *PathError as a contract error: its code and phase, no source location, and the path offset for path_parse.
 func pathFailure(e *PathError) *Error {
 	v := Violation{Code: e.Code, Phase: e.Phase, Location: Location{NotApplicable: true}, LogicalPath: e.LogicalPath}
 	if e.Phase == PhasePathParse {
@@ -66,6 +71,9 @@ type spanFound struct {
 	shape *Shape
 }
 
+// locate walks segs from the root of doc alongside the schema shape, going through expanded Access wrappers to their values and
+// into list elements by identity. It stops early when the document does not hold a position; then value is nil and parent is the
+// last structure reached.
 func locate(doc *Node, root Shape, segs []PathSeg, a []string) spanFound {
 	var fields []NamedShape
 	if root.Kind == ShapeComposite {
