@@ -14,16 +14,22 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def run(inputs, rust, go):
+    """The exit status of compare_p3.py on the given files."""
     return subprocess.run([sys.executable, os.path.join(HERE, "compare_p3.py"), inputs, rust, go], capture_output=True).returncode
 
 
 def write(path, rows):
+    """Write `rows` to `path` as JSON lines with sorted keys."""
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, sort_keys=True) + "\n")
 
 
 def main():
+    """Break the Rust dump of the first accepted input in five ways (a rule's layer or source path, an origin, the emitted
+    object, the stage) and drop its last line; each must make compare_p3.py exit 1, and the unchanged dumps must exit 0.
+    Returns 1 when any of these does not hold.
+    """
     inputs, rust_p, go_p = sys.argv[1:4]
     rust = [json.loads(line) for line in open(rust_p, encoding="utf-8")]
     first_ok = next(i for i, r in enumerate(rust) if r["stage"] == "ok")
