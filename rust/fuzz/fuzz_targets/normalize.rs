@@ -12,16 +12,20 @@ use cic_primitive_forms::{
 };
 use libfuzzer_sys::fuzz_target;
 
+/// A non-nullable shape without a default.
 fn shape(shape_type: ShapeType, presence: Presence) -> Shape {
     Shape { shape_type, presence, nullable: false, has_default: false, default: None }
 }
 
+/// `s` with `d` as its schema default.
 fn with_default(mut s: Shape, d: Value) -> Shape {
     s.has_default = true;
     s.default = Some(DefaultValue(Node::new(d)));
     s
 }
 
+/// The fixed shape the inputs are normalized against: a mandatory string, a nullable integer with a default, an optional
+/// nullable composite whose two fields have defaults, and a string set that defaults to empty.
 fn fuzz_shape() -> Shape {
     let optional = |t| shape(t, Presence::Optional);
     let inner = Shape {

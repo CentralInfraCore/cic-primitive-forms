@@ -36,6 +36,7 @@ pub const DIFF_CONTEXT_MISMATCH: &str = "DIFF_CONTEXT_MISMATCH";
 /// The code for a float or an integer beyond 64 bits in an operand (ADR 0008, provisional).
 pub const DIFF_UNSUPPORTED_VALUE: &str = "DIFF_UNSUPPORTED_VALUE";
 
+/// The key of the value member of an expanded wrapper.
 const VALUE: &str = "value";
 
 /// What a view was read under: the schema and its digest, the grammar and its digest, and the surface. Two views with different contexts are
@@ -120,6 +121,7 @@ pub struct DiffResult {
     pub representation: Vec<RepresentationChange>,
 }
 
+/// A contract error of the phase `diff` with `code`, without a source location; `operand` names the view (`a` or `b`) where one is at fault.
 fn failure(code: &'static str, path: Option<String>, operand: Option<&'static str>) -> Error {
     Error::Contract(vec![Violation {
         code,
@@ -249,6 +251,8 @@ fn record_shape(case: &Case) -> Shape {
     }
 }
 
+/// Validates and expands one operand under `root`: an invalid document is refused before expansion, and either error is reported with `operand`
+/// named (see `for_operand`). Returns the expanded tree and what expansion learned about the authored writing.
 fn read_view(
     v: &DiffView<'_>,
     root: &Shape,
@@ -260,6 +264,7 @@ fn read_view(
     expand(v.doc, root, a, g, &v.trust).map_err(|e| for_operand(e, operand))
 }
 
+/// The segment of a logical path for a parsed path segment.
 pub(crate) fn seg_of(s: &PathSeg) -> Seg {
     match s {
         PathSeg::Field(f) => Seg::Field(f.clone()),
@@ -298,6 +303,7 @@ enum Place<'a> {
     Record(&'a [(String, Shape)]),
 }
 
+/// A node of an expanded tree together with what it is in the schema.
 #[derive(Clone, Copy)]
 struct Slot<'a> {
     node: &'a Node,
@@ -385,6 +391,8 @@ fn descend<'a>(slot: Slot<'a>, path: &[Seg], a: &[String]) -> Result<Option<Slot
     Ok(Some(at))
 }
 
+/// The state of one comparison: the expanded key set, the provenance of each operand (whose `authored_expanded` gives the writing reported in
+/// `representation`), and the result built so far, sorted only at the end.
 struct Differ<'a> {
     a: &'a [String],
     prov_a: &'a Provenance,
@@ -401,6 +409,7 @@ struct Element<'n, 'c> {
 }
 
 impl Element<'_, '_> {
+    /// The order of ADR 0008 for list elements: by the position of their case in the declaration, then by identity.
     fn compare(&self, other: &Self) -> Ordering {
         self.order
             .cmp(&other.order)
@@ -408,6 +417,8 @@ impl Element<'_, '_> {
     }
 }
 
+/// The elements of the list node `list` with their identities. An item that `identify` refuses is skipped: the views were validated before, so
+/// none is expected here.
 fn elements<'n, 'c>(list: &'n Node, els: &'c Elements, a: &[String]) -> Vec<Element<'n, 'c>> {
     let items: &[Node] = match &list.value {
         Value::Seq(items) => items,
@@ -447,6 +458,7 @@ pub(crate) fn compare_scalars(x: &Node, y: &Node) -> Ordering {
     }
 }
 
+/// The items of a set node sorted in the order of `compare_scalars`, with repeats removed; a node that is not a sequence gives none.
 fn sorted_scalars(list: &Node) -> Vec<Node> {
     let items: &[Node] = match &list.value {
         Value::Seq(items) => items,
@@ -475,6 +487,7 @@ fn set_difference(a: &Node, b: &Node) -> (Vec<Node>, Vec<Node>) {
     (added, removed)
 }
 
+/// The name of a writing in `representation`: `expanded` or `short`.
 fn writing(expanded: bool) -> &'static str {
     if expanded {
         "expanded"
@@ -484,6 +497,7 @@ fn writing(expanded: bool) -> &'static str {
 }
 
 impl Differ<'_> {
+    /// Appends an event of `kind` at `path` (its canonical text `text`) with no members, and returns it for the caller to fill.
     fn emit(&mut self, kind: EventKind, path: &Path, text: String) -> &mut DiffEvent {
         self.result.changes.push(DiffEvent {
             kind,
@@ -515,6 +529,8 @@ impl Differ<'_> {
         Ok(())
     }
 
+    /// Compares one place of both trees: both present descends into the record or the position, one side only is one `added` or `removed` event,
+    /// neither is nothing.
     fn slots(
         &mut self,
         path: &Path,
@@ -712,6 +728,8 @@ impl Differ<'_> {
         ))
     }
 
+    /// The fragment of what a position holds: a composite as its record fragment, a set sorted, a declared list in element order, anything else (and
+    /// null) as it is.
     fn value_fragment(&self, v: &Node, shape: &Shape) -> Node {
         if matches!(v.value, Value::Null) {
             return v.clone();
@@ -734,6 +752,7 @@ impl Differ<'_> {
         }
     }
 
+    /// The fragment of a record: its declared fields that are present, in declaration order, each as a position fragment.
     fn record_fragment(&self, rec: &Node, fields: &[(String, Shape)]) -> Node {
         Node::new(Value::Map(
             fields
@@ -821,14 +840,17 @@ pub fn diff(
 // UTF-8, no BOM, no whitespace outside strings, object keys sorted by their UTF-8 bytes, integers as 0 or -?[1-9][0-9]*, no floats,
 // absence by omitting the field. The writer is here and not a JSON library, so the bytes do not depend on one.
 
+/// A string node without a source position.
 fn text(s: &str) -> Node {
     Node::new(Value::Str(s.to_string()))
 }
 
+/// A mapping node of `entries`; the canonical writer sorts the keys.
 fn object(entries: Vec<(&str, Node)>) -> Node {
     Node::map(entries)
 }
 
+/// The JSON object of an event: `kind`, `path` and the members of its kind only; a member of another kind is not written (ADR 0008).
 fn event_node(e: &DiffEvent) -> Node {
     let mut m = vec![("kind", text(e.kind.as_str())), ("path", text(&e.path))];
     match e.kind {
@@ -903,6 +925,8 @@ impl DiffResult {
     }
 }
 
+/// Appends the canonical bytes of ADR 0008 for `n`: map keys sorted by their UTF-8 bytes, items in their order, no whitespace. A
+/// `Value::Unsupported` is written as its source text, which never happens for an accepted diff.
 pub(crate) fn write_canonical(out: &mut String, n: &Node) {
     match &n.value {
         Value::Null => out.push_str("null"),

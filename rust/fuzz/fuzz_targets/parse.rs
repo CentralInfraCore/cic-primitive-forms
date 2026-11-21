@@ -11,6 +11,8 @@
 use cic_primitive_forms::{emit, parse, Node, Value};
 use libfuzzer_sys::fuzz_target;
 
+/// Asserts that every position in the tree under `n` is 1-based in line and column and has an offset within the
+/// text of `len` bytes.
 fn check_positions(n: &Node, len: usize) {
     if let Some(p) = n.pos {
         assert!(p.line >= 1 && p.column >= 1 && p.offset <= len, "{p:?}");

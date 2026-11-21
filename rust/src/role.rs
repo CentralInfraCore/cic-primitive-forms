@@ -10,6 +10,8 @@
 use crate::node::{Node, Value};
 use crate::schema::{get, problem, Problem, SCHEMA_INVALID};
 
+/// The Role of a schema node as its three axes: one authority, the structural values in the order written (no
+/// duplicates), and at most one lifecycle value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RoleAxes {
     authority: &'static str,
@@ -25,6 +27,7 @@ impl RoleAxes {
         self.authority == "config" && self.structural.is_empty()
     }
 
+    /// The Role of a node that writes none: authority `config`, no structural and no lifecycle value.
     fn config() -> Self {
         RoleAxes {
             authority: "config",
@@ -34,8 +37,11 @@ impl RoleAxes {
     }
 }
 
+/// The values of the authority axis.
 const AUTHORITIES: [&str; 3] = ["config", "state", "operational"];
+/// The values of the structural axis.
 const STRUCTURALS: [&str; 2] = ["key", "reference"];
+/// The values of the lifecycle axis.
 const LIFECYCLES: [&str; 2] = ["derived", "volatile"];
 
 /// The short forms and what they stand for. `key` does not fix the authority: it adds the structural value and
@@ -61,6 +67,7 @@ fn short_role(s: &str) -> Option<RoleAxes> {
     })
 }
 
+/// The static spelling of `s` when it is one of `list`.
 fn pick(list: &[&'static str], s: &str) -> Option<&'static str> {
     list.iter().find(|x| **x == s).copied()
 }
@@ -91,6 +98,10 @@ pub(crate) fn read_role(n: &Node, path: &str) -> Result<RoleAxes, Problem> {
     }
 }
 
+/// Reads the long form, a mapping of `authority`, `structural` and `lifecycle`; an absent axis keeps the default of
+/// [`RoleAxes::config`]. A member that is not an axis, a value outside its axis, a repeated structural value, a
+/// lifecycle with the authority `config` (written or defaulted) and a `key` with a lifecycle are `SCHEMA_INVALID`; the
+/// first refusal is returned.
 fn read_long_role(r: &Node, path: &str) -> Result<RoleAxes, Problem> {
     let mut out = RoleAxes::config();
     let entries: &[crate::node::Entry] = match &r.value {

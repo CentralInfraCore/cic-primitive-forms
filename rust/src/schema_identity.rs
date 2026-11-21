@@ -20,7 +20,10 @@ use crate::canonical::canonical_digest;
 use crate::error::Error as SchemaError;
 use crate::schema::{compile_schema, SchemaInput};
 
+/// The engine's code for a namespace or kind that does not form a schema name (rules `R-SCHEMA-NAME-*`).
 pub const SCHEMA_INVALID_IDENTITY: &str = "E_INVALID_SCHEMA_IDENTITY";
+/// The engine's code for a claimed schema digest that is missing or is not the digest of the source bytes
+/// (rules `R-SCHEMA-DIGEST-*`).
 pub const SCHEMA_SOURCE_BINDING: &str = "E_SCHEMA_SOURCE_BINDING";
 
 /// Why an identity was refused: the code and the rule of the engine's contract, and the path it names.
@@ -56,10 +59,14 @@ pub struct SchemaIdentity {
     pub schema_digest: String,
 }
 
+/// The path a namespace refusal names.
 const NAMESPACE_PATH: &str = "$.spec.identity.namespace";
+/// The path a kind refusal names.
 const KIND_PATH: &str = "$.spec.identity.kind";
+/// The path a digest-binding refusal names.
 const DIGEST_PATH: &str = "$.schema_digest";
 
+/// An [`SCHEMA_INVALID_IDENTITY`] refusal of `rule` at `path`.
 fn invalid(rule: &'static str, path: &'static str) -> SchemaIdentityError {
     SchemaIdentityError {
         code: SCHEMA_INVALID_IDENTITY,
@@ -68,6 +75,7 @@ fn invalid(rule: &'static str, path: &'static str) -> SchemaIdentityError {
     }
 }
 
+/// An [`SCHEMA_SOURCE_BINDING`] refusal of `rule` at the digest path.
 fn binding(rule: &'static str) -> SchemaIdentityError {
     SchemaIdentityError {
         code: SCHEMA_SOURCE_BINDING,

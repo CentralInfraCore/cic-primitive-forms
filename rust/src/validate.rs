@@ -102,6 +102,8 @@ pub struct Validation {
     pub default_candidates: Vec<String>,
 }
 
+/// The state of one validation: the key set `A`, the recognition and validation errors kept apart by phase (with their
+/// paths, for the ADR 0007 order), the default candidates, and whether an expanded Access node was met.
 struct Walk<'a> {
     a: &'a [String],
     recognition: Vec<(Path, Violation)>,
@@ -110,6 +112,7 @@ struct Walk<'a> {
     expanded: bool,
 }
 
+/// A violation of `code` in `phase` at `location`; the logical path is filled in when the response is sorted.
 fn found(code: &'static str, phase: Phase, location: Location) -> Violation {
     Violation {
         code,
@@ -122,6 +125,7 @@ fn found(code: &'static str, phase: Phase, location: Location) -> Violation {
 }
 
 impl Walk<'_> {
+    /// Records a validation-phase error at `path`, anchored at `at`.
     fn validation(&mut self, path: &Path, code: &'static str, at: Location) {
         self.validation
             .push((path.clone(), found(code, Phase::Validate, at)));
@@ -173,6 +177,8 @@ impl Walk<'_> {
         }
     }
 
+    /// An absent field: `MISSING_MANDATORY` at the parent for a mandatory one; an optional one that declares a default
+    /// becomes a candidate (when its path can be written), and nothing else happens.
     fn absent(
         &mut self,
         shape: &Shape,
@@ -194,6 +200,10 @@ impl Walk<'_> {
         Ok(())
     }
 
+    /// Checks a scalar against its declared type: a mapping is `MAP_AT_SCALAR_POSITION`, a matching kind passes.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] for any other kind: a mismatch with no code in the registry.
     fn scalar(&mut self, node: &Node, t: ScalarType, path: &Path) -> Result<(), Error> {
         let fits = match (&node.value, t) {
             (Value::Map(_), _) => {
@@ -216,6 +226,10 @@ impl Walk<'_> {
         }
     }
 
+    /// Checks a list against `min_items` (`MIN_ITEMS_NOT_MET`); the elements are not looked at here.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] when the value is not a sequence.
     fn list(&mut self, node: &Node, min_items: Option<usize>, path: &Path) -> Result<(), Error> {
         let items = match &node.value {
             Value::Seq(items) => items,
@@ -232,6 +246,12 @@ impl Walk<'_> {
         Ok(())
     }
 
+    /// Identifies every element of a declared list and validates the fields of each, under its identity. An element
+    /// without an identity is an error at the list (anchored at the node the refusal names); an identity held twice is one
+    /// `PATH_DUPLICATE_IDENTITY` at the second element, and the elements of that identity are not validated further.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] for an element that is not a mapping, or an error of the fields below.
     fn elements(&mut self, node: &Node, elements: &Elements, path: &mut Path) -> Result<(), Error> {
         let items = match &node.value {
             Value::Seq(items) => items,
@@ -277,6 +297,10 @@ impl Walk<'_> {
         Ok(())
     }
 
+    /// Checks a set: `min_items`, then the declared scalar type of each item.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] when the value is not a sequence or an item is of another kind.
     fn set(
         &mut self,
         node: &Node,
@@ -302,6 +326,11 @@ impl Walk<'_> {
         Ok(())
     }
 
+    /// Validates every declared field of a mapping in schema order (absent ones included), then reports each undeclared
+    /// key as `UNKNOWN_FIELD` at the key.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] when the value is not a mapping, or an error of a field below.
     fn composite(
         &mut self,
         node: &Node,
@@ -341,10 +370,12 @@ impl Walk<'_> {
     }
 }
 
+/// Whether the node is an explicit `null` (an empty scalar included).
 fn matches_null(node: &Node) -> bool {
     std::mem::discriminant(&node.value) == std::mem::discriminant(&Value::Null)
 }
 
+/// The name of the kind of a value, for the text of an [`Error::Unsupported`].
 fn kind_name(v: &Value) -> &'static str {
     match v {
         Value::Null => "null",

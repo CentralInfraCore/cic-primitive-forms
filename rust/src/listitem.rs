@@ -13,11 +13,17 @@ use crate::node::{Node, Value};
 use crate::recognize::{classify, logical_path, Class, Path, Seg};
 use crate::validate::{Presence, ScalarType, Shape, ShapeType};
 
+/// A key field of the element's case is absent from the record.
 pub const KEY_MISSING: &str = "PATH_KEY_MISSING";
+/// A key value is not of its declared scalar type (an expanded wrapper without `value` included).
 pub const KEY_TYPE: &str = "PATH_KEY_TYPE";
+/// A key field is not declared as a string or integer scalar: no other type has an identity encoding (ADR 0006).
 pub const KEY_UNSUPPORTED: &str = "PATH_KEY_UNSUPPORTED";
+/// No case of an `item_choice` matches the record under the field-presence rule.
 pub const CASE_NONE: &str = "PATH_CASE_NONE";
+/// More than one case of an `item_choice` matches the record.
 pub const CASE_AMBIGUOUS: &str = "PATH_CASE_AMBIGUOUS";
+/// Another element of the same list has the same identity, so the path would not name one element.
 pub const DUPLICATE_IDENTITY: &str = "PATH_DUPLICATE_IDENTITY";
 
 /// The value of one key component: a string or an integer (ADR 0006: no other key type has an encoding).
@@ -65,6 +71,7 @@ pub enum Step {
     Index(usize),
 }
 
+/// The value of the first entry named `key` when `n` is a mapping.
 fn entry<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(entries) => entries.iter().find(|e| e.key == key).map(|e| &e.value),
@@ -81,6 +88,7 @@ fn through<'a>(n: &'a Node, a: &[String]) -> Option<&'a Node> {
     }
 }
 
+/// The shape of the field `name` as the case `c` declares it.
 fn field_of<'a>(c: &'a Case, name: &str) -> Option<&'a Shape> {
     c.fields.iter().find(|(n, _)| n == name).map(|(_, s)| s)
 }
@@ -143,6 +151,7 @@ pub(crate) fn identify<'e, 'n>(
     Ok((case, id))
 }
 
+/// An identity failure of phase `path_of`: no source location, the logical path of `path`.
 fn fail(code: &'static str, path: &Path) -> Error {
     Error::Contract(vec![Violation {
         code,
@@ -154,6 +163,7 @@ fn fail(code: &'static str, path: &Path) -> Error {
     }])
 }
 
+/// An address that leads nowhere in the document and the schema: [`Error::Unsupported`] naming the step index.
 fn nothing(step: usize, why: &str) -> Error {
     Error::Unsupported(format!("address step {step}: {why}"))
 }

@@ -35,14 +35,24 @@ use crate::node::{Entry, Node, Value};
 use crate::recognize::{logical_path, Seg};
 use crate::validate::{Shape, ShapeType};
 
+/// Refusal: there is no document at all.
 pub const MATERIALIZE_NO_DOCUMENT: &str = "no_document";
+/// Refusal: the validation of the document against the schema reported violations.
 pub const MATERIALIZE_INVALID_DOCUMENT: &str = "invalid_document";
+/// Refusal: the defaults cannot be applied to the document, or a declared field name cannot be written as a logical path.
 pub const MATERIALIZE_UNSUPPORTED: &str = "unsupported";
+/// Refusal: the root is not a composite, a declared position is a composite, list or declared list, or a value is a mapping
+/// or a sequence.
 pub const MATERIALIZE_NOT_FLAT: &str = "not_flat";
+/// Refusal: a declared position is a set, whose order in the projection is not decided (decision H).
 pub const MATERIALIZE_SET: &str = "set";
+/// Refusal: a declared field is absent after the defaults, i.e. an optional field with no default that the author left out.
 pub const MATERIALIZE_OMITTED_OPTIONAL: &str = "omitted_optional";
+/// Refusal: the capability map has no entry for a declared field.
 pub const MATERIALIZE_CAPABILITY_MISSING: &str = "capability_missing";
+/// Refusal: a capability is not `implemented`, `not_implemented` or `deprecated`.
 pub const MATERIALIZE_CAPABILITY_UNKNOWN: &str = "capability_unknown";
+/// Refusal: the capability map names a field the schema does not declare.
 pub const MATERIALIZE_CAPABILITY_UNDECLARED: &str = "capability_undeclared";
 
 /// The three capabilities of the engine's enum, by their spelling in the projection.
@@ -50,6 +60,7 @@ const CAPABILITIES: [&str; 3] = ["implemented", "not_implemented", "deprecated"]
 
 /// The provenance of an intent-side field, by its spelling in the projection (`authored`, `schema_default`).
 const PROVENANCE_AUTHORED: &str = "authored";
+/// The provenance of a field that the schema default filled.
 const PROVENANCE_SCHEMA_DEFAULT: &str = "schema_default";
 
 /// Why a document was not materialized, and at which field (`""` when the refusal is not about one).
@@ -67,6 +78,7 @@ impl fmt::Display for MaterializeError {
 
 impl std::error::Error for MaterializeError {}
 
+/// A refusal with `reason` at `field` (`""` when it is not about one field).
 fn refuse(reason: &'static str, field: &str) -> MaterializeError {
     MaterializeError {
         reason,
@@ -188,10 +200,12 @@ pub fn materialize_flat(
     })
 }
 
+/// A string node with no source position.
 pub(crate) fn text(s: &str) -> Node {
     Node::new(Value::Str(s.to_string()))
 }
 
+/// A mapping entry `key: value` with no key position.
 pub(crate) fn entry(key: &str, value: Node) -> Entry {
     Entry {
         key: key.to_string(),
