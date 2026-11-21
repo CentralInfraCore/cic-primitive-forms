@@ -534,3 +534,43 @@ class FailClosedPlanTests(unittest.TestCase):
         ors = [line for line in self.run.splitlines() if "|| true" in line]
         self.assertEqual(len(ors), 1)
         self.assertIn("go-list.out", ors[0])
+
+    def _run_rust_listing(self, cargo_body):
+        """Run the Rust part of the diff-plan step (up to the count) in bash with a stub `cargo`; return (exit status, count line, stderr)."""
+        import subprocess
+        import tempfile
+        head = self.run.split("rust=$(python3", 1)[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "scope"))
+            os.makedirs(os.path.join(tmp, "work", "rust"))
+            os.makedirs(os.path.join(tmp, "bin"))
+            with open(os.path.join(tmp, "scope", "rust.patch"), "w") as f:
+                f.write("diff --git a/rust/src/lib.rs b/rust/src/lib.rs\n")
+            stub = os.path.join(tmp, "bin", "cargo")
+            with open(stub, "w") as f:
+                f.write("#!/bin/bash\n" + cargo_body + "\n")
+            os.chmod(stub, 0o755)
+            script = head + 'python3 -c \'import json,sys; d = json.load(open(sys.argv[1])); assert isinstance(d, list); print(len(d))\' "$RUNNER_TEMP/dp/rust-listed.json"\n'
+            env = dict(os.environ, RUNNER_TEMP=tmp, RUST_TOOLCHAIN="stable", PATH=os.path.join(tmp, "bin") + os.pathsep + os.environ["PATH"])
+            # the step runs from the repository root; the stub tree stands in for it
+            os.makedirs(os.path.join(tmp, "dp"), exist_ok=True)
+            r = subprocess.run(["bash", "-c", script], cwd=os.path.join(tmp, "work"), env=env, capture_output=True, text=True)
+            return r.returncode, r.stdout.strip(), r.stderr
+
+    def test_a_comment_only_diff_lists_no_mutants_and_passes(self):
+        # cargo-mutants on a diff of comments: exit 0, nothing on stdout, "No mutants to filter" on stderr (the #173 failure)
+        status, out, _ = self._run_rust_listing('echo " INFO No mutants to filter" >&2')
+        self.assertEqual((status, out), (0, "0"))
+
+    def test_an_empty_listing_without_the_message_fails(self):
+        status, out, _ = self._run_rust_listing("exit 0")
+        self.assertNotEqual(status, 0)
+        self.assertIn("without saying why", out)        # the ::error:: annotation goes to stdout
+
+    def test_a_failed_listing_fails_even_with_the_message(self):
+        status, _, _ = self._run_rust_listing('echo " INFO No mutants to filter" >&2; exit 2')
+        self.assertNotEqual(status, 0)
+
+    def test_a_real_listing_is_counted(self):
+        status, out, _ = self._run_rust_listing("echo '[{\"name\":\"a\"},{\"name\":\"b\"}]'")
+        self.assertEqual((status, out), (0, "2"))
