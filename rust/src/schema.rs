@@ -12,7 +12,8 @@
 //! Refused: `shape_type: choice`, the scalar types `number` and `bytes`, an `item_choice` under a
 //! grammar profile without that feature, a structure outside ADR 0002, a reference that is not a
 //! pinned `cic:<namespace>:<Name>@vX.Y.Z`. Passed through and not evaluated: `contract` (listed in
-//! [`CompiledSchema::unevaluated_contracts`]), `description`, `role`, `capability` and the other
+//! [`CompiledSchema::unevaluated_contracts`]; the surface-level `validation` entries in
+//! [`CompiledSchema::unevaluated_surface_contracts`]), `description`, `role`, `capability` and the other
 //! descriptive members.
 
 use crate::access::{sha256_hex, Grammar};
@@ -93,6 +94,26 @@ pub struct CompiledSchema {
     /// The canonical paths of the nodes that declare a `contract`. Contracts are passed through, not
     /// evaluated: validation does not check them.
     pub unevaluated_contracts: Vec<String>,
+    /// The canonical paths of the surface-level `validation` entries the schema declares
+    /// (`<surface>.validation[<i>]`, or `<surface>.validation` when the member is present but is not a
+    /// list). Passed through, not evaluated, like the node contracts, and listed apart from them so that
+    /// `unevaluated_contracts` keeps meaning the nodes. It says nothing about the validity of an
+    /// expression: the grammar does not specify the dialect.
+    pub unevaluated_surface_contracts: Vec<String>,
+}
+
+/// The declared surface-level validation entries by canonical path. The member is read the way a node's
+/// contract is: its presence is what counts, no entry is inspected.
+fn surface_validation(surface: &Node, name: &str) -> Vec<String> {
+    match get(surface, "validation") {
+        None => Vec::new(),
+        Some(v) => match seq(v) {
+            None => vec![format!("{name}.validation")],
+            Some(items) => (0..items.len())
+                .map(|i| format!("{name}.validation[{i}]"))
+                .collect(),
+        },
+    }
 }
 
 pub(crate) type Problem = SchemaProblem;
@@ -261,6 +282,7 @@ pub(crate) fn compile_with(
         },
         uses_item_choice: c.item_choice,
         unevaluated_contracts: c.unevaluated,
+        unevaluated_surface_contracts: surface_validation(surface, input.surface),
     })
 }
 
