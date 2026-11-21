@@ -17,6 +17,7 @@ WORKFLOWS = ("p1.yml", "corpus.yml")
 
 
 class CollectError(Exception):
+    """A run or artifact that cannot be had (NO_RUN, RUN_FOR_ANOTHER_COMMIT, TIMEOUT, ARTIFACT_EXPIRED, GITHUB, ...); no record follows."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
@@ -37,36 +38,45 @@ def merge_pages(text):
 
 
 class Gh:
+    """The GitHub operations the collector needs; GhCli does them for real, the tests substitute a fake."""
     def api(self, path, paginate=False):
+        """The decoded JSON of a REST GET of `path`; with `paginate` the list members of all pages joined."""
         raise NotImplementedError
 
     def dispatch(self, repo, workflow, ref):
+        """Start a workflow_dispatch run of `workflow` in `repo` on `ref`."""
         raise NotImplementedError
 
     def download(self, repo, run_id, name, dest):
+        """Download the artifact `name` of run `run_id` into the directory `dest`."""
         raise NotImplementedError
 
 
 class GhCli(Gh):
+    """Gh through the `gh` command line; a failing command is a CollectError GITHUB."""
     def __init__(self, gh="gh"):
         self.gh = gh
 
     def _run(self, argv):
+        """Run `gh` with `argv` (ten-minute timeout) and return its stdout; a non-zero exit is GITHUB with the start of stderr."""
         done = subprocess.run([self.gh] + argv, capture_output=True, timeout=600)
         if done.returncode != 0:
             raise CollectError("GITHUB", "%s: %s" % (" ".join(argv[:3]), done.stderr.decode("utf-8", "replace")[:200]))
         return done.stdout
 
     def api(self, path, paginate=False):
+        """`gh api [--paginate] PATH`, decoded; paginated output is merged with merge_pages."""
         out = self._run(["api"] + (["--paginate"] if paginate else []) + [path]).decode("utf-8")
         if not paginate:
             return json.loads(out)
         return merge_pages(out)
 
     def dispatch(self, repo, workflow, ref):
+        """`gh workflow run WORKFLOW -R REPO --ref REF`."""
         self._run(["workflow", "run", workflow, "-R", repo, "--ref", ref])
 
     def download(self, repo, run_id, name, dest):
+        """`gh run download RUN_ID -R REPO -n NAME -D DEST`."""
         self._run(["run", "download", str(run_id), "-R", repo, "-n", name, "-D", dest])
 
 
@@ -109,6 +119,7 @@ def find_dispatched(gh, repo, workflow, sha, ref, sleep, now, wait=300):
 
 
 def wait_finished(gh, repo, run, sleep, now, deadline, poll=60):
+    """Poll the run until its status is completed and return its final state; still running at `deadline` is TIMEOUT."""
     while run["status"] != "completed":
         if now() >= deadline:
             raise CollectError("TIMEOUT", "run %s of %s did not finish" % (run["id"], run.get("name")))
@@ -118,11 +129,17 @@ def wait_finished(gh, repo, run, sleep, now, deadline, poll=60):
 
 
 def jobs_of(gh, repo, run):
+    """The jobs of a run, normalised to name, conclusion, html_url and the run's id."""
     jobs = gh.api("repos/%s/actions/runs/%s/jobs?per_page=100" % (repo, run["id"]), paginate=True).get("jobs", [])
     return [{"name": j["name"], "conclusion": j["conclusion"], "html_url": j["html_url"], "run_id": run["id"]} for j in jobs]
 
 
 def download_artifacts(gh, repo, run, dest):
+    """Download every artifact of the run into dest/<name>/ and return the sorted names.
+
+    Two artifacts with one name are DUPLICATE_ARTIFACT and an expired one ARTIFACT_EXPIRED, both checked before
+    anything is downloaded.
+    """
     arts = gh.api("repos/%s/actions/runs/%s/artifacts?per_page=100" % (repo, run["id"]), paginate=True).get("artifacts", [])
     names = sorted(a["name"] for a in arts)
     if len(names) != len(set(names)):
@@ -138,7 +155,8 @@ def download_artifacts(gh, repo, run, dest):
 
 def collect(gh, repo, sha, trigger, dest, workflows=WORKFLOWS, ref="main", sleep=time.sleep, now=time.time, wait_for=7200, artifacts_from="p1.yml"):
     """Find the runs of the measuring workflows for `sha` (`trigger` is "push" or "dispatch"), wait for them, and gather their jobs
-    and the artifacts of `artifacts_from` into `dest`. Returns the normalised jobs of all the runs."""
+    and the artifacts of `artifacts_from` into `dest`. Returns (the normalised jobs of all the runs, the names of the
+    downloaded artifacts, {workflow: run id})."""
     if trigger not in ("push", "dispatch"):
         raise CollectError("TRIGGER", trigger)
     deadline = now() + wait_for

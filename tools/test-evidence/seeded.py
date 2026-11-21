@@ -235,6 +235,7 @@ def parse_error(path, text):
 
 
 def run_tests(directory):
+    """Run the unittest suite (test_*.py) of `directory` in a subprocess; (exit status, combined output)."""
     env = dict(os.environ)
     p = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", directory, "-p", "test_*.py"],
                        capture_output=True, text=True, env=env, cwd=directory)
@@ -258,6 +259,12 @@ def parallel(n):
 
 
 def main(argv=None):
+    """Apply each defect of the shard to a fresh copy of the tools and require the tests to fail on it.
+
+    The copy holds this directory, the two gates the builder imports and .github/. A defect whose text does not occur
+    exactly once (STALE), whose result does not parse, or that the tests do not catch counts against the run; a
+    failing unmodified baseline stops it. Returns 0 only if every defect of the shard is caught.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--shard", default="0/1", help="K/N: the defects K, K+N, ...")
     ap.add_argument("--parallel", type=int, default=0, help="run every defect in N processes side by side")

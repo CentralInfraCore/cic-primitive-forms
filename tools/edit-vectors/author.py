@@ -8,7 +8,9 @@ The EXPECTATIONS are written here by hand, from the rules of ADR 0012 and docs/P
 implementation: every case below states the source text, the existing token of the scalar, the new value and the exact text of the
 token the rules say must be written. The tool only does the byte arithmetic that is tedious to do by hand (the offsets of the span, the
 line and column of an error position, the output bytes as prefix + new token + suffix), and `tools/corpus_check.py` re-checks that
-arithmetic independently (EDIT_BYTES, ERROR_LOCATION). Neither Rust nor Go runs these cases yet (steps E2 and E3).
+arithmetic independently (EDIT_BYTES, ERROR_LOCATION). The Rust and Go corpus runners run these cases since steps E2 (source_span)
+and E3 (edit); the comment header this tool writes into the file still says NOT RUN and is kept as is, because changing it changes
+the checked-in vectors.
 
 Conventions of the suite (the trees are a notation, ADR 0005): every field is optional and non-nullable; a document of a positive case
 validates against its tree; `routes` is a list whose element identity is the key `to`.
@@ -25,10 +27,12 @@ BOM = "﻿"
 
 
 def q(s):
+    """Quote a string as a JSON (and so YAML flow) scalar, non-ASCII characters kept literal."""
     return json.dumps(s, ensure_ascii=False)
 
 
 def as_bytes(src):
+    """Return ``src`` as UTF-8 bytes (bytes pass through unchanged, so a case can hold invalid UTF-8)."""
     return src if isinstance(src, bytes) else src.encode("utf-8")
 
 
@@ -45,6 +49,7 @@ def source_field(src):
 
 
 def out_field(b):
+    """output_yaml for a result without CR and BOM, output_hex for anything else (a text field cannot spell those)."""
     try:
         text = b.decode("utf-8")
     except UnicodeDecodeError:
@@ -74,6 +79,11 @@ def loc(data, off):
 
 
 def start_of(src, prefix, token, nth=1):
+    """Byte offset of ``token`` in the ``nth`` occurrence of ``prefix + token`` in ``src``.
+
+    The prefix only anchors the search; the returned offset is where the token itself starts.
+    Raises ValueError when there is no such occurrence.
+    """
     b, pt = as_bytes(src), (prefix + token).encode("utf-8")
     idx = -1
     for _ in range(nth):
@@ -85,6 +95,10 @@ CASES = []
 
 
 def add(cid, kind, polarity, desc, path, src=None, extra=(), expect="", tree="doc", status=None):
+    """Append one case of the suite, rendered as its YAML list item, to ``CASES``.
+
+    ``extra`` are further ``key: value`` lines placed before ``codes_status`` and ``expect``.
+    """
     lines = ["  - id: edit.%s" % cid, "    kind: %s" % kind, "    polarity: %s" % polarity, "    description: %s" % q(desc),
              "    schema: {synthetic: {tree: %s}}" % tree, "    path: %s" % q(path)]
     if src is not None:
@@ -97,6 +111,7 @@ def add(cid, kind, polarity, desc, path, src=None, extra=(), expect="", tree="do
 
 
 def span(cid, desc, path, src, prefix, token, style, nth=1):
+    """Add a positive ``source_span`` case: the half-open byte span of ``token`` and its scalar style."""
     s = start_of(src, prefix, token, nth)
     e = s + len(token.encode("utf-8"))
     add(cid, "source_span", "positive", desc, path, src, expect="{span: {start: %d, end: %d, style: %s}}" % (s, e, style))
@@ -249,10 +264,12 @@ cases:
 
 
 def render():
+    """The whole text of corpus/edit/vectors.yaml: the fixed header followed by every case added so far."""
     return HEADER + "\n".join(c for c in CASES if c) + "\n"
 
 
 def main():
+    """Write corpus/edit/vectors.yaml, or with --check return 1 if the checked-in file differs from ``render()``."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()

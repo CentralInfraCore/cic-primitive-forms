@@ -36,10 +36,12 @@ SCHEMAS = {
 
 
 def field(key, provenance, value, capability=None):
+    """One field of a case: key, provenance (``authored`` or ``schema_default``), value and capability (by default the one of ``CAP``)."""
     return {"key": key, "capability": capability or CAP[key], "provenance": provenance, "value": value}
 
 
 def caps_of(fields):
+    """The capability map of a run, ``{key: capability}``, from its fields."""
     return {x["key"]: x["capability"] for x in fields}
 
 
@@ -77,6 +79,10 @@ def expected(schema_text, fields):
 
 
 def build():
+    """The whole content of testdata/p5/end-to-end.json: the engine and release identity and, per case, the schema with its sha256 and the expected values of the base and the alt run.
+
+    Asserts that each alt run really changes a capability.
+    """
     cases = []
     for cid, schema_id, yaml, fields, key, to in CASES:
         text = SCHEMAS[schema_id]
@@ -102,6 +108,7 @@ def build():
 
 
 def main():
+    """With ``--write`` rewrite testdata/p5/end-to-end.json; otherwise return 1 if the checked-in file differs from ``build()``."""
     text = json.dumps(build(), indent=1, ensure_ascii=False) + "\n"
     if "--write" in sys.argv:
         OUT.write_text(text)

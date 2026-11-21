@@ -15,10 +15,12 @@ REFUSE = []  # (name, input bytes, class)
 
 
 def ok(name, i, c=None):
+    """Record an accepted case: input bytes `i` and the canonical bytes `c` they must give (`i` itself if omitted)."""
     OK.append((name, i, i if c is None else c))
 
 
 def refuse(name, i, kind):
+    """Record a refused case: input bytes `i` and the CanonError kind they must be refused with."""
     REFUSE.append((name, i, kind))
 
 

@@ -61,6 +61,11 @@ def source_files(lang):
 
 
 def source_digest(lang, root=ROOT):
+    """Manifest digest of a measurement tool's source files under ``root``.
+
+    The sha256sum-format manifest digest (shared with the grammar identity) over
+    ``source_files(lang)``; this is the value pinned as ``source_sha256`` in coverage/tools.yaml.
+    """
     entries = []
     for rel in source_files(lang):
         with open(os.path.join(root, rel), "rb") as fh:
@@ -70,10 +75,12 @@ def source_digest(lang, root=ROOT):
 
 
 def sh(cmd, **kw):
+    """Run ``cmd`` (from the repository root unless ``cwd`` is given) and return the completed process with captured text output."""
     return subprocess.run(cmd, cwd=kw.pop("cwd", ROOT), capture_output=True, text=True, **kw)
 
 
 def must(r, what):
+    """Return ``r`` if it succeeded; otherwise print the tail of its output under ``what`` and exit 1."""
     if r.returncode != 0:
         print("FAIL: %s\n%s%s" % (what, r.stdout[-1500:], r.stderr[-1500:]))
         sys.exit(1)
@@ -81,6 +88,7 @@ def must(r, what):
 
 
 def main():
+    """Run the full qualification and return 0 only if every check holds (see the module docstring)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=None)
     ap.add_argument("--llvm", action="store_true")

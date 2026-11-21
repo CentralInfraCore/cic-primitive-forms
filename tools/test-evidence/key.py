@@ -20,12 +20,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 class KeyError_(Exception):
+    """A validity key that cannot be made (PATTERNS, NO_MATCH, NOT_A_REGULAR_FILE, UNREADABLE, ENVIRONMENT); named with a trailing underscore so as not to shadow the builtin KeyError."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
 
 
 def glob_regex(pattern):
+    """The anchored regex of a path glob: `**/` any number of leading directories, `**` anything, `*` and `?` within one path segment."""
     out, i = [], 0
     while i < len(pattern):
         c = pattern[i]
@@ -48,6 +50,7 @@ def glob_regex(pattern):
 
 
 def load_patterns(path=None):
+    """The include and exclude patterns of key-inputs.json (or `path`); anything but exactly those two string lists, include non-empty, is PATTERNS."""
     path = path or os.path.join(HERE, "key-inputs.json")
     with open(path, "rb") as fh:
         raw = fh.read()
@@ -62,6 +65,7 @@ def load_patterns(path=None):
 
 
 def sha256_file(path):
+    """The SHA-256 hex digest of a file, read in 1 MiB blocks."""
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for block in iter(lambda: fh.read(1 << 20), b""):
@@ -70,6 +74,7 @@ def sha256_file(path):
 
 
 def _literal_prefix(pattern):
+    """The part of a glob before its first wildcard: the directory prefix any match must start with."""
     cut = [i for i, c in enumerate(pattern) if c in "*?"]
     return pattern[:cut[0]] if cut else pattern
 
@@ -123,6 +128,7 @@ def expand(root, patterns):
 
 
 def _sha(text):
+    """The SHA-256 hex digest of a text's UTF-8 bytes."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -147,9 +153,11 @@ def inputs(root, environment, patterns=None):
 
 
 def key_of(named_inputs):
+    """The validity key: the content hash of the named inputs wrapped as {"inputs": ...}."""
     return canon.content_hash({"inputs": named_inputs})
 
 
 def validity_key(root, environment, patterns=None):
+    """(key, named inputs) of the checkout at `root` in `environment`; the named inputs are what the record carries as validity_inputs."""
     named = inputs(root, environment, patterns)
     return key_of(named), named

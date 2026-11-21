@@ -15,6 +15,11 @@ import sys
 
 
 def main():
+    """Compare the rustbranch run (argv[1]) with an LLVM coverage export (argv[2]).
+
+    Prints every edge pair without a matching LLVM region or with different counts and returns 1 if there
+    is any, 0 when all compared pairs are equal.
+    """
     run = json.load(open(sys.argv[1]))
     llvm = json.load(open(sys.argv[2]))["data"][0]
     regions = collections.defaultdict(lambda: [0, 0])

@@ -82,19 +82,27 @@ def reference(v):
 
 
 def sorted_by_bytes(v):
+    """Identity: the byte-order key sort of A2 needs no extra step here (unused by the checks).
+
+    ``reference()`` relies on ``json.dumps(sort_keys=True)``, which orders keys by code point, and
+    UTF-8 byte order equals code point order.
+    """
     # json.dumps sort_keys sorts by code point; UTF-8 byte order equals code point order, so this agrees with A2.
     return v
 
 
 def lit(s):
+    """A text column of the table: the string as an ASCII-only JSON string literal."""
     return json.dumps(s, ensure_ascii=True)
 
 
 def line(src, name, status, inp, canon, digest, why):
+    """One tab-separated table line; ``canon`` None (out of range) is written as ``-``."""
     return "\t".join([src, name, status, lit(inp), "-" if canon is None else lit(canon), digest, lit(why)])
 
 
 def own_lines():
+    """The table lines of the own vectors, with bytes and digest from ``reference()`` over the YAML-loaded input."""
     out = []
     for name, inp, why in OWN:
         canon = reference(yaml.safe_load(inp))
@@ -114,6 +122,7 @@ def read_expected(text):
 
 
 def engine_dir_vectors(d):
+    """Read the engine's conformance/canonicalize directory under ``d``: ``{vector name: (input.yaml text, expected fields)}``."""
     res = {}
     for p in sorted((d / "conformance/canonicalize").iterdir()):
         exp = read_expected((p / "expected.yaml").read_text(encoding="utf-8"))
@@ -122,6 +131,7 @@ def engine_dir_vectors(d):
 
 
 def engine_lines(vecs):
+    """The table lines of the engine vectors: the ``IN_RANGE`` ones with the engine's bytes and digest (the digest computed when the engine gives none), then the ``OUT_OF_RANGE`` ones with their reason."""
     out = []
     for name in IN_RANGE:
         inp, exp = vecs[name]
@@ -135,6 +145,10 @@ def engine_lines(vecs):
 
 
 def read_table():
+    """Parse the data lines of testdata/p5/canonical-vectors.tsv into dicts (the JSON literals decoded, ``-`` bytes as None).
+
+    Asserts seven columns per line; the ``why`` column is not kept.
+    """
     rows = []
     for ln in TABLE.read_text(encoding="utf-8").splitlines():
         if ln.startswith("#") or not ln:
@@ -146,6 +160,7 @@ def read_table():
 
 
 def check_own(rows):
+    """Problems of the own lines: the set of names has to be ``OWN`` and every line's bytes and digest have to equal ``reference()``."""
     bad = []
     seen = {r["name"] for r in rows if r["src"] == "own"}
     if seen != {n for n, _, _ in OWN}:
@@ -162,6 +177,12 @@ def check_own(rows):
 
 
 def check_engine(d, rows):
+    """Problems of the engine lines against the engine checkout ``d``.
+
+    The checkout has to be at the pinned commit, every engine vector has to be classified in the
+    table (and no table line may name a missing one), the inputs have to match, and an in-range
+    line's bytes and digest have to be the engine's accepted output.
+    """
     bad = []
     pin = dict(l.split() for l in PIN.read_text().splitlines() if l and not l.startswith("#"))
     head = subprocess.run(["git", "-C", str(d), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
@@ -188,6 +209,7 @@ def check_engine(d, rows):
 
 
 def main():
+    """Check (or with --write regenerate) the table; print each failure and return 1 if there is any."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine")
     ap.add_argument("--write", action="store_true")

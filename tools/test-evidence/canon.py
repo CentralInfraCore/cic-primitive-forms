@@ -18,12 +18,19 @@ WS = " \t\n\r"
 
 
 class CanonError(Exception):
+    """A document or value outside the canonical subset; `kind` is the refusal class shared with canon-go (BOM, NUMBER, DUPLICATE_KEY, NOT_CANONICAL, ...)."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
 
 
 def parse_strict(data):
+    """The value of a JSON document in the I-JSON subset, whatever its white space and member order.
+
+    Refuses non-bytes input (TypeError), a byte order mark, invalid UTF-8, an empty document, trailing data, and
+    every construct the subset excludes (fractions, exponents, out-of-range integers, -0, duplicate names, lone
+    surrogates, control characters, nesting deeper than MAX_DEPTH), each with its CanonError kind.
+    """
     if not isinstance(data, (bytes, bytearray)):
         raise TypeError("bytes expected")
     data = bytes(data)
@@ -45,18 +52,22 @@ def parse_strict(data):
 
 
 class _Parser:
+    """A recursive-descent reader over decoded text; `i` is the cursor into `s`."""
     def __init__(self, text):
         self.s = text
         self.i = 0
 
     def skip_ws(self):
+        """Advance past JSON white space (space, tab, newline, carriage return)."""
         while self.i < len(self.s) and self.s[self.i] in WS:
             self.i += 1
 
     def peek(self):
+        """The character at the cursor, or the empty string at the end."""
         return self.s[self.i] if self.i < len(self.s) else ""
 
     def value(self, depth):
+        """Read one value at the cursor; `depth` is the number of containers around it, and a container at MAX_DEPTH is DEPTH."""
         c = self.peek()
         if c in ("{", "[") and depth >= MAX_DEPTH:  # depth counts the containers around the value
             raise CanonError("DEPTH")
@@ -75,6 +86,7 @@ class _Parser:
         raise CanonError("SYNTAX")
 
     def obj(self, depth):
+        """Read an object, the cursor on its `{`; a repeated member name is DUPLICATE_KEY."""
         self.i += 1
         out = {}
         self.skip_ws()
@@ -103,6 +115,7 @@ class _Parser:
                 raise CanonError("SYNTAX")
 
     def arr(self, depth):
+        """Read an array, the cursor on its `[`."""
         self.i += 1
         out = []
         self.skip_ws()
@@ -121,6 +134,7 @@ class _Parser:
                 raise CanonError("SYNTAX")
 
     def number(self):
+        """Read an integer: no leading zero, fraction, exponent or -0, and within +-(2^53-1); anything else is NUMBER."""
         j = self.i
         if self.s[j] == "-":
             j += 1
@@ -145,6 +159,11 @@ class _Parser:
         return n
 
     def string(self):
+        """Read a string, the cursor on its opening quote, decoding escapes.
+
+        A raw control character is CONTROL_CHAR, an unknown escape ESCAPE, and a \\u surrogate that is not part of a
+        high-low pair LONE_SURROGATE.
+        """
         self.i += 1
         out = []
         while True:
@@ -183,6 +202,7 @@ class _Parser:
                 raise CanonError("ESCAPE")
 
     def hex4(self):
+        """Read the four hex digits of a \\u escape as a UTF-16 code unit; fewer or non-hex is ESCAPE."""
         h = self.s[self.i:self.i + 4]
         if len(h) != 4 or any(ch not in "0123456789abcdefABCDEF" for ch in h):
             raise CanonError("ESCAPE")
@@ -191,10 +211,14 @@ class _Parser:
 
 
 def _utf16_key(s):
+    """The sort key of a member name: its UTF-16 code units (big-endian bytes), as RFC 8785 orders names."""
     return s.encode("utf-16-be", "surrogatepass")
 
 
 def _string(s):
+    """A string literal escaped the RFC 8785 way: the two-character escape for quote, backslash, b, f, n, r and t,
+    a lowercase \\u00xx escape for the other control characters, every other character as itself.
+    """
     out = ['"']
     for ch in s:
         o = ord(ch)
@@ -221,6 +245,7 @@ def _string(s):
 
 
 def _ser(v, depth):
+    """The canonical text of a value at nesting `depth`; refuses what the subset excludes (big integers, surrogates, non-string keys, other types, nesting)."""
     if isinstance(v, (list, tuple, dict)) and depth >= MAX_DEPTH:
         raise CanonError("DEPTH")
     if v is None:
@@ -247,6 +272,7 @@ def _ser(v, depth):
 
 
 def _string_key(k):
+    """A member name as canonical text; a name holding a surrogate is LONE_SURROGATE."""
     if any(0xD800 <= ord(ch) <= 0xDFFF for ch in k):
         raise CanonError("LONE_SURROGATE")
     return _string(k)
@@ -266,4 +292,5 @@ def read_canonical(data):
 
 
 def content_hash(value):
+    """The SHA-256 hex digest of the canonical bytes of a value."""
     return hashlib.sha256(canonicalize(value)).hexdigest()
