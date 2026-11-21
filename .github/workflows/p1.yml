@@ -601,8 +601,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/dp"
           # Fail closed: a listing that failed is not "no mutants in the diff". A diff with no Rust code has nothing to list (cargo-mutants prints nothing for an empty
           # diff, so the list is written here); a diff with Rust code must give a JSON list, of any length, from a listing that succeeded (set -e).
+          # A diff that touches Rust files but holds no mutable code (comments only) is the same case: the listing succeeds, prints nothing on stdout and says
+          # "No mutants to filter" on stderr. That message, from a listing that exited 0, is the only thing that turns an empty output into an empty list.
           if [ -s "$S/rust.patch" ]; then
-            (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json --in-diff "$S/rust.patch") > "$RUNNER_TEMP/dp/rust-listed.json"
+            (cd rust && cargo +"$RUST_TOOLCHAIN" mutants --list --json --in-diff "$S/rust.patch") > "$RUNNER_TEMP/dp/rust-listed.json" 2> "$RUNNER_TEMP/dp/rust-listed.err"
+            cat "$RUNNER_TEMP/dp/rust-listed.err" >&2
+            if [ ! -s "$RUNNER_TEMP/dp/rust-listed.json" ]; then
+              grep -q 'No mutants to filter' "$RUNNER_TEMP/dp/rust-listed.err" || { echo "::error::the Rust mutant listing is empty without saying why"; exit 1; }
+              echo '[]' > "$RUNNER_TEMP/dp/rust-listed.json"
+            fi
           else
             echo '[]' > "$RUNNER_TEMP/dp/rust-listed.json"
           fi
