@@ -29,13 +29,20 @@ import "strings"
 
 // The reasons of a *ReceiptError. ReceiptIdentity, ReceiptMaterialize and ReceiptCanonical carry the refusal of the layer below in Cause.
 const (
-	ReceiptIdentity           = "identity"
-	ReceiptMaterialize        = "materialize"
-	ReceiptCanonical          = "canonical"
+	// ReceiptIdentity: the schema did not compile, or its identity (digest binding, namespace, kind) was refused.
+	ReceiptIdentity = "identity"
+	// ReceiptMaterialize: no document was given, or the materialization refused it.
+	ReceiptMaterialize = "materialize"
+	// ReceiptCanonical: the authored document, a default value or the receipt itself has no canonical bytes.
+	ReceiptCanonical = "canonical"
+	// ReceiptSchemaVersionEmpty: the schema's identity.version is empty (the verifier refuses an empty schema_version).
 	ReceiptSchemaVersionEmpty = "schema_version_empty"
-	ReceiptReleaseField       = "release_field"
-	ReceiptEngineField        = "engine_field"
-	ReceiptPathNotOneSegment  = "path_not_one_segment"
+	// ReceiptReleaseField: a ReleaseFixture field is empty, or one of its digests is not sha256: and 64 lowercase hex.
+	ReceiptReleaseField = "release_field"
+	// ReceiptEngineField: the engine identity or version is empty.
+	ReceiptEngineField = "engine_field"
+	// ReceiptPathNotOneSegment: a materialized field name is not exactly one plain path segment (decision O).
+	ReceiptPathNotOneSegment = "path_not_one_segment"
 )
 
 // ReleaseFixture is the release and grammar identity of a fixture receipt: stated by the caller, checked for form, not for origin.
@@ -61,6 +68,7 @@ type ReceiptError struct {
 	Cause  error
 }
 
+// Error is "no receipt: " and the reason, with the field in parentheses and the cause after a colon when they are set.
 func (e *ReceiptError) Error() string {
 	s := "no receipt: " + e.Reason
 	if e.Field != "" {
@@ -72,6 +80,7 @@ func (e *ReceiptError) Error() string {
 	return s
 }
 
+// Unwrap is the refusal of the layer below, so errors.As reaches a *SchemaIdentityError or a *MaterializeError.
 func (e *ReceiptError) Unwrap() error { return e.Cause }
 
 // FlatReceipt is a receipt, its canonical bytes and digest, the explicit path binding the verifier needs, and the object it describes.
@@ -88,6 +97,7 @@ type FlatReceipt struct {
 	Materialized *Materialized
 }
 
+// isReceiptDigest reports whether s is the receipt's digest form: "sha256:" and exactly 64 lowercase hex digits.
 func isReceiptDigest(s string) bool {
 	hex, ok := strings.CutPrefix(s, "sha256:")
 	if !ok || len(hex) != 64 {
@@ -102,12 +112,16 @@ func isReceiptDigest(s string) bool {
 	return true
 }
 
+// oneSegment reports whether name, as a field, is written `$.`+name with no escape: one plain path segment (decision O).
 func oneSegment(name string) bool { return logicalPath([]seg{{field: name}}) == "$."+name }
 
+// intNode is a position-less integer node.
 func intNode(i int64) *Node { return &Node{Kind: KindInt, Int: i} }
 
+// mapNode is a position-less mapping of entries, in the order given.
 func mapNode(entries ...Entry) *Node { return &Node{Kind: KindMap, Entries: entries} }
 
+// refusedReceipt is a *ReceiptError with no cause.
 func refusedReceipt(reason, field string) *ReceiptError {
 	return &ReceiptError{Reason: reason, Field: field}
 }

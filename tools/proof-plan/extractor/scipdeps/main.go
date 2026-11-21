@@ -67,6 +67,7 @@ var reportable = []string{"rs.fn", "rs.method", "rs.type", "rs.const", "rs.stati
 	"rs.generic.type", "rs.macro.external", "rs.macro.local", "rs.macro.generated", "rs.macro.include", "rs.env.<NAME>", "rs.cfg.test",
 	"rs.cfg.other"}
 
+// add records construct c as recognised in the item; the set becomes Constructs at output.
 func (n *Node) add(c string) {
 	if n.cons == nil {
 		n.cons = map[string]bool{}
@@ -74,6 +75,7 @@ func (n *Node) add(c string) {
 	n.cons[c] = true
 }
 
+// unresolved records why the item's extraction is incomplete; any reason makes the Analysis INCOMPLETE.
 func (n *Node) unresolved(why string) {
 	if n.unres == nil {
 		n.unres = map[string]bool{}
@@ -90,8 +92,11 @@ type Graph struct {
 	External []string `json:"external"`
 }
 
+// span is a SCIP source range: start line and column, end line and column.
 type span struct{ sl, sc, el, ec int } // 0-based, end exclusive
 
+// spanOf converts a SCIP range, [startLine, startCol, endCol] on one line or
+// [startLine, startCol, endLine, endCol], to a span.
 func spanOf(r []int32) span {
 	if len(r) == 3 {
 		return span{int(r[0]), int(r[1]), int(r[0]), int(r[2])}
@@ -99,6 +104,7 @@ func spanOf(r []int32) span {
 	return span{int(r[0]), int(r[1]), int(r[2]), int(r[3])}
 }
 
+// contains reports whether the position (line, col) lies inside the span, end excluded.
 func (s span) contains(line, col int) bool {
 	if line < s.sl || line > s.el {
 		return false
@@ -112,13 +118,17 @@ func (s span) contains(line, col int) bool {
 	return true
 }
 
+// size orders spans by extent (lines first, then columns), so the innermost item containing
+// an occurrence can be chosen as its owner.
 func (s span) size() int { return (s.el-s.sl)*100000 + s.ec - s.sc }
 
+// item is a node together with the source range that owns the occurrences inside it.
 type item struct {
 	node *Node
 	sp   span
 }
 
+// fail prints a scipdeps-prefixed message to stderr and exits 1; there is no partial graph.
 func fail(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "scipdeps: "+format+"\n", args...)
 	os.Exit(1)
@@ -150,16 +160,25 @@ func classify(desc string) (kind, owner string) {
 }
 
 var (
-	fnText   = regexp.MustCompile(`(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z_]\w*)`)
+	// fnText finds a `fn name` at the start of a line (optionally pub), for the test functions a
+	// macro made that rust-analyzer does not define.
+	fnText = regexp.MustCompile(`(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z_]\w*)`)
+	// implSelf reads a bare type name from an impl descriptor (impl#[Name]); only the planted
+	// plain-self-only rule uses it.
 	implSelf = regexp.MustCompile(`impl#\[([A-Za-z_]\w*)\]`)
 )
 
 var (
-	genericHead  = regexp.MustCompile(`(?m)^\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:fn|struct|enum|union|type|trait)\s+[A-Za-z_]\w*\s*<`)
-	envMacro     = regexp.MustCompile(`\b(?:env|option_env)!\s*\(\s*"([^"]*)"`)
+	// genericHead finds the head of a generic fn, struct, enum, union, type or trait up to its "<".
+	genericHead = regexp.MustCompile(`(?m)^\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?(?:(?:const|async|unsafe|default|extern(?:\s+"[^"]*")?)\s+)*(?:fn|struct|enum|union|type|trait)\s+[A-Za-z_]\w*\s*<`)
+	// envMacro finds env!/option_env! calls and captures the variable name.
+	envMacro = regexp.MustCompile(`\b(?:env|option_env)!\s*\(\s*"([^"]*)"`)
+	// includeMacro finds include!, include_str! and include_bytes!.
 	includeMacro = regexp.MustCompile(`\b(?:include_str|include_bytes|include)!`)
-	cfgAttr      = regexp.MustCompile(`#!?\[\s*cfg(?:_attr)?\s*\(|\bcfg!\s*\(`)
-	cfgTest      = regexp.MustCompile(`#!?\[\s*cfg\s*\(\s*test\s*\)\s*\]`)
+	// cfgAttr finds any cfg or cfg_attr attribute or cfg! macro.
+	cfgAttr = regexp.MustCompile(`#!?\[\s*cfg(?:_attr)?\s*\(|\bcfg!\s*\(`)
+	// cfgTest finds exactly #[cfg(test)]; an item whose every cfg is this one is rs.cfg.test.
+	cfgTest = regexp.MustCompile(`#!?\[\s*cfg\s*\(\s*test\s*\)\s*\]`)
 )
 
 // textConstructs adds what the text of an item shows: generic parameters, environment and include macros, cfg. The text is not parsed
@@ -337,15 +356,18 @@ func macroTest(src []byte, sp span) bool {
 	return strings.HasPrefix(strings.TrimSpace(string(src[off:])), "proptest!")
 }
 
+// isIdent reports whether c is an ASCII identifier byte.
 func isIdent(c byte) bool {
 	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
 }
 
+// lineCol converts a byte offset of src to a 0-based line and byte column.
 func lineCol(src []byte, off int) (int, int) {
 	line := strings.Count(string(src[:off]), "\n")
 	return line, off - (strings.LastIndex(string(src[:off]), "\n") + 1)
 }
 
+// offset converts a 0-based line and byte column to a byte offset of src (len(src) past the last line).
 func offset(src []byte, line, col int) int {
 	off := 0
 	for l := 0; l < line; l++ {
@@ -362,6 +384,8 @@ func offset(src []byte, line, col int) int {
 // its type; one for a type with a lifetime or a type parameter (impl#[`Name<'_>`]) is not. A planted defect.
 var plantedPlainSelfOnly = os.Getenv("SCIPDEPS_PLANTED_PLAIN_SELF_ONLY") == "1"
 
+// selfName reads the type name from an impl's self type text: an optional reference with an
+// optional lifetime and mut, then the name, then any generic arguments.
 var selfName = regexp.MustCompile(`^&?(?:'\w+\s+)?(?:mut\s+)?([A-Za-z_]\w*)(?:<.*)?$`)
 
 // implSelfName is the name of the type an impl block is for, read from the first bracket of its descriptor: `impl#[Name]...` or, when the
@@ -399,6 +423,12 @@ func implSelfName(desc string) string {
 // plantedNoImpl leaves out the type -> impl method edges: a planted defect, for showing that the measurement sees it.
 var plantedNoImpl = os.Getenv("SCIPDEPS_PLANTED_NO_IMPL") == "1"
 
+// main reads the SCIP index and the crate sources and writes the graph in the typeddeps
+// schema to stdout. It takes the crate's own package from the first definition in src/,
+// makes a node per defined item of the crate (integration test files prefixed as their own
+// crates, macro-made items re-ranged or found by their text), refuses a crate that defines
+// traits, adds an edge for every crate-symbol occurrence to the innermost item containing it,
+// and makes every type depend on the methods of its impl blocks.
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Fprintln(os.Stderr, "usage: scipdeps <index.scip> <crate dir>")

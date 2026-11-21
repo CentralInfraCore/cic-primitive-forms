@@ -37,6 +37,7 @@ type PathError struct {
 	LogicalPath string
 }
 
+// Error is the code and the phase, e.g. "PATH_SYNTAX (path_parse)".
 func (e *PathError) Error() string { return fmt.Sprintf("%s (%s)", e.Code, e.Phase) }
 
 // Violation is the machine-response form of the error: no source location applies.
@@ -49,14 +50,18 @@ func (e *PathError) Violation() Violation {
 	return v
 }
 
+// escapable are the characters a name may hold only behind a backslash, and the only ones a backslash may escape.
 const escapable = "\\.[]{}=,"
 
+// pathParser reads a path text, held as code points so that every offset it reports is a code-point offset.
 type pathParser struct{ r []rune }
 
+// fail is the path_parse error of code at code-point offset at.
 func (p *pathParser) fail(code string, at int) *PathError {
 	return &PathError{Code: code, Phase: PhasePathParse, Offset: at}
 }
 
+// isDigit reports whether c is an ASCII decimal digit.
 func isDigit(c rune) bool { return c >= '0' && c <= '9' }
 
 // ParsePath reads the canonical text of a path into segments.
@@ -133,6 +138,9 @@ func (p *pathParser) name(start int, inSelector bool) (string, int, *PathError) 
 	return b.String(), end, nil
 }
 
+// selector reads a ListItem selector `[{name=value,...}]` starting at the `[` at start and returns its components in written
+// order and the offset after the `]`. Component values are canonical JSON strings or canonical integers; a numeric index
+// (`[0]`) is PATH_INDEX_SELECTOR and a repeated component name PATH_DUPLICATE_COMPONENT.
 func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
 	i := start + 1
 	if i >= len(p.r) {
@@ -195,6 +203,8 @@ func (p *pathParser) selector(start int) ([]KeyComp, int, *PathError) {
 	return comps, i + 1, nil
 }
 
+// integer reads a canonical decimal integer component at start: a `+`, a leading zero or `-0` is PATH_NONCANONICAL, a value
+// outside int64 PATH_INTEGER_RANGE.
 func (p *pathParser) integer(start int) (int64, int, *PathError) {
 	i := start
 	plus, neg := p.r[i] == '+', p.r[i] == '-'
@@ -393,6 +403,7 @@ func ResolvePath(root Shape, segs []PathSeg) (Resolved, *PathError) {
 	return Resolved{Target: target, Primitive: target != "root" && target != "item"}, nil
 }
 
+// targetOf is the name of the target kind of a shape as Resolved reports it: scalar, composite, set, opaque or list.
 func targetOf(s Shape) string {
 	switch s.Kind {
 	case ShapeScalar:

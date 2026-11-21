@@ -22,22 +22,36 @@ import (
 
 // The reasons of a *MappingError.
 const (
-	MappingEnvelopeNot3              = "envelope_not_3"
-	MappingFieldMissing              = "field_missing"
-	MappingFieldType                 = "field_type"
-	MappingBase64Shape               = "base64_shape"
-	MappingBase64NotCanonical        = "base64_not_canonical"
-	MappingBase64Length              = "base64_length"
-	MappingDigestForm                = "digest_form"
-	MappingArtifactAbsent            = "artifact_absent"
-	MappingArtifactDuplicate         = "artifact_duplicate"
+	// MappingEnvelopeNot3: release.envelope or provenance.envelope is not the integer 3 (only an envelope 3 record is read, D3).
+	MappingEnvelopeNot3 = "envelope_not_3"
+	// MappingFieldMissing: a member the mapping needs is absent or null, or the pin has no digest for a grammar artifact.
+	MappingFieldMissing = "field_missing"
+	// MappingFieldType: a member is present but of the wrong type (a base64 digest that is not a string, artifacts.files not a list, an
+	// artifact digest not a string).
+	MappingFieldType = "field_type"
+	// MappingBase64Shape: a base64 digest that is not 43 characters of the standard alphabet and one "=".
+	MappingBase64Shape = "base64_shape"
+	// MappingBase64NotCanonical: a base64 digest that decodes, but is not the one canonical spelling of its bytes.
+	MappingBase64NotCanonical = "base64_not_canonical"
+	// MappingBase64Length: a base64 digest that does not decode to exactly 32 bytes (a guard: the shape check already implies it).
+	MappingBase64Length = "base64_length"
+	// MappingDigestForm: an artifacts.files digest that is not "sha256:" and 64 lowercase hex.
+	MappingDigestForm = "digest_form"
+	// MappingArtifactAbsent: no artifacts.files entry has the grammar artifact's path.
+	MappingArtifactAbsent = "artifact_absent"
+	// MappingArtifactDuplicate: more than one artifacts.files entry has the grammar artifact's path.
+	MappingArtifactDuplicate = "artifact_duplicate"
+	// MappingProvenanceArtifactsDiffer: provenance.grammar_* differs from the artifacts.files digest it cross-checks (D2).
 	MappingProvenanceArtifactsDiffer = "provenance_artifacts_disagree"
-	MappingRecordPinDiffer           = "record_pin_disagree"
+	// MappingRecordPinDiffer: the artifacts.files digest of a grammar artifact differs from the pin.
+	MappingRecordPinDiffer = "record_pin_disagree"
 )
 
 // The artifacts the two grammar digests are read from, and the provenance members that have to agree with them.
 const (
-	mappingCheckGrammar  = "proposals/atom-grammar/check_grammar.py"
+	// mappingCheckGrammar is the artifact path of the grammar checker, the primary source of grammar_sha256.
+	mappingCheckGrammar = "proposals/atom-grammar/check_grammar.py"
+	// mappingGrammarSchema is the artifact path of the instance grammar schema, the primary source of grammar_schema_sha256.
 	mappingGrammarSchema = "proposals/atom-grammar/instance-grammar.schema.yaml"
 )
 
@@ -47,6 +61,7 @@ type MappingError struct {
 	Field  string
 }
 
+// Error is "no digest mapping: " and the reason, with the field in parentheses when there is one.
 func (e *MappingError) Error() string {
 	s := "no digest mapping: " + e.Reason
 	if e.Field != "" {
@@ -62,6 +77,7 @@ type DigestMapping struct {
 	GrammarSchemaSHA256 string
 }
 
+// base64Alphabet is the standard base64 alphabet (RFC 4648 section 4), without the padding character.
 const base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 // base64Shape reports whether s is, as a whole, 43 characters of the standard alphabet and one padding character: the shape of a SHA-256 in base64. It is checked

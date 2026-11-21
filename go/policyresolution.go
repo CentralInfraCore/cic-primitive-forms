@@ -56,11 +56,14 @@ func ResolvePolicy(object *Node, root Shape, policy PolicySurface, surface strin
 	return out, nil
 }
 
+// resolveTarget is one position to resolve: its logical path, the graph object that holds it and the access and modify rules
+// its own wrapper declares (nil is inherit).
 type resolveTarget struct {
 	path, object   string
 	access, modify *PolicyRule
 }
 
+// resolveWalker builds the policy graph of an object and collects its positions, in document order, for ResolvePolicy.
 type resolveWalker struct {
 	a       []string
 	g       Grammar
@@ -171,6 +174,8 @@ func (w *resolveWalker) below(v *Node, shape Shape, path []seg, text string, par
 	return nil
 }
 
+// child adds to the graph the object id below parent, carried by the wrapper of the position at carrierPath (mode and rules),
+// and returns it. The object declares no policy of its own.
 func (w *resolveWalker) child(id string, parent *PolicyObject, mode Mode, access, modify *PolicyRule, carrierPath string) *PolicyObject {
 	o := &PolicyObject{ID: id, Parent: parent.ID, HasParent: true, CarrierPath: carrierPath,
 		Carrier: &Carrier{Mode: mode, Access: access, Modify: modify}}

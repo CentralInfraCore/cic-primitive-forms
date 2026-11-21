@@ -25,13 +25,20 @@ type KeyComp struct {
 // The codes of an element whose identity cannot be built or is not unique. They are the path_of codes of
 // the corpus registry, reported in the validate phase too (ADR 0007).
 const (
-	CodeKeyMissing     = "PATH_KEY_MISSING"
-	CodeKeyType        = "PATH_KEY_TYPE"
+	// CodeKeyMissing: the record lacks a key field of its case.
+	CodeKeyMissing = "PATH_KEY_MISSING"
+	// CodeKeyType: a key value is not of the key field's declared type (string or integer), or is a wrapper without a value.
+	CodeKeyType = "PATH_KEY_TYPE"
+	// CodeKeyUnsupported: the key field is declared with a type that has no path encoding (not a string or integer scalar).
 	CodeKeyUnsupported = "PATH_KEY_UNSUPPORTED"
-	CodeCaseNone       = "PATH_CASE_NONE"
-	CodeCaseAmbiguous  = "PATH_CASE_AMBIGUOUS"
+	// CodeCaseNone: no case of the item_choice matches the record.
+	CodeCaseNone = "PATH_CASE_NONE"
+	// CodeCaseAmbiguous: more than one case of the item_choice matches the record.
+	CodeCaseAmbiguous = "PATH_CASE_AMBIGUOUS"
+	// CodeDuplicateIdent: two elements of one list have the same identity.
 	CodeDuplicateIdent = "PATH_DUPLICATE_IDENTITY"
-	valueKey           = "value"
+	// valueKey is the member of an expanded Access wrapper that holds the value.
+	valueKey = "value"
 )
 
 // through looks through an expanded Access wrapper: the node whose value is meant. ok is false for a
@@ -48,6 +55,7 @@ func through(n *Node, a []string) (*Node, bool) {
 	return n, true
 }
 
+// entry is the value of the first entry named key of n, or nil (also when n is not a mapping).
 func entry(n *Node, key string) *Node {
 	for _, e := range n.Entries {
 		if e.Key == key {
@@ -57,6 +65,7 @@ func entry(n *Node, key string) *Node {
 	return nil
 }
 
+// fieldOf is the shape of the field name declared by case c; ok is false when c declares no such field.
 func fieldOf(c *Case, name string) (Shape, bool) {
 	for _, f := range c.Fields {
 		if f.Name == name {

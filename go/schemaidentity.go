@@ -22,14 +22,19 @@ import "strings"
 
 // The codes of the contract, spelled as the engine spells them.
 const (
+	// SchemaInvalidIdentity: the namespace or the kind is absent or malformed (rules R-SCHEMA-NAME-*).
 	SchemaInvalidIdentity = "E_INVALID_SCHEMA_IDENTITY"
-	SchemaSourceBinding   = "E_SCHEMA_SOURCE_BINDING"
+	// SchemaSourceBinding: no digest was claimed, or it is not the digest of the bytes (rules R-SCHEMA-DIGEST-*).
+	SchemaSourceBinding = "E_SCHEMA_SOURCE_BINDING"
 )
 
 const (
+	// schemaNamespacePath is the path a namespace refusal names.
 	schemaNamespacePath = "$.spec.identity.namespace"
-	schemaKindPath      = "$.spec.identity.kind"
-	schemaDigestPath    = "$.schema_digest"
+	// schemaKindPath is the path a kind refusal names.
+	schemaKindPath = "$.spec.identity.kind"
+	// schemaDigestPath is the path every source-binding refusal names.
+	schemaDigestPath = "$.schema_digest"
 )
 
 // SchemaIdentityError is why an identity was refused: the code and the rule of the engine's contract, and the path it names.
@@ -39,6 +44,7 @@ type SchemaIdentityError struct {
 	Path string
 }
 
+// Error is the code, the rule in parentheses and the path, e.g. "E_SCHEMA_SOURCE_BINDING (R-SCHEMA-DIGEST-MISMATCH) at $.schema_digest".
 func (e *SchemaIdentityError) Error() string { return e.Code + " (" + e.Rule + ") at " + e.Path }
 
 // SchemaIdentity is the three schema fields of a receipt, from one verified source.
@@ -49,10 +55,12 @@ type SchemaIdentity struct {
 	SchemaDigest  string
 }
 
+// invalidIdentity is an E_INVALID_SCHEMA_IDENTITY refusal of rule at path.
 func invalidIdentity(rule, path string) *SchemaIdentityError {
 	return &SchemaIdentityError{Code: SchemaInvalidIdentity, Rule: rule, Path: path}
 }
 
+// bindingIdentity is an E_SCHEMA_SOURCE_BINDING refusal of rule, at the schema_digest path.
 func bindingIdentity(rule string) *SchemaIdentityError {
 	return &SchemaIdentityError{Code: SchemaSourceBinding, Rule: rule, Path: schemaDigestPath}
 }
@@ -71,6 +79,7 @@ func SchemaName(namespace, kind *string) (string, *SchemaIdentityError) {
 	return *namespace + ":" + *kind, nil
 }
 
+// hasEmptyNamespaceComponent reports whether a ":"-separated component of s is empty (a leading, trailing or doubled colon).
 func hasEmptyNamespaceComponent(s string) bool {
 	for _, part := range strings.Split(s, ":") {
 		if part == "" {

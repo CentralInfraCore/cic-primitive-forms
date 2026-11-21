@@ -7,14 +7,19 @@ type Phase string
 
 // The phases this slice produces.
 const (
-	PhaseParse     Phase = "parse"
+	// PhaseParse is the phase of reading the YAML text into a node tree.
+	PhaseParse Phase = "parse"
+	// PhaseRecognize is the phase of telling a short from an expanded Access writing (ADR 0001).
 	PhaseRecognize Phase = "recognize"
-	PhaseValidate  Phase = "validate"
+	// PhaseValidate is the phase of checking a document against its schema.
+	PhaseValidate Phase = "validate"
 	// PhasePathOf is the phase of PathOf: the identity of a list element could not be built.
 	PhasePathOf Phase = "path_of"
 	// The phases of the path operations (ADR 0006): no source location, only the text of the path.
-	PhasePathParse   Phase = "path_parse"
-	PhasePathFormat  Phase = "path_format"
+	PhasePathParse Phase = "path_parse"
+	// PhasePathFormat is the phase of writing segments as a canonical path text (FormatPath).
+	PhasePathFormat Phase = "path_format"
+	// PhasePathResolve is the phase of resolving a parsed path against the schema (ResolvePath).
 	PhasePathResolve Phase = "path_resolve"
 	// PhaseEdit is the phase of a source-preserving edit and of the span it works on (ADR 0012).
 	PhaseEdit Phase = "edit"
@@ -56,9 +61,13 @@ type ErrorKind int
 // The kinds of Error. Only ErrContract is the ADR 0007 machine response; the others are
 // the boundary of the supported subset and carry no registry code.
 const (
+	// ErrContract is the ADR 0007 machine response: Violations holds the registry codes, Code is the first one's.
 	ErrContract ErrorKind = iota
+	// ErrUnsupported is an input outside the supported subset (UNSUPPORTED_SYNTAX); refused, never guessed.
 	ErrUnsupported
+	// ErrSyntax is text that is not well-formed YAML (YAML_SYNTAX).
 	ErrSyntax
+	// ErrLimit is an input beyond a resource limit of the reader (LIMIT_EXCEEDED).
 	ErrLimit
 	// ErrBinding is a grammar version or a pinned schema that could not be bound. Its code is the
 	// upstream contract's own (GRAMMAR_VERSION_MISSING, UNKNOWN_GRAMMAR_VERSION,
@@ -70,7 +79,8 @@ const (
 	ErrSchema
 )
 
-// Error is a failure of Parse or Recognize.
+// Error is the failure of an operation of this package: a contract response (ErrContract, with its violations) or one of the
+// boundary kinds of ErrorKind.
 type Error struct {
 	Kind       ErrorKind
 	Violations []Violation
@@ -89,8 +99,9 @@ type SchemaProblem struct {
 	Code, Path, Detail string
 }
 
-// Code is the stable code of the error. The codes of the last three kinds are outside the
-// registry of corpus/codes.yaml; a contract response reports its first violation's code.
+// Code is the stable code of the error. A contract response reports its first violation's code;
+// ErrUnsupported, ErrSyntax and ErrLimit report a fixed code outside the registry of corpus/codes.yaml;
+// ErrBinding reports the upstream contract's code (BindingCode) and ErrSchema its first problem's (SchemaCode).
 func (e *Error) Code() string {
 	switch e.Kind {
 	case ErrContract:
@@ -108,14 +119,17 @@ func (e *Error) Code() string {
 	}
 }
 
+// Error is the code and the detail.
 func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code(), e.Detail)
 }
 
+// unsupported is an ErrUnsupported *Error with a formatted detail.
 func unsupported(format string, a ...any) *Error {
 	return &Error{Kind: ErrUnsupported, Detail: fmt.Sprintf(format, a...)}
 }
 
+// limit is an ErrLimit *Error with a formatted detail.
 func limit(format string, a ...any) *Error {
 	return &Error{Kind: ErrLimit, Detail: fmt.Sprintf(format, a...)}
 }

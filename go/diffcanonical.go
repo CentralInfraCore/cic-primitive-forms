@@ -9,10 +9,13 @@ import (
 // The canonical bytes of a diff (ADR 0008): UTF-8, no BOM, no whitespace outside strings, object keys sorted by their UTF-8 bytes, integers
 // as 0 or -?[1-9][0-9]*, no floats, absence by omitting the field. The writer is here and not a JSON library, so the bytes do not depend on one.
 
+// decl is the {"previous","next"} object of one changed declaration field.
 func decl(c DeclChange) *Node {
 	return &Node{Kind: KindMap, Entries: []Entry{{Key: "previous", Value: c.Previous}, {Key: "next", Value: c.Next}}}
 }
 
+// node is the event as a canonical object: kind and path, plus the members its Kind carries (next; previous; previous and next;
+// changed, keyed by field; or added and removed for a set_change).
 func (e DiffEvent) node() *Node {
 	str := func(s string) *Node { return &Node{Kind: KindStr, Str: s} }
 	m := []Entry{{Key: "kind", Value: str(e.Kind)}, {Key: "path", Value: str(e.Path)}}
@@ -56,6 +59,8 @@ func (r *DiffResult) Canonical() string {
 	return b.String()
 }
 
+// writeCanonical writes n in the canonical bytes of a diff; mapping entries are sorted by key bytes. It never fails: the nodes it
+// is given are built by Canonical and hold no unsupported value.
 func writeCanonical(b *strings.Builder, n *Node) {
 	switch n.Kind {
 	case KindNull:

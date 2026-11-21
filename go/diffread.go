@@ -28,20 +28,36 @@ import (
 
 // The reasons a diff is not read.
 const (
-	ReadNotUTF8        = "not_utf8"
-	ReadSyntax         = "syntax"
-	ReadDepth          = "depth"
-	ReadDuplicateKey   = "duplicate_key"
-	ReadNumber         = "unsupported_number" // a float, an integer beyond signed 64 bits, a leading zero, a minus zero
-	ReadShape          = "shape"              // a key, a kind or a type the contract does not have
-	ReadPath           = "path"               // not a canonical path of ADR 0006, or the root
-	ReadOrder          = "order"              // events or entries not strictly in the order of ADR 0008, or one (path, kind) twice
-	ReadNoChange       = "no_change"          // an event that describes no change
-	ReadNotCanonical   = "not_canonical"      // valid, but not the writing ADR 0008 fixes
-	ReadVersion        = "version"            // canonical JSON with an integer version, but not the version this reader interprets (ReadDiffVersion says which)
-	readMaxDepth       = 64
-	maxVersion         = 1<<31 - 1
-	readVersion        = 1
+	// ReadNotUTF8: the bytes are not valid UTF-8 (reported at offset 0).
+	ReadNotUTF8 = "not_utf8"
+	// ReadSyntax: not one JSON value: a malformed token, a raw control character in a string, a lone or unpaired surrogate
+	// escape, or bytes after the value.
+	ReadSyntax = "syntax"
+	// ReadDepth: arrays and objects nested deeper than readMaxDepth.
+	ReadDepth = "depth"
+	// ReadDuplicateKey: an object that repeats a key.
+	ReadDuplicateKey = "duplicate_key"
+	// ReadNumber: a float, an integer beyond signed 64 bits, a leading zero, a minus zero.
+	ReadNumber = "unsupported_number"
+	// ReadShape: a key, a kind or a type the contract does not have.
+	ReadShape = "shape"
+	// ReadPath: not a canonical path of ADR 0006, or the root.
+	ReadPath = "path"
+	// ReadOrder: events or entries not strictly in the order of ADR 0008, or one (path, kind) twice.
+	ReadOrder = "order"
+	// ReadNoChange: an event that describes no change.
+	ReadNoChange = "no_change"
+	// ReadNotCanonical: valid, but not the writing ADR 0008 fixes.
+	ReadNotCanonical = "not_canonical"
+	// ReadVersion: canonical JSON with an integer version, but not the version this reader interprets (ReadDiffVersion says which).
+	ReadVersion = "version"
+	// readMaxDepth is the deepest nesting of arrays and objects the reader accepts (the top value is depth 0).
+	readMaxDepth = 64
+	// maxVersion is the largest version ReadDiffVersion accepts (2^31-1); a larger integer is ReadShape.
+	maxVersion = 1<<31 - 1
+	// readVersion is the only diff version ReadDiff interprets.
+	readVersion = 1
+	// readRepresentation is the kind of every representation entry.
 	readRepresentation = "representation_change"
 )
 
@@ -51,6 +67,7 @@ type DiffReadError struct {
 	Offset int
 }
 
+// Error is "diff not read: ", the reason and the byte offset.
 func (e *DiffReadError) Error() string {
 	return "diff not read: " + e.Reason + " at byte " + strconv.Itoa(e.Offset)
 }
@@ -67,11 +84,14 @@ func (c CanonicalDiff) PatchDiff() PatchDiff {
 	return PatchDiff{Version: c.Version, Changes: c.Changes}
 }
 
+// jsonReader is a strict single-pass JSON reader over b, positioned at byte at. It reads only what the canonical writing of a
+// diff can hold (no floats; whitespace is a syntax error) and refuses at the offset where it stands.
 type jsonReader struct {
 	b  []byte
 	at int
 }
 
+// fail is the refusal for reason at the current offset.
 func (r *jsonReader) fail(reason string) *DiffReadError {
 	return &DiffReadError{Reason: reason, Offset: r.at}
 }
@@ -82,6 +102,7 @@ func failed[T any](r *jsonReader, reason string) (T, *DiffReadError) {
 	return zero, r.fail(reason)
 }
 
+// peek is the byte at the current offset without consuming it, or -1 at the end of the input.
 func (r *jsonReader) peek() int {
 	if r.at < len(r.b) {
 		return int(r.b[r.at])
@@ -98,6 +119,7 @@ func (r *jsonReader) next() int {
 	return c
 }
 
+// value reads one JSON value at nesting depth depth: an object, an array, a string, true, false, null or an integer.
 func (r *jsonReader) value(depth int) (*Node, *DiffReadError) {
 	if depth > readMaxDepth {
 		return failed[*Node](r, ReadDepth)
@@ -124,6 +146,8 @@ func (r *jsonReader) value(depth int) (*Node, *DiffReadError) {
 	return r.number() // anything else is a number or not a value: number refuses what has no digits, at this offset
 }
 
+// number reads an integer: an optional minus and decimal digits. No digits is ReadSyntax; a fraction or exponent, a leading
+// zero, -0 or a value outside int64 is ReadNumber.
 func (r *jsonReader) number() (*Node, *DiffReadError) {
 	start := r.at
 	if r.peek() == '-' {
@@ -157,6 +181,8 @@ func (r *jsonReader) hex4() (rune, bool) {
 	return rune(n), err == nil
 }
 
+// str reads a string starting at its opening quote, decoding escapes; a raw control character or the end of the input is
+// ReadSyntax.
 func (r *jsonReader) str() (string, *DiffReadError) {
 	r.at++ // the opening quote
 	var b strings.Builder
@@ -179,6 +205,7 @@ func (r *jsonReader) str() (string, *DiffReadError) {
 	}
 }
 
+// escape reads the character after a backslash and returns the character it stands for; an unknown escape is ReadSyntax.
 func (r *jsonReader) escape() (rune, *DiffReadError) {
 	esc := r.next()
 	switch esc {
@@ -200,6 +227,8 @@ func (r *jsonReader) escape() (rune, *DiffReadError) {
 	return failed[rune](r, ReadSyntax)
 }
 
+// unicode reads the four hex digits of a \u escape. A lone low surrogate or an unpaired high surrogate is ReadSyntax; a valid
+// surrogate pair is ReadNotCanonical, because ADR 0008 writes that character literally.
 func (r *jsonReader) unicode() (rune, *DiffReadError) {
 	code, ok := r.hex4()
 	switch {
@@ -220,6 +249,7 @@ func (r *jsonReader) unicode() (rune, *DiffReadError) {
 	return code, nil
 }
 
+// array reads an array starting at its opening bracket.
 func (r *jsonReader) array(depth int) (*Node, *DiffReadError) {
 	r.at++
 	out := &Node{Kind: KindSeq, Items: []*Node{}}
@@ -245,6 +275,7 @@ func (r *jsonReader) array(depth int) (*Node, *DiffReadError) {
 	}
 }
 
+// object reads an object starting at its opening brace, in the order written; a repeated key is ReadDuplicateKey.
 func (r *jsonReader) object(depth int) (*Node, *DiffReadError) {
 	r.at++
 	out := &Node{Kind: KindMap, Entries: []Entry{}}
@@ -284,6 +315,7 @@ func (r *jsonReader) object(depth int) (*Node, *DiffReadError) {
 	}
 }
 
+// readFail is the ReadDiff refusal for reason, at offset 0 (a refusal about the document, not a byte of it).
 func readFail(reason string) (CanonicalDiff, error) {
 	return CanonicalDiff{}, &DiffReadError{Reason: reason}
 }
@@ -303,6 +335,7 @@ func members(n *Node, keys ...string) map[string]*Node {
 	return out
 }
 
+// isString reports whether n is a string.
 func isString(n *Node) bool { return n.Kind == KindStr }
 
 // pathOrder is the key of a canonical, non-root path in the order of ADR 0007, or ok false.
@@ -314,6 +347,7 @@ func pathOrder(text string) (order []string, ok bool) {
 	return keysOf(segsOf(segs)), true
 }
 
+// isScalar reports whether n is neither a sequence nor a mapping.
 func isScalar(n *Node) bool { return n.Kind != KindSeq && n.Kind != KindMap }
 
 // strictlySorted says whether the scalars are in the order of ADR 0008 with no repeat.
@@ -326,6 +360,9 @@ func strictlySorted(items []*Node) bool {
 	return true
 }
 
+// eventOf reads one event object: by its kind, exactly the members that kind carries and a string path. The second result is
+// ReadShape when the object does not have that shape (an unknown kind included), "" otherwise. Path, order and no-change are
+// checked by the caller.
 func eventOf(n *Node) (DiffEvent, string) {
 	var kindNode *Node
 	for _, e := range n.Entries {

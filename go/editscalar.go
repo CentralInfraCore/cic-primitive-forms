@@ -129,6 +129,8 @@ func representable(v *Node) bool {
 	return v.Kind != KindStr || (utf8.ValidString(v.Str) && !strings.ContainsFunc(v.Str, unwritable))
 }
 
+// unwritable reports whether a new string value may not hold r: a control character (line breaks included) or the
+// line/paragraph separators U+2028 and U+2029.
 func unwritable(r rune) bool {
 	return unicode.IsControl(r) || r == 0x2028 || r == 0x2029
 }

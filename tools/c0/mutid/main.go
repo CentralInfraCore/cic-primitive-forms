@@ -23,12 +23,15 @@ import (
 	"strings"
 )
 
+// tok is one scanner token: its kind and literal. off is not filled in by tokens; offsets
+// returns the positions separately.
 type tok struct {
 	t   token.Token
 	lit string
 	off int
 }
 
+// text returns the token's literal, or the spelling of its kind for operators and keywords.
 func (t tok) text() string {
 	if t.lit != "" {
 		return t.lit
@@ -36,6 +39,8 @@ func (t tok) text() string {
 	return t.t.String()
 }
 
+// tokens scans src into its token stream. Comments are not tokens, so a change to a comment
+// changes no id and no digest; automatic semicolons are tokens.
 func tokens(src []byte) []tok {
 	fset := token.NewFileSet()
 	f := fset.AddFile("", fset.Base(), len(src))
@@ -51,7 +56,7 @@ func tokens(src []byte) []tok {
 	}
 }
 
-// offsets fills in the byte offset of every token, for locating the enclosing function.
+// offsets returns the byte offset of every token of src, in the order of tokens, for locating the enclosing function.
 func offsets(src []byte) []int {
 	fset := token.NewFileSet()
 	f := fset.AddFile("", fset.Base(), len(src))
@@ -67,6 +72,7 @@ func offsets(src []byte) []int {
 	}
 }
 
+// join renders a token run as the texts of its tokens separated by single spaces.
 func join(ts []tok) string {
 	parts := make([]string, len(ts))
 	for i, t := range ts {
@@ -75,18 +81,22 @@ func join(ts []tok) string {
 	return strings.Join(parts, " ")
 }
 
+// sum returns the hex sha256 of the parts joined with NUL separators.
 func sum(parts ...string) string {
 	h := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(h[:])
 }
 
-// fn is a function or method of the original file with the token range of its text.
+// fn is a unit of the original file with the byte range of its text and the digest of its token stream: a function or
+// method, or a package level var, const or type declaration (named "<var x>" and the like by its first spec).
 type fn struct {
 	name       string
 	start, end int // byte offsets
 	digest     string
 }
 
+// qualified names a function by its name, a method as Recv.Name with the pointer and type
+// parameters stripped from the receiver ("?.Name" if the receiver is no named type).
 func qualified(d *ast.FuncDecl) string {
 	if d.Recv == nil || len(d.Recv.List) == 0 {
 		return d.Name.Name
@@ -110,6 +120,8 @@ func qualified(d *ast.FuncDecl) string {
 	}
 }
 
+// functions parses src and returns its top-level declarations as units, each with its byte
+// range and the digest of its token stream, or the parse error.
 func functions(src []byte) ([]fn, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", src, 0) // no comments kept
@@ -140,6 +152,10 @@ func functions(src []byte) ([]fn, error) {
 	return out, nil
 }
 
+// mutant is the derived description of one mutated file: the old (go-mutesting) id, the file,
+// the enclosing unit, the changed token runs before (from) and after (to), the token index of
+// the first difference, the ordinal among equal changes, the stable id, the body digest of the
+// enclosing unit, and the digest of the whole original file.
 type mutant struct {
 	oldID, file     string
 	fn, from, to    string
@@ -148,6 +164,10 @@ type mutant struct {
 	id, body, whole string
 }
 
+// derive locates the change between orig and mut by stripping the longest common token prefix
+// and suffix, and names the unit of funcs whose byte range contains the first changed token
+// ("<none>" if no unit does). Equal token streams are an error: there is no change to name.
+// The ordinal and the id are assigned later by cmdIDs.
 func derive(file string, orig, mut []byte, funcs []fn) (mutant, error) {
 	a, b := tokens(orig), tokens(mut)
 	p := 0
@@ -180,6 +200,10 @@ func derive(file string, orig, mut []byte, funcs []fn) (mutant, error) {
 		whole: sum(string(orig))}, nil
 }
 
+// cmdIDs implements "mutid ids": for every mutant of the index (old id, file) it derives the
+// change against the original file, numbers equal (file, unit, before, after) changes by their
+// position in the original to get the ordinal, and prints one tab-separated line per mutant:
+// stable id, file, unit, before, after, ordinal, body digest prefix, old id.
 func cmdIDs(args []string) error {
 	fs := flag.NewFlagSet("ids", flag.ExitOnError)
 	origDir := fs.String("orig", "", "directory of the original files")
@@ -240,6 +264,7 @@ func cmdIDs(args []string) error {
 	return nil
 }
 
+// oneLine flattens tabs and newlines to spaces and truncates to 60 bytes, for one TSV column.
 func oneLine(s string) string {
 	s = strings.ReplaceAll(s, "\t", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -322,6 +347,8 @@ func cmdClosure(args []string) error {
 	return nil
 }
 
+// main dispatches to the ids or closure subcommand; an error is printed and exits 1, a missing
+// subcommand exits 2.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: mutid ids|closure ...")

@@ -7,7 +7,9 @@ type Presence int
 
 // The two presences.
 const (
+	// Mandatory: an absent field is MISSING_MANDATORY. The default when neither member is written.
 	Mandatory Presence = iota
+	// Optional: the field may be absent; if it declares a default it is a default candidate.
 	Optional
 )
 
@@ -16,11 +18,15 @@ type ScalarType int
 
 // The scalar types.
 const (
+	// ScalarString accepts a string value.
 	ScalarString ScalarType = iota
+	// ScalarInteger accepts an int64 value.
 	ScalarInteger
+	// ScalarBoolean accepts true or false.
 	ScalarBoolean
 )
 
+// String is the schema spelling of the type: string, integer or boolean.
 func (t ScalarType) String() string {
 	return [...]string{"string", "integer", "boolean"}[t]
 }
@@ -99,6 +105,8 @@ type Validation struct {
 	DefaultCandidates []string
 }
 
+// walk is the state of one Validate: the key set A, the recognition and validation violations and the default candidates found
+// so far (each with its path, for sorting), and whether an expanded Access node was met.
 type walk struct {
 	a           []string
 	recognition []found
@@ -107,6 +115,7 @@ type walk struct {
 	expanded    bool
 }
 
+// add records a validate-phase violation of code at path, anchored at at.
 func (w *walk) add(path []seg, code string, at Location) {
 	w.validation = append(w.validation, found{path, Violation{Code: code, Phase: PhaseValidate, Location: at}})
 }
@@ -153,6 +162,8 @@ func (w *walk) visit(node *Node, shape Shape, path []seg, keyPos, parentPos *Pos
 	return nil
 }
 
+// absent handles an absent field: MISSING_MANDATORY anchored at the parent mapping, or, for an optional field that declares a
+// default, a default candidate (left out when its path cannot be written).
 func (w *walk) absent(shape Shape, path []seg, parentPos *Pos) {
 	if shape.Presence == Mandatory {
 		w.add(path, "MISSING_MANDATORY", loc(parentPos))
@@ -167,10 +178,13 @@ func (w *walk) absent(shape Shape, path []seg, parentPos *Pos) {
 	}
 }
 
+// kindName is the name of a node's kind as error details spell it.
 func kindName(n *Node) string {
 	return [...]string{"null", "boolean", "integer", "string", "list", "mapping", "unsupported number"}[n.Kind]
 }
 
+// scalar checks a value against a scalar type: a mapping is MAP_AT_SCALAR_POSITION; any other mismatch has no registry code
+// and is Unsupported.
 func (w *walk) scalar(node *Node, t ScalarType, path []seg) error {
 	if node.Kind == KindMap {
 		w.add(path, "MAP_AT_SCALAR_POSITION", loc(node.Pos))
@@ -185,6 +199,7 @@ func (w *walk) scalar(node *Node, t ScalarType, path []seg) error {
 	return nil
 }
 
+// list checks a list value and its min_items (MIN_ITEMS_NOT_MET at the list); a non-list is Unsupported.
 func (w *walk) list(node *Node, shape Shape, path []seg) error {
 	if node.Kind != KindSeq {
 		return unsupported("a %s value where a list is declared (no code in the registry)", kindName(node))
@@ -195,6 +210,7 @@ func (w *walk) list(node *Node, shape Shape, path []seg) error {
 	return nil
 }
 
+// set checks a set value: a list, its min_items, and each element against the set's scalar type.
 func (w *walk) set(node *Node, shape Shape, path []seg) error {
 	if node.Kind != KindSeq {
 		return unsupported("a %s value where a set is declared (no code in the registry)", kindName(node))
@@ -210,6 +226,9 @@ func (w *walk) set(node *Node, shape Shape, path []seg) error {
 	return nil
 }
 
+// declaredList checks a list whose element structure is declared: each element must be a record with an identity (else the
+// identity's code, at the list's path), two elements of one identity are PATH_DUPLICATE_IDENTITY at the second, and the fields
+// of every element with a unique identity are validated against its case.
 func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
 	if err := w.list(node, shape, path); err != nil {
 		return err
@@ -260,6 +279,8 @@ func (w *walk) declaredList(node *Node, shape Shape, path []seg) error {
 	return nil
 }
 
+// composite checks a mapping against its declared fields, in declaration order (an absent field is visited as nil), then
+// reports each undeclared key as UNKNOWN_FIELD at the key. A non-mapping is Unsupported.
 func (w *walk) composite(node *Node, fields []NamedShape, path []seg) error {
 	if node.Kind != KindMap {
 		return unsupported("a %s value where a mapping is declared (no code in the registry)", kindName(node))

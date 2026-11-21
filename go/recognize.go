@@ -41,9 +41,12 @@ type Class string
 
 // The classes. ClassError is a failed recognition (EXPANDED_WITH_EXTRA_KEY).
 const (
-	ClassShort    Class = "short"
+	// ClassShort: not a mapping holding every key of A; the node is its own value.
+	ClassShort Class = "short"
+	// ClassExpanded: a mapping whose keys are exactly A.
 	ClassExpanded Class = "expanded"
-	ClassError    Class = "error"
+	// ClassError: a mapping holding all of A plus another key.
+	ClassError Class = "error"
 )
 
 // Outcome is the result of recognizing and validating one document at one position.
@@ -58,6 +61,8 @@ type Outcome struct {
 	Violations []Violation
 }
 
+// seg is one segment of the path of a position inside a document: a field name, a list index (isIdx), or a ListItem
+// (isItem). It is the internal form behind logical paths and the order of violations.
 type seg struct {
 	field string
 	index int
@@ -68,6 +73,7 @@ type seg struct {
 	isItem bool
 }
 
+// found is a violation together with the path of its position, kept so violations can be sorted by path (ADR 0007).
 type found struct {
 	path []seg
 	v    Violation
@@ -104,6 +110,7 @@ func orderBytes(s string) string {
 	return strings.ReplaceAll(s, "\x00", "\x00\xff") + "\x00\x01"
 }
 
+// keys is the sort key of each segment of the path; comparing two key lists orders the violations.
 func (f found) keys() []string {
 	out := make([]string, len(f.path))
 	for i, s := range f.path {
@@ -112,6 +119,7 @@ func (f found) keys() []string {
 	return out
 }
 
+// loc is the Location of a source position, or an unavailable Location when there is none.
 func loc(p *Pos) Location {
 	if p == nil {
 		return Location{}
@@ -241,6 +249,7 @@ func sorted(fs []found) []Violation {
 	return out
 }
 
+// hasKey reports whether the mapping n has an entry named key.
 func hasKey(n *Node, key string) bool {
 	for _, e := range n.Entries {
 		if e.Key == key {
@@ -267,6 +276,7 @@ func classify(n *Node, a []string) (Class, *Violation) {
 	return ClassError, &Violation{Code: "EXPANDED_WITH_EXTRA_KEY", Phase: PhaseRecognize, Location: loc(n.Pos)}
 }
 
+// contains reports whether s is an element of list.
 func contains(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {
@@ -321,6 +331,7 @@ func Recognize(n *Node, p Position, a []string) (*Outcome, error) {
 	return &Outcome{Class: ClassShort, Violations: sorted(fs)}, nil
 }
 
+// recordPosition is the position of the record field name, and false when the record declares no such field.
 func recordPosition(record []RecordField, name string) (Position, bool) {
 	for _, f := range record {
 		if f.Name == name {
@@ -330,6 +341,10 @@ func recordPosition(record []RecordField, name string) (Position, bool) {
 	return Position{}, false
 }
 
+// recognizeList recognizes each field of each record of a list position. Recognition errors (EXPANDED_WITH_EXTRA_KEY) take
+// precedence: when there is one, the outcome is ClassError with those violations only; otherwise it is ClassShort with the
+// validation violations (UNKNOWN_FIELD, MAP_AT_SCALAR_POSITION) of the Short fields. A non-list or a non-record element is
+// Unsupported.
 func recognizeList(n *Node, record []RecordField, a []string) (*Outcome, error) {
 	if n.Kind != KindSeq {
 		return nil, unsupported("a non-list at a list position")

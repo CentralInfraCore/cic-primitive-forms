@@ -38,15 +38,25 @@ import (
 
 // The reasons a document is not materialized.
 const (
-	MaterializeNoDocument           = "no_document"
-	MaterializeInvalidDocument      = "invalid_document"
-	MaterializeNilNode              = "nil_node"
-	MaterializeUnsupported          = "unsupported"
-	MaterializeNotFlat              = "not_flat"
-	MaterializeSet                  = "set"
-	MaterializeOmittedOptional      = "omitted_optional"
-	MaterializeCapabilityMissing    = "capability_missing"
-	MaterializeCapabilityUnknown    = "capability_unknown"
+	// MaterializeNoDocument: no document (doc is nil).
+	MaterializeNoDocument = "no_document"
+	// MaterializeInvalidDocument: the validation refuses the document.
+	MaterializeInvalidDocument = "invalid_document"
+	// MaterializeNilNode: a nil node in the document; Field is the top-level field that holds it, "" for the root.
+	MaterializeNilNode = "nil_node"
+	// MaterializeUnsupported: ApplyDefaults cannot process the document, or a field name cannot be written as a path.
+	MaterializeUnsupported = "unsupported"
+	// MaterializeNotFlat: the schema declares a composite, list or declared-list position, or a field's value is a mapping or a sequence.
+	MaterializeNotFlat = "not_flat"
+	// MaterializeSet: the schema declares a set position, whose order is not decided (decision H).
+	MaterializeSet = "set"
+	// MaterializeOmittedOptional: an optional field the document leaves out and that has no schema default.
+	MaterializeOmittedOptional = "omitted_optional"
+	// MaterializeCapabilityMissing: a declared field the capability map has no entry for.
+	MaterializeCapabilityMissing = "capability_missing"
+	// MaterializeCapabilityUnknown: a capability that is not implemented, not_implemented or deprecated.
+	MaterializeCapabilityUnknown = "capability_unknown"
+	// MaterializeCapabilityUndeclared: a capability map key that is not a declared field.
 	MaterializeCapabilityUndeclared = "capability_undeclared"
 )
 
@@ -55,7 +65,9 @@ var materializeCapabilities = []string{"implemented", "not_implemented", "deprec
 
 // The provenance of an intent-side field, by its spelling in the projection.
 const (
-	provenanceAuthored      = "authored"
+	// provenanceAuthored: the field is written in the document.
+	provenanceAuthored = "authored"
+	// provenanceSchemaDefault: the field was absent and filled by its schema default.
 	provenanceSchemaDefault = "schema_default"
 )
 
@@ -65,6 +77,7 @@ type MaterializeError struct {
 	Field  string
 }
 
+// Error is "not materialized: ", the reason and the field in parentheses (empty parentheses when there is none).
 func (e *MaterializeError) Error() string {
 	return "not materialized: " + e.Reason + " (" + e.Field + ")"
 }
@@ -186,6 +199,7 @@ func MaterializeFlat(doc *Node, root Shape, a []string, capabilities map[string]
 	return &Materialized{Fields: fields, ExpectedKeys: expected, ProjectionJSON: string(bytes), OutputDigest: CanonicalDigest(bytes)}, nil
 }
 
+// textNode is a string node holding s.
 func textNode(s string) *Node { return &Node{Kind: KindStr, Str: s} }
 
 // projectionNode is {"fields": [{key, capability, provenance, value}]}, as the engine's materialized_object_projection builds it for an intent-side field.

@@ -23,15 +23,20 @@ import (
 
 // The reasons a value has no canonical bytes.
 const (
+	// CanonicalUnsupportedValue: a node outside the held range (KindUnsupported: a float, an integer beyond 64 bits).
 	CanonicalUnsupportedValue = "unsupported_value"
-	CanonicalDuplicateKey     = "duplicate_key"
-	CanonicalNotUTF8          = "not_utf8"
-	CanonicalNilNode          = "nil_node"
+	// CanonicalDuplicateKey: a map that repeats a key.
+	CanonicalDuplicateKey = "duplicate_key"
+	// CanonicalNotUTF8: a string or a map key that is not valid UTF-8.
+	CanonicalNotUTF8 = "not_utf8"
+	// CanonicalNilNode: a nil node, at the top or inside a sequence or a map.
+	CanonicalNilNode = "nil_node"
 )
 
 // CanonicalError says why a value has no canonical bytes.
 type CanonicalError struct{ Reason string }
 
+// Error is "no canonical bytes: " and the reason.
 func (e *CanonicalError) Error() string { return "no canonical bytes: " + e.Reason }
 
 // CanonicalBytes returns the canonical bytes of n (A1-A6).
@@ -46,6 +51,8 @@ func CanonicalBytes(n *Node) ([]byte, error) {
 // CanonicalDigest returns "sha256:" and the lowercase hex of the SHA-256 of b (A7).
 func CanonicalDigest(b []byte) string { return "sha256:" + SHA256Hex(b) }
 
+// writeValueBytes appends the canonical bytes of n to b: map entries sorted by key bytes (stable, then checked for a
+// repeated key), sequence items in order. It stops at the first refusal, so b is partial when it returns an error.
 func writeValueBytes(b *strings.Builder, n *Node) error {
 	if n == nil {
 		return &CanonicalError{CanonicalNilNode}
@@ -98,6 +105,8 @@ func writeValueBytes(b *strings.Builder, n *Node) error {
 	return nil
 }
 
+// writeValueString appends s as a JSON string with the escaping of Go's json.Marshal (A4); a string that is not
+// UTF-8 is CanonicalNotUTF8.
 func writeValueString(b *strings.Builder, s string) error {
 	if !utf8.ValidString(s) {
 		return &CanonicalError{CanonicalNotUTF8}
@@ -133,6 +142,7 @@ func writeValueString(b *strings.Builder, s string) error {
 	return nil
 }
 
+// writeValueEscape appends r as \u and four lowercase hex digits; r is in the Basic Multilingual Plane.
 func writeValueEscape(b *strings.Builder, r rune) {
 	const hexDigits = "0123456789abcdef"
 	b.WriteString(`\u`)

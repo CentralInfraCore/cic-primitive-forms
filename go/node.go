@@ -24,11 +24,17 @@ type Kind int
 
 // The kinds of value.
 const (
+	// KindNull is the value null (a field present with no value, ADR 0003).
 	KindNull Kind = iota
+	// KindBool is a boolean in Bool.
 	KindBool
+	// KindInt is a signed 64-bit integer in Int.
 	KindInt
+	// KindStr is a string in Str.
 	KindStr
+	// KindSeq is a sequence in Items.
 	KindSeq
+	// KindMap is a mapping in Entries, in source order.
 	KindMap
 	// KindUnsupported is a number the document model does not carry: a float, or an integer beyond signed 64 bits. Parse never
 	// produces it (it refuses such a spelling); only a caller that builds a view from another source can, and the diff refuses it
