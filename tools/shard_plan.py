@@ -28,10 +28,12 @@ META = re.compile(r"([\\.+*?()|\[\]{}^$#&~-])")
 
 
 class PlanError(Exception):
+    """A plan cannot be made or does not hold; the command exits 1 with the message."""
     pass
 
 
 def parse_name(name):
+    """Split a cargo-mutants name `file:line:col: what` into (file, line, col, what); PlanError if it is not one."""
     m = NAME.match(name)
     if not m:
         raise PlanError("not a mutant name: %r" % (name,))
@@ -67,12 +69,13 @@ def costs_from_outcomes(docs):
 
 
 def default_cost(table):
+    """The cost assumed for a mutant missing from the table: the table's mean, or 10 s for an empty table."""
     return sum(table.values()) / len(table) if table else 10.0
 
 
 def deal(names, table, shards):
-    """name -> shard, and the predicted load of each shard in seconds. Longest first onto the least loaded shard; ties by the
-    name and the lowest shard number, so that every job gets the same answer."""
+    """name -> shard, the predicted load of each shard in seconds, and how many names had no measured cost. Longest first
+    onto the least loaded shard; ties by the name and the lowest shard number, so that every job gets the same answer."""
     if shards < 1:
         raise PlanError("shards must be at least 1")
     if not names:
@@ -99,6 +102,7 @@ def regex_of(names):
 
 
 def load_listed(path):
+    """The mutant names of a `cargo mutants --list --json` file; PlanError for any other shape or an empty list."""
     with open(path, encoding="utf-8") as fh:
         doc = json.load(fh)
     if not isinstance(doc, list) or not doc or not all(isinstance(m, dict) and isinstance(m.get("name"), str) for m in doc):
@@ -107,6 +111,7 @@ def load_listed(path):
 
 
 def load_costs(path):
+    """The cost table of a `mutation-costs/1` file; PlanError unless every cost is a non-negative number."""
     with open(path, encoding="utf-8") as fh:
         doc = json.load(fh)
     t = doc.get("costs") if isinstance(doc, dict) else None
@@ -116,6 +121,7 @@ def load_costs(path):
 
 
 def cmd_costs(a):
+    """`costs`: write the cost table measured by the given outcomes.json files to --out."""
     docs = []
     for p in a.outcomes:
         with open(p, encoding="utf-8") as fh:
@@ -128,6 +134,7 @@ def cmd_costs(a):
 
 
 def cmd_select(a):
+    """`select`: deal the listed mutants and write this shard's anchored regex and its name list."""
     if not 0 <= a.shard < a.shards:
         raise PlanError("shard %d of %d" % (a.shard, a.shards))
     names = load_listed(a.list)
@@ -142,6 +149,7 @@ def cmd_select(a):
 
 
 def cmd_verify(a):
+    """`verify`: raise PlanError unless the mutants cargo-mutants selected are exactly the planned ones."""
     with open(a.names, encoding="utf-8") as fh:
         planned = json.load(fh)
     chosen = load_listed(a.selected)
@@ -153,6 +161,7 @@ def cmd_verify(a):
 
 
 def main(argv=None):
+    """Parse the command line and run the subcommand; a PlanError, I/O or JSON error exits 1."""
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("costs")

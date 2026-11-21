@@ -1,8 +1,8 @@
 """Implicit calls the Rust graph may not follow: one crate in two states, one test per mechanism.
 
-    python3 lab/measure/repro_rust_dispatch.py SCIPDEPS_BINARY TOOLCHAIN --expect vulnerable|fixed|report [--env NAME=VALUE ...] [--record OUT.json]
+    python3 tools/proof-plan/repro_rust_dispatch.py SCIPDEPS_BINARY TOOLCHAIN --expect vulnerable|fixed|report [--env NAME=VALUE ...] [--record OUT.json]
 
-lab/testdata/rust-dispatch/{a,b}: in b the impl method behind each implicit call changes (Display through to_string, a trait object and an
+testdata/rust-dispatch/{a,b}: in b the impl method behind each implicit call changes (Display through to_string, a trait object and an
 `impl Display` argument; `?` through From; `for` through Iterator::next; `+`, `==`, `[]` through Add, PartialEq, Index; a method found through
 Deref; Drop; sort through Ord). Every test passes on a and fails on b. A case is RED when the key of its test is the SAME on both (the
 older rule would reuse a pass that is wrong now), GREEN when it moves.
@@ -27,10 +27,12 @@ TESTS = {
     "t_index": "Index::index through `[]`", "t_deref": "Deref::deref through a method call", "t_drop": "Drop::drop at the end of a scope",
     "t_sort_ord": "Ord::cmp through sort()",
 }
-KNOWN_RED = {"t_drop"}  # the state before the fix; see lab/testdata/rust-dispatch/README.md
+KNOWN_RED = {"t_drop"}  # the state before the fix; see testdata/rust-dispatch/README.md
 
 
 def main():
+    """Index both states with scipdeps, print RED / GREEN per mechanism and check the fixture (pass on a, fail on b; exits with an
+    error otherwise). Returns 1 when a case is not in the state --expect asks for, else 0; --record writes the cases as JSON."""
     ap = argparse.ArgumentParser()
     ap.add_argument("scipdeps")
     ap.add_argument("toolchain")

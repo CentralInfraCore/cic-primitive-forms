@@ -35,6 +35,7 @@ RELEASE = {
 
 
 def canon(value):
+    """Canonical JSON text of a value: keys sorted, no whitespace, non-ASCII literal, and the five Go escapes (``<``, ``>``, ``&``, U+2028, U+2029)."""
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     for ch, esc in (("<", "\\u003c"), (">", "\\u003e"), ("&", "\\u0026"), (" ", "\\u2028"), (" ", "\\u2029")):
         raw = raw.replace(ch, esc)
@@ -42,10 +43,12 @@ def canon(value):
 
 
 def digest(value):
+    """``sha256:`` and lowercase hex of the canonical text of ``value``."""
     return "sha256:" + hashlib.sha256(canon(value).encode()).hexdigest()
 
 
 def identity(text):
+    """``(namespace:kind, version)`` of a schema text, read from its four-space-indented header lines."""
     def one(key):
         return re.search(r"^    " + key + r": \"?([^\"\n]*)\"?$", text, re.M).group(1)
 
@@ -78,6 +81,7 @@ def receipt_for(text, projection_json, output_digest, identity_token=TOKEN):
 
 
 def build():
+    """The whole content of testdata/p5/receipt.json: one expected receipt per accepted case of testdata/p5/materialize.json."""
     src = json.loads(SRC.read_text())
     cases = []
     for c in src["cases"]:
@@ -89,6 +93,7 @@ def build():
 
 
 def main():
+    """With ``--write`` rewrite testdata/p5/receipt.json; otherwise return 1 if the checked-in file differs from ``build()``."""
     text = json.dumps(build(), indent=1, ensure_ascii=False) + "\n"
     if "--write" in sys.argv:
         OUT.write_text(text)

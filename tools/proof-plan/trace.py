@@ -25,12 +25,18 @@ SKIP = (".git" + os.sep, "rust" + os.sep + "target" + os.sep, "tools" + os.sep +
 
 
 def upstream_roots(repo):
+    """{upstream checkout root: the pin file that names its commit}: the roots set in CIC_PRIMITIVES_ROOT / CIC_REGISTRY_ROOT
+    (corpus/pins.yaml) and upstream/cic-primitive-engine (testdata/p5/engine-pin.txt)."""
     roots = {os.path.normpath(os.environ[v]): pin for v, pin in PINS.items() if os.environ.get(v)}
     roots[os.path.normpath(os.path.join(repo, ENGINE[0]))] = ENGINE[1]
     return roots
 
 
 def parse(trace_file, cwd, repo, upstream):
+    """({repo-relative path: kind}, number of paths outside the repository) from an `strace -y` output file.
+
+    kind is "dir" for a directory opened as one (a dependency on its listing, never downgraded), "path" for any other touch, "file"
+    for an upstream pin file, and "opaque" for the UNRESOLVED entry. .git, rust/target and tools/proof-plan are not dependencies."""
     deps, outside = {}, 0
     for line in open(trace_file, errors="replace"):
         m = CALL.match(line)

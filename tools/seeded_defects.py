@@ -762,6 +762,7 @@ def in_diff(defects, changed):
 
 
 def run(cmd, cwd, env):
+    """Run cmd in cwd with env; return the completed process with stdout and stderr captured as text."""
     return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
 
 
@@ -794,6 +795,7 @@ def copy_filter(lang):
 
 
 def command(lang):
+    """The test command of a language's suites: the pinned cargo test targets of rust/ (toolchain from RUST_TOOLCHAIN), or `go test ./...`."""
     if lang == "rust":
         return ["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--lib", "--test", "access", "--test", "corpus", "--test", "properties",
                 "--test", "parity_dump", "--test", "behaviour", "--test", "schema", "--test", "real_schema", "--test", "expand", "--test", "policy", "--test", "defaults", "--test", "normalize", "--test", "resolution", "--test", "resolve_vectors", "--test", "resolve_properties", "--test", "composed", "--test", "editscalar", "--test", "diff", "--test", "canonical_corpus", "--test", "materialize_corpus", "--test", "schema_identity_contract", "--test", "receipt_flat", "--test", "receipt_fuzz_seeds", "--test", "receipt_end_to_end"]
@@ -827,6 +829,13 @@ def stale_only(langs, match):
 
 
 def main():
+    """CLI entry point; returns the exit status (2 on bad usage or a missing pinned checkout).
+
+    Per language: copy the module, require the unmodified baseline to pass, then apply each
+    selected defect (diff, --match and --shard filters) and require the tests to fail on a
+    copy that still builds. A stale entry, an uncaught defect or one that does not build
+    fails the run.
+    """
     args = sys.argv[1:]
     changed = None
     if "--changed-from" in args:

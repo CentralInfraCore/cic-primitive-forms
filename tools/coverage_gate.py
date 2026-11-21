@@ -51,6 +51,11 @@ REASONS = {
 
 
 def glob_re(pat):
+    """Compile a manifest glob into an anchored regex over '/'-separated paths.
+
+    `**/` matches zero or more whole directories, a bare `**` anything, `*` and `?` stay
+    within one path segment; every other character is literal.
+    """
     out, i = "", 0
     while i < len(pat):
         if pat.startswith("**/", i):
@@ -86,6 +91,7 @@ def own_sources(root, spec):
 
 
 def sha256(path):
+    """Return the hex SHA-256 of a file's bytes (the digest a report records per source file)."""
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         h.update(fh.read())
@@ -93,6 +99,7 @@ def sha256(path):
 
 
 def is_count(v):
+    """True for a non-negative int that is not a bool: the only shape a branch count may take."""
     return isinstance(v, int) and not isinstance(v, bool) and v >= 0
 
 
@@ -183,6 +190,7 @@ def check_language(lang, report_path, root, scope, tools, commit):
 
 
 def pct(c, t):
+    """Format c/t as a percentage truncated (not rounded) to two decimals, using exact arithmetic."""
     q = Fraction(c * 10000, t)
     return "%d.%02d" % (q.numerator // q.denominator // 100, q.numerator // q.denominator % 100)
 
@@ -217,6 +225,11 @@ def evaluate(root, scope, tools, commit, require, only, reports):
 
 
 def run_check(args):
+    """Run the `check` subcommand: load the scope and tool manifests, evaluate the reports.
+
+    Prints the verdict lines and returns the exit status from `evaluate` (0 pass, 1 fail,
+    3 for an `--only` diagnostic).
+    """
     scope = yaml.safe_load(open(args.scope, encoding="utf-8"))["languages"]
     tools = yaml.safe_load(open(args.tools, encoding="utf-8"))
     reports = dict(r.split("=", 1) for r in args.report)
@@ -228,6 +241,11 @@ def run_check(args):
 # --- seeded-fault self-test -------------------------------------------------------
 
 def apply_ops(ops, work):
+    """Apply one seeded fault's edit operations to a copy of the fixtures under `work`.
+
+    An op deletes a file, adds one, sets a JSON path to a value, or replaces a text
+    snippet that must occur exactly once (else ValueError: the fault went stale).
+    """
     for op in ops:
         path = os.path.join(work, op["file"])
         if "delete" in op:
@@ -254,6 +272,12 @@ def apply_ops(ops, work):
 
 
 def fixture_run(work, drop=None, invocation=None):
+    """Evaluate the fixture reports under `work/coverage/fixtures` like a real check.
+
+    `drop` omits one language's report; `invocation` overrides require/only/reports.
+    Returns ([(language, reason)], exit status) and keeps the printed lines in
+    `fixture_run.last_lines` for the self-test's marker checks.
+    """
     fx = os.path.join(work, "coverage", "fixtures")
     scope = yaml.safe_load(open(os.path.join(fx, "scope.yaml"), encoding="utf-8"))["languages"]
     tools = yaml.safe_load(open(os.path.join(fx, "tools.yaml"), encoding="utf-8"))
@@ -267,6 +291,14 @@ def fixture_run(work, drop=None, invocation=None):
 
 
 def selftest(root):
+    """Seeded-fault proof that the gate can fail, for every reason it knows.
+
+    Requires the unmodified fixtures to pass; checks that `--only` diagnostics always exit 3
+    with the NOT-a-conformance-result marker; applies every fault in coverage/faults.yaml to
+    a fresh copy and requires its expected (language, reason) among the failures; requires
+    every REASONS key to be turned red by some fault; and pins the threshold boundary
+    (exactly 90.00% fails). Returns 0 only if all of that holds.
+    """
     spec = yaml.safe_load(open(os.path.join(root, "coverage", "faults.yaml"), encoding="utf-8"))
     tmp = tempfile.mkdtemp(prefix="cov-base-")
     try:
@@ -333,6 +365,7 @@ def selftest(root):
 
 
 def main():
+    """Parse the command line and dispatch to `check` or `selftest`; returns the exit status."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check")

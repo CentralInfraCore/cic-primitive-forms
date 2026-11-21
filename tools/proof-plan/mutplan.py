@@ -126,6 +126,10 @@ def kernel_test_ok(decisions):
 
 
 def predict(prev_graph, cur_graph, outcomes, prev_env=None, cur_env=None, decisions=None):
+    """One row {mutant, summary, seconds, carry, reason} per earlier outcome, applying the rule of the module doc.
+
+    With `decisions` every reaching test must also be REUSE_ELIGIBLE for the kernel; when the env.json files do not show the same
+    tool, cargo and rustc, no mutant is carried (TOOL_OR_FLAGS_NOT_THE_SAME)."""
     prev, cur = index(prev_graph), index(cur_graph)
     test_ok = kernel_test_ok(decisions) if decisions is not None else None
     tool_ok = same_tool(prev_env, cur_env)
@@ -139,6 +143,7 @@ def predict(prev_graph, cur_graph, outcomes, prev_env=None, cur_env=None, decisi
 
 
 def report(rows):
+    """A plain-text summary of the prediction: how many mutants and seconds of mutant runs would be carried, and the count per reason."""
     from collections import Counter
     n = len(rows)
     c = [r for r in rows if r["carry"]]
@@ -164,6 +169,7 @@ def env_of_tree(repo, toolchain):
 
 
 def main():
+    """Build or load both graphs, predict and print the report; with --out also write the rows as JSON. Never skips anything."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--prev-graph")
     ap.add_argument("--cur-graph")

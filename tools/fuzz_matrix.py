@@ -23,6 +23,13 @@ SHARED = re.compile(r"^(corpus|testdata)/")
 
 
 def matrix(mode, rust_ranges=0, go_ranges=0, changed=()):
+    """Decide the fuzz targets of a run; return (matrix entries, report lines).
+
+    Each entry is {"lang", "name"}: one target, one job. A language runs in `full` mode, or
+    in `diff` mode when the diff has product ranges in it, touches its own fuzz targets or
+    seeds, or touches the shared corpus/testdata; `light` runs nothing. Every language that
+    does not run gets a `not run` report line with the reason.
+    """
     if mode == "light":
         return [], ["go: not run (a push to main runs the cheap checks only)", "rust: not run (a push to main runs the cheap checks only)"]
     shared = any(SHARED.match(c) for c in changed)
@@ -43,6 +50,7 @@ def matrix(mode, rust_ranges=0, go_ranges=0, changed=()):
 
 
 def main():
+    """Parse the command line, print the report and append `fuzz_matrix=<json>` to --github-output."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--mode", required=True, choices=("full", "diff", "light"))
     ap.add_argument("--rust-ranges", type=int, default=0)

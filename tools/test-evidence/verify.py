@@ -26,6 +26,7 @@ DUE_HOUR_UTC = 6
 
 
 class VerifyError(Exception):
+    """A record that may not be relied on; `code` names the broken step (NOT_CANONICAL, NAME_MISMATCH, SCHEMA, ATTESTATION, KEY_MISMATCH, EXPIRED, ...)."""
     def __init__(self, code, detail=""):
         super().__init__("%s %s" % (code, detail))
         self.code = code
@@ -41,7 +42,9 @@ class Trust:
 
 
 class Attestation:
+    """How the verifier asks whether a record file carries a valid build attestation; GhAttestation asks `gh`, the tests a fake."""
     def verify(self, record_path, digest, trust, source_commit):
+        """True only if the file at `record_path` is attested as built by `trust.signer_workflow` of `trust.repository` from `source_commit`."""
         raise NotImplementedError
 
 
@@ -57,6 +60,7 @@ class GhAttestation(Attestation):
         self.timeout = timeout
 
     def argv(self, record_path, trust, source_commit):
+        """The `gh attestation verify` command for the record: repository, signer workflow, source ref and source commit all pinned."""
         return [self.gh, "attestation", "verify", record_path,
                 "--repo", trust.repository,
                 "--signer-workflow", "%s/%s" % (trust.repository, trust.signer_workflow),
@@ -64,6 +68,7 @@ class GhAttestation(Attestation):
                 "--source-digest", source_commit]
 
     def verify(self, record_path, digest, trust, source_commit):
+        """True exactly when that command exits 0; a missing gh, a timeout or any failure is False."""
         try:
             done = subprocess.run(self.argv(record_path, trust, source_commit), capture_output=True, timeout=self.timeout)
         except (OSError, subprocess.SubprocessError):
@@ -90,10 +95,12 @@ class GitRepo:
         self.path = path
 
     def _git(self, *args):
+        """Run git in the repository (one-minute timeout); (exit status, stripped stdout)."""
         done = subprocess.run(["git", "-C", self.path] + list(args), capture_output=True, timeout=60)
         return done.returncode, done.stdout.decode("utf-8", "replace").strip()
 
     def _commit(self, sha):
+        """Whether `sha` is a full 40-hex commit id that names a commit object of this repository."""
         if not isinstance(sha, str) or not self.FULL.match(sha):
             return False
         rc, kind = self._git("cat-file", "-t", sha)
@@ -107,12 +114,14 @@ class GitRepo:
         return out if rc == 0 and self.FULL.match(out) else None
 
     def parents_of(self, commit):
+        """The parent ids of a commit, first parent first, or None when it is not a commit of this repository."""
         if not self._commit(commit):
             return None
         rc, out = self._git("rev-list", "--parents", "-n", "1", commit)
         return out.split()[1:] if rc == 0 else None
 
     def is_ancestor(self, ancestor, descendant):
+        """Whether `ancestor` is an ancestor of `descendant` (a commit counts as its own); False if either is not a commit here."""
         if not (self._commit(ancestor) and self._commit(descendant)):
             return False
         rc, _ = self._git("merge-base", "--is-ancestor", ancestor, descendant)
@@ -121,6 +130,9 @@ class GitRepo:
 
 @dataclass
 class Context:
+    """What a record is verified against: the time, the target commit and its checkout, the verifying environment, the trust
+    expectations, the required checks, and the callables that ask git and fetch artifacts.
+    """
     now: datetime.datetime
     target_commit: str
     root: str                     # the checkout of the target: the key is computed from it
@@ -137,16 +149,19 @@ class Context:
 
 @dataclass
 class Verified:
+    """A record that passed verification, with the hash it is named by."""
     rec: dict
     digest: str
 
     @property
     def measured_at(self):
+        """The record's measured_at as an aware UTC datetime."""
         return record.parse_ts(self.rec["measured_at"])
 
 
 def _check_envelope(raw, filename, ctx):
-    """Steps 1 to 3: the bytes are canonical, the name is their hash, the attestation holds, the schema is the schema."""
+    """Steps 1 to 3: the bytes are canonical, the name is their hash, the schema is the schema, the target is bound to its
+    commit (_check_binding), the attestation holds."""
     try:
         rec = canon.read_canonical(raw)
     except canon.CanonError as e:
@@ -237,6 +252,7 @@ def latest_due_slot(now):
 
 @dataclass
 class Choice:
+    """The outcome of choosing a baseline: the Verified record, or None with the reason nothing is usable."""
     baseline: object  # Verified or None
     reason: str       # "OK" or why nothing is usable
     detail: str = ""

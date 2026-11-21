@@ -9,7 +9,8 @@ below states the source text, the events of the diff, and for each replaced scal
 of ADR 0012 say must be written; for a refusal the code, the phase and the anchor the rules name. The tool only does the byte arithmetic that is tedious
 to do by hand (the spans before and after, the output as the source with the tokens replaced, the line and column of an error position, the canonical
 bytes of the diff), and `tools/corpus_check.py` re-checks that arithmetic independently (PATCH_BYTES, PATCH_ROUNDTRIP, the diff rules of ADR 0008).
-Neither Rust nor Go runs these cases yet (step P4-2).
+The Rust and Go corpus runners run these cases since step P4-2; the comment header this tool writes into the file still says NOT
+RUN and is kept as is, because changing it changes the checked-in vectors.
 
 Conventions of the suite (the trees are a notation, ADR 0005): every field is optional and non-nullable; a document of a positive case validates against its
 tree; `routes` is a list whose element identity is the key `to`; `note` is opaque; `tags` is a set. The events are in the canonical order of ADR 0008 (the
@@ -27,10 +28,12 @@ BOM = chr(0xFEFF)
 
 
 def q(s):
+    """Quote a value as JSON (and so a YAML flow scalar), non-ASCII characters kept literal."""
     return json.dumps(s, ensure_ascii=False)
 
 
 def as_bytes(src):
+    """Return ``src`` as UTF-8 bytes (bytes pass through unchanged)."""
     return src if isinstance(src, bytes) else src.encode("utf-8")
 
 
@@ -44,6 +47,7 @@ def source_field(src):
 
 
 def out_field(b):
+    """output_yaml for a result without CR and BOM, output_hex for anything else (a text field cannot spell those)."""
     text = b.decode("utf-8")
     if "\r" in text or text.startswith(BOM):
         return "output_hex: %s" % q(b.hex())
@@ -70,6 +74,11 @@ def loc(data, off):
 
 
 def start_of(src, prefix, token, nth=1):
+    """Byte offset of ``token`` in the ``nth`` occurrence of ``prefix + token`` in ``src``.
+
+    The prefix only anchors the search; the returned offset is where the token itself starts.
+    Raises ValueError when there is no such occurrence.
+    """
     b, pt = as_bytes(src), (prefix + token).encode("utf-8")
     idx = -1
     for _ in range(nth):
@@ -79,6 +88,11 @@ def start_of(src, prefix, token, nth=1):
 
 # --- typed values and events of ADR 0008 (the corpus notation: {type, value}) -------------------------------------------------------------------------
 def tv(v):
+    """Wrap a Python value as a typed value of the corpus notation (``{type, value}``).
+
+    ``None`` is null, ``bool`` boolean (checked before ``int``), ``int`` integer, ``list`` list and
+    anything else a string.
+    """
     if v is None:
         return {"type": "null", "value": None}
     if isinstance(v, bool):
@@ -96,26 +110,32 @@ def frag(value):
 
 
 def vc(path, prev, nxt):
+    """A ``value_change`` event of ADR 0008 at ``path`` from ``prev`` to ``nxt``."""
     return {"kind": "value_change", "path": path, "previous": tv(prev), "next": tv(nxt)}
 
 
 def added(path, value):
+    """An ``added`` event of ADR 0008: the position appears with the expanded fragment of ``value``."""
     return {"kind": "added", "path": path, "next": frag(value)}
 
 
 def removed(path, value):
+    """A ``removed`` event of ADR 0008: the position disappears with the expanded fragment of ``value``."""
     return {"kind": "removed", "path": path, "previous": frag(value)}
 
 
 def policy(path, field, prev, nxt):
+    """A ``policy_declaration_change`` event: one policy ``field`` of the position changes from ``prev`` to ``nxt``."""
     return {"kind": "policy_declaration_change", "path": path, "changed": {field: {"previous": tv(prev), "next": tv(nxt)}}}
 
 
 def set_change(path, add, rem):
+    """A ``set_change`` event of a set position, with the added and the removed members."""
     return {"kind": "set_change", "path": path, "added": tv(add), "removed": tv(rem)}
 
 
 def repr_entry(path, prev, nxt):
+    """An entry of the diff's ``representation`` list: the representation at ``path`` changes from ``prev`` to ``nxt``."""
     return {"kind": "representation_change", "path": path, "previous": prev, "next": nxt}
 
 
@@ -133,10 +153,16 @@ def native(e):
 
 
 def canonical(events, reprs):
+    """The canonical bytes of a version-1 diff (ADR 0008) as text.
+
+    The plain JSON of the events and the representation entries, keys sorted, no whitespace,
+    non-ASCII kept literal; ``tools/corpus_check.py`` re-derives it independently.
+    """
     return json.dumps({"version": 1, "changes": [native(e) for e in events], "representation": reprs}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def diff_field(events, reprs=()):
+    """The ``diff:`` line of a case: the typed events, the representation entries and their canonical bytes."""
     reprs = list(reprs)
     return "diff: " + q({"changes": events, "representation": reprs, "canonical": canonical(events, reprs)})
 
@@ -150,6 +176,11 @@ CASES = []
 
 
 def add(cid, polarity, desc, src, events, reprs, expect, tree="doc", extra=(), status=None):
+    """Append one ``patch`` case, rendered as its YAML list item, to ``CASES``.
+
+    ``events`` is either the list of events (rendered through ``diff_field``) or a ready ``diff:`` line
+    (e.g. from ``direct_field``); ``extra`` lines go before the diff.
+    """
     lines = ["  - id: patch.%s" % cid, "    kind: patch", "    polarity: %s" % polarity, "    description: %s" % q(desc),
              "    schema: {synthetic: {tree: %s}}" % tree, "    " + source_field(src)]
     lines += ["    " + e for e in extra]
@@ -205,6 +236,7 @@ EXP = ("name:\n  value: alpha\n  access: inherit\n  modify: inherit\n  inherit: 
 
 
 def render():
+    """Build every case (clearing ``CASES`` first, so it can run twice) and return the file text."""
     CASES.clear()
     # ---- success: one change ----------------------------------------------------------------------------------------------------------------------
     ok("apply-a-string", "one string scalar is replaced, nothing else moves", D1, [vc("$.name", "alpha", "beta")], [("name: ", "alpha", "beta")])
@@ -351,6 +383,7 @@ def render():
 
 
 def build():
+    """The whole text of corpus/patch/vectors.yaml: the fixed header followed by the cases in ``CASES``."""
     head = """# Patch cases (ADR 0013, P4-1). Written by hand from the rules of ADR 0013 and docs/P4-DIFF-PATCH.md; the tool tools/patch-vectors/author.py only does the byte
 # arithmetic and tools/corpus_check.py re-checks it (PATCH_BYTES, PATCH_ROUNDTRIP, the diff rules of ADR 0008). Neither Rust nor Go runs these cases yet: the kind is
 # NOT RUN until step P4-2. Do not edit this file by hand: change the tool and run it.
@@ -372,6 +405,7 @@ cases:
 
 
 def main():
+    """Write corpus/patch/vectors.yaml, or with --check return 1 if the checked-in file differs from ``render()``."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()

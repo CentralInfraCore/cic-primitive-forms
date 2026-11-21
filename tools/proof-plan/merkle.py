@@ -1,6 +1,6 @@
 """Merkle keys over a dependency graph (the schema of typeddeps / scipdeps).
 
-    python3 lab/measure/merkle.py graph.json > keys.json
+    python3 tools/proof-plan/merkle.py graph.json > keys.json
 
 The key of a node is the SHA-256 of its own source digest and the keys of everything it depends on. A cycle (mutual recursion,
 a type and its methods) is one strongly connected component: its members share a key made of all their source digests and the
@@ -62,6 +62,10 @@ def sccs(nodes, deps):
 
 
 def keys(graph):
+    """({node id: Merkle key}, {node id: size of its strongly connected component}) for a typeddeps / scipdeps graph.
+
+    Components are keyed dependencies first, so a dependency's key is known when it is hashed in. Every iteration is sorted:
+    the keys are a function of the graph alone, independent of PYTHONHASHSEED."""
     nodes = {n["id"]: n for n in graph["nodes"]}
     deps = {n["id"]: set(n["deps"]) for n in graph["nodes"]}
     comp_of, key = {}, {}
@@ -89,6 +93,7 @@ def keys(graph):
 
 
 def main():
+    """Print {"keys", "largest_cycle"} as JSON for the graph file named by the first argument."""
     graph = json.load(open(sys.argv[1]))
     key, comp_of = keys(graph)
     json.dump({"keys": key, "largest_cycle": max(comp_of.values()) if comp_of else 0}, sys.stdout, indent=0, sort_keys=True)

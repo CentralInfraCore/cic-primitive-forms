@@ -18,12 +18,14 @@ FIELDS = ("rustc", "cargo", "go", "python", "runner", "tool:cargo-llvm-cov", "to
 
 
 class EnvError(Exception):
+    """An environment that cannot be stated: UNRESOLVED, UNKNOWN_FIELD, CONFLICT, UNPINNED or INCOMPLETE (the `kind`)."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
 
 
 def _run(argv, run):
+    """The stdout of a command run through `run`; a command that cannot start, times out or exits non-zero is UNRESOLVED."""
     try:
         done = run(argv, capture_output=True, timeout=120)
     except (OSError, subprocess.SubprocessError) as e:
@@ -34,6 +36,7 @@ def _run(argv, run):
 
 
 def _match(rx, text, what):
+    """The first group of `rx` in `text` (multiline); no match is UNRESOLVED naming `what`."""
     m = re.search(rx, text, re.M)
     if not m:
         raise EnvError("UNRESOLVED", "no %s in %r" % (what, text[:80]))
@@ -48,6 +51,7 @@ def _version(value, what):
 
 
 def _tool(argv, name, run):
+    """The version a `<name> X.Y.Z` banner of `argv` reports, checked to be a version and not a label."""
     return _version(_match(r"^%s\s+(\S+)" % re.escape(name), _run(argv, run), name + " version"), name)
 
 
@@ -119,6 +123,7 @@ def merge(parts, root):
 
 
 def main(argv):
+    """Command line: capture the comma-separated `--fields` (Rust commands under `--toolchain` if given) and write them as JSON to `--out`."""
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--fields", required=True)
