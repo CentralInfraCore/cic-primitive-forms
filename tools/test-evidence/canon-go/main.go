@@ -21,16 +21,25 @@ import (
 )
 
 const (
-	maxInt   = 1<<53 - 1
+	// maxInt is the largest integer magnitude the canonical form admits (2^53-1, the
+	// interoperable JSON integer range); a number outside ±maxInt is refused as NUMBER.
+	maxInt = 1<<53 - 1
+	// maxDepth is the most containers that may enclose a value; opening one more is refused as DEPTH.
 	maxDepth = 64
 )
 
+// refusal is the error for a document the canonical form does not accept. kind is the refusal
+// class (BOM, INVALID_UTF8, EMPTY, TRAILING, SYNTAX, DEPTH, DUPLICATE_KEY, NUMBER, ESCAPE,
+// CONTROL_CHAR, LONE_SURROGATE) that a vector's "refuse" field names.
 type refusal struct{ kind string }
 
+// Error returns the refusal class, so callers compare it with a vector's expected class.
 func (r refusal) Error() string { return r.kind }
 
+// fail aborts the parse with a refusal of the given class; parse recovers it into an error.
 func fail(kind string) { panic(refusal{kind}) }
 
+// parser is a recursive-descent reader over the whole input s; i is the current byte offset.
 type parser struct {
 	s []byte
 	i int
@@ -42,6 +51,10 @@ type object struct {
 	vals map[string]any
 }
 
+// parse reads one JSON document under the restricted grammar of the canonical form: no BOM,
+// valid UTF-8, exactly one value surrounded only by JSON whitespace, unique object keys,
+// integers only. Values come back as nil, bool, int64, string, []any or *object. A violation
+// is returned as a refusal error naming its class; any other panic is re-raised.
 func parse(data []byte) (v any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -71,12 +84,14 @@ func parse(data []byte) (v any, err error) {
 	return v, nil
 }
 
+// ws skips JSON whitespace (space, tab, LF, CR).
 func (p *parser) ws() {
 	for p.i < len(p.s) && strings.IndexByte(" \t\n\r", p.s[p.i]) >= 0 {
 		p.i++
 	}
 }
 
+// peek returns the current byte without consuming it, or 0 at end of input.
 func (p *parser) peek() byte {
 	if p.i < len(p.s) {
 		return p.s[p.i]
@@ -84,6 +99,9 @@ func (p *parser) peek() byte {
 	return 0
 }
 
+// value reads one value at the current position. depth is the number of containers already
+// open around it; opening a container at maxDepth is refused as DEPTH. Anything that is not
+// a container, string, number or one of the literals true/false/null is SYNTAX.
 func (p *parser) value(depth int) any {
 	if c := p.peek(); (c == '{' || c == '[') && depth >= maxDepth { // depth counts the containers around the value
 		fail("DEPTH")
@@ -111,6 +129,8 @@ func (p *parser) value(depth int) any {
 	return nil
 }
 
+// object reads an object, keeping the keys in input order in keys and refusing a repeated
+// key as DUPLICATE_KEY.
 func (p *parser) object(depth int) any {
 	p.i++
 	o := &object{vals: map[string]any{}}
@@ -148,6 +168,7 @@ func (p *parser) object(depth int) any {
 	}
 }
 
+// array reads an array; an empty one is returned as a non-nil empty slice.
 func (p *parser) array(depth int) any {
 	p.i++
 	out := []any{}
@@ -171,6 +192,8 @@ func (p *parser) array(depth int) any {
 	}
 }
 
+// number reads an integer and refuses as NUMBER: a missing digit, a leading zero, any
+// fraction or exponent, "-0", and a magnitude above maxInt.
 func (p *parser) number() any {
 	j := p.i
 	neg := p.s[j] == '-'
@@ -208,6 +231,8 @@ func (p *parser) number() any {
 	return n
 }
 
+// hex4 reads the four hex digits of a \u escape (either case) and returns the code unit;
+// anything shorter or non-hex is ESCAPE.
 func (p *parser) hex4() rune {
 	if p.i+4 > len(p.s) {
 		fail("ESCAPE")
@@ -231,6 +256,9 @@ func (p *parser) hex4() rune {
 	return n
 }
 
+// str reads a string literal starting at its opening quote and returns the decoded text.
+// A raw control character is CONTROL_CHAR, an unknown escape is ESCAPE, and a \u surrogate
+// that is not a high-low pair is LONE_SURROGATE.
 func (p *parser) str() string {
 	p.i++
 	var out []rune
@@ -291,6 +319,9 @@ func (p *parser) str() string {
 	}
 }
 
+// quote writes s as a canonical JSON string: only '"', '\\' and control characters are
+// escaped, using the short forms \b \f \n \r \t where they exist and lowercase \u00XX
+// otherwise; every other character, including '/' and non-ASCII, is written as UTF-8.
 func quote(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
@@ -320,6 +351,8 @@ func quote(s string) string {
 	return b.String()
 }
 
+// lessUTF16 orders strings by their UTF-16 code units, the key order of the canonical form
+// (it differs from byte order for characters above U+FFFF).
 func lessUTF16(a, b string) bool {
 	x, y := utf16.Encode([]rune(a)), utf16.Encode([]rune(b))
 	for i := 0; i < len(x) && i < len(y); i++ {
@@ -330,6 +363,8 @@ func lessUTF16(a, b string) bool {
 	return len(x) < len(y)
 }
 
+// canonical serialises a parsed value without any whitespace, with object keys sorted by
+// lessUTF16 and integers in plain decimal. It panics on a value parse cannot produce.
 func canonical(v any) string {
 	switch t := v.(type) {
 	case nil:
@@ -361,6 +396,8 @@ func canonical(v any) string {
 	panic(fmt.Sprintf("unexpected %T", v))
 }
 
+// vector is one case of the shared vectors file: the input bytes as hex, and either the
+// expected canonical bytes (CanonicalHex) or the expected refusal class (Refuse).
 type vector struct {
 	Name         string  `json:"name"`
 	InputHex     string  `json:"input_hex"`
@@ -368,6 +405,9 @@ type vector struct {
 	Refuse       *string `json:"refuse"`
 }
 
+// check runs every vector in the file at path, prints one BAD line per difference and a
+// summary, and returns the exit status: 0 all agree, 1 some differ, 2 the file is
+// unreadable or has no cases.
 func check(path string) int {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -417,6 +457,9 @@ func check(path string) int {
 	return 0
 }
 
+// main dispatches between the two modes in the package doc: "canon" reads a document from
+// stdin and writes its canonical form (or the refusal class on stderr, exit 1); a single
+// other argument is the vectors file to check.
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "canon" {
 		in, _ := io.ReadAll(os.Stdin)

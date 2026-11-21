@@ -56,8 +56,10 @@ type Node struct {
 	// Analysis says whether the walk over this declaration was complete in the scope the extractor declares: COMPLETE with no
 	// unresolved item, or INCOMPLETE and what could not be resolved. Complete is not correct (see implicit iota).
 	Analysis Analysis `json:"analysis"`
-	// Group is the digest of the whole const/var declaration (`const ( ... )`) a spec belongs to. It is reported for measurement only
-	// (lab/measure/iota_exposure.py): the key of a constant does not depend on it, which is the known iota defect.
+	// Group is the digest of the whole const/var declaration (`const ( ... )`) a spec belongs to. It is reported for measurement
+	// (lab/measure/iota_exposure.py). The key of a constant does not depend on this field: an implicit repeat or an iota constant
+	// depends on the whole declaration through its const group node (constGroup) instead; without that rule
+	// (-planted-no-const-group) nothing does, which was the known iota defect.
 	Group string `json:"group_sha256,omitempty"`
 }
 
@@ -80,6 +82,9 @@ type Graph struct {
 	External []string `json:"external"`
 }
 
+// idOf returns the node id of a top-level object: import path, then the receiver type name
+// for a method with a named receiver, then the object name. A universe object (no package)
+// has no id and yields "".
 func idOf(obj types.Object) string {
 	if obj.Pkg() == nil {
 		return ""
@@ -94,6 +99,9 @@ func idOf(obj types.Object) string {
 	return obj.Pkg().Path() + "." + obj.Name()
 }
 
+// recvName returns the name of the named type a method receiver denotes, through a pointer
+// and aliases and with type arguments dropped (the generic origin); "" for an unnamed
+// interface or any other unnamed type.
 func recvName(t types.Type) string {
 	if p, ok := t.(*types.Pointer); ok {
 		t = p.Elem()
@@ -109,6 +117,8 @@ func recvName(t types.Type) string {
 	return ""
 }
 
+// origin maps an instantiated function, method or field to its generic origin, so that a use
+// of an instance depends on the declaration that was written.
 func origin(obj types.Object) types.Object {
 	switch x := obj.(type) {
 	case *types.Func:
@@ -119,6 +129,9 @@ func origin(obj types.Object) types.Object {
 	return obj
 }
 
+// builder accumulates the graph across the loaded packages: the field-to-owner index, every
+// named type (for the implementers of an interface), the nodes and their dependency sets by
+// id, and the ids that are outside the loaded packages.
 type builder struct {
 	root     string
 	fset     *token.FileSet
@@ -130,6 +143,8 @@ type builder struct {
 	external map[string]bool
 }
 
+// indexTypes records every package-level named (non-alias) type of pkg and indexes the fields
+// of its underlying type to its id, so a field use becomes a dependency on the declaring type.
 func (b *builder) indexTypes(pkg *packages.Package) {
 	scope := pkg.Types.Scope()
 	for _, name := range scope.Names() {
@@ -230,6 +245,14 @@ func (b *builder) targets(obj types.Object) []string {
 	return []string{idOf(obj)}
 }
 
+// add creates the node of one declaration (id, kind, source span and digest, test entry flag,
+// constructs) and computes its deps by walking the given syntax: every identifier the type
+// checker resolves to an object contributes the targets of that object, an instantiation
+// contributes what its type arguments can dispatch to, and conversions to interface values
+// contribute every method reachable by dispatch. An identifier that resolves to nothing
+// makes the analysis INCOMPLETE; unsafe and (non-benign) reflect make the node opaque. Two
+// different declarations with one id are fatal; the same declaration seen again in a test
+// variant of the package is ignored.
 func (b *builder) add(pkg *packages.Package, file *ast.File, id, kind string, at, end token.Pos, src []byte, walk []ast.Node, opaque []string, declSig *types.Signature, constructs, unresolved []string) {
 	pos, endPos := b.fset.Position(at), b.fset.Position(end)
 	rel, err := filepath.Rel(b.root, pos.Filename)
@@ -548,6 +571,7 @@ var plantedNoConstGroup bool
 // benignReflect are the reflect functions that cannot call a method of the value they are given.
 var benignReflect = map[string]bool{"DeepEqual": true, "TypeOf": true}
 
+// appendOnce appends s to list unless it is already there.
 func appendOnce(list []string, s string) []string {
 	for _, x := range list {
 		if x == s {
@@ -557,6 +581,11 @@ func appendOnce(list []string, s string) []string {
 	return append(list, s)
 }
 
+// file adds a node for every top-level declaration of one syntax file: functions and methods
+// (init and _ get a position-qualified id, since there may be several), types, and each
+// named var and const of a value spec. An implicitly repeated const walks the type and
+// values it inherits, and an implicit-repeat or iota const also depends on its const group
+// node. A go:embed or go:linkname directive anywhere in the file makes all its nodes opaque.
 func (b *builder) file(pkg *packages.Package, file *ast.File) {
 	path := b.fset.Position(file.Pos()).Filename
 	src, err := os.ReadFile(path)
@@ -679,6 +708,7 @@ func (b *builder) file(pkg *packages.Package, file *ast.File) {
 	}
 }
 
+// contains reports whether s is in list.
 func contains(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {
@@ -738,11 +768,17 @@ func valueConstructs(pkg *packages.Package, d *ast.GenDecl, s *ast.ValueSpec) []
 	return out
 }
 
+// fail prints a typeddeps-prefixed message to stderr and exits 1; there is no partial graph.
 func fail(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "typeddeps: "+format+"\n", args...)
 	os.Exit(1)
 }
 
+// main loads the packages matched by the patterns under the directory (with their test
+// variants unless -tests=false), refuses any package error, keeps the test variants in place
+// of the plain packages they contain, builds the graph and writes it to stdout as indented
+// JSON with nodes, deps and external ids sorted. The -planted-* flags switch on the
+// documented planted defects.
 func main() {
 	tests := flag.Bool("tests", true, "include the _test.go files (test variants of the packages)")
 	flag.BoolVar(&plantedNoTypeArgs, "planted-no-typeargs", false, "planted defect: no edges from an instantiation to the methods of its type arguments")

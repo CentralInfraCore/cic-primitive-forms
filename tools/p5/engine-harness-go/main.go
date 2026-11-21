@@ -17,6 +17,8 @@ import (
 	"github.com/CentralInfraCore/cic-primitive-engine/go/receipt"
 )
 
+// projField is one field of a flat projection as materialize_cases.py writes it: the key, its
+// capability, its provenance ("authored" or "schema_default") and its JSON value.
 type projField struct {
 	Key        string      `json:"key"`
 	Capability string      `json:"capability"`
@@ -24,6 +26,10 @@ type projField struct {
 	Value      interface{} `json:"value"`
 }
 
+// fieldsOf turns projection fields into the engine's MaterializedField map, carrying each
+// value as authored or schema-default intent evidence. JSON numbers are converted to int64
+// (a float64 by truncation, a json.Number exactly); an unknown provenance or a json.Number
+// that is not an int64 panics.
 func fieldsOf(fs []projField) map[string]materialized.MaterializedField {
 	out := map[string]materialized.MaterializedField{}
 	for _, f := range fs {
@@ -52,6 +58,7 @@ func fieldsOf(fs []projField) map[string]materialized.MaterializedField {
 	return out
 }
 
+// keySet makes the expected key set the engine's NewMaterializedObject checks the fields against.
 func keySet(keys []string) map[string]struct{} {
 	m := map[string]struct{}{}
 	for _, k := range keys {
@@ -60,6 +67,8 @@ func keySet(keys []string) map[string]struct{} {
 	return m
 }
 
+// digestOf builds the engine's materialized object from the fields under the given key set
+// and returns its MaterializedObjectDigest, or the engine's refusal of the object.
 func digestOf(fs []projField, keys []string) (string, error) {
 	obj, err := materialized.NewMaterializedObject(fieldsOf(fs), keySet(keys))
 	if err != nil {
@@ -68,6 +77,7 @@ func digestOf(fs []projField, keys []string) (string, error) {
 	return digestprojection.MaterializedObjectDigest(obj)
 }
 
+// fail prints the formatted message to stderr and exits 1; every check in the harness ends this way.
 func fail(format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format+"\n", a...)
 	os.Exit(1)
@@ -267,6 +277,8 @@ func decode(text string) interface{} {
 	return v
 }
 
+// clone returns a deep copy of a decoded JSON value by a marshal/decode round trip, keeping
+// integers as json.Number, so an alteration of the copy leaves the original intact.
 func clone(v interface{}) interface{} {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -275,15 +287,12 @@ func clone(v interface{}) interface{} {
 	return decode(string(b))
 }
 
+// obj asserts a decoded JSON value to be an object; it panics on anything else.
 func obj(v interface{}) map[string]interface{} { return v.(map[string]interface{}) }
 
+// zeroDigest is a well-formed sha256 digest that matches nothing, used to alter a digest field.
 func zeroDigest() string { return "sha256:" + strings.Repeat("0", 64) }
 
-// receipts: the engine's verifier is the gate of the receipts of this library (P5-3). For every accepted flat case the receipt in testdata/p5/receipt.json,
-// with the identity of the Go implementation in its place, is accepted by receipt.Verify against the object built from the shared projection and the authored
-// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it. The
-// expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md). The Rust peer is
-// the receipts function of tools/p5/engine-harness-rust.
 // pathCases are the cases that receipt-paths.json has to carry, each once: a table that lost one, repeated one or grew one the harness does not know is a failure,
 // not a shorter run (the count of the table is not a check of the table).
 var pathCases = []string{
@@ -305,6 +314,7 @@ var pathCases = []string{
 	"control-binding-of-four-defaults",
 }
 
+// checkPathCaseIDs checks that ids holds every case of pathCases exactly once and nothing else.
 func checkPathCaseIDs(ids []string) error {
 	known := map[string]bool{}
 	for _, w := range pathCases {
@@ -328,6 +338,11 @@ func checkPathCaseIDs(ids []string) error {
 	return nil
 }
 
+// receipts: the engine's verifier is the gate of the receipts of this library (P5-3). For every accepted flat case the receipt in testdata/p5/receipt.json,
+// with the identity of the Go implementation in its place, is accepted by receipt.Verify against the object built from the shared projection and the authored
+// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it. The
+// expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md). The Rust peer is
+// the receipts function of tools/p5/engine-harness-rust.
 func receipts(root string) {
 	read := func(name string) []byte {
 		b, err := os.ReadFile(filepath.Join(root, "testdata", "p5", name))
@@ -704,6 +719,10 @@ func endToEnd(dump, identity string) {
 	fmt.Printf("engine (go): %d chains of %s accepted by receipt.Verify, %d altered or mixed ones refused; swapped bindings: %d of equal values accepted (the engine cannot tell), %d of different values refused\n", accepted, identity, refused, swapAccepted, swapRefused)
 }
 
+// main selects the mode from the arguments: "end-to-end DUMP IDENTITY", "receipt-differential
+// IN OUT IDENTITY", "differential IN OUT", or a single forms root. With a root it checks the
+// accepted flat cases of testdata/p5/materialize.json (exactly 7 are required) as the package
+// doc describes, then runs receipts on the same root.
 func main() {
 	if len(os.Args) == 4 && os.Args[1] == "end-to-end" {
 		endToEnd(os.Args[2], os.Args[3])
