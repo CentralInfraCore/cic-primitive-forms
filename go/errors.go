@@ -80,7 +80,7 @@ const (
 )
 
 // Error is the failure of an operation of this package: a contract response (ErrContract, with its violations) or one of the
-// boundary kinds that carry no registry code.
+// boundary kinds of ErrorKind.
 type Error struct {
 	Kind       ErrorKind
 	Violations []Violation
@@ -99,8 +99,9 @@ type SchemaProblem struct {
 	Code, Path, Detail string
 }
 
-// Code is the stable code of the error. The codes of every kind but ErrContract are outside the
-// registry of corpus/codes.yaml; a contract response reports its first violation's code.
+// Code is the stable code of the error. A contract response reports its first violation's code;
+// ErrUnsupported, ErrSyntax and ErrLimit report a fixed code outside the registry of corpus/codes.yaml;
+// ErrBinding reports the upstream contract's code (BindingCode) and ErrSchema its first problem's (SchemaCode).
 func (e *Error) Code() string {
 	switch e.Kind {
 	case ErrContract:
