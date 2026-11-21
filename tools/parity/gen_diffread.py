@@ -37,10 +37,12 @@ import yaml  # noqa: E402
 
 
 def canon(doc):
+    """The canonical text of a diff document: sorted keys, no white space, no ASCII escaping."""
     return json.dumps(doc, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def corpus_diffs():
+    """Every canonical diff string of the corpus (the expected bytes of `diff` and `diff_stability` cases, the diffs of `patch` cases), sorted, once each."""
     out = []
     for f in sorted(glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml"))):
         with open(f, encoding="utf-8") as fh:
@@ -58,6 +60,7 @@ SEGMENTS = ["a", "b", "ip", "ports", "routes", "tags", "nics", "x1", "name", "é
 
 
 def draw_path(r):
+    """A path text of one to three fields, some followed by a list element with one string or integer component."""
     parts = ["$"]
     for _ in range(r.choice([1, 1, 2, 2, 3])):
         parts.append("." + r.choice(SEGMENTS))
@@ -70,6 +73,7 @@ def draw_path(r):
 
 
 def valid_path(p):
+    """True when corpus_check.parse_logical_path reads the path text."""
     try:
         cc.parse_logical_path(p)
         return True
@@ -78,6 +82,7 @@ def valid_path(p):
 
 
 def order_key(p):
+    """The ADR 0008 sort key of a path text, by corpus_check's definition."""
     return cc.path_order_key(cc.parse_logical_path(p))
 
 
@@ -204,6 +209,7 @@ def write_edit(r, text):
 
 
 def number_cases(r):
+    """Every number form the contract refuses or accepts, placed as a value, a key component, the version and a set member."""
     forms = ["-0", "01", "00", "1.0", "1e2", "1E2", "+1", "0x10", "9223372036854775807", "9223372036854775808", "-9223372036854775808", "-9223372036854775809",
              "1.5", "-1.5", "0.0", "1e999", "NaN", "Infinity", "-", "1.", ".5", "00.5", "12345678901234567890"]
     out = []
@@ -217,6 +223,7 @@ def number_cases(r):
 
 
 def depth_cases(r):
+    """Arrays and mappings nested 1 to 5000 deep, as a value, as the whole input, as the changes and as an extra top-level member."""
     out = []
     for n in (1, 30, 62, 63, 64, 65, 66, 70, 200, 5000):
         arr = "[" * n + "]" * n
@@ -230,6 +237,7 @@ def depth_cases(r):
 
 
 def string_cases(r):
+    """String escapes, surrogates, control characters and long strings in a value, and raw invalid or overlong UTF-8 bytes in and around a diff."""
     vals = ['"a\\ud800"', '"\\udc00a"', '"\\ud83d\\ude00"', '"\\ud83d"', '"\\u0000"', '"\\u001f"', '"\\u007f"', '"\\u0080"', '"\\"', '"\\x41"', '"a\tb"', '"a\nb"',
             '"\\n\\r\\t\\b\\f"', '"\\u000a"', '"\\u2028"', '"é"', '"\\u00e9"', '"😀"', '"\\ud83d\\ude00\\ud83d\\ude00"', '"\\\\"', '"\\/"', '""', '"' + "x" * 70000 + '"']
     out = []
@@ -243,6 +251,7 @@ def string_cases(r):
 
 
 def byte_edit(r, b):
+    """One edit of the bytes: a bit flipped, a byte deleted, inserted or replaced, a truncation, a copied run, or two bytes swapped."""
     b = bytearray(b)
     if not b:
         return bytes(b)
@@ -266,6 +275,10 @@ def byte_edit(r, b):
 
 
 def main():
+    """Write the fixed families (corpus, number, depth, string, empty, tiny) and then drawn lines up to `--count`.
+
+    The drawn lines are composed diffs, structure edits, writing edits of composed and of corpus diffs, and byte edits.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=20000)

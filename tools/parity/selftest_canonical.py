@@ -18,6 +18,7 @@ import compare_canonical as cc  # noqa: E402
 
 
 def first(d, pred):
+    """The smallest id in d whose answer satisfies pred; exits when there is none (the dumps cannot exercise that break)."""
     for i in sorted(d):
         if pred(d[i]):
             return i
@@ -25,10 +26,12 @@ def first(d, pred):
 
 
 def ok(a):
+    """Whether the answer record is an acceptance."""
     return a["r"][0] == "ok"
 
 
 def refused(reason):
+    """A predicate: whether an answer record is a refusal with the given reason."""
     return lambda a: a["r"][0] == "err" and a["r"][1] == reason
 
 
@@ -70,6 +73,7 @@ def breaks(inputs, rust, go):
 
 
 def main():
+    """Check that the unbroken dumps are clean, then run every break through compare_canonical.check and exit 1 if one of them is not reported as it must be."""
     inputs, rust, go = cc.load(sys.argv[1]), cc.load(sys.argv[2]), cc.load(sys.argv[3])
     problems, divergences, answers = cc.check(inputs, rust, go)
     if problems or divergences:

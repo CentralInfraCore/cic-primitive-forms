@@ -53,6 +53,7 @@ class Block:
 
 
 def typed(v):
+    """The typed tree {"k": kind, "v": value} that a reader of the subset must give for the Python value `v`: a Block by its chomping, a Raw by raw_typed, maps in key order."""
     if isinstance(v, Block):
         return {"k": "str", "v": v.text + ("" if v.indicator.endswith("-") else "\n")}
     if isinstance(v, Raw):
@@ -94,10 +95,13 @@ B64 = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 
 
 class Unrepresentable(Exception):
+    """Raised by the emitter for a value it cannot write: a non-printable or non-ASCII string (an escape whose support is not documented) or a block scalar inside flow."""
     pass
 
 
 def plain_ok(s, flow):
+    """Whether the string `s` may be written plain (unquoted): never empty, a YAML 1.1 keyword or digit-led; in flow only an identifier; in a block also a word of
+    identifier characters and './-', or a 44-character base64 digest ending in '='. Anything else is quoted."""
     if s == "" or s in WORDS or s[0].isdigit() and not flow:
         return False
     if s[0] in IDENT and all(c in IDENT or c in "./-" for c in s) and not s[0].isdigit() and not flow:
@@ -110,6 +114,7 @@ def plain_ok(s, flow):
 
 
 def quote(s, how):
+    """`s` in single or double quotes (`how`), with only the quote and backslash escaped; raises Unrepresentable for a character outside printable ASCII."""
     if any(ord(c) < 32 or ord(c) > 126 for c in s):
         raise Unrepresentable(s)
     if how == "single":
@@ -118,6 +123,7 @@ def quote(s, how):
 
 
 class Style:
+    """One way of writing a record: indentation, quoting of strings and keys, sequence indentation, comments, blank lines, flow for all or for given paths, and a '---' start."""
     def __init__(self, name, indent=2, strings="plain", keys="plain", seq_indent=0, comments=False, blank=False, flow_all=False, flow_paths=(), docstart=False):
         self.name, self.indent, self.strings, self.keys, self.seq_indent = name, indent, strings, keys, seq_indent
         self.comments, self.blank, self.flow_all, self.flow_paths, self.docstart = comments, blank, flow_all, set(flow_paths), docstart
@@ -133,6 +139,7 @@ STYLES = [
 
 
 def scalar_text(v, style, flow):
+    """The text of a scalar in `style`: a Raw as it is, null / true / false / integers in their plain spelling, a string plain where plain_ok allows it and quoted otherwise."""
     if isinstance(v, Raw):
         return str(v)
     if v is None:
@@ -153,12 +160,14 @@ def scalar_text(v, style, flow):
 
 
 def key_text(k, style):
+    """A mapping key as written: plain when it is a non-empty identifier and the style does not quote keys, double-quoted otherwise."""
     if style.keys == "double" or not (k and all(c in IDENT for c in k)):
         return quote(k, "double")
     return k
 
 
 def flow_text(v, style, extras, path):
+    """The flow form ({...} / [...]) of `v`, with the extras of each mapping path appended as raw members; raises Unrepresentable for a block scalar."""
     if isinstance(v, dict):
         items = [key_text(k, style) + ": " + flow_text(x, style, extras, path + (k,)) for k, x in v.items()]
         items += [rk + ": " + rv for rk, rv in extras.get(path, [])]
@@ -209,6 +218,7 @@ def block_lines(v, col, style, extras, path):
 
 
 def list_lines(v, col, style, extras, path):
+    """The lines of a block sequence `v` at column `col`: a non-empty mapping as an indented block after '- ', other collections in flow, scalars plain or quoted."""
     pad = " " * col
     out = []
     for i, x in enumerate(v):
@@ -242,11 +252,14 @@ def emit(record, style, extras=None, header=""):
 # ---- the cases -----------------------------------------------------------------------------------------------------------------------------------------------------
 
 class Cases:
+    """The generated case set: the rows, the undetermined constructions listed apart, and the (case, style) pairs skipped as unrepresentable; ids are numbered per class."""
     def __init__(self):
         self.rows, self.undetermined, self.skipped = [], [], []
         self.counter = {}
 
     def add(self, class_, data, parse_expect, allowed, mapping_expect=None, pin=None, why=None):
+        """Append one case with the id `<class>-<n>`; a refused text may not carry a mapping expectation (AssertionError), and an undetermined parse with an undetermined
+        `allowed` is also listed in `undetermined` with its reason."""
         n = self.counter[class_] = self.counter.get(class_, 0) + 1
         id_ = "%s-%05d" % (class_.replace(":", "-"), n)
         if parse_expect.get("result") == "refuse" and mapping_expect is not None:
@@ -257,14 +270,17 @@ class Cases:
 
 
 def mapping_of(expect, refuse, field):
+    """A mapping expectation: the three expected digests, or the refusal reason and the member it names."""
     return {"expect": expect, "refuse": refuse, "field": field}
 
 
 def accept(tree):
+    """The parse expectation of a text that must be accepted as `tree`."""
     return {"result": "accept", "tree": typed(tree)}
 
 
 def refuse(cls):
+    """The parse expectation of a text that must be refused with class `cls` ("syntax", "duplicate_key" or "any")."""
     return {"result": "refuse", "class": cls}
 
 
@@ -272,10 +288,12 @@ UNDETERMINED = {"result": "undetermined"}
 
 
 def base_record():
+    """A deep copy of the real release record of the Unit 1 yardstick and its pin."""
     return copy.deepcopy(g1.shared.REAL_RECORD), dict(g1.shared.REAL_PIN)
 
 
 def has_float(v):
+    """Whether a float occurs anywhere in `v`."""
     if isinstance(v, float):
         return True
     if isinstance(v, dict):
@@ -286,6 +304,7 @@ def has_float(v):
 
 
 def wrap_floats(v):
+    """`v` with every float replaced by its repr as a Raw, so that the emitter writes it plain (a spelling the subset refuses)."""
     if isinstance(v, float):
         return Raw(repr(v))
     if isinstance(v, dict):
@@ -335,6 +354,7 @@ FLOATISH = ["3.0", "3e0", ".5", "5.", "1e3", ".inf", ".nan", "0x3", "0o3", "03",
 
 
 def first_key(record, path):
+    """The first key of the mapping reached from `record` by `path`."""
     cur = record
     for p in path:
         cur = cur[p]
@@ -342,6 +362,8 @@ def first_key(record, path):
 
 
 def dup_extras(record, path, spelling, other):
+    """The extras that repeat one key of the mapping at `path`: the first scalar member (or the first key when there is none), in the given spelling, with its own
+    value or, with `other`, the value "other". A collection value is repeated as an empty one."""
     k = first_key(record, path)
     cur = record
     for p in path:
@@ -362,6 +384,9 @@ def dup_extras(record, path, spelling, other):
 
 
 def build_text_level(cs, rng):
+    """Cases made at the level of the text from the real record: duplicate keys (block and flow, three spellings, same and other value), syntax injections, plain
+    scalars the subset refuses, text-level defects, inputs over the limits, envelope and digest value variations the mapping judges, the undetermined constructions, and
+    the seeded pairs of a duplicate key with a syntax defect (either refusal accepted)."""
     record, pin = base_record()
     exp = g1.shared.REAL_EXPECT
     base = STYLES[0]
@@ -488,6 +513,7 @@ def build_pinned(cs):
 
 
 def generate(seed=DEFAULT_SEED):
+    """The full case set for `seed`: valid records in every style, the tree-level cases of Unit 1, the text-level cases, and the pinned divergences."""
     rng = random.Random(seed)
     cs = Cases()
     build_valid(cs, rng)
@@ -504,10 +530,12 @@ def listing(cs):
 
 
 def render(rows):
+    """The rows as JSON lines, sorted keys and ASCII only, so the output bytes and their digest are reproducible."""
     return "".join(json.dumps(r, sort_keys=True, ensure_ascii=True) + "\n" for r in rows)
 
 
 def main(argv):
+    """Write the cases (--out) and the undetermined listing (--undetermined-out); without --out, or with --summary, print the count, size, SHA-256 and classes to stderr."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--out")

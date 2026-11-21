@@ -34,12 +34,18 @@ def alt(o):
 
 
 def run(inputs, rust, go, allow):
+    """Run compare.py with --allow on the given files and return (exit status, stdout)."""
     p = subprocess.run([sys.executable, os.path.join(HERE, "compare.py"), inputs, rust, go, "--show", "2", "--allow", allow],
                        capture_output=True, text=True)
     return p.returncode, p.stdout
 
 
 def main():
+    """Run every break against the parity run named on the command line; 0 only when each gave the wanted exit status and word.
+
+    The broken outcomes are put on inputs that occur once in the run (a known divergence that is not a pair of refusals, and an
+    accepted input both sides agree on), so that each break changes the verdict on that input alone.
+    """
     inputs, rust, go, allow = sys.argv[1:5]
     rs = [json.loads(l) for l in open(rust)]
     gs = [json.loads(l) for l in open(go)]

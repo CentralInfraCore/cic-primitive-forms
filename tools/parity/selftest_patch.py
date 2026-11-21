@@ -19,21 +19,31 @@ EMPTY = '{"changes":[],"representation":[],"version":1}'
 
 
 def load(path):
+    """The JSON objects of a JSON-lines file, one per non-blank line, in order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def write(path, rows):
+    """Write `rows` to `path` as JSON lines with sorted keys, non-ASCII kept as is."""
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n")
 
 
 def first(rows, pred):
+    """The index of the first row that satisfies `pred`; StopIteration when none does (the run lacks a case the break needs)."""
     return next(i for i, r in enumerate(rows) if pred(r))
 
 
 def main():
+    """Make every break on copies of the dumps, run compare_patch.py on each and on the unbroken dumps, and return 1 when a break stays green or crashes
+    the comparator, or the unbroken dumps do not pass.
+
+    The breaks are put on the Rust dump's first answer of each needed kind (an accepted patch, one with several events, one with a quoted span, an
+    unsupported event, a special scalar's refusal, a clean accepted patch, an empty diff, an invalid A): one-sided changes for parity, the same change
+    on both sides for the model and the promises, and runs made too thin.
+    """
     inputs_p, rust_p, go_p = sys.argv[1:4]
     head, *cases = load(inputs_p)
     rust, go = load(rust_p), load(go_p)

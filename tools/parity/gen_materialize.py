@@ -62,6 +62,7 @@ def dq(s):
 
 
 def scalar_text(v):
+    """A scalar value as the document or the schema writes it: `~` for null, true/false, a decimal integer, a double-quoted string."""
     if v is None:
         return "~"
     if v is True:
@@ -74,6 +75,7 @@ def scalar_text(v):
 
 
 def value(rng, kind):
+    """A random value of the scalar kind: a string from CHARS, an integer from the edges of the 64-bit range and the 2**53 float boundary, or a bool."""
     if kind == "string":
         return "".join(rng.choice(CHARS) for _ in range(rng.randint(0, 6)))
     if kind == "integer":
@@ -87,6 +89,11 @@ def wrong_value(rng, kind):
 
 
 def schema_text(fields):
+    """The schema text: HEAD (from the first case of testdata/p1/defaults.json) followed by one node per field.
+
+    A scalar field carries its presence, nullability and default; a composite, set or list field is written with a fixed nested shape, enough for
+    the engine to refuse it as not flat.
+    """
     out = [HEAD]
     for f in fields:
         out.append("      - name: %s\n" % dq(f["name"]))
@@ -161,6 +168,11 @@ def reference(fields, caps, written, fault):
 
 
 def make_fields(rng, nested_p):
+    """1 to 6 random fields with distinct names.
+
+    A field is nested (composite, set or list, optional) with probability nested_p, else a scalar of a random kind, mandatory or optional,
+    sometimes nullable; an optional scalar has a default (a 1-tuple, so a null default is told from none) with probability 0.6.
+    """
     names = rng.sample(NAMES, rng.randint(1, 6))
     fields = []
     for n in names:
@@ -212,6 +224,10 @@ def make_doc(rng, fields, omit_p, fault_p):
 
 
 def make_caps(rng, fields, fault_p):
+    """The capability map: every field with a capability from CAPS.
+
+    With probability fault_p it has one fault: a field left out, a value outside the set, or one or three names the schema does not declare.
+    """
     caps = {f["name"]: rng.choice(CAPS) for f in fields}
     if rng.random() < fault_p:
         k = rng.choice(["missing", "unknown", "undeclared", "undeclared_many"])
@@ -240,6 +256,11 @@ TAGS = [("valid", 6), ("omitted", 2), ("capabilities", 3), ("nested", 2), ("docu
 
 
 def make(rng, tag):
+    """One case of the family tag.
+
+    The fields, the capabilities and the document are drawn with the family's probabilities (FAMILIES); the case holds the two texts, the
+    capability map, the declared keys in byte order and the reference answer.
+    """
     nested_p, omit_p, doc_p, cap_p = FAMILIES[tag]
     fields = make_fields(rng, nested_p)
     caps = make_caps(rng, fields, cap_p)
@@ -250,6 +271,7 @@ def make(rng, tag):
 
 
 def main():
+    """Write --count cases from --seed to OUT_JSONL, cycling through the families by their weight in TAGS."""
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=20000)

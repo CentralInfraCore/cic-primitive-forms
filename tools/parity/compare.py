@@ -39,10 +39,12 @@ SCALARS = {"null", "bool", "int", "str", "seq", "map"}
 
 
 def _int(x):
+    """True for an int that is not a bool (JSON true/false must not pass as a line, column or offset)."""
     return isinstance(x, int) and not isinstance(x, bool)
 
 
 def _pos(p):
+    """True when `p` is a position of the dump format: null, or [line, column, offset] with line and column from 1 and offset from 0."""
     return p is None or (isinstance(p, list) and len(p) == 3 and all(_int(x) for x in p) and p[0] >= 1 and p[1] >= 1 and p[2] >= 0)
 
 
@@ -111,6 +113,7 @@ def digest(r, g):
 
 
 def klass(o):
+    """The class of a valid outcome: "ok", "contract", or "refused:<code>" for a non-contract error code."""
     if "ok" in o:
         return "ok"
     if o["err"] == "CONTRACT":
@@ -119,6 +122,11 @@ def klass(o):
 
 
 def first_diff(a, b, path="$"):
+    """The first place where two decoded outcomes differ, as (JSON path, left, right), or None when they are equal.
+
+    Dict keys are walked in sorted order and list items in order; a type mismatch, a key present on one side only or a list length (`.len`) is reported at
+    its own path. Used to group divergent accepted trees by where they first part.
+    """
     if type(a) != type(b):
         return path, a, b
     if isinstance(a, dict):
@@ -141,6 +149,9 @@ def first_diff(a, b, path="$"):
 
 
 def main():
+    """Run the comparison and return the exit status: 2 when the three files are not of the same length, 1 on an invalid outcome, on a divergence (without
+    --allow) or on a NEW or CHANGED one (with --allow), else 0.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")

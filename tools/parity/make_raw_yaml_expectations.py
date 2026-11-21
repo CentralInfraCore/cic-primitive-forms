@@ -23,11 +23,15 @@ ACCEPTANCE_D10 = "decision D10, review of PR #160 on 2026-11-05: source position
 
 
 def rows(path):
+    """The JSON lines of a run file, keyed by their id."""
     with open(path, encoding="utf-8") as f:
         return {json.loads(l)["id"]: json.loads(l) for l in f.read().splitlines()}
 
 
 def main(argv):
+    """Derive the pinned subtypes and the known differences from the measured run in RUN_DIR (input.jsonl and dump-<impl>.jsonl) and check them against the
+    committed files (exit status 1 at the first that differs) or, with --write, rewrite them. A known difference is a dup case both Forms parsers refuse as
+    duplicate_key and PyYAML accepts."""
     run = argv[0]
     inp = rows(os.path.join(run, "input.jsonl"))
     d = {i: rows(os.path.join(run, "dump-%s.jsonl" % i)) for i in cmp_.IMPLS}

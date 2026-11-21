@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """One local command for the raw YAML differential, Unit 3b (docs/P5-RAW-YAML-UNIT3-CONTRACT.md, sections 3, 5, 8, 9).
 
-    run_raw_yaml.py [--out DIR] [--seed N] [--rust-target-dir DIR]
+    run_raw_yaml.py [--out DIR] [--seed N] [--rust-target-dir DIR] [--selftest]
 
 Builds the byte-level input (tools/parity/gen_raw_yaml.py, regenerated and compared), runs the Rust and Go dumps and the Python oracle on the SAME bytes, compares (parity, construction,
 allowed, mapping, difference from Python) and writes one report. The memory limit (RLIMIT_AS) and the wall-clock limit are ENFORCED on every reader process: a
-chunk that dies or overruns is re-run one case at a time, and the case that kills or overruns its process is recorded as CRASH or TIMEOUT, which is red. Unit 3c (the selftest and the
-evidence report) is on hold, so this report is never marked as evidence. Not a CI step; no file under .github/workflows is touched.
+chunk that dies or overruns is re-run one case at a time, and the case that kills or overruns its process is recorded as CRASH or TIMEOUT, which is red. The report is marked as
+evidence only for a clean tree, a green compare and the selftest of Unit 3c (--selftest, tools/parity/selftest_raw_yaml.py) run and passed. Not a CI step; no file under .github/workflows is touched.
 """
 import argparse
 import hashlib
@@ -40,10 +40,13 @@ MEMORY = gen.LIMITS["memory_bytes"]
 
 
 def sha256_text(s):
+    """The SHA-256 of a text's UTF-8 bytes."""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
 def tool_env():
+    """The environment for the Go and Rust builds: with CIC_TOOLCHAIN set, the Go and Cargo caches and toolchains under it (unless already set) and their bin
+    directories first on PATH."""
     env = dict(os.environ)
     base = os.environ.get("CIC_TOOLCHAIN")
     if base:
@@ -56,10 +59,13 @@ def tool_env():
 
 
 def limits():
+    """The pre-exec hook of every reader process: the address-space limit (RLIMIT_AS) of MEMORY."""
     resource.setrlimit(resource.RLIMIT_AS, (MEMORY, MEMORY))   # read at call time: the tests lower it
 
 
 def build_binaries(env, rust_target, out_dir):
+    """Build the Go test binary (into `out_dir`) and the Rust parity_raw_yaml_dump test binary (optionally into `rust_target`) and return their paths;
+    exits with the build output when either does not build or the Rust binary is not found."""
     go_bin = os.path.join(out_dir, "raw-yaml-go.test")        # a build product of this run, written outside the tree's tracked files
     p = subprocess.run(["go", "test", "-c", "-o", go_bin, "."], cwd=os.path.join(ROOT, "go"), env=env, capture_output=True, text=True)
     if p.returncode:
@@ -95,6 +101,7 @@ def reader_launch(lang, binary):
 
 
 def python_launch(inp, outp):
+    """The launch of the Python oracle reader: dump_raw_yaml_py.py with its input and output files as arguments."""
     return [sys.executable, os.path.join(HERE, "dump_raw_yaml_py.py"), inp, outp], ROOT, {}
 
 
@@ -114,6 +121,7 @@ def count_lines(path, state):
 
 
 def complete_lines(path):
+    """The complete (newline-terminated) lines of a dump file, an unfinished last line dropped; none for a file that does not exist."""
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -186,6 +194,7 @@ def run_dump(launch, lines, env, workdir, name="reader"):
 
 
 def version(cmd, env):
+    """The first output line of a version command, or None when it cannot be run."""
     try:
         return subprocess.run(cmd, capture_output=True, text=True, env=env).stdout.strip().splitlines()[0]
     except Exception:  # noqa: BLE001
@@ -193,6 +202,7 @@ def version(cmd, env):
 
 
 def git(*args):
+    """The trimmed output of a git command in the repository, or None when it fails."""
     p = subprocess.run(["git", "-C", ROOT] + list(args), capture_output=True, text=True)
     return p.stdout.strip() if p.returncode == 0 else None
 
@@ -203,6 +213,9 @@ def evidence_of(clean, is_red, selftest):
 
 
 def main(argv):
+    """Generate the input (and check it is the deterministic output of the generator), build the readers, run the three dumps under supervision, compare,
+    optionally run the selftest (--selftest), and write report.json with the digests of every input, file and binary, the limits, the versions and the result.
+    Exit status 1 when the compare is red."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "raw-yaml-diff"))
     ap.add_argument("--seed", type=int, default=gen.DEFAULT_SEED)

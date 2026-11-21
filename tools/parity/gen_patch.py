@@ -71,6 +71,11 @@ class Doc:
         self.block = False                # a block scalar is there: the parser refuses it in a text without a final line break
 
     def put_scalar(self, r, path_key, label, kind, parent, indent=""):
+        """Write one scalar of `kind` under `label` and record its meaning in `parent[path_key]`; return how it was written.
+
+        Returns "expanded" for an expanded wrapper (the meaning is the default declaration with the value), EDIT_BLOCK_SCALAR or EDIT_MULTILINE_SCALAR
+        for a scalar a patch cannot replace (the meaning is the folded text), or None for a plain or quoted token.
+        """
         tok, v = scalar_token(r, kind)
         roll = r.random()
         if roll < 0.08:                                           # an expanded wrapper that holds only the value
@@ -92,6 +97,9 @@ class Doc:
 
 
 def build(r):
+    """Draw document A: name, count and enabled, ip (block, or a flow mapping whose positions earn EDIT_FLOW_CONTEXT), routes, tags and the opaque note,
+    each present or not, with the text lines and the JSON meaning written side by side.
+    """
     d = Doc()
     if r.random() < 0.15:
         d.lines.append("# a leading comment")
@@ -140,6 +148,9 @@ def build(r):
 
 
 def render(r, lines, block=False):
+    """Join the lines with a drawn line end (LF, CRLF or lone CR) and sometimes a BOM in front; the final line end is forced when the document holds
+    a block scalar, otherwise it is usually there.
+    """
     eol = r.choice(["\n", "\n", "\n", "\r\n", "\r"])
     text = eol.join(lines) + (eol if block or r.random() < 0.85 else "")
     if r.random() < 0.1:
@@ -150,6 +161,7 @@ def render(r, lines, block=False):
 # --- B ----------------------------------------------------------------------------------------------------------------------------------------
 
 def value_for(r, kind, tricky):
+    """A new value of `kind` for B: an integer of INTS, a boolean, a TRICKY string when `tricky`, else a clean word."""
     if kind == "integer":
         return r.choice(INTS)
     if kind == "boolean":
@@ -210,6 +222,7 @@ def make_b(r, a, expanded):
 
 
 def gen_logical_only(r):
+    """The JSON meaning of an independently drawn document (its text is thrown away): B as a draw unrelated to A."""
     d = build(r)
     return d.a
 
@@ -217,6 +230,7 @@ def gen_logical_only(r):
 # --- scope -------------------------------------------------------------------------------------------------------------------------------------
 
 def paths(a):
+    """Every path of document `a` in segment form: each top-level field, the fields of ip, each routes element (keyed by `to`) and its other fields."""
     out = []
     for n in a:
         out.append([("f", n)])
@@ -231,6 +245,11 @@ def paths(a):
 
 
 def draw_scope(r, a, b):
+    """The scope of a case as (texts, segments), or (None, None) for no scope (55% of the cases).
+
+    One to three paths are drawn from the paths of A and B, sometimes with the root (an empty path) added, then shuffled; the texts are
+    diff_model.path_text of the segments, the segments are the JSON form the dumps read.
+    """
     if r.random() < 0.55:
         return None, None
     pool = paths(a) + paths(b)
@@ -242,6 +261,9 @@ def draw_scope(r, a, b):
 
 
 def case(r, i):
+    """One input of the patch differential: the text of A, its meaning (None when a line that does not parse or validate was added), B, the scope,
+    the refusals A's special scalars earn and whether B carries tricky strings. A with no field gets a name, since an empty text is the null document.
+    """
     d = build(r)
     if not d.a:                                                 # a text with no field at all is the null document, not an empty mapping
         d.put_scalar(r, "name", "name", "string", d.a)
@@ -258,6 +280,7 @@ def case(r, i):
 
 
 def main():
+    """Write the schema line and then --count cases from the seed to OUT, one JSON object per line with sorted keys."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=3000)

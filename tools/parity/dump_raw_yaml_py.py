@@ -21,6 +21,8 @@ import digest_mapping as dm  # noqa: E402
 
 
 def typed(v):
+    """The typed tree of a PyYAML value, in the form of the Rust and Go dumps; a non-string key is written as 'non-string-key:<repr>', a float as its repr, any other
+    Python type as kind "other" with its type name."""
     if isinstance(v, dict):
         return {"k": "map", "v": [[k if isinstance(k, str) else "non-string-key:" + repr(k), typed(x)] for k, x in v.items()]}
     if isinstance(v, list):
@@ -43,6 +45,7 @@ class _StrictLoader(yaml.SafeLoader):
 
 
 def _no_duplicates(loader, node, deep=False):
+    """The mapping constructor of _StrictLoader: refuses a mapping that repeats a key, then constructs it as SafeLoader does."""
     seen = set()
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=deep)
@@ -57,6 +60,8 @@ VARIANT = None
 
 
 def load(text):
+    """PyYAML's reading of `text`: safe_load, or with VARIANT set one of the deliberately changed oracles of the selftest (duplicates refused, an integer envelope
+    turned into a string)."""
     if VARIANT == "strict-duplicates":
         return yaml.load(text, Loader=_StrictLoader)
     value = yaml.safe_load(text)
@@ -68,6 +73,8 @@ def load(text):
 
 
 def answer(case):
+    """The dump line of one case: invalid UTF-8 and a PyYAML refusal are refusals, any other exception of the oracle is python_error; an accepted text carries its
+    typed tree and, where the case has a pin, the answer of the Unit 2 mapping reference (map_release) on PyYAML's value."""
     cid = case["id"]
     data = bytes.fromhex(case["bytes_hex"])
     try:
@@ -96,6 +103,7 @@ def answer(case):
 
 
 def main(argv):
+    """Answer every case of IN into OUT, one line per case flushed at once; --variant selects a test-only oracle."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("input")
     ap.add_argument("output")

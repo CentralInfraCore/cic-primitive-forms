@@ -26,6 +26,7 @@ class DuplicateId(Exception):
 
 
 def load(path):
+    """Read a JSON-lines file (the inputs or a dump) into a dict by record id; raises DuplicateId when an id appears twice."""
     out = {}
     with open(path, encoding="utf-8") as f:
         for n, line in enumerate(f, 1):
@@ -65,6 +66,10 @@ def check(inputs, rust, go):
 
 
 def main():
+    """Run the comparison and print the counts of the answers, the divergences and the broken promises.
+
+    Exit 1 on a divergence, a broken promise, an answer of REACHED that no input reaches, or a repeated id in any of the three files.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")

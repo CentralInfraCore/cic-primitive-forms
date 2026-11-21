@@ -23,6 +23,7 @@ MAP_KEYS = ("primitive_build_hash", "grammar_sha256", "grammar_schema_sha256")
 
 
 def sha256_file(path):
+    """The lower-case hex SHA-256 of a file's bytes."""
     with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
@@ -38,6 +39,7 @@ def physical_lines(text, errors, what):
 
 
 def read_lines(path, errors, what):
+    """A dump as one entry per physical line: the parsed JSON, or None (with an error recorded) for a line that is not JSON."""
     rows = []
     with open(path, encoding="utf-8", newline="") as f:
         for n, line in enumerate(physical_lines(f.read(), errors, what), 1):
@@ -79,6 +81,11 @@ def normalize(row, case, errors, what):
 
 
 def construction_ok(case, ans):
+    """Whether a normalized answer is the one fixed by construction.
+
+    That is the expected digest(s), or the expected refusal reason and, when the case names a field, that field (a case without a field is
+    checked on the reason only).
+    """
     if case["refuse"] is None:
         want = case["expect"]
         want = ("ok", want) if case["kind"] == "convert" else ("ok", tuple(sorted(want.items())))
@@ -89,11 +96,12 @@ def construction_ok(case, ans):
 
 
 def describe(ans):
+    """A normalized answer as a JSON-friendly list (None stays None), for the report and for the comparison with a known difference."""
     return None if ans is None else list(ans)
 
 
 def compare(input_path, dumps, known=None, floors=None):
-    """-> a report dict; report["red"] is False only when every rule of the contract holds."""
+    """-> a report dict; report["is_red"] is False only when every rule of the contract holds (report["red"] lists the red cases)."""
     errors = []
     cases = []
     ids = set()
@@ -188,6 +196,7 @@ def compare(input_path, dumps, known=None, floors=None):
 
 
 def main(argv):
+    """Run the comparison, write the report to --json if given, print the totals and the first 20 errors and red cases; return 1 when the run is red."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("input")
     for impl in IMPLS:

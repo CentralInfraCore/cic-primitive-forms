@@ -21,16 +21,22 @@ MODES = ["true", "false", "0"]
 
 
 def shared():
+    """The shared resolution cases of testdata/p1/resolution.json (the schema body, the grammar pin and the access keys come from there)."""
     with open(os.path.join(ROOT, "testdata", "p1", "resolution.json"), encoding="utf-8") as f:
         return json.load(f)
 
 
 def schema_body(shared_file):
+    """The schema text of the first shared case, split before `  config_surface:` so that a drawn policy_surface can be put between the two halves."""
     head, tail = shared_file["cases"][0]["schema"].split("  config_surface:\n", 1)
     return head, "  config_surface:\n" + tail
 
 
 def policy_surface(r):
+    """A drawn `policy_surface` block of the schema: default_access, default_modify, one surface rule and inherit_policy, each present or not.
+
+    When nothing is drawn the block is left out or written as `policy_surface: {}`, with equal chance.
+    """
     lines = []
     if r.random() < 0.5:
         lines.append("    default_access: " + r.choice(RULES + ["open"]))
@@ -72,6 +78,9 @@ def position(name, value, r, indent, block=False):
 
 
 def document(r):
+    """A drawn document for the shared schema: `type` always, `label`, `ip` (null, empty or with gateway / prefix) and `routes` (list elements keyed
+    by `to`, with an optional metric) each present or not, every position short or expanded (see position).
+    """
     lines = position("type", "t", r, 0)
     if r.random() < 0.5:
         lines += position("label", r.choice(["x", "~"]), r, 0)
@@ -98,6 +107,7 @@ def document(r):
 
 
 def unknown(r, doc):
+    """The drawn unknown paths of a case: the root, `$.ip` (only when the document has an ip) and one routes element, each present or not."""
     out = []
     if r.random() < 0.2:
         out.append("$")
@@ -109,6 +119,7 @@ def unknown(r, doc):
 
 
 def main():
+    """Write --count cases from the seed to OUT, one JSON object per line with sorted keys."""
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=2000)

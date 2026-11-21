@@ -32,6 +32,11 @@ KEYS = ["a", "b", "z", "B", "A", "_", "-", "0", "10", "9", "a<b", "é", "ÿ", "�
 
 
 def esc(s):
+    """A string as the canonical writer must quote it.
+
+    The short escapes for the quote, the backslash and the five named controls; a lower-case six-character escape for every other control and for
+    the five characters of A4 (< > & U+2028 U+2029); every other character (0x7f and non-ASCII included) as itself.
+    """
     out = ['"']
     for ch in s:
         o = ord(ch)
@@ -50,6 +55,8 @@ def esc(s):
 
 
 class Refused(Exception):
+    """A refusal of the reference; its message is the reason of the closed set (unsupported_value, duplicate_key)."""
+
     pass
 
 
@@ -77,6 +84,7 @@ def ref(spec):
 
 
 def want(spec):
+    """The expected answer for a spec: ["ok", canonical text, "sha256:" + hex digest of its UTF-8 bytes] or ["err", reason]."""
     try:
         text = ref(spec)
     except Refused as r:
@@ -85,15 +93,18 @@ def want(spec):
 
 
 def string(rng, n=None):
+    """A random string of n characters drawn from CHARS (0 to 6 when n is None)."""
     return "".join(rng.choice(CHARS) for _ in range(rng.randint(0, 6) if n is None else n))
 
 
 def integer(rng):
+    """A random integer spec {"i": decimal}, mostly the edges of the 64-bit range and the 2**53 float boundary, sometimes a random 64-bit or small value."""
     return {"i": str(rng.choice([0, 1, -1, 7, 10, 255, 256, 65535, 2**31, -(2**31), 2**53, 2**53 + 1, -(2**53) - 1, I64_MAX, I64_MIN, I64_MAX - 1, I64_MIN + 1,
                                   rng.randint(I64_MIN, I64_MAX), rng.randint(-1000, 1000)]))}
 
 
 def scalar(rng):
+    """A random scalar spec: null, a bool, an integer or a string."""
     k = rng.random()
     if k < 0.12:
         return None
@@ -105,6 +116,10 @@ def scalar(rng):
 
 
 def tree(rng, depth, keys_from_chars=False):
+    """A random value nested at most depth levels: a scalar, a sequence or a map.
+
+    Map keys are distinct and shuffled into a seed-determined order, so the writer has to sort them. keys_from_chars is accepted and unused.
+    """
     if depth == 0 or rng.random() < 0.3:
         return scalar(rng)
     if rng.random() < 0.4:
@@ -129,6 +144,7 @@ def paths(spec, here=()):
 
 
 def replace_at(spec, path, new):
+    """A copy of spec with the value at path (from paths) replaced by new; the input is not modified."""
     if not path:
         return new
     i, rest = path[0], path[1:]
@@ -139,20 +155,24 @@ def replace_at(spec, path, new):
 
 
 def maps_at(spec):
+    """The paths of every map in spec."""
     return [p for p in paths(spec) if _at(spec, p) is not None and isinstance(_at(spec, p), dict) and "m" in _at(spec, p)]
 
 
 def _at(spec, path):
+    """The value at path in spec (a path from paths)."""
     for i in path:
         spec = spec[i] if isinstance(spec, list) else spec["m"][i][1]
     return spec
 
 
 def unsupported(rng):
+    """A spec of a value the library does not hold: a float, an infinity or an integer just beyond the 64-bit range."""
     return {"u": rng.choice(["1.5", "-0.0", "1e100", "9223372036854775808", "-9223372036854775809", ".inf", "0.1"])}
 
 
 def make(rng, tag):
+    """One random spec of the family tag (see TAGS); raises ValueError for an unknown family."""
     if tag == "strings":
         return string(rng, rng.randint(0, 12))
     if tag == "integers":
@@ -193,6 +213,7 @@ TAGS = [("strings", 4), ("integers", 1), ("keys", 3), ("nested", 5), ("unsupport
 
 
 def main():
+    """Write --count cases from --seed to OUT_JSONL, cycling through the families by their weight in TAGS."""
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=20000)

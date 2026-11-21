@@ -36,6 +36,7 @@ MIN_CODE = 15
 
 
 def load(path):
+    """The JSON objects of a JSON-lines file, one per non-blank line, in order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
@@ -54,10 +55,18 @@ def token(value, style):
 
 
 def segs_of(raw):
+    """The path segments of a scope from their JSON form: ("f", field) or ("i", ((key, value), ...)) as diff_model takes them."""
     return [("f", s[1]) if s[0] == "f" else ("i", tuple((k, v) for k, v in s[1])) for s in raw]
 
 
 def check_case(case, rr, problems, stats, tree):
+    """Check the promises on one answer `rr` (both languages gave the same) to `case`, appending (id, text) to `problems` and counting into `stats`.
+
+    The order follows the predicted outcome: an invalid A must be the same refusal from the diff and the patch; the diff must be the model's bytes; an
+    empty diff must give A back; an unsupported event (another kind, or the opaque note) must be PATCH_UNSUPPORTED_EVENT at the first one; a special
+    scalar must earn its edit refusal (a tricky value may be refused first); an accepted patch must be A with the canonical tokens swapped in, round
+    trip to no changes, and be PATCH_CONFLICT on replay and on a tampered `previous`.
+    """
     i = case["id"]
     text = case["yaml"].encode("utf-8")
     if case["a"] is None:
@@ -154,6 +163,9 @@ def check_case(case, rr, problems, stats, tree):
 
 
 def main():
+    """Run the comparison and return the exit status: 1 on a count mismatch, a Rust/Go difference (such a case is not checked further), a broken
+    promise, or a run that is too thin (a MIN counter or an edit refusal code below its floor).
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs")
     ap.add_argument("rust")
