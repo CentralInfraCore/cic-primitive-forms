@@ -29,10 +29,15 @@ def last_full(runs, jobs_of, current):
 
 
 def gh(path):
+    """Call `gh api PATH` and return the decoded JSON; raises on a failed call."""
     return json.loads(subprocess.run(["gh", "api", path], capture_output=True, text=True, check=True).stdout)
 
 
 def main():
+    """Print `run=false` only when the last nightly FULL measured the head of main, else `run=true`.
+
+    An API error answers `run=true`; the reasoning goes to stderr. The exit status is always 0.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--head", required=True)

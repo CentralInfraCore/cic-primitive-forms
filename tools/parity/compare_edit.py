@@ -32,6 +32,7 @@ MIN_PER_CODE, MIN_ACCEPTED, MIN_CHANGED, MIN_NOOP, MIN_BACK_CANONICAL, MIN_COMMU
 
 
 def load(path):
+    """The JSON objects of a JSON-lines file, one per non-blank line, in order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
@@ -87,10 +88,16 @@ def put(node, toks, new):
 
 
 def style_of(token):
+    """The style of a scalar token from its first character: single_quoted, double_quoted or plain."""
     return "single_quoted" if token.startswith("'") else "double_quoted" if token.startswith('"') else "plain"
 
 
 def check_case(case, r, problems, stats):
+    """Check guarantees 1, 2, 3/4 and 6 on one language's answer `r` to `case`, appending (id, text) to `problems` and counting into `stats`.
+
+    The span offsets are bytes of the UTF-8 input (a BOM included). The no-op and edit-back checks apply only to an accepted edit of a position that
+    held a value; the restored bytes are required only when the original token was canonical and the edit changed something.
+    """
     text, edit = case["yaml"].encode("utf-8"), r["edit"]            # the offsets of a span are bytes of the UTF-8 text, a BOM included
     i = case["id"]
     if edit["ok"]:
@@ -150,6 +157,9 @@ def check_case(case, r, problems, stats):
 
 
 def main():
+    """Run the comparison and return the exit status: 1 on a count mismatch, a Rust/Go difference (guarantee 5), a broken guarantee on the Rust answer
+    or a run that is too thin (a refusal code seen fewer than MIN_PER_CODE times, or too few accepted, changed, no-op, edited-back or commuted cases).
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs")
     ap.add_argument("rust")

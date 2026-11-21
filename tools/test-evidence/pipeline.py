@@ -15,6 +15,7 @@ REF = re.compile(r"refs/(heads|tags)/[^\s]+\Z")
 
 
 class PipelineError(Exception):
+    """A pipeline decision that refuses: bad slot, ref, event or environment of the run, or a published record that is missing or does not verify."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
@@ -22,6 +23,7 @@ class PipelineError(Exception):
 
 
 def utc_today(now):
+    """The UTC calendar date of `now`."""
     return now.astimezone(datetime.timezone.utc).date()
 
 
@@ -82,6 +84,7 @@ def make_inputs(env, event, slot_input, now, git):
 
 
 def recent_days(now, days=4):
+    """The ISO dates of the last `days` UTC days, today first."""
     today = utc_today(now)
     return [(today - datetime.timedelta(days=i)).isoformat() for i in range(days)]
 

@@ -46,6 +46,8 @@ pub struct PolicySurface {
 }
 
 impl PolicySurface {
+    /// The surface of a schema that declares no `policy_surface`: nothing declared, every rule left to the system layer,
+    /// `inherit_policy` = `inherit`.
     fn undeclared() -> Self {
         PolicySurface {
             declared: false,
@@ -58,8 +60,10 @@ impl PolicySurface {
     }
 }
 
+/// The schema path the problems of a schema's own policy are reported under.
 const POLICY_PATH: &str = "spec.policy_surface";
 
+/// A `SCHEMA_INVALID` problem at `path`.
 fn invalid(path: &str, detail: &str) -> Problem {
     problem(SCHEMA_INVALID, path, detail)
 }
@@ -157,6 +161,9 @@ fn default_rule(
     None
 }
 
+/// Reads `surface_rules`: a list of mappings with a non-empty `surface` and optional `access` / `modify` rules. `inherit`
+/// declares no rule; a second rule for the same surface and operation is a `SURFACE_RULE_CONFLICT` problem, an unknown
+/// member or a non-mapping item is recorded too, and the walk goes on. An entry is kept even when it has problems.
 fn surface_rules(n: &Node, path: &str, problems: &mut Vec<Problem>) -> Vec<SurfaceRule> {
     let items = match &n.value {
         Value::Seq(items) => items,

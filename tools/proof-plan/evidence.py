@@ -52,27 +52,31 @@ class Assurance:
 
     @staticmethod
     def of(contract_versions, rule_versions, extractors):
+        """An Assurance from plain iterables: every version set and every extractor's construct set frozen."""
         return Assurance(frozenset(contract_versions), frozenset(rule_versions),
                          {k: frozenset(v) for k, v in extractors.items()})
 
 
 @dataclass(frozen=True)
 class Decision:
+    """The kernel's answer: a status (UNVERIFIABLE, RERUN_REQUIRED or REUSE_ELIGIBLE), the reason codes behind it and the values compared."""
     status: str
     reasons: tuple  # stable codes from REASONS, sorted
     compared: dict  # the values that were compared, for reproduction
 
 
 def _is_str(x):
+    """True for a non-empty string."""
     return isinstance(x, str) and x != ""
 
 
 def _is_str_list(x):
+    """True for a list (possibly empty) of non-empty strings."""
     return isinstance(x, list) and all(_is_str(i) for i in x)
 
 
 def _shape_errors(e, with_verdict):
-    """Why `e` is not evidence of the v1 shape; an empty list when it is."""
+    """Why `e` is not well-formed evidence (the v2 shape: graph.analysis is required); an empty list when it is."""
     if not isinstance(e, dict):
         return ["not an object"]
     err = []
@@ -98,6 +102,9 @@ def _shape_errors(e, with_verdict):
 
 
 def _unverifiable(previous, current, assurance):
+    """(UNVERIFIABLE codes, shape errors by argument name) for the pair; both empty when the proof model can support a claim.
+
+    A malformed argument stops the check at MALFORMED_EVIDENCE; otherwise every applicable code is collected, not only the first."""
     codes, shape = set(), {}
     for name, e, with_verdict in (("previous", previous, True), ("current", current, False)):
         errs = _shape_errors(e, with_verdict)
@@ -141,6 +148,10 @@ def _unverifiable(previous, current, assurance):
 
 
 def evaluate_reuse(previous, current, assurance):
+    """Decide whether `previous` (evidence with a verdict) may stand for `current` under `assurance`; see the module doc.
+
+    Pure: reads nothing and mutates no argument. UNVERIFIABLE codes are checked first and win; then any differing digest or a
+    non-pass verdict gives RERUN_REQUIRED; otherwise REUSE_ELIGIBLE with ALL_CONDITIONS_HOLD."""
     compared = {}
     codes, shape = _unverifiable(previous, current, assurance)
     if shape:

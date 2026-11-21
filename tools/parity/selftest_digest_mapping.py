@@ -71,26 +71,36 @@ EQUIVALENT = [
 
 
 def read(path):
+    """The text of a UTF-8 file."""
     with open(path, encoding="utf-8") as f:
         return f.read()
 
 
 def write(path, text):
+    """Write text to a UTF-8 file, replacing it."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
 
 
 def classes_of(inp):
+    """The class prefix of every case of the input file, by id (`shared` when a case has no class)."""
     return {json.loads(l)["id"]: json.loads(l).get("class", "shared").split(":")[0] for l in read(inp).splitlines()}
 
 
 def compare_with(inp, dumps, known, floors):
+    """Run compare_digest_mapping.compare; the one place this selftest calls it."""
     return cmp_.compare(inp, dumps, known, floors)
 
 
 # ---- A. breaking the comparison -------------------------------------------------------------------------------------------------------------------------------------
 
 def breakages(inp, dumps, known, floors, workdir):
+    """Part A: break the comparison in every way the contract names. -> a list of results.
+
+    The untouched dumps (or the input, the known differences, the floors) are broken and compared; each break must be red, and the first entry
+    records that the untouched dumps are green. It also checks that verify_input refuses an input that is not the generator's output and that
+    evidence_of refuses every incomplete combination.
+    """
     lines = {i: read(dumps[i]).splitlines(True) for i in IMPLS}
     cases = [json.loads(l) for l in read(inp).splitlines()]
     n = len(cases)
@@ -182,6 +192,7 @@ def breakages(inp, dumps, known, floors, workdir):
 
 
 def _swap(texts, impl, a, b):
+    """Swap the answers of lines a and b of one dump, each keeping its own id (the order of the ids stays right, the answers are wrong)."""
     ls = texts[impl].splitlines(True)
     ra, rb = json.loads(ls[a]), json.loads(ls[b])
     ra2, rb2 = dict(rb, id=ra["id"]), dict(ra, id=rb["id"])
@@ -190,6 +201,7 @@ def _swap(texts, impl, a, b):
 
 
 def _swap_lines(texts, impl, a, b):
+    """Swap lines a and b of one dump whole (the answers are right, the order of the ids is not)."""
     ls = texts[impl].splitlines(True)
     ls[a], ls[b] = ls[b], ls[a]
     texts[impl] = "".join(ls)
@@ -217,9 +229,11 @@ class Trees:
         self.pristine = {}
 
     def path(self, rel):
+        """The path of a repository-relative file inside the copy."""
         return os.path.join(self.tree, rel)
 
     def mutate(self, rel, old, new):
+        """Replace old by new in a file of the copy, keeping the pristine text for restore; exits unless old occurs exactly once."""
         p = self.path(rel)
         text = read(p)
         self.pristine[rel] = text
@@ -228,9 +242,11 @@ class Trees:
         write(p, text.replace(old, new))
 
     def restore(self, rel):
+        """Write a mutated file of the copy back to its pristine text."""
         write(self.path(rel), self.pristine.pop(rel))
 
     def dump(self, lang, inp, out):
+        """Run the dump of one language on the copy (Python against the copy of tools/p5/digest_mapping.py)."""
         if lang == "go":
             rdm.dump_go(self.tree, inp, out, self.env)
         elif lang == "rust":
@@ -240,6 +256,11 @@ class Trees:
 
 
 def planted(inp, base_dumps, known, floors, trees, workdir, cls):
+    """Part B: each defect of PLANTED, alone in its language.
+
+    Its language is dumped with the defect in the copy and compared against the base dumps of the other two; the defect is ok when the compare
+    is red with every class it names among the red ones, and green again after the file is restored.
+    """
     results = []
     for name, lang, rel, old, new, targets in PLANTED:
         trees.mutate(rel, old, new)
@@ -259,6 +280,10 @@ def planted(inp, base_dumps, known, floors, trees, workdir, cls):
 
 
 def common_mode(inp, known, floors, trees, workdir, cls):
+    """Part C: each defect of COMMON_MODE in all three languages at once.
+
+    Ok when the compare is red with at least one case on which the three agree (only the construction sees that).
+    """
     results = []
     for name in COMMON_MODE:
         rows = [p for p in PLANTED if p[0] == name]
@@ -280,6 +305,7 @@ def common_mode(inp, known, floors, trees, workdir, cls):
 
 
 def equivalents(inp, base_dumps, known, floors, trees, workdir):
+    """Part D: apply each change of EQUIVALENT to the copy and dump its language; ok when the compare stays green."""
     results = []
     for lang, rel, old, new, why in EQUIVALENT:
         trees.mutate(rel, old, new)
@@ -294,6 +320,10 @@ def equivalents(inp, base_dumps, known, floors, trees, workdir):
 
 
 def run_all(out, env, dumps, inp, rust_target=None):
+    """Run parts A to D in out/selftest against the given dumps and input. -> the result dict.
+
+    Writes out/selftest.json and prints a summary and every result that is not ok; `passed` is true only when every part is.
+    """
     workdir = os.path.join(out, "selftest")
     os.makedirs(workdir, exist_ok=True)
     known = json.load(open(rdm.KNOWN, encoding="utf-8"))
@@ -320,6 +350,7 @@ def run_all(out, env, dumps, inp, rust_target=None):
 
 
 def main(argv):
+    """Run run_digest_mapping.py with its default parameters into --out: the dumps of the unmodified tree, the compare, then this selftest."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "digest-mapping-diff"))
     a = ap.parse_args(argv)

@@ -16,7 +16,9 @@ use std::fmt;
 use crate::access::sha256_hex;
 use crate::node::{Node, Value};
 
+/// Reason of a value outside the range: a float or an integer beyond 64 bits ([`Value::Unsupported`]).
 pub const CANONICAL_UNSUPPORTED_VALUE: &str = "unsupported_value";
+/// Reason of a map that repeats a key.
 pub const CANONICAL_DUPLICATE_KEY: &str = "duplicate_key";
 
 /// Why a value has no canonical bytes.
@@ -49,6 +51,8 @@ pub fn canonical_digest(bytes: &[u8]) -> String {
     format!("sha256:{}", sha256_hex(bytes))
 }
 
+/// Appends the canonical bytes of `node` to `out`: map keys sorted by raw byte order and checked for repeats after the sort, sequences in the
+/// given order. Stops at the first value without canonical bytes; `out` then holds a partial prefix that the caller discards.
 fn write_value(out: &mut Vec<u8>, node: &Node) -> Result<(), CanonicalError> {
     match &node.value {
         Value::Null => out.extend_from_slice(b"null"),
@@ -93,6 +97,8 @@ fn write_value(out: &mut Vec<u8>, node: &Node) -> Result<(), CanonicalError> {
     Ok(())
 }
 
+/// Appends `s` as a JSON string with the escaping of Go's `json.Marshal` (A4): the short escapes for `"` `\` `\b` `\t` `\n` `\f` `\r`, `\u00xx` for any
+/// other control character and for `<` `>` `&` U+2028 U+2029, every other character as its UTF-8 bytes.
 fn write_string(out: &mut Vec<u8>, s: &str) {
     out.push(b'"');
     for ch in s.chars() {

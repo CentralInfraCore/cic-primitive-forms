@@ -60,6 +60,13 @@ pub struct Context {
 }
 
 impl Context {
+    /// Checks the context against itself and the schema `root` (ADR 0010): an attestation (non-empty) and `attested_positions`
+    /// are present exactly when the origin is materialized, no position is listed twice, and each entry is a canonical path
+    /// that resolves to a primitive position of `root`.
+    ///
+    /// # Errors
+    /// `ORIGIN_ATTESTATION_MISMATCH` for an inconsistent context, a duplicate, the root or a list element; the path error
+    /// (parse or resolve) for an entry that is not a canonical path of the schema.
     pub(crate) fn check(&self, root: &Shape) -> Result<(), Error> {
         let materialized = self.origin == DocOrigin::Materialized;
         let consistent = self.attestation.as_ref().is_some_and(|a| !a.is_empty()) == materialized
@@ -109,6 +116,8 @@ pub struct Origin {
 /// The origin of each primitive position, keyed by its canonical logical path (ADR 0006).
 pub type Provenance = BTreeMap<String, Origin>;
 
+/// The symbolic policy defaults of a short position, in the spelling of the bound grammar `g`: the members that
+/// [`expand_position`] adds and [`collapse_position`] requires before it shortens.
 fn defaults(g: Grammar) -> Vec<(&'static str, Node)> {
     vec![
         ("access", Node::new(Value::Str(INHERIT_SYMBOL.into()))),
@@ -119,6 +128,7 @@ fn defaults(g: Grammar) -> Vec<(&'static str, Node)> {
     ]
 }
 
+/// The value of the first entry named `key` when `n` is a mapping; `None` for an absent key or a node of another kind.
 pub(crate) fn entry<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(es) => es.iter().find(|e| e.key == key).map(|e| &e.value),
@@ -183,6 +193,8 @@ pub fn collapse_position(
     }
 }
 
+/// The recursive walk shared by [`expand`] and [`collapse`] and, with the P3 switches on, by the normalization: it follows
+/// the schema, carries the bound key set and grammar, and collects the provenance and origins of the positions it passes.
 pub(crate) struct Walker<'a> {
     a: &'a [String],
     g: Grammar,
@@ -202,6 +214,7 @@ pub(crate) struct Walker<'a> {
 }
 
 impl<'a> Walker<'a> {
+    /// A walker for a plain expand or collapse: the given provenance and attested positions, every P3 switch off.
     pub(crate) fn plain(
         a: &'a [String],
         g: Grammar,
@@ -222,6 +235,10 @@ impl<'a> Walker<'a> {
     }
 }
 
+/// The canonical logical path of a primitive position, the key of its provenance and origin.
+///
+/// # Errors
+/// [`Error::Unsupported`] when `logical_path` gives no text (the empty root path, an index segment, or a name or key that cannot be written).
 pub(crate) fn path_text(path: &Path) -> Result<String, Error> {
     logical_path(path).ok_or_else(|| {
         Error::Unsupported("a primitive position whose logical path cannot be written".into())
@@ -274,6 +291,10 @@ pub fn collapse(
 }
 
 impl Walker<'_> {
+    /// Processes a document whose shape is `shape`: expands (`expand`) or collapses its fields.
+    ///
+    /// # Errors
+    /// [`Error::Unsupported`] when `shape` is not a composite; otherwise the errors of the walk.
     pub(crate) fn record(
         &mut self,
         n: &Node,
@@ -289,6 +310,12 @@ impl Walker<'_> {
         }
     }
 
+    /// Processes the entries of the mapping `n` against the declared `fields`, in document order, skipping the positions in
+    /// `strip`; then, when defaulting is on and the walk is not inside an inserted default, appends the absent defaults.
+    ///
+    /// # Errors
+    /// `UNKNOWN_FIELD` (at the key) for the first undeclared key, [`Error::Unsupported`] when `n` is not a mapping, and the
+    /// errors of the positions below.
     fn fields(
         &mut self,
         n: &Node,

@@ -10,10 +10,13 @@
 use cic_primitive_forms::{edit_scalar, parse, source_span, Error, Node, Presence, ScalarType, Shape, ShapeType, Value};
 use libfuzzer_sys::fuzz_target;
 
+/// An optional shape without a default.
 fn shape(shape_type: ShapeType, nullable: bool) -> Shape {
     Shape { shape_type, presence: Presence::Optional, nullable, has_default: false, default: None }
 }
 
+/// The fixed shape whose four scalar positions (`$.a`, `$.b`, `$.c.d`, `$.c.e`) are edited: strings (nullable), an
+/// integer and a boolean, one level deep and two.
 fn fuzz_shape() -> Shape {
     shape(
         ShapeType::Composite(vec![

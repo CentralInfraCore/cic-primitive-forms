@@ -23,6 +23,7 @@ def graph(crate, scipdeps, toolchain, env=None):
 
 
 def passes(crate, toolchain):
+    """True when `cargo test --offline` passes in `crate`, built in a throwaway target directory (no state shared between fixtures)."""
     with tempfile.TemporaryDirectory() as target:
         return subprocess.run(["rustup", "run", toolchain, "cargo", "test", "--offline", "-q"], cwd=crate, capture_output=True,
                               env=dict(os.environ, CARGO_TARGET_DIR=target)).returncode == 0

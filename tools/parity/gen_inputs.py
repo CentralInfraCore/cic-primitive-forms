@@ -142,6 +142,10 @@ ADDED_MUTATIONS = 3000
 
 
 def suite_files(pinned):
+    """The corpus/<suite>/vectors.yaml files, sorted: those of PINNED_SUITES when `pinned`, the others when not.
+
+    Exits when a pinned suite is missing from corpus/, since that would silently shift every generated input of the fixed-seed run.
+    """
     files = sorted(glob.glob(os.path.join(ROOT, "corpus", "*", "vectors.yaml")))
     present = {os.path.basename(os.path.dirname(f)) for f in files}
     if not set(PINNED_SUITES) <= present:  # a missing pinned suite would silently shift every generated input
@@ -150,6 +154,7 @@ def suite_files(pinned):
 
 
 def suite_texts(files):
+    """The YAML texts the given vector files hold: each file's own text, then every case's input_yaml, a_yaml and b_yaml that is a string."""
     out = []
     for f in files:
         raw = open(f, encoding="utf-8").read()
@@ -162,6 +167,9 @@ def suite_texts(files):
 
 
 def seeds(upstream):
+    """The unmutated inputs, in a fixed order: HAND, EXTRA, the texts of the pinned suites, the YAML of testdata/p1/subset.json, corpus/pins.yaml and, when
+    `upstream` holds it, the pinned schemas/atomic/access.yaml. The order matters: the random edits `choice` from this list.
+    """
     out = [t for t in HAND] + EXTRA
     # texts already in the repository
     out += suite_texts(suite_files(True))
@@ -182,6 +190,10 @@ ALPHABET = list(":,-[]{}#&*!|>'\"%@`? \t\n\r") + list("abAB019_.=") + ["\u00e9",
 
 
 def mutate(rng, text):
+    """One to three random edits of `text` drawn from `rng`: a character deleted, inserted or replaced from ALPHABET, a line repeated, deleted or swapped,
+    a marker or comment line inserted, indentation added, the line endings changed, the text cut, a space after a colon, a prefix (BOM, directive, `--- `)
+    or a slice repeated.
+    """
     ops = rng.randint(1, 3)
     for _ in range(ops):
         n = len(text)
@@ -230,6 +242,10 @@ def mutate(rng, text):
 
 
 def main():
+    """Write OUT: the seeds, seeded mutations up to --count, then the texts of the suites not pinned and ADDED_MUTATIONS mutations of them from a generator of
+    their own, REGRESSIONS and a few invalid-UTF-8 byte strings. Everything after the first --count lines is appended so that it cannot reshuffle the
+    pinned run the allow list (testdata/p1/parity-known.txt) is keyed to.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--count", type=int, default=30000)

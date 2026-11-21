@@ -20,6 +20,7 @@ CONCLUSIONS = {"success", "failure", "cancelled", "skipped", "neutral", "timed_o
 
 
 class RecordError(Exception):
+    """A record that is not exactly test-evidence/1; `kind` is the class (TYPE, MISSING, EXTRA, FORMAT, VALUE, CONSISTENCY, CHECKS)."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
@@ -27,6 +28,7 @@ class RecordError(Exception):
 
 
 def _fail(kind, detail):
+    """Raise a RecordError of that class; the checkers below are written as calls to it."""
     raise RecordError(kind, detail)
 
 
@@ -45,16 +47,19 @@ def _obj(v, name, fields):
 
 
 def _int(v, name, lo=0):
+    """Check an integer (a bool is not one) of at least `lo`; otherwise TYPE."""
     if not isinstance(v, int) or isinstance(v, bool) or v < lo:
         _fail("TYPE", "%s is not an integer >= %d" % (name, lo))
 
 
 def _str(v, name):
+    """Check a non-empty string; otherwise TYPE."""
     if not isinstance(v, str) or not v:
         _fail("TYPE", "%s is not a non-empty string" % name)
 
 
 def _re(rx):
+    """A checker for a string that matches `rx`; anything else is FORMAT."""
     def check(v, name):
         if not isinstance(v, str) or not rx.match(v):
             _fail("FORMAT", "%s does not match %s" % (name, rx.pattern))
@@ -62,6 +67,10 @@ def _re(rx):
 
 
 def _enum(*allowed):
+    """A checker for one of the `allowed` values; anything else is VALUE.
+
+    Equality alone is not enough: True does not stand for 1, nor 1 for True.
+    """
     def check(v, name):
         if v not in allowed or isinstance(v, bool) != any(isinstance(a, bool) for a in allowed if a == v):
             _fail("VALUE", "%s is not one of %s" % (name, list(allowed)))
@@ -69,10 +78,12 @@ def _enum(*allowed):
 
 
 def _nullable(check):
+    """The checker `check`, with None also accepted."""
     return lambda v, name: None if v is None else check(v, name)
 
 
 def _day(v, name):
+    """Check a YYYY-MM-DD string that is a real calendar date; otherwise FORMAT."""
     _re(DAY)(v, name)
     try:
         datetime.date.fromisoformat(v)
@@ -81,6 +92,7 @@ def _day(v, name):
 
 
 def _ts(v, name):
+    """Check a YYYY-MM-DDTHH:MM:SSZ string that is a real UTC time; otherwise FORMAT."""
     _re(TS)(v, name)
     try:
         datetime.datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ")
@@ -89,6 +101,7 @@ def _ts(v, name):
 
 
 def parse_ts(v):
+    """The aware UTC datetime of a YYYY-MM-DDTHH:MM:SSZ timestamp."""
     return datetime.datetime.strptime(v, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
 
 
@@ -102,6 +115,7 @@ def _counts(*names):
 
 
 def _map_of(value_check, nonempty=True):
+    """A checker for an object with non-empty string member names, every value passing `value_check`; empty is TYPE unless `nonempty` is False."""
     def check(v, name):
         if not isinstance(v, dict) or (nonempty and not v):
             _fail("TYPE", "%s is not a non-empty object" % name)
@@ -113,10 +127,12 @@ def _map_of(value_check, nonempty=True):
 
 
 def _artifact_ref(v, name):
+    """Check a reference to an uploaded artifact: its sha256 digest, size and artifact name."""
     _obj(v, name, {"digest": _re(SHA256), "size": _int, "artifact": _str})
 
 
 def _target(v, name):
+    """Check the target: main or merge_candidate, its commit and tree; a merge candidate names its base and head commits, a main target neither."""
     _obj(v, name, {"kind": _enum("main", "merge_candidate"), "commit": _re(SHA1), "tree": _re(SHA1),
                    "base_commit": _nullable(_re(SHA1)), "head_commit": _nullable(_re(SHA1))})
     mc = v["kind"] == "merge_candidate"
@@ -137,12 +153,14 @@ def _environment(v, name):
 
 
 def _run(v, name):
+    """Check the workflow run that made the record: owner/repo, workflow path, a refs/ ref, positive run id and attempt, and the commit."""
     _obj(v, name, {"repository": _re(re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")), "workflow_path": _str,
                    "ref": _re(re.compile(r"refs/.+\Z")), "run_id": lambda x, n: _int(x, n, 1),
                    "run_attempt": lambda x, n: _int(x, n, 1), "commit": _re(SHA1)})
 
 
 def _quality(v, name):
+    """Check `quality_full`: the six counts, the thresholds, the gate verdict, the shard counts (at least 1) and the completeness."""
     _obj(v, name, {
         "rust_lines": _counts("covered", "total"), "go_statements": _counts("covered", "total"),
         "rust_branches": _counts("covered", "total"), "go_branches": _counts("covered", "total"),
@@ -155,11 +173,13 @@ def _quality(v, name):
 
 
 def _required_check(v, name):
+    """Check one required check: its job name, a GitHub conclusion, the job URL, the run id and an optional artifact digest."""
     _obj(v, name, {"name": _str, "conclusion": _enum(*sorted(CONCLUSIONS)), "job_url": _str,
                    "run_id": lambda x, n: _int(x, n, 1), "artifact_digest": _nullable(_re(SHA256))})
 
 
 def _artifacts(v, name):
+    """Check the list of artifacts the numbers were read from: each with name, sha256 and size, no name twice."""
     if not isinstance(v, list):
         _fail("TYPE", "%s is not a list" % name)
     seen = set()
@@ -171,6 +191,7 @@ def _artifacts(v, name):
 
 
 def _required_checks(v, name):
+    """Check the non-empty list of required checks, no name twice."""
     if not isinstance(v, list) or not v:
         _fail("TYPE", "%s is not a non-empty list" % name)
     names = set()
@@ -244,4 +265,5 @@ def validate(rec, expected_checks=None):
 
 
 def record_hash(rec):
+    """The content hash of a record: SHA-256 of its canonical bytes, the name it is published under."""
     return canon.content_hash(rec)

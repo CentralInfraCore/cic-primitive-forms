@@ -23,10 +23,12 @@ from compare_receipt import rc  # noqa: E402
 
 
 def ok(a):
+    """Whether the answer record is an acceptance (a receipt)."""
     return a["r"][0] == "ok"
 
 
 def with_defaults(n):
+    """A predicate: whether an answer record is a receipt with at least n applied defaults."""
     return lambda a: ok(a) and len(json.loads(a["r"][1])["materialization"]["applied_defaults"]) >= n
 
 
@@ -114,6 +116,11 @@ def breaks(inputs, rust, go):
 
 
 def main():
+    """Run the self-test; exit 1 if a break is not noticed.
+
+    The unbroken dumps must be clean; then every break goes through compare_receipt.check (the permitted engine version must stay clean), and
+    each of the three files is checked for the refusal of a repeated id.
+    """
     inputs, rust, go = cr.load(sys.argv[1]), cr.load(sys.argv[2]), cr.load(sys.argv[3])
     problems, divergences, answers = cr.check(inputs, rust, go)
     if problems or divergences:

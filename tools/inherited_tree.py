@@ -44,15 +44,22 @@ def decide(sha, pulls, tree_of, runs_of, workflows):
 
 
 def gh(path):
+    """Call `gh api PATH` and return the decoded JSON; raises on a failed call."""
     return json.loads(subprocess.run(["gh", "api", path], capture_output=True, text=True, check=True).stdout)
 
 
 def tree_of(rev):
+    """The tree id of a revision in the local repository, or None when it cannot be resolved."""
     p = subprocess.run(["git", "rev-parse", "--verify", "--quiet", rev + "^{tree}"], capture_output=True, text=True)
     return p.stdout.strip() if p.returncode == 0 and p.stdout.strip() else None
 
 
 def main():
+    """Answer for one push: fetch the pull request head, decide, print `inherited=true|false`.
+
+    Any error while asking the API or git answers `false` (the checks run); the reason goes
+    to stderr. The exit status is always 0.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--sha", required=True)

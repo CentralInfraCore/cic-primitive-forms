@@ -40,6 +40,11 @@ import verify  # noqa: E402
 
 
 def main(argv=None):
+    """Run one subcommand and return its exit status.
+
+    0 is success; 1 a refused document, key, environment or pin check (and a canon refusal prints only its class);
+    3 a CollectError, BuildError, PublishError or PipelineError, i.e. no record for this run; watch adds its own 3 and 4.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("canon")
@@ -132,11 +137,13 @@ def main(argv=None):
 
 
 def _now():
+    """The current time, timezone-aware UTC."""
     import datetime
     return datetime.datetime.now(datetime.timezone.utc)
 
 
 def cmd_collect(a):
+    """`collect`: gather the jobs and artifacts of the FULL runs of --sha into --out (jobs.json, artifacts/)."""
     os.makedirs(a.out, exist_ok=True)
     jobs, artifacts, ids = collect.collect(collect.GhCli(), a.repo, a.sha, a.trigger, os.path.join(a.out, "artifacts"))
     with open(os.path.join(a.out, "jobs.json"), "w") as fh:
@@ -146,6 +153,7 @@ def cmd_collect(a):
 
 
 def cmd_build(a):
+    """`build`: make the record of the collected run and write it under --out as <sha256>.json, with its kind (full or audit) in `kind`."""
     now = _now()
     git = verify.GitRepo(a.root)
     target, run, slot, _ = pipeline.make_inputs(os.environ, a.event, a.slot, now, git)
@@ -164,6 +172,7 @@ def cmd_build(a):
 
 
 def cmd_publish(a):
+    """`publish`: add the record and the kind written beside it to the evidence branch at --origin (token from $EVIDENCE_TOKEN)."""
     now = _now()
     with open(a.record, "rb") as fh:
         raw = fh.read()
@@ -175,6 +184,7 @@ def cmd_publish(a):
 
 
 def _read_ctx(a):
+    """The verifier context for reading the branch back: now, GITHUB_SHA as the target, the git history of --root, gh attestation."""
     required = json.load(open(os.path.join(HERE, "required-checks.json")))
     git = verify.GitRepo(a.root)
     return verify.Context(now=_now(), target_commit=os.environ.get("GITHUB_SHA", ""), root=a.root, environment={}, is_ancestor=git.is_ancestor,
@@ -182,6 +192,7 @@ def _read_ctx(a):
 
 
 def cmd_verify_published(a):
+    """`verify-published`: verify the records of the last days on the evidence checkout and require --record among them."""
     got = pipeline.verify_published(a.evidence, _now(), _read_ctx(a), must_contain=a.record)
     print("verified %d record(s) of the last days, among them %s" % (len(got), a.record))
     return 0
@@ -192,6 +203,7 @@ WATCH_UNDECIDED = 4   # the branch could not be read or a listed record does not
 
 
 def cmd_watch(a):
+    """`watch`: 0 if the latest due slot has a verified record, WATCH_NO_RECORD if it has none, WATCH_UNDECIDED if that cannot be decided."""
     try:
         slot, present = pipeline.watch(a.evidence, _now(), _read_ctx(a))
     except pipeline.PipelineError as e:
@@ -203,6 +215,7 @@ def cmd_watch(a):
 
 
 def selftest():
+    """`selftest`: the unit tests (test_*.py) of this directory, then the Go canonical form on vectors/canon.json; non-zero if either fails."""
     import unittest
     suite = unittest.defaultTestLoader.discover(HERE, pattern="test_*.py")
     result = unittest.TextTestRunner(verbosity=1).run(suite)

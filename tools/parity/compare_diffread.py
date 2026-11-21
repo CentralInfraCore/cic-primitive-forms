@@ -24,6 +24,7 @@ REASONS = ("not_utf8", "syntax", "depth", "duplicate_key", "unsupported_number",
 
 
 def load(path):
+    """The dump or input lines of a file, by id."""
     out = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -85,6 +86,7 @@ def check(inputs, rust, go):
 
 
 def main():
+    """Compare the dumps, print coverage, divergences and broken promises, and exit 1 on any of them."""
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")

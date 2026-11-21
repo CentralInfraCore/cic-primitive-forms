@@ -35,10 +35,14 @@ OBSERVABLE = [
 
 
 def compare(inputs, rust, go):
+    """Run compare_edit.py on the given files and return the completed process (exit status and output)."""
     return subprocess.run([sys.executable, os.path.join(HERE, "compare_edit.py"), inputs, rust, go, "--show", "1"], capture_output=True, text=True)
 
 
 def dump(lang, module, inputs, out, env):
+    """Make the edit dump of `lang` for `inputs` into `out` by running its `parity_edit_dump` test in `module` (cargo test for Rust, go test
+    -run TestDumpEditOutcomes for Go) and return the completed process; the dump file is absent when the build or the test failed.
+    """
     e = dict(env, PARITY_EDIT_IN=inputs, PARITY_EDIT_OUT=out)
     cmd = (["cargo", "+" + os.environ.get("RUST_TOOLCHAIN", "stable"), "test", "--locked", "--test", "parity_edit_dump"] if lang == "rust"
            else ["go", "test", "-count=1", "-run", "^TestDumpEditOutcomes$", "."])
@@ -46,6 +50,10 @@ def dump(lang, module, inputs, out, env):
 
 
 def main():
+    """Plant every OBSERVABLE defect of seeded_defects.py on the edit module of the chosen languages, one at a time in a prepared copy, dump and
+    compare against the other language's unmutated dump. Returns 2 when CIC_PRIMITIVES_ROOT or CIC_REGISTRY_ROOT is not set, 1 when the unmutated
+    dumps fail, a defect's edit no longer applies (STALE), a defect stops the dump or is not seen, else 0.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs")
     ap.add_argument("rust")

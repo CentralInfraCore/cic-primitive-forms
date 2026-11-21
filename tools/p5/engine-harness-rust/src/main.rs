@@ -15,6 +15,8 @@ use cic_primitive_engine::{
 };
 use serde_json::Value as J;
 
+/// A scalar JSON value (null, boolean, i64 integer, string) as the engine's reader value; panics on anything else,
+/// which the flat cases never hold.
 fn value(j: &J) -> Value {
     match j {
         J::Null => Value::Null,
@@ -37,6 +39,8 @@ fn to_value(j: &J) -> Value {
     }
 }
 
+/// The engine's `MaterializedField` for a projection field: the capability and the provenance (`authored` or
+/// `schema_default`) as the engine's enums; panics on a spelling the projection must not have.
 fn field(capability: &str, provenance: &str, v: &J) -> MaterializedField {
     let capability = match capability {
         "implemented" => Capability::Implemented,
@@ -56,6 +60,7 @@ fn field(capability: &str, provenance: &str, v: &J) -> MaterializedField {
     }
 }
 
+/// The fields of a projection (`{"fields": [{key, capability, provenance, value}, ...]}`) as the engine's field map.
 fn fields_of(projection: &J) -> BTreeMap<String, MaterializedField> {
     projection["fields"]
         .as_array()
@@ -74,6 +79,8 @@ fn fields_of(projection: &J) -> BTreeMap<String, MaterializedField> {
         .collect()
 }
 
+/// The engine's `materialized_object_digest` of the object built from `fields` under the key set `keys`; panics when
+/// `try_new` refuses the object.
 fn digest_of(fields: BTreeMap<String, MaterializedField>, keys: &BTreeSet<String>) -> String {
     let obj = MaterializedObject::try_new(fields, keys).expect("complete");
     materialized_object_digest(&obj).expect("digest")
@@ -247,10 +254,7 @@ fn receipt_differential(input: &str, output: &str, identity: &str) {
     println!("engine (rust): {accepted} generated receipts of {identity} accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
 }
 
-/// The engine's verifier is the gate of the receipts of this library (P5-3): for every accepted flat case the receipt in `testdata/p5/receipt.json`, with the
-/// identity of the Rust implementation in its place, is accepted by `verify_receipt` against the object built from the shared projection and the authored
-/// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it.
-/// The expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md).
+/// The `materialization` object inside a receipt document, for altering it in place.
 fn body(r: &mut J) -> &mut J {
     &mut r["materialization"]
 }
@@ -276,6 +280,7 @@ const PATH_CASES: [&str; 16] = [
     "control-binding-of-four-defaults",
 ];
 
+/// Checks that `ids` is exactly [`PATH_CASES`], each once: the first repeated, unknown or missing id is the error.
 fn check_path_case_ids(ids: &[&str]) -> Result<(), String> {
     let mut seen = BTreeSet::new();
     for id in ids {
@@ -292,6 +297,13 @@ fn check_path_case_ids(ids: &[&str]) -> Result<(), String> {
     }
 }
 
+/// The engine's verifier is the gate of the receipts of this library (P5-3): for every accepted flat case the receipt in `testdata/p5/receipt.json`, with the
+/// identity of the Rust implementation in its place, is accepted by `verify_receipt` against the object built from the shared projection and the authored
+/// input; and each deliberate alteration of it, of the object, of the input or of the binding is refused with the code and the rule the engine gives it.
+/// The expected refusals are written here, apart from the library, from the engine's contract (docs/RECEIPT-SCHEMA.md, docs/RECEIPT-VERIFIER.md).
+///
+/// The path and binding cases of `testdata/p5/receipt-paths.json` are run after them, each against the verdict the file writes, and the
+/// table has to be exactly [`PATH_CASES`].
 fn receipts(root: &str) {
     let materialize: J = serde_json::from_str(
         &std::fs::read_to_string(format!("{root}/testdata/p5/materialize.json")).unwrap(),
@@ -567,6 +579,7 @@ fn receipts(root: &str) {
     println!("engine (rust): {accepted} receipts accepted by verify_receipt, {refused} altered ones refused with the engine's code and rule");
 }
 
+/// The verifier's answer: acceptance, or the refusal as (code, rule).
 type Outcome = Result<(), (&'static str, &'static str)>;
 
 /// The engine's verifier on a receipt, the authored input and the object built from a projection under a key set, with a binding.
@@ -583,6 +596,7 @@ fn verify_one(
     verify_receipt(&receipt, &object, &to_value(authored), &binding).map_err(|e| (e.code, e.rule))
 }
 
+/// A JSON object of strings (a path binding) as a map; panics on any other value.
 fn string_map(j: &J) -> BTreeMap<String, String> {
     j.as_object()
         .unwrap()
@@ -756,6 +770,10 @@ fn end_to_end(dump: &str, identity: &str) {
     println!("engine (rust): {accepted} chains of {identity} accepted by verify_receipt, {refused} altered or mixed ones refused; swapped bindings: {swap_accepted} of equal values accepted (the engine cannot tell), {swap_refused} of different values refused");
 }
 
+/// Dispatches on the first argument: `end-to-end <dump> <identity>`, `receipt-differential <in> <out> <identity>` and
+/// `differential <in> <out>` run those checks; anything else is the forms root, against which the shared
+/// materialization cases are checked with the engine (with the negative key-set and digest checks of the file doc),
+/// followed by the receipt cases.
 fn main() {
     let mut args = std::env::args().skip(1);
     let first = args

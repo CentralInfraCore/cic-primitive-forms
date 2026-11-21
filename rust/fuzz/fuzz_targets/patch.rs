@@ -13,6 +13,7 @@ use cic_primitive_forms::{
 };
 use libfuzzer_sys::fuzz_target;
 
+/// A shape without a default; `mandatory` chooses the presence.
 fn shape(shape_type: ShapeType, nullable: bool, mandatory: bool) -> Shape {
     Shape {
         shape_type,
@@ -23,6 +24,8 @@ fn shape(shape_type: ShapeType, nullable: bool, mandatory: bool) -> Shape {
     }
 }
 
+/// The fixed shape both texts are diffed against: the same shape as the `diff` target (scalars, a nested composite, a
+/// string set and a declared list keyed by `k`).
 fn fuzz_shape() -> Shape {
     let string = |nullable| shape(ShapeType::Scalar(ScalarType::String), nullable, false);
     shape(

@@ -9,10 +9,13 @@
 use cic_primitive_forms::{parse, validate, Presence, ScalarType, Shape, ShapeType};
 use libfuzzer_sys::fuzz_target;
 
+/// A non-nullable shape without a default.
 fn shape(shape_type: ShapeType, presence: Presence) -> Shape {
     Shape { shape_type, presence, nullable: false, has_default: false, default: None }
 }
 
+/// The fixed shape the inputs are validated against: mandatory scalars at two depths, a nullable integer marked as
+/// defaulted, an opaque field, and lists with a `min_items` of 1 and 2.
 fn fuzz_shape() -> Shape {
     let list = |min| shape(ShapeType::List { min_items: Some(min) }, Presence::Optional);
     let inner = ShapeType::Composite(vec![

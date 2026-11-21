@@ -46,16 +46,19 @@ REAL_EXPECT = {"primitive_build_hash": "sha256:" + BUILD_HEX, "grammar_sha256": 
 
 
 def b64(raw):
+    """Standard base64 (with padding) of ``raw``, as text."""
     return base64.b64encode(raw).decode("ascii")
 
 
 def flip_last_bit(hex_text):
+    """Flip the lowest bit of the last hex digit of a lowercase hex digest (a one-bit-different digest)."""
     return hex_text[:-1] + ("1" if hex_text[-1] == "0" else "0")
 
 
 # ---------------------------------------------------------------- conversion cases
 
 def conversion_cases():
+    """The ``convert`` cases: the base64 inputs with their receipt digest (P*) and the refused ones with their reason (N*)."""
     zeros, ones, pluses = bytes(32), b"\xff" * 32, bytes([0xFB, 0xFF, 0xBF]) * 10 + b"\xfb\xff"
     ok = [("P1-build-hash-of-v0.2.1", BUILD_B64, "sha256:" + BUILD_HEX),
           ("P2-grammar-sha256-of-v0.2.1", GRAMMAR_B64, "sha256:" + GRAMMAR_HEX),
@@ -99,6 +102,11 @@ def conversion_cases():
 # ---------------------------------------------------------------- mapping cases
 
 def mutate(record, *ops):
+    """A deep copy of ``record`` with the edit operations applied in order.
+
+    Each op is ``("set", path, value)``, ``("delete", path)`` or ``("append", path, value)``; the path is
+    dotted and a numeric segment indexes a list. Raises ValueError on an unknown operation.
+    """
     out = copy.deepcopy(record)
     for op in ops:
         kind, path = op[0], op[1].split(".")
@@ -118,6 +126,7 @@ def mutate(record, *ops):
 
 
 def mapping_cases():
+    """The ``map`` cases: the v0.2.1 record, a synthetic record and one mutation of a record per refusal, including the order of the checks."""
     cases = []
 
     def case(id, record, pin=None, expect=None, refuse=None, field=None):
@@ -203,6 +212,7 @@ def mapping_cases():
 
 
 def document():
+    """The whole content of testdata/p5/digest-mapping.json: an ``about`` text, the reason list and the cases."""
     return {
         "about": "docs/P5-DIGEST-MAPPING-CONTRACT.md, section 6. A conversion case: the base64 value of a record member and the receipt digest, or one reason. A map case: a record "
                  "(only the members the mapping reads), a pin ({path: 64 lowercase hex}) and the three receipt digests, or one reason and the field it names. Written by "
@@ -214,10 +224,12 @@ def document():
 
 
 def render():
+    """The exact text of the file: ``document()`` as JSON indented by one, with a final newline."""
     return json.dumps(document(), indent=1, sort_keys=False) + "\n"
 
 
 def main(argv):
+    """With ``--write`` rewrite the file; otherwise return 1 if the checked-in file is not the one ``render()`` gives, 0 if it is."""
     text = render()
     if "--write" in argv:
         OUT.write_text(text, encoding="utf-8")

@@ -137,6 +137,11 @@ NEW = {
 
 
 def wire(text, job_block, Unsupported):
+    """`text` (the workflow being generated) with the `quality-mutation-rust` job rewritten from OLD to NEW: it also needs
+    proof-mutplan, runs when that job failed or was skipped, excludes the carried mutants and merges their outcomes into its report.
+
+    `job_block` and `Unsupported` are gen_p1_proof's (passed in to avoid a circular import); every OLD fragment must occur exactly
+    once in the job, otherwise Unsupported."""
     a, b = job_block(text, "quality-mutation-rust")
     block = text[a:b]
     for k, old in OLD.items():

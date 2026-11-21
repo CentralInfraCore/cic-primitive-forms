@@ -43,8 +43,11 @@ impl PathError {
     }
 }
 
+/// The characters that a name writes as `\` and the character: the escape itself and the separators of the path text. Any other escape is
+/// `PATH_BAD_ESCAPE`, and one of these unescaped inside a name is `PATH_SYNTAX`.
 const ESCAPABLE: &str = "\\.[]{}=,";
 
+/// A `path_parse` error with `code` at the code-point offset `at`.
 fn fail(code: &'static str, at: usize) -> PathError {
     PathError {
         code,
@@ -54,6 +57,7 @@ fn fail(code: &'static str, at: usize) -> PathError {
     }
 }
 
+/// An ASCII decimal digit; the path text has no other digits.
 fn is_digit(c: char) -> bool {
     c.is_ascii_digit()
 }
@@ -132,6 +136,8 @@ fn name(r: &[char], start: usize, in_selector: bool) -> Result<(String, usize), 
     Ok((b, end))
 }
 
+/// The ListItem selector `[{name=value,...}]` that starts at the `[` at `start`; returns its components and the offset after the `]`. An index
+/// selector (`[0]`, `[-1]`) is `PATH_INDEX_SELECTOR`, a component name repeated in one selector `PATH_DUPLICATE_COMPONENT`.
 fn selector(r: &[char], start: usize) -> Result<(Vec<KeyComp>, usize), PathError> {
     let mut i = start + 1;
     match r.get(i) {
@@ -184,6 +190,8 @@ fn selector(r: &[char], start: usize) -> Result<(Vec<KeyComp>, usize), PathError
     Ok((comps, i + 1))
 }
 
+/// The integer key value at `start`, in canonical decimal only: a `+`, a leading zero or `-0` is `PATH_NONCANONICAL`, a value outside `i64`
+/// `PATH_INTEGER_RANGE`. Returns the value and the offset after its last digit.
 fn integer(r: &[char], start: usize) -> Result<(i64, usize), PathError> {
     let plus = r[start] == '+';
     let neg = r[start] == '-';
@@ -261,6 +269,7 @@ fn string(r: &[char], start: usize) -> Result<(String, usize), PathError> {
     Err(fail("PATH_SYNTAX", r.len()))
 }
 
+/// A `path_format` error with `code`; format errors carry no offset.
 fn format_fail(code: &'static str) -> PathError {
     PathError {
         code,
@@ -327,6 +336,7 @@ pub struct Resolved {
     pub primitive: bool,
 }
 
+/// The `target` word of a [`Resolved`] for a field of shape `s`.
 fn target_of(s: &Shape) -> &'static str {
     match s.shape_type {
         ShapeType::Scalar(_) => "scalar",

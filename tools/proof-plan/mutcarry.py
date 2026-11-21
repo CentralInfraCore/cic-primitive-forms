@@ -69,6 +69,10 @@ def merge(fresh, carried, shard_names, source):
 
 
 def main():
+    """Dispatch the plan / exclude / rest / merge subcommands (see the module doc).
+
+    `plan` builds the scipdeps graphs of both trees (after `cargo test --no-run`), predicts with mutplan's rule against the kernel's
+    decisions and writes carried.json; its `carried` map is empty unless the plan is authorized."""
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan")

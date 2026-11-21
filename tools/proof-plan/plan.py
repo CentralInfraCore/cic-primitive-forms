@@ -42,10 +42,12 @@ CODE_SUFFIXES = (".go", ".rs", "go.mod", "go.sum", "Cargo.toml", "Cargo.lock")
 
 
 def run(cmd, **kw):
+    """subprocess.run with text output captured (undecodable bytes replaced); the caller checks the return code."""
     return subprocess.run(cmd, capture_output=True, text=True, errors="replace", **kw)
 
 
 def sha(*parts):
+    """The hex SHA-256 of the parts (str or bytes), each terminated by a NUL so that the boundaries between them count."""
     h = hashlib.sha256()
     for p in parts:
         h.update(p.encode() if isinstance(p, str) else p)
@@ -74,6 +76,7 @@ def blob_lines(root, pick):
 
 
 def is_data(path):
+    """True for a file under one of DATA_ROOTS that is not source or a manifest (CODE_SUFFIXES): a data input of the tests."""
     return path.startswith(DATA_ROOTS) and not path.endswith(CODE_SUFFIXES)
 
 
@@ -95,6 +98,7 @@ class TreeState:
                 self.children.setdefault("/".join(parts[:i]), set()).add(parts[i])
 
     def content(self, path, kind):
+        """The content id of a read: for a "dir" the digest of the sorted names in it, for a file its blob id ("-" if untracked)."""
         if kind == "dir":
             return sha(*sorted(self.children.get(path.rstrip("/"), ())))
         return self.blob.get(path, "-")
@@ -114,6 +118,8 @@ def opaque_of(reads, traced_ok):
 
 
 def env_digests(root, tc):
+    """{"go", "rust"}: the environment digest of each language's tests: the gate's test command, the toolchain (go version;
+    rustc and rust-analyzer of `tc`) and the module / crate manifests and lockfiles."""
     def tool(*cmd):
         r = run(list(cmd))
         return (r.stdout + r.stderr).strip()
@@ -136,6 +142,8 @@ def runner_key(node_id):
 
 
 def summaries(graph, ident, prov, name_of):
+    """{test key: evidence} for every entry (test) node of `graph`, keyed by `name_of(node id)`; the data and environment
+    digests are placeholders ("-") filled in by the caller, and the provenance is dropped."""
     keys, _ = merkle.keys(graph)
     out = {}
     for n in graph["nodes"]:
@@ -267,6 +275,7 @@ def authority(source, tooling_trust):
 
 
 def load_prev(path):
+    """({test key: evidence}, commit) from evidence.json in `path`; ({}, None) when there is no directory, no file or another schema."""
     if not path:
         return {}, None
     f = os.path.join(path, "evidence.json")
@@ -279,6 +288,8 @@ def load_prev(path):
 
 
 def main():
+    """Make the evidence of this tree, qualify the extractors (measured, or from --qual-cache), decide every test against the
+    earlier evidence and write plan.json, current.json and timings.json to --out. Report only: returns 0."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".")
     ap.add_argument("--typeddeps", required=True)

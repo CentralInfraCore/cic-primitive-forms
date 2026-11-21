@@ -4,6 +4,7 @@ import sys, collections
 
 
 def load(p):
+    """Read a tab-separated id table into a list of rows (one list of column strings per line)."""
     return [l.rstrip("\n").split("\t") for l in open(p)]
 
 

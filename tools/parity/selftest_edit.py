@@ -17,21 +17,31 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def load(path):
+    """The JSON objects of a JSON-lines file, one per non-blank line, in order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def write(path, rows):
+    """Write `rows` to `path` as JSON lines with sorted keys."""
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, sort_keys=True) + "\n")
 
 
 def first(rows, pred):
+    """The index of the first row that satisfies `pred`; StopIteration when none does (the run lacks a case the break needs)."""
     return next(i for i, r in enumerate(rows) if pred(r))
 
 
 def main():
+    """Make every break on copies of the dumps, run compare_edit.py on each and on the unbroken dumps, and return 1 when a break stays green or the
+    unbroken dumps do not pass.
+
+    The breaks are chosen on the Rust dump's first answer of each needed kind (a changed plain edit, a quoted one, a no-op, a canonical edit back, a
+    commuted pair, a tree with at least three entries): one-sided changes for guarantee 5, the same change on both sides for guarantees 1 to 4 and
+    6, and runs made too thin (nothing accepted, a refusal code never seen).
+    """
     inputs_p, rust_p, go_p = sys.argv[1:4]
     inputs, rust, go = load(inputs_p), load(rust_p), load(go_p)
     case = {c["id"]: c for c in inputs}

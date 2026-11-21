@@ -189,6 +189,7 @@ fn representable(v: &Node) -> bool {
     }
 }
 
+/// Whether `c` cannot appear in a written string: a control character (line breaks included) or U+2028 / U+2029.
 fn unwritable(c: char) -> bool {
     c.is_control() || c == '\u{2028}' || c == '\u{2029}'
 }

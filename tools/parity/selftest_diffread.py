@@ -18,6 +18,7 @@ import compare_diffread as cd  # noqa: E402
 
 
 def first(d, pred):
+    """The smallest id whose answer satisfies `pred`; exits when the dumps have none."""
     for i in sorted(d):
         if pred(d[i]):
             return i
@@ -25,10 +26,12 @@ def first(d, pred):
 
 
 def err(a):
+    """True when ReadDiff refused the input."""
     return a["r"][0] == "err"
 
 
 def ok(a):
+    """True when ReadDiff read the input."""
     return a["r"][0] == "ok"
 
 
@@ -77,6 +80,7 @@ def breaks(inputs, rust, go):
 
 
 def main():
+    """Require the unbroken dumps to be clean, then check every break of breaks() with compare_diffread.check; exit 1 if one is not noticed."""
     inputs, rust, go = cd.load(sys.argv[1]), cd.load(sys.argv[2]), cd.load(sys.argv[3])
     problems, divergences, reasons = cd.check(inputs, rust, go)
     if problems or divergences:

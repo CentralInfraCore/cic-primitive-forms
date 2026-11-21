@@ -28,10 +28,12 @@ def gh(path, jq):
 
 
 def jobs_of(repo, run_id):
+    """The jobs of a workflow run as {name, conclusion} dicts (all pages)."""
     return gh("repos/%s/actions/runs/%s/jobs?per_page=100" % (repo, run_id), ".jobs[] | {name, conclusion}")
 
 
 def normalize(name):
+    """A p1-proof job name as the p1 job it stands for: the `proof / ` prefix removed, other names unchanged."""
     return name[len(PREFIX):] if name.startswith(PREFIX) else name
 
 
@@ -68,12 +70,17 @@ def gives_up(run, elapsed, grace, timeout):
 
 
 def find_p1_run(repo, sha, event):
+    """The latest p1.yml run (highest run number) for this commit and event, as {id, status, conclusion, run_number}, or None."""
     runs = gh("repos/%s/actions/workflows/p1.yml/runs?head_sha=%s&event=%s&per_page=20" % (repo, sha, event),
               ".workflow_runs[] | {id, status, conclusion, run_number}")
     return max(runs, key=lambda x: x["run_number"]) if runs else None
 
 
 def main():
+    """Wait for the p1 run, compare it with this p1-proof run and print the Markdown report.
+
+    Returns 0 when every job matches and the planner found no FALSE_REUSE, 1 on divergence, and 2 (0 with --informational)
+    when the comparison could not be made."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
     ap.add_argument("--sha", required=True)

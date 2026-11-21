@@ -27,10 +27,13 @@ BOOLS = {"true": True, "True": True, "TRUE": True, "false": False, "False": Fals
 
 
 class Syntax(Exception):
+    """A refusal of class syntax found by this reader itself; the message names the documented rule (or the undocumented scalar-document restriction)."""
     pass
 
 
 def scalar(ev):
+    """The typed node of a scalar event: a quoted or tagged scalar is a string; a plain one is null, a boolean, a 64-bit integer without a leading zero, or a
+    string. Raises Syntax for a leading zero, an integer beyond 64 bits, or a float / hex / octal spelling."""
     value = ev.value
     plain = ev.style is None and ev.implicit[0]
     if not plain:
@@ -121,6 +124,8 @@ def explain(data):
 
 
 def _put(stack, node, ev):
+    """Place a finished node into the collection on top of the stack: appended to a sequence, or in a mapping alternately taken as a key (a plain or quoted scalar,
+    not the plain merge key '<<') and as its value. A repeated key marks the mapping as a duplicate; a node with no collection around it is a scalar document (Syntax)."""
     if not stack:
         raise Syntax("a scalar document")
     top = stack[-1]

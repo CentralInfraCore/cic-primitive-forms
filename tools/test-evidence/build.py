@@ -30,6 +30,7 @@ BRANCH_THRESHOLD = 90  # coverage_gate.THRESHOLD (a test holds them equal; that 
 
 
 class BuildError(Exception):
+    """A run that cannot be described as a record; `kind` names the cause (MISSING_ARTIFACT, JOB_NOT_FINISHED, GATE_DISAGREES, ...)."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
@@ -37,6 +38,7 @@ class BuildError(Exception):
 
 
 def _read(path):
+    """The bytes of an artifact file; an unreadable one is MISSING_ARTIFACT."""
     try:
         with open(path, "rb") as fh:
             return fh.read()
@@ -45,6 +47,7 @@ def _read(path):
 
 
 def _files(base, pattern):
+    """The sorted paths under `base` matching the glob `pattern`; none at all is MISSING_ARTIFACT."""
     found = sorted(glob.glob(os.path.join(base, pattern)))
     if not found:
         raise BuildError("MISSING_ARTIFACT", "%s under %s" % (pattern, base))
@@ -68,6 +71,7 @@ def required_checks(jobs, expected):
 
 
 def _count(measure, *a):
+    """Call a quality_gate measure, turning its refusal into a BuildError: INCOMPLETE_MEASUREMENT for missing shards, UNMEASURED otherwise."""
     try:
         return measure(*a)
     except quality_gate.Refused as r:
@@ -130,6 +134,10 @@ def branch_numbers(art, commit):
 
 
 def environment(art, root):
+    """The environment of the run, merged from the env-*/env.json parts the jobs uploaded, and the paths read.
+
+    An unparsable part is BAD_ENVIRONMENT; a merge conflict is ENVIRONMENT_<kind> from envcap.
+    """
     parts = []
     for p in _files(art, "env-*/env.json"):
         try:
@@ -143,6 +151,7 @@ def environment(art, root):
 
 
 def _artifact_entry(art, path):
+    """The record's artifact entry for a file used: its path relative to the artifact root, sha256 and size."""
     data = _read(path)
     return {"name": os.path.relpath(path, art).replace(os.sep, "/"), "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
 

@@ -18,6 +18,7 @@ REASONS = ("unsupported_value", "duplicate_key")
 
 
 def load(path):
+    """Read a JSON-lines file (the inputs or a dump) into a dict by record id; a later line with the same id replaces the earlier one."""
     out = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -53,6 +54,7 @@ def check(inputs, rust, go):
 
 
 def main():
+    """Run the comparison, print the counts of the answers, the divergences, the broken promises and the families no input reaches; exit 1 on any of them."""
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")

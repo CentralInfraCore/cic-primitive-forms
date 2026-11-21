@@ -80,6 +80,7 @@ RULES = {
 
 
 class Violation:
+    """One finding of the checker: the RULES code it breaks, where in the corpus, and why."""
     def __init__(self, rule, where, msg):
         self.rule, self.where, self.msg = rule, where, msg
 
@@ -88,6 +89,7 @@ class Violation:
 
 
 class LoadError(Exception):
+    """A fixture file that cannot be loaded strictly; carries the RULES code (YAML_SYNTAX, DUPLICATE_YAML_KEY, YAML_ANCHOR, AMBIGUOUS_SCALAR)."""
     def __init__(self, rule, msg):
         super().__init__(msg)
         self.rule, self.msg = rule, msg
@@ -108,6 +110,12 @@ _AMBIGUOUS = re.compile(
 
 
 def _reset_resolvers():
+    """Install the implicit resolvers of StrictLoader: YAML 1.2 core spellings only.
+
+    true/false, null/~/empty, decimal integers and floats resolve as usual; every scalar
+    that YAML 1.1 would read differently (yes/no/on/off, octal, sexagesimal, dates, ...)
+    resolves to the `!ambiguous` tag, whose constructor refuses it.
+    """
     StrictLoader.yaml_implicit_resolvers = {}
     add = StrictLoader.add_implicit_resolver
     add("tag:yaml.org,2002:bool", re.compile(r"^(?:true|false)$"), list("tf"))
@@ -123,12 +131,14 @@ _reset_resolvers()
 
 
 def _ambiguous(loader, node):
+    """Constructor of the `!ambiguous` tag: refuse an unquoted scalar that YAML 1.1 and 1.2 read differently (AMBIGUOUS_SCALAR)."""
     raise LoadError("AMBIGUOUS_SCALAR",
                     "unquoted scalar %r reads differently in YAML 1.1 and 1.2; quote it"
                     % node.value)
 
 
 def _mapping(loader, node, deep=False):
+    """Mapping constructor of StrictLoader: string keys only, each at most once (YAML_SYNTAX, DUPLICATE_YAML_KEY)."""
     seen = set()
     for key_node, _ in node.value:
         key = loader.construct_object(key_node, deep=True)
@@ -141,6 +151,7 @@ def _mapping(loader, node, deep=False):
 
 
 def _no_anchors(self, parent, index):
+    """compose_node of StrictLoader: refuse any anchor or alias (YAML_ANCHOR), so a fixture reads the same in every loader."""
     if self.check_event(yaml.events.AliasEvent):
         raise LoadError("YAML_ANCHOR", "alias %r" % self.peek_event().anchor)
     if self.peek_event().anchor is not None:
@@ -154,6 +165,7 @@ StrictLoader.add_constructor("tag:yaml.org,2002:map", _mapping)
 
 
 def load_file(path):
+    """Load one corpus YAML file with StrictLoader; every failure is raised as a LoadError with its rule."""
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
     try:
@@ -165,6 +177,7 @@ def load_file(path):
 
 
 def yaml_type(v):
+    """The corpus type name (one of TYPES) of a loaded YAML value; booleans are never integers."""
     if v is None:
         return "null"
     if isinstance(v, bool):
@@ -261,6 +274,7 @@ SLOTS = ("inherit_key", "inherit_policy", "access_modify", "access_node")
 
 
 def valid_position(p):
+    """Whether p is a recognition position: scalar, opaque, {structured: [names]} or {list_of: record}."""
     if p in ("scalar", "opaque"):
         return True
     if isinstance(p, dict) and len(p) == 1:
@@ -503,6 +517,12 @@ def span_problem(data, span, what):
 
 
 def check_edit_inputs(kind, case, where, vs):
+    """Check the inputs of a source_span or edit case (ADR 0012) and append EDIT_INPUT violations.
+
+    Exactly one source form (input_yaml, input_hex, or for edit only a parsed `input`
+    without source text), a canonical `path`, an optional `path_after` that differs from
+    it, and for edit a one-key typed `value` of string, integer, boolean or null.
+    """
     forms = [f for f in ("input_yaml", "input_hex", "input") if f in case]
     allowed = 3 if kind == "edit" else 2
     if len(forms) != 1 or (forms[0] == "input" and kind != "edit"):
@@ -546,6 +566,13 @@ def check_edit_inputs(kind, case, where, vs):
 
 
 def check_edit_expect(kind, case, expect, where, vs):
+    """Check the expectation of a source_span or edit case against its own input bytes.
+
+    Exactly one of success and errors; EDIT_NO_SOURCE_TEXT is the only refusal of, and
+    only for, a parsed input. A source_span success is one valid span; an edit success
+    must keep every byte outside the span untouched (guarantee 1 of ADR 0012), checked by
+    arithmetic on the spans alone, without any edit logic.
+    """
     if ("errors" in expect) == any(k in expect for k in ("span", "output_yaml", "output_hex", "span_before", "span_after")):
         vs.append(Violation("EXPECT_FIELD", where, "exactly one of the success keys and errors"))
         return
@@ -703,6 +730,14 @@ def _at(doc, segs):
 
 
 def check_patch_expect(case, expect, where, vs):
+    """Check the expectation of a patch case (ADR 0013) against its input and diff.
+
+    A refusal is exactly one error whose path, where the code names one, is the path of an
+    event of the diff. A success holds the output bytes, `replaced` (the event paths in
+    canonical order) and one before/after span per replaced path; outside the spans the
+    output must be the input byte for byte, and with a `round_trip` the patched text must
+    hold the logical content of B within the named scope (PATCH_BYTES, PATCH_ROUNDTRIP).
+    """
     success = [k for k in ("output_yaml", "output_hex", "replaced", "spans") if k in expect]
     if ("errors" in expect) == bool(success):
         vs.append(Violation("EXPECT_FIELD", where, "a patch case expects exactly one of two shapes: success (output and replaced and spans) or failure (errors)"))
@@ -800,6 +835,15 @@ def check_patch_expect(case, expect, where, vs):
 
 
 def check_errors(kind, case, expect, codes, where, vs, used_pairs):
+    """Check the `errors` list of an expectation and record each (code, phase) pair in used_pairs.
+
+    Each error must have a phase allowed for the case kind and listed for the code in the
+    registry, the source_location state that phase and input form dictate (a location that
+    agrees with the text, or {state: not_applicable|unavailable}), an operand only on one
+    view of a diff, a path_offset only on path_parse errors, and a canonical logical_path
+    only where it is determinable. Several errors must share one phase, not be from a
+    single-error phase, and be in ADR 0007 order (logical path, then code).
+    """
     errs = expect.get("errors")
     w = where + ".errors"
     if not isinstance(errs, list) or not errs:
@@ -930,6 +974,7 @@ def check_typed(tv, where, vs):
 
 
 def check_typed_fields(m, where, vs):
+    """Check a non-empty map of field name to typed value (TYPED_VALUE / TYPED_MISMATCH)."""
     if not isinstance(m, dict) or not m:
         vs.append(Violation("TYPED_VALUE", where, "expected a non-empty map of typed values"))
         return
@@ -941,6 +986,7 @@ CLASSES = ("short", "expanded", "error")
 
 
 def check_recognize_expect(case, expect, where, vs):
+    """Check a recognize expectation: class in CLASSES and, for a list_of record position, one element per input element naming exactly the record's fields."""
     if "class" in expect and expect["class"] not in CLASSES:
         vs.append(Violation("EXPECT_FIELD", where + ".class", "class must be one of %s" % (CLASSES,)))
     if "elements" not in expect:
@@ -968,10 +1014,12 @@ def check_recognize_expect(case, expect, where, vs):
 
 
 def native_value(tv):
+    """The plain value of a typed value {type, value}."""
     return tv["value"]
 
 
 def native_event(e):
+    """A diff event with its typed values replaced by plain values: the form the canonical bytes carry."""
     out = {}
     for k, v in e.items():
         if k in ("previous", "next", "added", "removed") and isinstance(v, dict) and "type" in v:
@@ -984,6 +1032,7 @@ def native_event(e):
 
 
 def _no_dup_pairs(pairs):
+    """json object_pairs_hook that refuses a repeated key instead of keeping the last one."""
     d = {}
     for k, v in pairs:
         if k in d:
@@ -1025,6 +1074,15 @@ def set_element_key(v):
 
 
 def check_diff_expect(expect, where, vs):
+    """Check a diff or diff_stability expectation (ADR 0008).
+
+    Errors alone, or exactly changes, representation and canonical. Each event must have
+    its kind's fields, a canonical path, typed values with a canonical form and must
+    describe a real change; set elements must be sorted; no event may sit below an
+    added/removed node; events and representation entries must be in ADR 0008 order. The
+    canonical bytes must be strict, float-free JSON in canonical writing and equal to the
+    structured events.
+    """
     if "errors" in expect:
         if set(expect) != {"errors"}:
             vs.append(Violation("EXPECT_FIELD", where, "an error expectation carries nothing else"))
@@ -1146,6 +1204,7 @@ def check_diff_expect(expect, where, vs):
 
 
 def check_path_expect(kind, case, expect, where, vs):
+    """Check a path_* expectation: exactly one of the kind's success key (PATH_SUCCESS) and errors, with the success value well formed."""
     ok_key = PATH_SUCCESS[kind]
     if (ok_key in expect) == ("errors" in expect):
         vs.append(Violation("EXPECT_FIELD", where, "exactly one of %s and errors" % ok_key))
@@ -1168,6 +1227,7 @@ def check_path_expect(kind, case, expect, where, vs):
 
 
 def check_expect_types(kind, expect, where, vs):
+    """Check the typed values of an expectation: validate.preserved, roundtrip expanded/collapsed/fields, and collapse/expand fields."""
     if kind == "validate" and "preserved" in expect:
         check_typed(expect["preserved"], where + ".preserved", vs)
     if kind == "roundtrip":
@@ -1245,6 +1305,13 @@ def tree_problems(tree):
 
 
 def check_schema(kind, schema, pins, where, vs, trees=None):
+    """Check a case's schema reference (also schema_b and a patch context).
+
+    Exactly one of a pin that resolves in pins.yaml or a synthetic fixture of the form the
+    kind needs: {lexical: true} for kinds without a schema, a tree (inline or named in the
+    suite's trees) for path, diff, edit, patch and basis kinds, a slot or shape for
+    validate, and a position for the rest.
+    """
     if not isinstance(schema, dict) or len(schema) != 1:
         vs.append(Violation("SCHEMA_FIXTURE", where, "schema is exactly one of synthetic or pin"))
         return
@@ -1282,6 +1349,7 @@ def check_schema(kind, schema, pins, where, vs, trees=None):
 
 
 def check_shape(shape, where, vs):
+    """Check a synthetic validate shape: type, presence, optional nullable/min_items/default, elements, and fields mapping names to a presence or a nested shape."""
     if not isinstance(shape, dict) or not set(shape) <= SHAPE_KEYS or "type" not in shape \
             or shape.get("presence") not in PRESENCE:
         vs.append(Violation("SCHEMA_FIXTURE", where, "shape needs type and presence, keys in %s" % sorted(SHAPE_KEYS)))
@@ -1330,6 +1398,13 @@ def check_elements(shape, where, vs):
 
 
 def check_case(case, suite, defaults, pins, codes, adr_numbers, where, vs, used_codes, trees=None):
+    """Check one case of a suite and return its id (or None when it is not a mapping).
+
+    Covers the common fields, the kind's input fields, the id format <suite>.<slug>,
+    polarity, the effective adr and grammar references (case over suite defaults), the
+    schema references, origin and basis fields, and the expectation keys and contents of
+    the kind. Every (code, phase) pair its expected errors use is added to used_codes.
+    """
     if not isinstance(case, dict):
         vs.append(Violation("CASE_FIELD", where, "case is not a mapping"))
         return None
@@ -1445,6 +1520,7 @@ def strict_eq(a, b):
 
 
 def valid_locator(at):
+    """Whether `at` is a document locator: a list of non-empty field names and non-negative integer indices."""
     return isinstance(at, list) and all(
         (isinstance(s, str) and s) or (yaml_type(s) == "integer" and s >= 0) for s in at)
 
@@ -1486,6 +1562,7 @@ def check_segments(segs, where, vs, strict_names):
 
 
 def check_path_inputs(kind, case, where, vs):
+    """Check the inputs of a path_* case: exactly the fields of the kind, a valid locator, and at least two pairwise different stability variants."""
     def need(*names):
         extra = KIND_FIELDS[kind] - set(names)
         if any(n not in case for n in names) or extra & set(case) - set(names):
@@ -1544,6 +1621,12 @@ def operand_form(d, side, where, vs):
 
 
 def check_diff_inputs(kind, case, where, vs):
+    """Check the inputs of a diff or diff_stability case.
+
+    diff takes one form of each operand (a|a_yaml, b|b_yaml); diff_stability takes at
+    least two pairwise different variants of both. An optional scope is a non-empty list
+    of canonical paths, and schema_b must differ from schema to be a context mismatch.
+    """
     extra = set(case) & {"a", "a_yaml", "b", "b_yaml", "variants"}
     if kind == "diff":
         if "variants" in case:
@@ -1621,6 +1704,12 @@ def check_origin(case, where, vs):
 
 
 def check_manifest_input(case, where, vs):
+    """Check a grammar_manifest case input and its expectation for consistency.
+
+    files is a non-empty list of distinct {path, sha256} and declared a 64-hex digest; the
+    manifest digest recomputed by grammar_identity decides the expectation: a match
+    expects no error, a mismatch expects exactly GRAMMAR_DIGEST_MISMATCH.
+    """
     fl = case.get("files")
     if not (isinstance(fl, list) and fl and all(isinstance(f, dict) and set(f) == {"path", "sha256"} and isinstance(f["path"], str)
                                                and f["path"] and HEX64.match(str(f["sha256"])) for f in fl)) \
@@ -1640,6 +1729,7 @@ def check_manifest_input(case, where, vs):
 
 
 def check_inputs(kind, case, where, vs):
+    """Check that a case carries the input fields of its kind (INPUT_PRESENCE), dispatching to the per-kind input checks."""
     has = lambda f: f in case
     if kind.startswith("path_"):
         check_path_inputs(kind, case, where, vs)
@@ -1679,6 +1769,12 @@ def check_inputs(kind, case, where, vs):
 
 
 def check_pins(doc, vs):
+    """Check corpus/pins.yaml and return its grammar and schema pins ({} when the envelope is wrong).
+
+    A grammar pin needs repo, ref, 40-hex commit, the accepted file set sorted by UTF-8
+    path bytes, a manifest_sha256 equal to the digest recomputed from the file hashes, and
+    a name that carries that identity; a schema pin needs repo, commit, path and sha256.
+    """
     where = "corpus/pins.yaml"
     if not isinstance(doc, dict) or set(doc) != {"corpus_format", "grammar", "schemas"}:
         vs.append(Violation("ENVELOPE", where, "keys must be corpus_format, grammar, schemas"))
@@ -1719,11 +1815,13 @@ def check_pins(doc, vs):
 
 
 def version(doc, where, vs):
+    """Append FORMAT_VERSION unless the document's corpus_format is exactly FORMAT_VERSION."""
     if doc.get("corpus_format") != FORMAT_VERSION or isinstance(doc.get("corpus_format"), bool):
         vs.append(Violation("FORMAT_VERSION", where, "corpus_format must be %d" % FORMAT_VERSION))
 
 
 def check_codes(doc, vs):
+    """Check corpus/codes.yaml and return its valid entries by code: UPPER_SNAKE names, status, phases mapped to source anchors, meaning and trigger."""
     where = "corpus/codes.yaml"
     if not isinstance(doc, dict) or set(doc) != {"corpus_format", "codes"} or not isinstance(doc["codes"], dict):
         vs.append(Violation("ENVELOPE", where, "keys must be corpus_format, codes"))
@@ -1807,6 +1905,14 @@ def check_workflow(root, pins, vs):
 
 
 def check_corpus(root):
+    """Check the whole corpus under root; return (violations, stats).
+
+    Loads pins and codes, checks that the CI workflow reproduces the grammar identity,
+    then every <suite>/vectors.yaml: envelope, trees and each case. Across the corpus it
+    requires unique ids, no registry code or (code, phase) pair that no case uses, and
+    an accounting file that lists exactly the kinds and counts.
+    stats counts suites, cases and their polarities.
+    """
     vs, stats = [], {"suites": 0, "cases": 0, "positive": 0, "negative": 0}
     cdir = os.path.join(root, "corpus")
     adr_numbers = {os.path.basename(p)[:4] for p in glob.glob(os.path.join(root, "docs", "adr", "[0-9]*.md"))}
@@ -1922,6 +2028,7 @@ def check_accounting(doc, counts, vs):
 # --- seeded-fault self-test --------------------------------------------------
 
 def apply_fault(fault, root):
+    """Apply one seeded fault to a corpus copy under root: write an added file, or replace text that must occur exactly once (ValueError otherwise: a stale fault)."""
     for op in fault["ops"]:
         path = os.path.join(root, op["file"])
         if "add" in op:
@@ -1976,6 +2083,13 @@ def loader_invariants():
 
 
 def selftest(root):
+    """Seeded-fault self-test: prove that every rule of the checker can turn red.
+
+    Requires the loader invariants to hold and the real corpus to be clean, then applies
+    each fault of tools/corpus_faults.yaml to a fresh copy and requires its named rule
+    among the findings. Fails on a stale fault, a fault that stays green, or a rule that
+    no fault exercises. Returns the exit status.
+    """
     if loader_invariants():
         return 1
     spec_path = os.path.join(root, "tools", "corpus_faults.yaml")
@@ -2016,6 +2130,7 @@ def selftest(root):
 
 
 def main():
+    """CLI entry point: check the corpus, then (unless --no-selftest) the self-test; return the exit status."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     ap.add_argument("--no-selftest", action="store_true")

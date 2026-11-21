@@ -24,6 +24,7 @@ KINDS = {"full": "evidence/full", "audit": "evidence/audit"}
 
 
 class PublishError(Exception):
+    """A record that could not be published or a branch that cannot be read (NAME, KIND, CONFLICT, BAD_INDEX, PUSH, RACE, GIT, ...)."""
     def __init__(self, kind, detail=""):
         super().__init__("%s %s" % (kind, detail))
         self.kind = kind
@@ -73,6 +74,7 @@ def entries_for(checkout, dates):
 
 
 def fetch_record(checkout, digest, kind):
+    """The bytes of the record `digest` of `kind` in the checkout, or None if it is not there."""
     path = os.path.join(checkout, KINDS[kind], digest + ".json")
     try:
         with open(path, "rb") as fh:
@@ -111,6 +113,7 @@ class Git:
 
 
 def _rejected(err):
+    """Whether a push failed because the branch moved under it (retried on the new tip), as opposed to any other refusal."""
     return any(s in err for s in ("non-fast-forward", "fetch first", "failed to update ref", "cannot lock ref"))
 
 
@@ -150,6 +153,7 @@ def publish(origin, name, raw, kind, date, identity=("evidence", "evidence@users
 
 
 def _clear(work):
+    """Empty the working directory, `.git` included, for the next attempt to clone afresh."""
     for entry in os.listdir(work):
         path = os.path.join(work, entry)
         if os.path.isdir(path) and not os.path.islink(path):
@@ -159,6 +163,7 @@ def _clear(work):
 
 
 def _checkout(git, origin, branch, work):
+    """Clone `branch` of `origin` into the working directory; a branch that does not exist yet starts as an orphan, any other clone failure is CLONE."""
     rc, _, err = git("clone", "-q", "--no-tags", "--single-branch", "--branch", branch, origin, ".", check=False)
     if rc == 0:
         return
@@ -171,6 +176,10 @@ def _checkout(git, origin, branch, work):
 
 
 def _write(work, stem, raw, kind, date):
+    """Write the record under its kind's directory and add (stem, kind) to the index of `date`.
+
+    A record file that already exists with other bytes is CONFLICT; an index whose date is not `date` is BAD_INDEX.
+    """
     path = os.path.join(work, KINDS[kind], stem + ".json")
     if os.path.exists(path):
         with open(path, "rb") as fh:

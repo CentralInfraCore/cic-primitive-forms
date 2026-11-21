@@ -56,6 +56,7 @@ RECEIPT_FILE = re.compile(r"receipt|end[-_]to[-_]end", re.I)
 
 
 def read(root, rel):
+    """Return the UTF-8 text of ``rel`` under ``root``."""
     return (root / rel).read_text(encoding="utf-8")
 
 
@@ -82,6 +83,13 @@ def count_of(root, spec):
 
 
 def check_evidence(root, eid, ev, steps, problems):
+    """Hold the evidence of one proved or fixture-only entry to what it names.
+
+    Every listed file has to exist, every ``contains`` text has to be in its file, every CI step has
+    to be a step name of the workflow and every count has to meet its ``equals`` / ``at_least``
+    expectation. An entry without evidence files is refused. Problems are appended to
+    ``problems``; nothing is returned.
+    """
     if not isinstance(ev, dict) or not ev.get("files"):
         problems.append(f"{eid}: a proved or fixture-only entry has no evidence files")
         return
@@ -186,6 +194,7 @@ def check(root=ROOT, ledger=None):
 
 
 def main():
+    """Check the ledger of the repository: print the problems to stderr and return 1, or print the tally of statuses and return 0."""
     problems = check()
     for p in problems:
         print("CLOSEOUT:", p, file=sys.stderr)

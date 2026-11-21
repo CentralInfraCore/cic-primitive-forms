@@ -25,6 +25,7 @@ pub fn emit(node: &Node) -> String {
     out
 }
 
+/// Appends `n` spaces.
 fn indent(out: &mut String, n: usize) {
     for _ in 0..n {
         out.push(' ');
@@ -44,6 +45,7 @@ fn inline(node: &Node) -> String {
     }
 }
 
+/// Whether `node` is written as a block on the following lines: a non-empty sequence or mapping. Empty ones are written inline (`[]`, `{}`).
 fn is_block(node: &Node) -> bool {
     match &node.value {
         Value::Seq(items) => !items.is_empty(),
@@ -52,6 +54,7 @@ fn is_block(node: &Node) -> bool {
     }
 }
 
+/// Writes `items` as block sequence entries (`- …`) indented by `level`.
 fn block_seq(items: &[Node], level: usize, out: &mut String) {
     for item in items {
         indent(out, level);
@@ -60,6 +63,8 @@ fn block_seq(items: &[Node], level: usize, out: &mut String) {
     }
 }
 
+/// Writes the entries of the mapping `node` in their order, indented by `level`; a key longer than `IMPLICIT_KEY_MAX` characters uses the explicit
+/// `? key` form. A node that is not a mapping writes nothing.
 fn block_map(node: &Node, level: usize, out: &mut String) {
     let entries = match &node.value {
         Value::Map(entries) => entries,
@@ -139,10 +144,13 @@ fn plain_safe(s: &str) -> bool {
     }
 }
 
+/// Whether `c` is U+2028, U+2029 or the byte order mark, which `quoted` writes as `\u` escapes although they are not control characters.
 fn is_line_or_bom(c: char) -> bool {
     ['\u{2028}', '\u{2029}', '\u{FEFF}'].contains(&c)
 }
 
+/// `s` as a double-quoted YAML scalar: `"` `\` and newline, carriage return and tab escaped short, any other control character and the characters of
+/// `is_line_or_bom` as `\uXXXX`.
 fn quoted(s: &str) -> String {
     let mut out = String::from("\"");
     for c in s.chars() {

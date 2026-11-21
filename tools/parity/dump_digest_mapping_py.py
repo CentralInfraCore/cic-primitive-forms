@@ -18,6 +18,7 @@ REFERENCE = os.path.join(HERE, "..", "p5", "digest_mapping.py")
 
 
 def load(path):
+    """Import the reference module from path under its own name, so a mutated copy can be loaded beside the real one."""
     spec = importlib.util.spec_from_file_location("digest_mapping_dumped", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -25,6 +26,11 @@ def load(path):
 
 
 def dump(dm, lines):
+    """The dump text for the input lines, one sorted-key JSON line per case (blank lines skipped).
+
+    The answer is the reference module dm's: a Refusal as its reason and field, any other exception as reason CRASH with the exception's type
+    name.
+    """
     out = []
     for line in lines:
         if not line.strip():
@@ -47,6 +53,7 @@ def dump(dm, lines):
 
 
 def main(argv):
+    """Dump IN to OUT with the reference at --reference (default tools/p5/digest_mapping.py); returns 0."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("input")
     ap.add_argument("output")

@@ -4,7 +4,7 @@
     verified = qualify(BIN, args)          # a frozenset of construct names, for the Assurance of that extractor identity
 
 The extractor recognises implicit iota and the other constructs; it cannot say that it models them. A reviewer outside it can, on
-evidence. This module is that evidence for the const group rule: three pairs of Go sources (lab/testdata/iota, iota-insert,
+evidence. This module is that evidence for the const group rule: three pairs of Go sources (testdata/iota, iota-insert,
 iota-inherit) in which the value of a constant moves while its own text does not, and the test of it goes from pass to fail. A build
 is qualified for `go.const.implicit_repeat`, `go.const.iota` and `go.const.group` only if, for each pair, the Merkle key of the test
 differs between the two states (so the rule would rerun it); it is a regression probe, not a proof that every case is modelled.
@@ -66,6 +66,7 @@ PROBES = (
 
 @functools.lru_cache(maxsize=None)
 def _key(binary, args, directory, state, pkg, test="TestB"):
+    """The Merkle key of `pkg.test` in the extractor's graph of the fixture testdata/<directory>/<state> (state "a" or "b"), or None."""
     d = os.path.join(TD, directory, state)
     g = json.loads(subprocess.run([os.path.abspath(binary), *args, "."], cwd=d, check=True, capture_output=True, text=True).stdout)
     return merkle.keys(g)[0].get("%s.%s" % (pkg, test))
@@ -73,15 +74,18 @@ def _key(binary, args, directory, state, pkg, test="TestB"):
 
 @functools.lru_cache(maxsize=None)
 def _passes(directory, state):  # the outcome of the test does not depend on the extractor, so it is run once per fixture
+    """True when `go test ./...` passes in the fixture testdata/<directory>/<state>."""
     return subprocess.run(["go", "test", "-count=1", "./..."], cwd=os.path.join(TD, directory, state), capture_output=True).returncode == 0
 
 
 @functools.lru_cache(maxsize=None)
 def _construct_probes(binary, args):
+    """Memoized _construct_probes_uncached: the probes of one build and set of flags are run once per process."""
     return _construct_probes_uncached(binary, args)
 
 
 def construct_probes(binary, args=()):
+    """{construct: [(name, ok, detail)]}: the per-construct probes of CONSTRUCT_PROBES for this build and flags (cached)."""
     return _construct_probes(binary, tuple(args))
 
 

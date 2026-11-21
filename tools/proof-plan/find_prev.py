@@ -52,6 +52,10 @@ def locate(directory):
 
 
 def main():
+    """List the successful runs of the branches, take the first (main first, newest first) whose commit is an ancestor of --head
+    and whose `proof-evidence` artifact downloads, and write it to --out with a source.json (run, commit, branch, event, trust).
+
+    Prints the commit used; an expired or missing artifact moves on to the next candidate. Always returns 0."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
     ap.add_argument("--workflow", required=True)

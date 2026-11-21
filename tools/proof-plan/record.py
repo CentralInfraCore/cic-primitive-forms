@@ -30,6 +30,9 @@ import trace as tr  # noqa: E402
 
 
 def observe_go(root):
+    """Run the Go tests with the gate's command (plus -json) and return {"tests": {"go:<Test>": {outcome, elapsed}}, "wall_s", "exit"}.
+
+    Only top-level tests are kept (subtests are part of their parent); outcomes are PASS, FAIL or SKIP."""
     t0 = time.time()
     r = pl.run(["go", "test", "-race", "-count=1", "-rapid.checks=1000", "-json", "./..."], cwd=os.path.join(root, "go"))
     out = {}
@@ -45,6 +48,9 @@ def observe_go(root):
 
 
 def observe_rust(root, tc):
+    """Build the Rust test binaries with toolchain `tc`, run each, and return {"tests": {"rust:<target>::<test>": {outcome,
+    binary_elapsed}}, "wall_s", "exit"}. libtest gives no per-test time, so each test carries its whole binary's time; `exit` is the
+    build's exit code."""
     t0 = time.time()
     env = dict(os.environ)
     b = pl.run(["rustup", "run", tc, "cargo", "test", "--locked", "--no-run", "--message-format=json"], cwd=os.path.join(root, "rust"), env=env)
@@ -170,6 +176,8 @@ def new_evidence(current, prev_tests, observed, sha, trace=None, state=None, ski
 
 
 def report(plan, rows, summary, observed_meta, timings, false_reuse, trace_meta=None):
+    """The Proof-Aware Execution Report as Markdown: the decision counts, whether they could authorize skipping (plan.authority),
+    the decisions against what was observed, the reasons, the false reuses, and the cost of planning against the Go test time spared."""
     counts = {}
     for d in plan["decisions"]:
         counts[d["status"]] = counts.get(d["status"], 0) + 1
@@ -209,6 +217,8 @@ def report(plan, rows, summary, observed_meta, timings, false_reuse, trace_meta=
 
 
 def main():
+    """Dispatch observe-go / observe-rust / trace / finish. `finish` writes evidence.json and comparison.json to --out and the
+    report to stdout; an --observed file that does not exist is a job that did not run. Report only: returns 0."""
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("observe-go")

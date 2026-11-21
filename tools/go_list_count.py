@@ -17,6 +17,12 @@ SUMMARY = re.compile(r"The mutation score is [0-9.]+ \((\d+) passed, (\d+) faile
 
 
 def count(text):
+    """Return the number of mutants in the diff from a list-mode go-mutesting log.
+
+    Raises ValueError, rather than return a count that cannot be believed, when the summary
+    line is missing (the run did not finish), a mutant could not be placed (`UNKOWN exit
+    code for`), a mutant failed, or the summary disagrees with the per-mutant result lines.
+    """
     text = ANSI.sub("", text)
     m = SUMMARY.search(text)
     if not m:
@@ -33,6 +39,7 @@ def count(text):
 
 
 def main():
+    """Print the count of the log named on the command line; exit 1 with only a stderr message on any doubt."""
     try:
         with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
             print(count(fh.read()))

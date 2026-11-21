@@ -38,6 +38,7 @@ NESTED = {
 
 
 def schema(*names):
+    """A schema text: the fixed head of testdata/p1/defaults.json followed by the named node definitions, in the given order."""
     return HEAD + "".join((SCALARS | NESTED)[n] for n in names)
 
 
@@ -54,6 +55,7 @@ CAP = {"\ue000": "implemented", "\U0001f600": "not_implemented", "type": "implem
 
 
 def caps(*names, **over):
+    """The capability map of the named fields (from ``CAP``), with ``over`` added or overriding."""
     c = {n: CAP[n] for n in names}
     c.update(over)
     return c
@@ -63,14 +65,17 @@ FLAT5 = ("type", "enabled", "mtu", "label", "maybe")
 
 
 def ok(id, schema_id, yaml, capabilities, fields):
+    """An accepted case: the materialization must give exactly ``fields``."""
     return {"id": id, "schema": schema_id, "yaml": yaml, "capabilities": capabilities, "fields": fields}
 
 
 def no(id, schema_id, yaml, capabilities, reason, field):
+    """A refused case: both languages must refuse with ``reason`` for ``field``."""
     return {"id": id, "schema": schema_id, "yaml": yaml, "capabilities": capabilities, "refused": [reason, field]}
 
 
 def f(key, prov, value):
+    """An expected field of the projection, with the capability ``CAP`` gives the key."""
     return {"key": key, "capability": CAP[key], "provenance": prov, "value": value}
 
 
@@ -110,6 +115,11 @@ CASES = [
 
 
 def build():
+    """The whole content of testdata/p5/materialize.json.
+
+    An accepted case gets its expected keys, the canonical projection (``json.dumps`` plus the five Go
+    escapes) and the projection's digest; a refused case gets ``{"refused": [reason, field]}``.
+    """
     cases = []
     for c in CASES:
         c = dict(c)
@@ -136,6 +146,7 @@ def build():
 
 
 def main():
+    """With ``--write`` rewrite testdata/p5/materialize.json; otherwise return 1 if the checked-in file differs from ``build()``."""
     text = json.dumps(build(), indent=1, ensure_ascii=False) + "\n"
     if "--write" in sys.argv:
         OUT.write_text(text)

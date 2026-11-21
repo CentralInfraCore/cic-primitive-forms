@@ -59,6 +59,7 @@ REASONS = {
 
 
 class Refused(Exception):
+    """A gate input that cannot be judged: carries the REASONS code and a detail; the gate reports it as a failure."""
     def __init__(self, reason, detail):
         super().__init__(detail)
         self.reason = reason
@@ -66,6 +67,7 @@ class Refused(Exception):
 
 
 def read(path):
+    """The text of a report file; an unreadable one is refused as REPORT_MISSING."""
     try:
         with open(path, encoding="utf-8") as fh:
             return fh.read()
@@ -74,6 +76,10 @@ def read(path):
 
 
 def rust_lines(path):
+    """Rust line coverage as (covered, total) from a `cargo llvm-cov --json --summary-only` report.
+
+    Only files under /rust/src/ count; any other shape is REPORT_FORMAT.
+    """
     try:
         data = json.loads(read(path))
         files = data["data"][0]["files"]
@@ -89,6 +95,11 @@ def rust_lines(path):
 
 
 def go_lines(path):
+    """Go statement coverage as (covered, total) from a `go test -coverprofile` profile.
+
+    Sums the statement counts of the blocks, skipping _test.go files; a profile without a
+    mode header or with an unparseable line is REPORT_FORMAT.
+    """
     covered = total = 0
     seen_mode = False
     for line in read(path).splitlines():
@@ -129,6 +140,7 @@ def note_excluded(language, parts, listed, duplicated=0):
 
 
 def excluded_line(language):
+    """The printed note on the mutants left out of the language's denominator (unviable, skipped, ...), or None when the tool listed none."""
     parts, listed, duplicated = EXCLUDED.get(language, [{}, 0, 0])
     if listed == 0:
         return None
@@ -140,6 +152,12 @@ def excluded_line(language):
 
 
 def _rust_outcome(path, need_names):
+    """Read one cargo-mutants outcomes.json; return (killed, missed, mutant names).
+
+    Killed is caught + timeout. Every mutant outcome must carry a verdict and the report's
+    totals must equal the counted verdicts, otherwise REPORT_INCONSISTENT; the unviable
+    ones are noted as excluded. Names are returned only when need_names is set.
+    """
     try:
         d = json.loads(read(path))
         totals = {k: d[k] for k in ("caught", "missed", "timeout", "unviable", "total_mutants")}
@@ -164,6 +182,7 @@ def _rust_outcome(path, need_names):
 
 
 def _rust_listed(path, allow_empty=False):
+    """The mutant names of a `cargo mutants --list --json` list; an empty list is REPORT_FORMAT unless allow_empty."""
     try:
         listed = [m["name"] for m in json.loads(read(path))]
         if (not listed and not allow_empty) or not all(isinstance(n, str) for n in listed):
@@ -174,6 +193,11 @@ def _rust_listed(path, allow_empty=False):
 
 
 def rust_mutants(paths, listed=None, allow_empty=False):
+    """Rust mutation score inputs (killed, denominator) over one or more cargo-mutants shard reports.
+
+    Several shards require `listed`; with it, every listed mutant must be tested by exactly
+    one shard and no unlisted one by any (INCOMPLETE_SHARDS).
+    """
     killed = survived = 0
     names = []
     for path in paths:
@@ -259,6 +283,12 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def go_mutants(path):
+    """Go mutation score inputs (passed, passed + failed) from go-mutesting stdout.
+
+    Counts the exact result lines and requires the summary line to agree with them
+    (REPORT_INCONSISTENT); skipped and errored mutants are noted as excluded, and the
+    duplicates are reported next to that total.
+    """
     text = ANSI.sub("", read(path))
     m = re.search(r"The mutation score is [0-9.]+ \((\d+) passed, (\d+) failed, (\d+) duplicated, (\d+) skipped, total is (\d+)\)",
                   text)
@@ -307,6 +337,7 @@ def _stryker(path):
 
 
 def _gamma_listed(path):
+    """The mutant ids of a `cargo gamma list mutants --json` list: non-empty and unique, else REPORT_FORMAT."""
     try:
         ids = [m["id"] for m in json.loads(read(path))]
         if not ids or not all(isinstance(i, str) for i in ids) or len(set(ids)) != len(ids):
@@ -343,6 +374,7 @@ def stryker_mutants(paths, language, listed=None, allow_empty=False):
 
 
 def judge(name, measure, path):
+    """Judge one full measurement: (passed, report line); green only strictly above THRESHOLD, an empty measurement is refused."""
     covered, total = measure()
     if total == 0:
         raise Refused("MEASUREMENT_EMPTY", "%s: %s" % (name, path))
@@ -368,6 +400,13 @@ def judge_diff(name, measure, path):
 
 
 def check(args):
+    """Run the gate: line coverage and mutation score of both languages; print one line each, return the exit status.
+
+    Picks the mutation source from the arguments (cargo-mutants or cargo-gamma for Rust;
+    go-mutesting stdout, shard ledgers or go-mutants reports for Go). With --diff the
+    mutation scores are judged by judge_diff. Every refusal or score at or below the
+    threshold is a FAIL; the gate passes only when all four pass.
+    """
     diff = getattr(args, "diff", False)
     gamma, gom = getattr(args, "gamma_reports", None), getattr(args, "gomutants_reports", None)
     if gamma:
@@ -411,6 +450,7 @@ def check(args):
 # ---- seeded-fault proof -------------------------------------------------------------------------
 
 def _w(d, name, text):
+    """Write a selftest fixture file into d and return its path."""
     p = os.path.join(d, name)
     with open(p, "w", encoding="utf-8") as fh:
         fh.write(text)
@@ -418,10 +458,12 @@ def _w(d, name, text):
 
 
 def _rust_cov(covered, count, name="/r/rust/src/a.rs"):
+    """A one-file cargo llvm-cov summary fixture with the given line counts."""
     return json.dumps({"data": [{"files": [{"filename": name, "summary": {"lines": {"covered": covered, "count": count}}}]}]})
 
 
 def _go_cov(covered, count, name="x/a.go"):
+    """A Go cover-profile fixture whose blocks give covered of count statements covered."""
     return "mode: set\n%s:1.1,2.2 %d %d\n%s:3.1,4.2 %d 0\n" % (name, covered, 1, name, count - covered)
 
 
@@ -448,6 +490,12 @@ def _gomut(passed, failed, skipped=3, claim=None, errors=0, duplicated=0):
 
 
 def selftest():
+    """Seeded-fault proof that the gate can fail for every REASONS code.
+
+    Runs `check` on generated reports (good baseline plus one fault each, including
+    sharded cargo-mutants, ledgers, cargo-gamma and go-mutants cases) and requires each
+    to produce its expected verdict; fails also when a reason is never produced.
+    """
     good = dict(rl=_rust_cov(95, 100), gl=_go_cov(95, 100), rm=_mut(95, 5), gm=_gomut(95, 5))
     cases = [  # (name, overrides, expected reason or None)
         ("all good", {}, None),
@@ -697,6 +745,7 @@ def selftest():
 
 
 def _capture(fn, *a):
+    """Call fn(*a) with stdout captured; return (its result, the printed text)."""
     import contextlib
     import io
     buf = io.StringIO()
@@ -706,6 +755,7 @@ def _capture(fn, *a):
 
 
 def main():
+    """CLI entry point: `check` (exactly one Rust and one Go mutation source) or `selftest`; returns the exit status."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("check")

@@ -29,6 +29,7 @@ REASONS = (
 
 
 class Refusal(Exception):
+    """The mapping refused: ``reason`` is one of ``REASONS`` and ``field`` names the member or receipt field it is about."""
     def __init__(self, reason, field=""):
         assert reason in REASONS, reason
         super().__init__("%s%s" % (reason, (": " + field) if field else ""))
@@ -50,6 +51,10 @@ MISSING = object()
 
 
 def _text(record, path):
+    """The string at the dotted ``path`` of the record.
+
+    Refuses with ``field_missing`` when it is absent or null, and with ``field_type`` when it is not a string.
+    """
     value = _get(record, path)
     if value is MISSING or value is None:
         raise Refusal("field_missing", path)

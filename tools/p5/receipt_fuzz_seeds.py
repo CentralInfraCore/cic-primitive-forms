@@ -77,6 +77,11 @@ SEEDS = [
 
 
 def build():
+    """The files this script owns: ``(text files, raw seed files)``, each as ``{repository path: content}``.
+
+    All derived from testdata/p5/materialize.json (its first case), testdata/p1/defaults.json, the
+    fixture release of ``receipt_cases`` and ``SEEDS``.
+    """
     m = json.loads((ROOT / "testdata" / "p5" / "materialize.json").read_text())
     c = m["cases"][0]
     defaults = json.loads((ROOT / "testdata" / "p1" / "defaults.json").read_text())
@@ -94,6 +99,10 @@ def build():
 
 
 def main():
+    """With ``--write`` rewrite the files; otherwise return 1 if any differs or the Rust seed corpus holds a file this script does not write.
+
+    Asserts first that the seed names sort in the order of ``SEEDS``.
+    """
     files, raw = build()
     assert [s[0] for s in SEEDS] == sorted(s[0] for s in SEEDS), "the names must sort in the order of the list"
     if "--write" in sys.argv:

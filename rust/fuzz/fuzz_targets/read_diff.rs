@@ -10,6 +10,7 @@
 use cic_primitive_forms::{read_diff, read_diff_version, DiffResult};
 use libfuzzer_sys::fuzz_target;
 
+/// The closed set of refusal reasons of `read_diff`; any other reason is a finding.
 const REASONS: [&str; 11] = [
     "not_utf8",
     "syntax",

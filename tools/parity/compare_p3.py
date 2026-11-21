@@ -17,11 +17,15 @@ STAGES = {"ok", "compile", "parse", "normalize", "resolve", "grammar"}
 
 
 def load(path):
+    """The JSON objects of a JSON-lines file, one per non-blank line, in order."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def main():
+    """Compare the two dumps with the inputs line by line and return the exit status: 1 on a count mismatch, an invalid or
+    different outcome, or when no input reached the stage `ok`.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")
