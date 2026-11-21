@@ -17,6 +17,7 @@ use cic_primitive_forms::{
 };
 use libfuzzer_sys::fuzz_target;
 
+/// A scalar field shape; `default` is the declared schema default, if any.
 fn scalar(t: ScalarType, presence: Presence, nullable: bool, default: Option<Value>) -> Shape {
     Shape {
         shape_type: ShapeType::Scalar(t),
@@ -41,10 +42,14 @@ fn fields() -> Vec<(String, Shape)> {
     ]
 }
 
+/// The refusals the document alone can cause under the fixed, complete schema and capability map.
 const REFUSALS: [&str; 3] = ["invalid_document", "unsupported", "omitted_optional"];
 
+/// The comparable outcome of one materialization: the expected keys, the projection and its digest, or the refusal's
+/// reason and field.
 type Answer = Result<(Vec<String>, String, String), (String, String)>;
 
+/// Materializes `doc` and reduces the outcome to an [`Answer`].
 fn answer(doc: &Node, root: &Shape, a: &[String], caps: &BTreeMap<String, String>) -> Answer {
     match materialize_flat(Some(doc), root, a, caps) {
         Ok(m) => Ok((m.expected_keys, m.projection_json, m.output_digest)),

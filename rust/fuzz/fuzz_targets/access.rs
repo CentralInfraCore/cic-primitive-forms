@@ -12,6 +12,7 @@ use cic_primitive_forms::{
 };
 use libfuzzer_sys::fuzz_target;
 
+/// The closed set of violation codes the readers may answer with; any other code is a finding.
 const KNOWN: [&str; 5] = [
     "INVALID_INHERIT",
     "INHERIT_ENUM_IN_GRAMMAR_1",

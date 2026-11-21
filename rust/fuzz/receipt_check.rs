@@ -54,21 +54,32 @@ fn data(file: &str) -> &'static str {
     })
 }
 
+/// The schema text of the target (`testdata/p5/receipt-fuzz/schema.yaml`), before any fault is made in it.
 pub fn schema() -> &'static str {
     data("schema.yaml")
 }
 
+/// The tab-separated fixture lines (`testdata/p5/receipt-fuzz/fixture.txt`): grammar, access keys, release, engine
+/// version and the `cap:` lines of the capability map.
 fn fixture_text() -> &'static str {
     data("fixture.txt")
 }
+/// The engine identity the receipts of this target name.
 pub const IDENTITY: &str = "cic-primitive-forms-rust";
 
+/// FLAGS bit: the claimed schema digest is not that of the bytes (the KIND says how).
 const BIND: u8 = 1;
+/// FLAGS bit: the schema has no `version`.
 const NO_VERSION: u8 = 2;
+/// FLAGS bit: the build hash of the fixture release is not a digest (the KIND says how).
 const BAD_HASH: u8 = 4;
+/// FLAGS bit: the engine version is empty.
 const NO_ENGINE_VERSION: u8 = 8;
+/// FLAGS bit: the capability map is not the complete one (the KIND says how).
 const CAPS: u8 = 16;
+/// FLAGS bit: the parsed document repeats its first key (a node a caller built; the parser never produces it).
 const DUPLICATE: u8 = 32;
+/// FLAGS bit: the schema field `label` is named `la.bel`, a name that is not one plain path segment.
 const DOTTED: u8 = 64;
 
 /// What a receipt that was made is, for the callers that go on with it (the replay hands it to the engine).
@@ -96,6 +107,7 @@ pub enum Ended {
     Receipt,
 }
 
+/// The value of the fixture line `key`; panics when the fixture has none.
 fn fixture(key: &str) -> &'static str {
     fixture_text()
         .lines()
@@ -114,6 +126,8 @@ pub fn declared() -> Vec<String> {
     names
 }
 
+/// The capability map of the fixture, with the capability fault of `kind` (`mtu` removed, `label` misspelled, an
+/// undeclared key added) when CAPS is set, and `label` renamed to `la.bel` when DOTTED is set.
 fn capabilities(flags: u8, kind: u8) -> BTreeMap<String, String> {
     let mut caps: BTreeMap<String, String> = fixture_text()
         .lines()
@@ -142,6 +156,7 @@ fn capabilities(flags: u8, kind: u8) -> BTreeMap<String, String> {
     caps
 }
 
+/// The fixture release, with the build hash broken as `kind` says when BAD_HASH is set.
 fn release(flags: u8, kind: u8) -> ReleaseFixture {
     let mut r = ReleaseFixture {
         primitive_release: fixture("primitive_release").into(),
@@ -162,8 +177,11 @@ fn release(flags: u8, kind: u8) -> ReleaseFixture {
     r
 }
 
+/// The answer of one `receipt_flat_fixture` call.
 type Outcome = Result<cic_primitive_forms::FlatReceipt, ReceiptError>;
 
+/// Builds the schema input, capabilities, release and engine identity with the faults of `flags` and `kind`, and asks
+/// `receipt_flat_fixture` for the receipt of `doc`.
 fn make(flags: u8, kind: u8, doc: &Node) -> Outcome {
     let mut schema = schema().to_string();
     if flags & NO_VERSION != 0 {
@@ -218,6 +236,8 @@ fn make(flags: u8, kind: u8, doc: &Node) -> Outcome {
     )
 }
 
+/// Whether two outcomes are the same answer: the same document, digest, binding and authored input, or the same
+/// refusal.
 fn same(a: &Outcome, b: &Outcome) -> bool {
     match (a, b) {
         (Ok(x), Ok(y)) => {

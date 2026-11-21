@@ -3,6 +3,7 @@
 
 #![no_main]
 
+/// The shared property of this target, `../receipt_check.rs`.
 #[path = "../receipt_check.rs"]
 mod receipt_check;
 
