@@ -96,6 +96,29 @@ type CompiledSchema struct {
 	// UnevaluatedContracts are the canonical paths of the nodes that declare a contract. Contracts
 	// are passed through, not evaluated: validation does not check them.
 	UnevaluatedContracts []string
+	// UnevaluatedSurfaceContracts are the canonical paths of the surface-level validation entries the
+	// schema declares ("<surface>.validation[<i>]", or "<surface>.validation" when the member is present
+	// but is not a list). They are passed through, not evaluated, exactly like the node contracts, and
+	// listed apart from them so that UnevaluatedContracts keeps meaning the nodes. Nothing here says the
+	// expression is valid: the dialect of a validation expression is not specified by the grammar.
+	UnevaluatedSurfaceContracts []string
+}
+
+// surfaceValidation lists the declared surface-level validation entries by canonical path. The member is
+// read the way a node's contract is: its presence is what counts, no entry is inspected.
+func surfaceValidation(surface *Node, name string) []string {
+	v := lookup(surface, "validation")
+	if v == nil {
+		return nil
+	}
+	if v.Kind != KindSeq {
+		return []string{name + ".validation"}
+	}
+	var out []string
+	for i := range v.Items {
+		out = append(out, sprintf("%s.validation[%d]", name, i))
+	}
+	return out
 }
 
 // sprintf is fmt.Sprintf.
@@ -187,6 +210,7 @@ func compileWith(in SchemaInput, profiles map[string]grammarProfile) (*CompiledS
 	out.Root = Shape{Kind: ShapeComposite, Fields: fields, Presence: Mandatory}
 	out.UsesItemChoice = c.itemChoice
 	out.UnevaluatedContracts = c.unevaluated
+	out.UnevaluatedSurfaceContracts = surfaceValidation(surface, in.Surface)
 	return out, nil
 }
 

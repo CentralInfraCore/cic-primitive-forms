@@ -1,0 +1,84 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	forms "github.com/CentralInfraCore/cic-primitive-forms/go"
+)
+
+func describe(err error) string {
+	var e *forms.Error
+	if errors.As(err, &e) {
+		var parts []string
+		for _, v := range e.Violations {
+			parts = append(parts, v.Code+"@"+v.LogicalPath)
+		}
+		for _, p := range e.Problems {
+			parts = append(parts, p.Code+"@"+p.Path)
+		}
+		return fmt.Sprintf("ERR[%s] %s", e.Code(), strings.Join(parts, ";"))
+	}
+	return "ERR " + err.Error()
+}
+
+func main() {
+	a := []string{"value", "access", "modify", "inherit", "default_injection", "conformance"}
+	dirs, gerr := filepath.Glob(filepath.Join(os.Args[1], "K*"))
+	if gerr != nil || len(dirs) == 0 {
+		fmt.Fprintln(os.Stderr, "no cases found")
+		os.Exit(2)
+	}
+	sort.Strings(dirs)
+	for _, d := range dirs {
+		id := filepath.Base(d)
+		schema, rerr := os.ReadFile(filepath.Join(d, "schema.yaml"))
+		if rerr != nil {
+			fmt.Fprintln(os.Stderr, "read error: "+rerr.Error())
+			os.Exit(2)
+		}
+		cs, err := forms.CompileSchema(forms.SchemaInput{Bytes: schema, SHA256: forms.SHA256Hex(schema), Grammar: "cic-primitives-73ae469-6a188078", Surface: "config_surface"})
+		if err != nil {
+			fmt.Println(id + "|-|compile|" + describe(err))
+			continue
+		}
+		fmt.Println(id + "|-|compile|OK|unevaluated=" + strings.Join(cs.UnevaluatedContracts, ",") + "|surface_unevaluated=" + strings.Join(cs.UnevaluatedSurfaceContracts, ","))
+		files, ferr := filepath.Glob(filepath.Join(d, "docs", "*.yaml"))
+		if ferr != nil || len(files) == 0 {
+			fmt.Fprintln(os.Stderr, "no documents in "+id)
+			os.Exit(2)
+		}
+		sort.Strings(files)
+		for _, f := range files {
+			name := strings.TrimSuffix(filepath.Base(f), ".yaml")
+			text, terr := os.ReadFile(f)
+			if terr != nil {
+				fmt.Fprintln(os.Stderr, "read error: "+terr.Error())
+				os.Exit(2)
+			}
+			node, err := forms.Parse(string(text))
+			if err != nil {
+				fmt.Println(id + "|" + name + "|parse|" + describe(err))
+				continue
+			}
+			val, err := forms.Validate(node, cs.Root, a)
+			if err != nil {
+				fmt.Println(id + "|" + name + "|validate|" + describe(err))
+				continue
+			}
+			var parts []string
+			for _, v := range val.Violations {
+				parts = append(parts, v.Code+"@"+v.LogicalPath)
+			}
+			out := "OK"
+			if len(parts) > 0 {
+				out = strings.Join(parts, ";")
+			}
+			fmt.Println(id + "|" + name + "|validate|" + out)
+		}
+	}
+}

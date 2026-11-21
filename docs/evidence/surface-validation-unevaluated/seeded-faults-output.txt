@@ -1,0 +1,10 @@
+baseline go: rc=0
+baseline rust: rc=0
+go    F1 nothing is listed                                         RED as expected
+rust  F1 nothing is listed                                         RED as expected
+go    F2 index off by one                                          RED as expected
+rust  F2 index off by one                                          RED as expected
+go    F3 a member that is not a list is not listed                 RED as expected
+rust  F3 a member that is not a list is not listed                 RED as expected
+go    F4 the entries are merged into the node list instead of listed apart RED as expected
+rust  F4 the entries are merged into the node list instead of listed apart RED as expected

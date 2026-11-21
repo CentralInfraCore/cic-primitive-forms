@@ -1754,6 +1754,158 @@
      }
     }
    ]
+  },
+  {
+   "id": "surface-validation.absent",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.empty-list",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation: []\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.one-entry",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation:\n      - type: must\n        expression: \"kind = 'Demo'\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation[0]"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.two-entries",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation:\n      - type: must\n        expression: \"kind = 'Demo'\"\n      - type: must\n        expression: \"count(items) = 1\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation[0]",
+     "config_surface.validation[1]"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   },
+   "documents": [
+    {
+     "id": "breaks-the-declared-must",
+     "yaml": "kind: Other\n",
+     "expect": {
+      "violations": [],
+      "candidates": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "surface-validation.scalar-member",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation: must\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.null-member",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation:\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.mapping-member",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation:\n      type: must\n      expression: \"kind = 'Demo'\"\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
+  },
+  {
+   "id": "surface-validation.entry-not-inspected",
+   "schema": "spec:\n  identity:\n    atomic_ref: \"cic:core:Identity@v0.2.0\"\n    kind: Demo\n    namespace: \"cic:demo\"\n    version: v1.0.0\n  config_surface:\n    aggregate_ref: \"cic:core:ConfigSurface@v0.2.0\"\n    nodes:\n      - name: kind\n        shape_type: scalar\n        scalar_type: string\n        mandatory: true\n      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: \"68..9216\"\n    validation:\n      - not-a-contract\n      - 5\n",
+   "surface": "config_surface",
+   "compile": {
+    "ok": true,
+    "uses_item_choice": false,
+    "unevaluated_contracts": [
+     "$.mtu"
+    ],
+    "unevaluated_surface_contracts": [
+     "config_surface.validation[0]",
+     "config_surface.validation[1]"
+    ],
+    "kind": "Demo",
+    "namespace": "cic:demo",
+    "version": "v1.0.0"
+   }
   }
  ]
 }

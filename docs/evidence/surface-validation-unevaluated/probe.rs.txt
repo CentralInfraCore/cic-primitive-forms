@@ -1,0 +1,94 @@
+use cic_primitive_forms::access::sha256_hex;
+use cic_primitive_forms::error::Error;
+use cic_primitive_forms::parse::parse;
+use cic_primitive_forms::schema::{compile_schema, SchemaInput};
+use cic_primitive_forms::validate::validate;
+use std::fs;
+
+fn describe(e: &Error) -> String {
+    match e {
+        Error::Contract(vs) => {
+            let parts: Vec<String> = vs
+                .iter()
+                .map(|v| format!("{}@{}", v.code, v.logical_path.clone().unwrap_or_default()))
+                .collect();
+            format!("ERR[{}] {}", e.code(), parts.join(";"))
+        }
+        Error::Schema(ps) => {
+            let parts: Vec<String> = ps.iter().map(|p| format!("{}@{}", p.code, p.path)).collect();
+            format!("ERR[{}] {}", e.code(), parts.join(";"))
+        }
+        _ => format!("ERR[{}] ", e.code()),
+    }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let a: Vec<String> = ["value", "access", "modify", "inherit", "default_injection", "conformance"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let mut dirs: Vec<_> = fs::read_dir(&args[1])
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.file_name().unwrap().to_string_lossy().starts_with('K'))
+        .collect();
+    dirs.sort();
+    if dirs.is_empty() {
+        eprintln!("no cases found");
+        std::process::exit(2);
+    }
+    for d in dirs {
+        let id = d.file_name().unwrap().to_string_lossy().to_string();
+        let schema = fs::read(d.join("schema.yaml")).unwrap();
+        let sha = sha256_hex(&schema);
+        let cs = match compile_schema(&SchemaInput {
+            bytes: &schema,
+            sha256: &sha,
+            grammar: "cic-primitives-73ae469-6a188078",
+            surface: "config_surface",
+        }) {
+            Ok(c) => c,
+            Err(e) => {
+                println!("{}|-|compile|{}", id, describe(&e));
+                continue;
+            }
+        };
+        println!("{}|-|compile|OK|unevaluated={}|surface_unevaluated={}", id, cs.unevaluated_contracts.join(","), cs.unevaluated_surface_contracts.join(","));
+        let mut files: Vec<_> = fs::read_dir(d.join("docs"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().map(|x| x == "yaml").unwrap_or(false))
+            .collect();
+        files.sort();
+        if files.is_empty() {
+            eprintln!("no documents in {}", id);
+            std::process::exit(2);
+        }
+        for f in files {
+            let name = f.file_stem().unwrap().to_string_lossy().to_string();
+            let text = fs::read_to_string(&f).unwrap();
+            let node = match parse(&text) {
+                Ok(n) => n,
+                Err(e) => {
+                    println!("{}|{}|parse|{}", id, name, describe(&e));
+                    continue;
+                }
+            };
+            let val = match validate(Some(&node), &cs.root, &a) {
+                Ok(v) => v,
+                Err(e) => {
+                    println!("{}|{}|validate|{}", id, name, describe(&e));
+                    continue;
+                }
+            };
+            let parts: Vec<String> = val
+                .violations
+                .iter()
+                .map(|v| format!("{}@{}", v.code, v.logical_path.clone().unwrap_or_default()))
+                .collect();
+            let out = if parts.is_empty() { "OK".to_string() } else { parts.join(";") };
+            println!("{}|{}|validate|{}", id, name, out);
+        }
+    }
+}
