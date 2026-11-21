@@ -30,6 +30,10 @@ jobs:
           cache: false
       - name: Rust toolchain (builds the gate's syn helper)
         run: rustup toolchain install "1.99.1" --profile minimal
+      - name: Regression tests of the gate itself
+        env:
+          RUSTUP_TOOLCHAIN: "1.99.1"
+        run: python3 -m unittest discover -s tools/docgate -p "test_*.py" -v
       - name: Every non-test declaration has a doc comment
         env:
           RUSTUP_TOOLCHAIN: "1.99.1"
