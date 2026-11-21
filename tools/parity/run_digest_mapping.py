@@ -30,10 +30,12 @@ SOURCES = {"python": "tools/p5/digest_mapping.py", "go": "go/digestmapping.go", 
 
 
 def sha256_text(text):
+    """The lower-case hex SHA-256 of the UTF-8 bytes of text."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def shared_cases():
+    """The cases of testdata/p5/digest-mapping.json, each with its class set to `shared`."""
     with open(SHARED, encoding="utf-8") as f:
         cases = json.load(f)["cases"]
     return [dict(c, **{"class": "shared"}) for c in cases]
@@ -59,6 +61,11 @@ def verify_input(path, params):
 
 
 def tool_env():
+    """The environment for the Go and Rust dumps.
+
+    os.environ, and when CIC_TOOLCHAIN is set: the Go and Cargo caches and homes under it (unless already set) and its go/bin and cargo/bin
+    first on PATH.
+    """
     env = dict(os.environ)
     base = os.environ.get("CIC_TOOLCHAIN")
     if base:
@@ -71,6 +78,7 @@ def tool_env():
 
 
 def run(cmd, cwd, env, what):
+    """Run cmd in cwd; raise SystemExit with the last 2000 characters of its output when it fails, else return the CompletedProcess."""
     p = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
     if p.returncode != 0:
         raise SystemExit("%s failed (exit %d):\n%s" % (what, p.returncode, (p.stdout + p.stderr)[-2000:]))
@@ -78,11 +86,13 @@ def run(cmd, cwd, env, what):
 
 
 def dump_go(tree, inp, out, env):
+    """Run the Go dump (TestDumpDigestMappingOutcomes in tree/go) on inp, writing out."""
     e = dict(env, PARITY_DIGEST_MAPPING_IN=inp, PARITY_DIGEST_MAPPING_OUT=out, CIC_FORMS_ROOT=tree)
     run(["go", "test", "-count=1", "-run", "TestDumpDigestMappingOutcomes", "."], os.path.join(tree, "go"), e, "the Go dump")
 
 
 def dump_rust(tree, inp, out, env, target_dir=None):
+    """Run the Rust dump (the parity_digest_mapping_dump test in tree/rust) on inp, writing out; target_dir overrides CARGO_TARGET_DIR."""
     e = dict(env, PARITY_DIGEST_MAPPING_IN=inp, PARITY_DIGEST_MAPPING_OUT=out, CIC_FORMS_ROOT=tree)
     if target_dir:
         e["CARGO_TARGET_DIR"] = target_dir
@@ -90,6 +100,7 @@ def dump_rust(tree, inp, out, env, target_dir=None):
 
 
 def dump_python(inp, out, reference=None):
+    """Run dump_digest_mapping_py.py on inp, writing out, against the reference module at reference (default: the real one)."""
     cmd = [sys.executable, os.path.join(HERE, "dump_digest_mapping_py.py"), inp, out]
     if reference:
         cmd += ["--reference", reference]
@@ -97,6 +108,7 @@ def dump_python(inp, out, reference=None):
 
 
 def version(cmd, env):
+    """The first line of the output of a version command, or None when it cannot be run."""
     try:
         return subprocess.run(cmd, capture_output=True, text=True, env=env).stdout.strip().splitlines()[0]
     except Exception:  # noqa: BLE001
@@ -104,6 +116,7 @@ def version(cmd, env):
 
 
 def git(*args):
+    """The stripped output of a git command in the repository root, or None when it fails."""
     p = subprocess.run(["git", "-C", ROOT] + list(args), capture_output=True, text=True)
     return p.stdout.strip() if p.returncode == 0 else None
 
@@ -114,6 +127,10 @@ def evidence_of(clean, is_red, selftest):
 
 
 def main(argv):
+    """Build and verify the input set, run the three dumps, compare, run the selftest unless --no-selftest, and write --out/report.json.
+
+    Returns 0 when the comparison is green and the selftest (if run) passed, else 1; `evidence` is true only per evidence_of.
+    """
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "digest-mapping-diff"))
     ap.add_argument("--seed", type=int, default=gen.DEFAULT_SEED)

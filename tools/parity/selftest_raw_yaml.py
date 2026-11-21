@@ -4,8 +4,9 @@
 
     selftest_raw_yaml.py [--out DIR] [--rust-target-dir DIR]        (runs the dumps of the unmodified tree first, then everything below)
 
-The measured run has a real finding that is red on purpose (F1, issue #161: the Go parser is quadratic on a long flow sequence). The selftest therefore works on the input WITHOUT the cases
-that are red in the unmodified run (listed in its result) and requires that, with them removed, the unmodified run is green: a mutant is then red or it is not.
+A measured run may have a real finding that is red on purpose (the former F1, issue #161: the Go parser was quadratic on a long flow sequence; fixed, so ACCEPTED_FINDINGS is now
+empty). The selftest therefore works on the input WITHOUT the cases that are red in the unmodified run (listed in its result), refuses to run when one of them is not an accepted
+finding with exactly its accepted result, and requires that, with them removed, the unmodified run is green: a mutant is then red or it is not.
 
  A. the comparison is broken on purpose: a dropped / duplicated / reordered / swapped / unknown / truncated / unfinished line, an id missing from all three, another input set, a changed
     input line in one reader, a value outside the vocabulary, a crash or timeout of ANY reader, a vanished or changed known difference, a changed pinned subtype, a thin class;
@@ -100,16 +101,19 @@ EQUIVALENT = [
 
 
 def read(path):
+    """The text of a UTF-8 file."""
     with open(path, encoding="utf-8") as f:
         return f.read()
 
 
 def write(path, text):
+    """Write `text` to a file as UTF-8, replacing it."""
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
 
 
 def lines_of(path):
+    """The lines of a UTF-8 file, without their line ends."""
     return read(path).splitlines()
 
 
@@ -128,6 +132,7 @@ class Trees:
         self.pristine = {}
 
     def mutate(self, rel, old, new):
+        """Replace the one occurrence of `old` by `new` in the copied file `rel` (exits when it occurs other than once), keeping the file's first state for restore."""
         p = os.path.join(self.tree, rel)
         text = read(p)
         if text.count(old) != 1:
@@ -136,9 +141,12 @@ class Trees:
         write(p, text.replace(old, new))
 
     def restore(self, rel):
+        """Write back the first state of the copied file `rel`."""
         write(os.path.join(self.tree, rel), self.pristine.pop(rel))
 
     def build(self, lang):
+        """Build the reader of `lang` from the copy and return the binary: the Go test binary, or the Rust parity_raw_yaml_dump test executable (in the
+        selftest's own target directory). Exits when a mutant does not compile."""
         if lang == "go":
             out = os.path.join(self.dir, "go-selftest.test")
             p = subprocess.run(["go", "test", "-c", "-o", out, "."], cwd=os.path.join(self.tree, "go"), env=self.env, capture_output=True, text=True)
@@ -160,6 +168,7 @@ class Trees:
         return exe
 
     def dump(self, lang, lines, name):
+        """Build the reader of `lang` from the copy and run it on `lines` under the supervision of run_raw_yaml.run_dump, from its own tree; -> (lines, stats)."""
         binary = self.build(lang)
         launch = rr.reader_launch(lang, binary)
         # the readers run from their own tree
@@ -171,18 +180,26 @@ class Trees:
 
 
 def write_dump(path, lines):
+    """Write dump lines to `path`, each newline-terminated."""
     write(path, "".join(l + "\n" for l in lines))
 
 
 def new_red(rep, base_ids):
+    """The red cases of a report whose id is not among `base_ids`."""
     return [r for r in rep["red"] if r["id"] not in base_ids]
 
 
 def classes_of(rows):
+    """The generator class of every case, by id."""
     return {r["id"]: r["class"] for r in rows}
 
 
 def run_all(out, env, rust_target, report_lines=None):
+    """Run the whole selftest on the run in `out` (input.jsonl and the three dumps written by run_raw_yaml.py) and return its result, also written to
+    selftest.json.
+
+    The unmodified run must be red on nothing but accepted findings with their exact result; those cases are set aside (and the floors lowered by them), and
+    the rest must be green. Then the parts A to F of the module doc are run; `passed` is true only when every check of every part is ok. `report_lines` is unused."""
     work = os.path.join(out, "selftest")
     os.makedirs(work, exist_ok=True)
     known = json.load(open(rr.KNOWN, encoding="utf-8"))
@@ -476,18 +493,21 @@ def unexpected_baseline_red(red_ids, answers=None, reasons=None, accepted=None):
 
 
 def _swap_lines(t, impl, a, b):
+    """Swap two lines of one reader's dump text in `t`."""
     ls = t[impl].splitlines(True)
     ls[a], ls[b] = ls[b], ls[a]
     t[impl] = "".join(ls)
 
 
 def _evidence_rule_check():
+    """Check run_raw_yaml.evidence_of on the five cases: only a clean tree with a green compare and a passed selftest is evidence."""
     ev = [rr.evidence_of(True, False, {"passed": True}), rr.evidence_of(True, False, None), rr.evidence_of(False, False, {"passed": True}),
           rr.evidence_of(True, True, {"passed": True}), rr.evidence_of(True, False, {"passed": False})]
     return {"name": "evidence needs a clean tree, a green compare and a passed selftest (and not a missing, failed or dirty one)", "red": ev == [True, False, False, False, False], "ok": ev == [True, False, False, False, False]}
 
 
 def main(argv):
+    """Run run_raw_yaml.py with --selftest: the dumps of the unmodified tree, the compare, then run_all."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=os.path.join(ROOT, "build", "raw-yaml-diff"))
     ap.add_argument("--rust-target-dir")

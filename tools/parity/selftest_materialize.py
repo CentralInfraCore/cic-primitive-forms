@@ -20,6 +20,7 @@ import compare_materialize as cm  # noqa: E402
 
 
 def first(d, pred):
+    """The smallest id in d whose answer satisfies pred; exits when there is none (the dumps cannot exercise that break)."""
     for i in sorted(d):
         if pred(d[i]):
             return i
@@ -27,10 +28,12 @@ def first(d, pred):
 
 
 def ok(a):
+    """Whether the answer record is an acceptance."""
     return a["r"][0] == "ok"
 
 
 def refused(reason):
+    """A predicate: whether an answer record is a refusal with the given reason."""
     return lambda a: a["r"][0] == "err" and a["r"][1] == reason
 
 
@@ -101,6 +104,11 @@ def repeated_id_is_refused(path, which):
 
 
 def main():
+    """Run the self-test; exit 1 if a break is not noticed.
+
+    The unbroken dumps must be clean; then every break goes through compare_materialize.check, and each of the three files is checked for the
+    refusal of a repeated id.
+    """
     inputs, rust, go = cm.load(sys.argv[1]), cm.load(sys.argv[2]), cm.load(sys.argv[3])
     problems, divergences, answers = cm.check(inputs, rust, go)
     if problems or divergences:

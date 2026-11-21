@@ -37,6 +37,7 @@ MUTATION_ID = 1_000_000
 
 
 def split_lines(path):
+    """A trace file as a list of its lines split on tabs (number, end, input in hex, reason)."""
     with open(path, encoding="utf-8") as f:
         return [line.rstrip("\n").split("\t") for line in f]
 
@@ -69,6 +70,10 @@ def quoted_line_break_at_column_zero(text):
 
 
 def receipts(path, identity):
+    """A replay's dump as a dict id -> answer; exits when an id appears twice.
+
+    The language's own engine identity in a receipt is replaced by a placeholder, so the receipts of the two languages compare byte for byte.
+    """
     out = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -125,6 +130,10 @@ def check(rust_trace, go_trace, rust_receipts, go_receipts, seed_count):
 
 
 def main():
+    """Run the comparison on the traces and dumps of DIR and print the ends, the quarantined inputs and the problems.
+
+    The seed count comes from testdata/p5/receipt-fuzz/seeds.json. Exit 1 on a problem or on an end of REACHED that the Rust round never reaches.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
     ap.add_argument("--show", type=int, default=5)

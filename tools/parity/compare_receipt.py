@@ -54,6 +54,11 @@ def masked(lang, answer):
 
 
 def reference(case):
+    """The expected answer of a case.
+
+    A refused case keeps its materialization refusal; an accepted one is ["ok", document, authored_input, binding, expected_keys, projection]
+    with the receipt computed by tools/p5/receipt_cases.py from the schema text and the generator's projection and output digest.
+    """
     want = case["want"]
     if want[0] != "ok":
         return want
@@ -99,6 +104,10 @@ def check(inputs, rust, go):
 
 
 def main():
+    """Run the comparison and print the counts of the answers, the divergences and the broken promises.
+
+    Exit 1 on a divergence, a broken promise, an answer of REACHED that no input reaches, or a repeated id in any of the three files.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("inputs")
     ap.add_argument("rust")

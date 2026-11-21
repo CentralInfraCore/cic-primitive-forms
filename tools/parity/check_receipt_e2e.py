@@ -40,11 +40,13 @@ RECEIPT_KEYS = {"document", "digest", "binding", "authored_input", "projection",
 
 
 def lines(path):
+    """A JSON-lines dump as a list of records; blank lines are skipped."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def sha(text):
+    """The lower-case hex SHA-256 of the UTF-8 bytes of text (no `sha256:` prefix)."""
     return hashlib.sha256(text.encode()).hexdigest()
 
 
@@ -173,6 +175,7 @@ def check(fixture, dumps):
 
 
 def main():
+    """Check the two dumps of DIR against testdata/p5/end-to-end.json, print each problem to stderr; return 1 when there is one, else 0."""
     d = pathlib.Path(sys.argv[1])
     fixture = json.loads(FIXTURE.read_text())
     problems = check(fixture, {l: lines(d / f"{l}.e2e.jsonl") for l in ("rust", "go")})

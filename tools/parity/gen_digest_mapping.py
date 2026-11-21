@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Generated cases for the differential proof of the digest mapping (docs/P5-DIGEST-MAPPING-DIFFERENTIAL-PLAN.md, sections 3 and 4).
 
-    gen_digest_mapping.py [--seed N] [--values N] [--pairs N] [--out FILE] [--summary]
+    gen_digest_mapping.py [--seed N] [--values N] [--pairs N] [--valid N] [--out FILE] [--summary]
 
 One JSON line per case, in the shape of testdata/p5/digest-mapping.json: {"id", "class", "kind": "convert" | "map", "input" | "record", "pin", "expect", "refuse", "field"}.
 `expect` is the receipt digest (a conversion) or the three digests (a mapping); `refuse` is one reason of the contract; `field` is the member the refusal names (a mapping only).
@@ -36,6 +36,7 @@ CHECK_GRAMMAR, GRAMMAR_SCHEMA = shared.CHECK_GRAMMAR, shared.GRAMMAR_SCHEMA
 # ---------------------------------------------------------------- base64 by construction (no decoder, no base64 module)
 
 def bits_of(raw):
+    """The bytes as a string of '0' and '1', most significant bit first."""
     return "".join("{:08b}".format(b) for b in raw)
 
 
@@ -46,10 +47,12 @@ def sextets_of(raw):
 
 
 def text_of(sextets):
+    """The base64 text of 43 groups: their alphabet characters followed by the one padding `=`."""
     return "".join(ALPHABET[s] for s in sextets) + "="
 
 
 def canonical(raw):
+    """The one base64 spelling of a 32-byte value that the contract accepts, built by bit arithmetic (no decoder, no base64 module)."""
     return text_of(sextets_of(raw))
 
 
@@ -60,10 +63,12 @@ def raw_of(sextets):
 
 
 def digest_of(raw):
+    """The receipt form of a 32-byte value: `sha256:` and its lower-case hex."""
     return "sha256:" + raw.hex()
 
 
 def flip_bit(raw, n):
+    """A copy of raw with bit n inverted (bit 0 is the most significant bit of the first byte)."""
     b = bytearray(raw)
     b[n // 8] ^= 0x80 >> (n % 8)
     return bytes(b)
@@ -75,6 +80,12 @@ BAD_CHARS = ["-", "_", " ", "\n", "\r", "\t", "=", ".", "!", chr(0), chr(0xE9), 
 
 
 def conversion_cases(rng, values):
+    """The `convert` cases (class `b64:*`).
+
+    For each of `values` random 32-byte values: its canonical text; every one of the 43 positions changed to another alphabet character (another
+    digest, or base64_not_canonical in the last group when a low bit is set) and to a bad character (base64_shape); the other spellings of the
+    last group; broken padding, whitespace, other lengths and other forms. Then one field_type case per non-string JSON type.
+    """
     cases = []
 
     def add(kind, text, expect, refuse):
@@ -141,6 +152,13 @@ def touches_conflict(a, b):
 
 
 class Defect:
+    """One defect of the v0.2.1 record, with its answer written by hand from the contract.
+
+    ops are the `mutate` operations on the record, pin the changes to the pin (path -> hex, None removes it), reason and field the refusal it must
+    get, rank the position of the check that finds it (a pair is answered by its lower rank), touches the places it acts on (two defects that
+    touch the same place are not paired), list_edit marks a defect that deletes or appends a list element (never paired: it shifts the indexes).
+    """
+
     def __init__(self, id, rank, ops, reason, field, pin=None, touches=None, list_edit=False, class_="defect"):
         self.id, self.rank, self.ops, self.reason, self.field = id, rank, ops, reason, field
         self.pin = pin or {}                   # {path: replacement hex, or None to remove}
@@ -150,6 +168,12 @@ class Defect:
 
 
 def defects(rng):
+    """The catalogue of single record defects.
+
+    The two envelopes, the build hash, artifacts.files, and for each grammar field its artifact entry, the entry's digest, the provenance member,
+    a provenance that disagrees with the artifact, and the pin absent or different. The rng only draws the flipped bits of the disagreement and
+    pin defects.
+    """
     out = []
 
     def d(id, rank, ops, reason, field, **kw):
@@ -232,6 +256,7 @@ def defects(rng):
 
 
 def apply(defs):
+    """The real record and pin of v0.2.1 with the operations and pin changes of the given defects applied, in their order."""
     record = shared.REAL_RECORD
     ops = [op for x in defs for op in x.ops]
     if ops:
@@ -247,6 +272,12 @@ def apply(defs):
 
 
 def record_cases(rng, pairs, valid):
+    """The `map` cases.
+
+    The unchanged real record; one case per defect of the catalogue (each checked to change the written record); up to `pairs` pairs of defects
+    of different ranks that touch different places (answered by the lower rank, applied in a random order); and `valid` records with random
+    consistent digests and their three expected digests.
+    """
     cases = []
 
     def add(class_, id, record, pin, expect, refuse, field):
@@ -294,15 +325,21 @@ def record_cases(rng, pairs, valid):
 
 
 def generate(seed=DEFAULT_SEED, values=40, pairs=400, valid=40):
+    """Every case of one seed: the conversion cases, then the record cases, from one random stream."""
     rng = random.Random(seed)
     return conversion_cases(rng, values) + record_cases(rng, pairs, valid)
 
 
 def render(cases):
+    """The cases as JSON lines with sorted keys and ASCII escapes (the byte form whose SHA-256 the summary prints)."""
     return "".join(json.dumps(c, sort_keys=True, ensure_ascii=True) + "\n" for c in cases)
 
 
 def main(argv):
+    """Write the cases to --out, or to stdout without it; return 0.
+
+    With --summary or without --out, the count per class and the SHA-256 of the text go to stderr.
+    """
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
     ap.add_argument("--values", type=int, default=40, help="random 32-byte values for the base64 class")

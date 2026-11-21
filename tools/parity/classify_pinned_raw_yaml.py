@@ -72,6 +72,8 @@ def trigger(data):
 
 
 def classify():
+    """The `allowed` row of every pinned input of testdata/p1/parity-known.txt, keyed by its hex bytes: false with the documented rule the reference reader
+    refuses it by, undetermined for a yaml-error / undocumented refusal or a fired trigger, true ("in-table") otherwise."""
     with open(KNOWN, encoding="utf-8") as f:
         lines = f.read().splitlines()
     rows = {}
@@ -91,6 +93,7 @@ def classify():
 
 
 def main(argv):
+    """Compare the classification with the committed file (exit status 1 when it differs) or, with --write, rewrite the file; then print the count per (allowed, rule)."""
     rows = classify()
     text = json.dumps(rows, indent=1, sort_keys=True) + "\n"
     if "--write" in argv:

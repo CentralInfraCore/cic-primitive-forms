@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Compare of the raw YAML differential (docs/P5-RAW-YAML-UNIT3-CONTRACT.md, Unit 3b).
 
-    compare_raw_yaml.py INPUT --python DUMP --go DUMP --rust DUMP [--known FILE] [--floors FILE] [--json OUT]
+    compare_raw_yaml.py INPUT --python DUMP --go DUMP --rust DUMP [--known FILE] [--floors FILE] [--subtypes FILE] [--json OUT]
 
 What the three readers answer for the same RAW BYTES, and what the system may therefore admit. Five questions per case, asked separately; none stands in for another:
 
@@ -34,14 +34,17 @@ READ_MEMBERS = (("release", "envelope"), ("release", "build_hash"), ("provenance
 
 
 def sha256_file(path):
+    """The SHA-256 of a file's bytes (the one of compare_digest_mapping.py), for the report."""
     return cdm.sha256_file(path)
 
 
 def tree_sha(tree):
+    """The SHA-256 of a typed tree in canonical JSON (sorted keys, ASCII, no spaces): how a known difference pins the exact Python reading."""
     return hashlib.sha256(json.dumps(tree, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def member(tree, path):
+    """The typed node reached from `tree` by the keys of `path`, or None where a step is not a map or lacks the key; of repeated keys the last one wins."""
     cur = tree
     for key in path:
         if not isinstance(cur, dict) or cur.get("k") != "map":
@@ -54,6 +57,7 @@ def member(tree, path):
 
 
 def read_dump(path, errors, impl):
+    """The rows of one reader's dump, one per physical line; a line that is not JSON is an error and kept as None, so positions and the id order stay checkable."""
     with open(path, encoding="utf-8", newline="") as f:
         lines = cdm.physical_lines(f.read(), errors, impl)
     rows = []
@@ -67,6 +71,7 @@ def read_dump(path, errors, impl):
 
 
 def valid_row(row, impl, errors):
+    """Whether a dump row has the answer vocabulary: an id and ok, a tree and a mapping when accepted, a refusal class of CLASSES otherwise. A failure is recorded in `errors`."""
     if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not isinstance(row.get("ok"), bool):
         errors.append("%s: a line lacks id/ok" % impl)
         return False
@@ -81,14 +86,17 @@ def valid_row(row, impl, errors):
 
 
 def accepted(row):
+    """Whether the reader accepted the text."""
     return row["ok"]
 
 
 def refusal_class(row):
+    """The refusal class of a row (None for an accepted one)."""
     return row.get("class")
 
 
 def mapping_matches(got, expect):
+    """Whether a parser's mapping answer equals the expectation: the expected digests when the mapping must accept, the refusal reason and member when it must refuse."""
     if got is None:
         return False
     if expect["refuse"] is None:
@@ -97,6 +105,11 @@ def mapping_matches(got, expect):
 
 
 def compare(input_path, dumps, known=None, floors=None, subtypes=None):
+    """The report of one run: reads the input cases and the three dumps (python, go, rust) and asks the five questions of the module doc per case.
+
+    The ids of every dump must be those of the input in its order. `known` is the reviewed list of known Python differences (each must still occur with its exact
+    answers and carry an acceptance), `floors` the minimum case count per class, `subtypes` the declared non-semantic subtype of a pinned divergence by its hex bytes.
+    Returns a dict with the counts, the red cases, the Rust/Go findings, the events, the Python facts, the per-class counters, the errors, and `is_red`."""
     errors = []
     cases, ids = [], set()
     with open(input_path, encoding="utf-8", newline="") as f:
@@ -331,6 +344,7 @@ def compare(input_path, dumps, known=None, floors=None, subtypes=None):
 
 
 def main(argv):
+    """Run the comparison, optionally write the full report as JSON, print a summary with the first errors and red cases; exit status 1 when the run is red."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("input")
     for impl in IMPLS:
