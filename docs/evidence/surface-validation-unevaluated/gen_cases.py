@@ -13,6 +13,7 @@ NODES = ('    nodes:\n      - name: kind\n        shape_type: scalar\n        sc
          '      - name: mtu\n        shape_type: scalar\n        scalar_type: integer\n        optional: true\n        contract:\n          - type: range\n            expression: "68..9216"\n')
 
 def case(cid, validation, surface_paths, docs=None):
+    """One shared schema vector: the schema text with the given surface `validation` block, the expected compile result (the node-level contract and the listed surface-level paths), and optionally the documents to validate."""
     c = {"id": cid, "schema": HEAD + NODES + validation, "surface": "config_surface",
          "compile": {"ok": True, "uses_item_choice": False, "unevaluated_contracts": ["$.mtu"],
                      "unevaluated_surface_contracts": surface_paths,
