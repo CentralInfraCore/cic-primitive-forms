@@ -1,0 +1,13 @@
+# docgate exclusions (tools/docgate/docgate.py): fnmatch globs of repository-relative paths.
+# Each entry is documented elsewhere or must not change; see the reason above it.
+
+# Measurement tools pinned by byte digest in coverage/tools.yaml (tools/branchcov/qualify.py):
+# changing them, comments included, requires re-qualification and a new pin.
+tools/branchcov/go/*
+tools/branchcov/rust/*
+tools/branchcov/adapter.py
+
+# Fixture sources whose bytes coverage/fixtures/*.report.json pins.
+coverage/fixtures/*
+# Isolated, temporary tool-qualification spike (its README); its golden tables count source lines.
+spike/*
