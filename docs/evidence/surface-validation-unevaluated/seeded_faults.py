@@ -5,6 +5,7 @@ import os, shutil, subprocess, sys
 root = sys.argv[1]
 GO = os.environ.get("GO", "go").split(); CARGO = os.environ.get("CARGO", "cargo").split()
 def sub(p, a, b):
+    """Return the text of file `p` with the one occurrence of `a` replaced by `b`; fails when `a` does not occur exactly once."""
     t = open(p, encoding="utf-8").read(); assert t.count(a) == 1, (p, a); return t.replace(a, b, 1)
 FAULTS = [
  ("F1 nothing is listed", [
@@ -21,6 +22,7 @@ FAULTS = [
   [("rust/src/schema.rs", 'unevaluated_surface_contracts: surface_validation(surface, input.surface),', 'unevaluated_surface_contracts: Vec::new(),')]),
 ]
 def run(lang):
+    """Run the shared-vector schema test of one language (`go` or `rust`) in the checkout and return the finished process."""
     if lang == "go":
         return subprocess.run(GO + ["test", "-run", "TestSharedSchemaCases", "."], cwd=root + "/go", capture_output=True, text=True)
     return subprocess.run(CARGO + ["test", "--test", "schema"], cwd=root + "/rust", capture_output=True, text=True)
