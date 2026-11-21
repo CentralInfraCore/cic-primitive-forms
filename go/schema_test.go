@@ -33,6 +33,7 @@ type schemaCase struct {
 		Problems            [][]string `json:"problems"`
 		UsesItemChoice      bool       `json:"uses_item_choice"`
 		UnevaluatedContract []string   `json:"unevaluated_contracts"`
+		UnevaluatedSurface  []string   `json:"unevaluated_surface_contracts"`
 		Kind                string     `json:"kind"`
 		Namespace           string     `json:"namespace"`
 		Version             string     `json:"version"`
@@ -98,7 +99,8 @@ func TestSharedSchemaCases(t *testing.T) {
 			want := c.Compile
 			if compiled.UsesItemChoice != want.UsesItemChoice || compiled.Kind != want.Kind || compiled.Namespace != want.Namespace ||
 				compiled.Version != want.Version || compiled.Digest != in.SHA256 || compiled.Grammar != f.Grammar ||
-				!slices.Equal(append([]string{}, compiled.UnevaluatedContracts...), append([]string{}, want.UnevaluatedContract...)) {
+				!slices.Equal(append([]string{}, compiled.UnevaluatedContracts...), append([]string{}, want.UnevaluatedContract...)) ||
+				!slices.Equal(append([]string{}, compiled.UnevaluatedSurfaceContracts...), append([]string{}, want.UnevaluatedSurface...)) {
 				t.Fatalf("compiled %+v does not match %+v", compiled, want)
 			}
 			for _, d := range c.Documents {

@@ -244,7 +244,7 @@ is named by the caller, never by the document, and is `config_surface`, the auth
   the `Err` arm in Rust); no caller reads one. This is a statement about the contract, not an optimisation: it keeps a mutation of
   such a value from looking like a behaviour.
 * **Passed through, not evaluated.** `contract`, `description`, `role`, `capability` and the other descriptive
-  members. A node that declares a `contract` is listed in `unevaluated_contracts`; validation does not check it.
+  members. A node that declares a `contract` is listed in `unevaluated_contracts`; validation does not check it. A surface-level `validation` member (`spec.<surface>.validation`, issue #167) is listed in `unevaluated_surface_contracts`, one canonical path `<surface>.validation[<i>]` per entry, or `<surface>.validation` when the member is present but not a list (presence is what counts, as for a node contract; no entry is inspected, and a `validation: []` lists nothing). It is a separate list so that `unevaluated_contracts` keeps meaning the nodes. Listing says nothing about the validity of an expression and nothing is evaluated; the dialect of a validation expression is not specified by the grammar.
   Dependency digests (ADR 0002 asks each pinned dependency to carry its own) are **not** checked yet: a reference is
   pinned by version only.
 * **Validation of what was compiled.** A `set` is a list of scalars of its type (`MIN_ITEMS_NOT_MET`; a wrong element
@@ -349,7 +349,7 @@ corpus does not spell out (every escape, the ends of the text, control character
 | effective permission, `no-inherit` against `reset` semantics, surface rules, system defaults, request context (P3), `conformance` origin (ADR 0010), expand/collapse of Access nodes (now P2, `docs/P2-EXPAND-COLLAPSE.md`), grammar-version migration (`migrate_mode`) | not implemented |
 | A list element that is not a record, or an element field of the wrong type | `UNSUPPORTED_SYNTAX` (no code in the registry) |
 | An expanded Access node as a key value or any element field | `UNSUPPORTED_SYNTAX` (P2): the key's identity looks through it (`path_of`), but validating its `value` is expand/collapse |
-| Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts` |
+| Shape type `choice`, scalar types `number` and `bytes`, evaluating `contract` | refused at schema compile (`SCHEMA_SHAPE_UNSUPPORTED`); contracts are passed through and listed in `unevaluated_contracts`; surface-level `validation` entries are passed through and listed in `unevaluated_surface_contracts` |
 
 These three codes are **not** in `corpus/codes.yaml`; they mark the boundary of the slice and are
 not part of the ADR 0007 machine response. The limits are implementation defaults, not decided
