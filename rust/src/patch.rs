@@ -75,6 +75,8 @@ pub struct PatchResult {
     pub spans: Vec<PatchSpan>,
 }
 
+/// A patch refusal of phase `patch` with `code`: the logical path `path` (none when empty) and the source position `at`
+/// (`not_applicable` when there is none).
 fn failure(code: &'static str, path: &str, at: Option<Pos>) -> Error {
     // (outside the macro: the branch tool does not enumerate an `if` inside a macro invocation)
     let logical_path = if path.is_empty() {

@@ -55,6 +55,8 @@ pub struct Outcome {
     pub violations: Vec<Violation>,
 }
 
+/// One segment of a logical path under construction: a field name, a list index (only the synthetic schema's lists,
+/// which declare no identity), or a list element named by its identity. The derived order is the path order of ADR 0007.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Seg {
     Field(String),
@@ -65,12 +67,15 @@ pub(crate) enum Seg {
     Item(Vec<crate::listitem::KeyComp>),
 }
 
+/// A logical path as segments, root first; empty is the root. Written as text by `logical_path`.
 pub(crate) type Path = Vec<Seg>;
 
+/// The source location of a node: its position, or `unavailable` when it has none (a node the library made).
 pub(crate) fn location(pos: Option<crate::node::Pos>) -> Location {
     pos.map_or(Location::Unavailable, Location::At)
 }
 
+/// The keys of a mapping in document order; `None` for a node of another kind.
 fn keys_of(node: &Node) -> Option<Vec<&str>> {
     match &node.value {
         Value::Map(entries) => Some(entries.iter().map(|e| e.key.as_str()).collect()),
@@ -157,10 +162,11 @@ fn validate_short(
     Ok(())
 }
 
-/// The canonical ADR 0006 text of a path made of field names; `None` where ADR 0007 leaves the
-/// path out. That is the root alone (a single position with no structure around it), a list
-/// element (the synthetic schema declares no identity, so the item cannot be named) and a
-/// field name that cannot be written (empty, or holding a control character).
+/// The canonical ADR 0006 text of a path of field names and list-element identities; `None` where
+/// ADR 0007 leaves the path out. That is the root alone (a single position with no structure
+/// around it), a list element addressed by its index (`Seg::Index`: the synthetic schema declares
+/// no identity, so the item cannot be named), and a field name or an identity that cannot be
+/// written (for a name: empty, or holding a control character).
 pub(crate) fn logical_path(path: &Path) -> Option<String> {
     if path.is_empty() {
         return None;
@@ -301,6 +307,12 @@ pub fn recognize(node: &Node, position: &Position, a: &[String]) -> Result<Outco
     }
 }
 
+/// Recognizes and validates each field of each record of a list position. Recognition errors win over validation errors
+/// (phase exclusivity); a list position itself is never Expanded, so its class is Short, or Error when any field fails
+/// recognition.
+///
+/// # Errors
+/// [`Error::Unsupported`] for a non-list, a non-record element, or a field shape outside the subset.
 fn recognize_list(
     node: &Node,
     record: &[(String, Position)],

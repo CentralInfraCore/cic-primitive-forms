@@ -27,6 +27,7 @@ pub enum SpanStyle {
 }
 
 impl SpanStyle {
+    /// The snake_case name of the style (`plain`, `single_quoted`, `double_quoted`), as the shared cases spell it.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -45,6 +46,8 @@ pub struct SourceSpan {
     pub style: SpanStyle,
 }
 
+/// An edit-phase refusal with `code` at the logical path `path`, anchored at `at` (`unavailable` when there is no
+/// position).
 pub(crate) fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error {
     Error::Contract(vec![Violation {
         code,
@@ -56,6 +59,8 @@ pub(crate) fn failure(code: &'static str, at: Option<Pos>, path: &str) -> Error 
     }])
 }
 
+/// A path error as a contract violation: no source location (`not_applicable`), its logical path, and its byte offset
+/// in the path text only for a parse error.
 pub(crate) fn path_failure(e: PathError) -> Error {
     // (outside the macro: the branch tool does not enumerate an `if` inside a macro invocation)
     let path_offset = if e.phase == Phase::PathParse {
@@ -91,6 +96,9 @@ pub(crate) struct Found<'n, 'r> {
     pub(crate) shape: Option<&'r Shape>,
 }
 
+/// Walks `segs` from `doc` alongside `root`, looking through Access wrappers and selecting a list element by its
+/// identity. It never fails: the walk stops at the first segment the document does not spell, and [`Found::value`] is
+/// `None` then; the parent and the container are the last nodes reached.
 pub(crate) fn locate<'n, 'r>(
     doc: &'n Node,
     root: &'r Shape,

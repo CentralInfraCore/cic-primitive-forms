@@ -36,9 +36,14 @@ use crate::recognize::{logical_path, Seg};
 use crate::schema::{compile_schema, SchemaInput};
 use crate::schema_identity::{bind_schema_identity, IdentityFailure};
 
+/// The compiled schema has an empty `identity.version` (the engine's verifier refuses an empty `schema_version`).
 pub const RECEIPT_SCHEMA_VERSION_EMPTY: &str = "schema_version_empty";
+/// A field of the [`ReleaseFixture`] is empty (`primitive_release`, `primitive_source_commit`) or not a `sha256:` digest of 64 lowercase hex
+/// (`primitive_build_hash` and the two grammar digests).
 pub const RECEIPT_RELEASE_FIELD: &str = "release_field";
+/// A field of the [`EngineIdentity`] is empty.
 pub const RECEIPT_ENGINE_FIELD: &str = "engine_field";
+/// A materialized field name is not exactly one plain path segment (decision O): its path text would need an escape.
 pub const RECEIPT_PATH_NOT_ONE_SEGMENT: &str = "path_not_one_segment";
 
 /// The release and grammar identity of a **fixture** receipt: stated by the caller, checked for form, not for origin.
@@ -71,6 +76,7 @@ pub enum ReceiptError {
     Refused { reason: &'static str, field: String },
 }
 
+/// A [`ReceiptError::Refused`] with `reason`, about the field `field`.
 fn refused(reason: &'static str, field: &str) -> ReceiptError {
     ReceiptError::Refused {
         reason,
@@ -93,12 +99,14 @@ pub struct FlatReceipt {
     pub materialized: Materialized,
 }
 
+/// Whether `s` is `sha256:` and exactly 64 lowercase hex digits.
 fn is_digest(s: &str) -> bool {
     s.strip_prefix("sha256:").is_some_and(|hex| {
         hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
     })
 }
 
+/// Refuses an empty `s` with `reason`, naming the field `name`.
 fn check_text(s: &str, reason: &'static str, name: &str) -> Result<(), ReceiptError> {
     if s.is_empty() {
         return Err(refused(reason, name));
@@ -106,6 +114,7 @@ fn check_text(s: &str, reason: &'static str, name: &str) -> Result<(), ReceiptEr
     Ok(())
 }
 
+/// Refuses `s` with `reason`, naming the field `name`, unless it is a digest of the form of `is_digest`.
 fn check_digest(s: &str, reason: &'static str, name: &str) -> Result<(), ReceiptError> {
     if is_digest(s) {
         return Ok(());
@@ -113,14 +122,18 @@ fn check_digest(s: &str, reason: &'static str, name: &str) -> Result<(), Receipt
     Err(refused(reason, name))
 }
 
+/// Whether the logical path of the field `name` is `$.` followed by the name unchanged, i.e. the name needs no escape and the verifier reads it as
+/// one segment.
 fn one_segment(name: &str) -> bool {
     logical_path(&vec![Seg::Field(name.to_string())]).as_deref() == Some(&format!("$.{name}"))
 }
 
+/// An integer node without a source position.
 fn int(i: i64) -> Node {
     Node::new(Value::Int(i))
 }
 
+/// A mapping node with `entries` in the given order (the canonical bytes sort them).
 fn map(entries: Vec<(&str, Node)>) -> Node {
     Node::new(Value::Map(
         entries.into_iter().map(|(k, v)| entry(k, v)).collect(),

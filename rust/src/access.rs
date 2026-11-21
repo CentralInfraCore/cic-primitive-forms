@@ -48,16 +48,19 @@ impl Grammar {
         Grammar(version)
     }
 
+    /// The bound version number, one of [`SUPPORTED_GRAMMARS`].
     #[must_use]
     pub fn version(self) -> i64 {
         self.0
     }
 }
 
+/// A grammar-binding failure with one of the contract's binding codes.
 fn binding(code: &'static str) -> Error {
     Error::Binding(code)
 }
 
+/// Whether a version is absent: no value at all, or an explicit `null`.
 fn is_missing(v: Option<&Value>) -> bool {
     match v {
         None => true,
@@ -141,6 +144,8 @@ pub enum Mode {
     Reset,
 }
 
+/// A validate-phase violation with `code`, anchored at the position of `node` (unavailable when it
+/// has none).
 fn invalid(code: &'static str, node: &Node) -> Violation {
     Violation {
         code,
@@ -152,6 +157,7 @@ fn invalid(code: &'static str, node: &Node) -> Violation {
     }
 }
 
+/// The grammar 2 spellings of [`Mode`], in variant order: the index is the variant.
 const MODE_NAMES: [&str; 3] = ["inherit", "no-inherit", "reset"];
 
 /// Reads a spelling of `InheritanceMode` under the bound grammar. Exactly one spelling set is valid per
@@ -234,6 +240,7 @@ fn pattern_space(c: char) -> bool {
     c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
+/// Whether `a` is a CertPattern attribute name: `[A-Za-z][A-Za-z0-9.-]*`, ASCII only.
 fn is_attr(a: &str) -> bool {
     let mut chars = a.chars();
     let first_ok = chars.next().is_some_and(|c| c.is_ascii_alphabetic());

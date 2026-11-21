@@ -26,9 +26,13 @@ use crate::patch::{PatchDiff, PatchEvent};
 use crate::pathtext::parse_path;
 use crate::recognize::{Path, Seg};
 
+/// The bytes, or the bytes of a string after its escapes, are not valid UTF-8.
 pub const READ_NOT_UTF8: &str = "not_utf8";
+/// Not JSON: an unexpected or missing byte, an unescaped control character in a string, a bad escape, a lone surrogate, bytes after the value.
 pub const READ_SYNTAX: &str = "syntax";
+/// Arrays and objects nested deeper than `MAX_DEPTH`.
 pub const READ_DEPTH: &str = "depth";
+/// An object that repeats a key.
 pub const READ_DUPLICATE_KEY: &str = "duplicate_key";
 /// A float, an integer beyond signed 64 bits, a leading zero, a minus zero.
 pub const READ_NUMBER: &str = "unsupported_number";
@@ -45,6 +49,7 @@ pub const READ_NOT_CANONICAL: &str = "not_canonical";
 /// Canonical JSON with an integer version, but not the version this reader interprets ([`read_diff_version`] says which).
 pub const READ_VERSION: &str = "version";
 
+/// The deepest nesting the reader descends into; a diff of ADR 0008 is far shallower, and the bound keeps the recursion finite on any input.
 const MAX_DEPTH: usize = 64;
 
 /// Why the bytes of a diff were refused, and at which byte offset the reader stood (0 when the refusal is about the whole document).
@@ -81,14 +86,18 @@ impl CanonicalDiff {
     }
 }
 
+/// A strict JSON reader over `b`, standing at the byte offset `at`. It accepts no whitespace (the canonical writing has none), reads only integers,
+/// and does not judge canonical form beyond that; the caller compares the rewriting of what it read with the input.
 struct Reader<'a> {
     b: &'a [u8],
     at: usize,
 }
 
+/// The result of a step of the [`Reader`].
 type Parsed<T> = Result<T, DiffReadError>;
 
 impl Reader<'_> {
+    /// A refusal with `reason` at the current offset.
     fn fail<T>(&self, reason: &'static str) -> Parsed<T> {
         Err(DiffReadError {
             reason,
@@ -96,10 +105,12 @@ impl Reader<'_> {
         })
     }
 
+    /// The byte at the current offset, without consuming it.
     fn peek(&self) -> Option<u8> {
         self.b.get(self.at).copied()
     }
 
+    /// One JSON value at the current offset, at nesting `depth`; refuses `READ_DEPTH` beyond `MAX_DEPTH`.
     fn value(&mut self, depth: usize) -> Parsed<Node> {
         if depth > MAX_DEPTH {
             return self.fail(READ_DEPTH);
@@ -113,6 +124,7 @@ impl Reader<'_> {
         }
     }
 
+    /// `true`, `false` or `null`; anything else is `READ_SYNTAX`.
     fn literal(&mut self) -> Parsed<Node> {
         for (text, value) in [
             ("true", Value::Bool(true)),
@@ -127,6 +139,8 @@ impl Reader<'_> {
         self.fail(READ_SYNTAX)
     }
 
+    /// An integer in the range of `i64`. A fraction or exponent, a leading zero, `-0` or a value out of range is `READ_NUMBER`; a `-` without digits
+    /// is `READ_SYNTAX`.
     fn number(&mut self) -> Parsed<Node> {
         let start = self.at;
         if self.peek() == Some(b'-') {
@@ -150,6 +164,7 @@ impl Reader<'_> {
         }
     }
 
+    /// Four hex digits as a code unit, or `None` when fewer than four bytes are left or one is not a hex digit. Consumes the four bytes either way.
     fn hex4(&mut self) -> Option<u32> {
         let end = self.at + 4;
         let digits = self.b.get(self.at..end)?;
@@ -159,6 +174,8 @@ impl Reader<'_> {
             .try_fold(0u32, |n, c| Some(n * 16 + char::from(*c).to_digit(16)?))
     }
 
+    /// A JSON string starting at its opening quote, with its escapes resolved. An unescaped control character is `READ_SYNTAX`; bytes that are not
+    /// UTF-8 are `READ_NOT_UTF8`.
     fn string(&mut self) -> Parsed<String> {
         self.at += 1; // the opening quote
         let mut out: Vec<u8> = Vec::new();
@@ -181,6 +198,7 @@ impl Reader<'_> {
         }
     }
 
+    /// The character of the escape after a `\`. `\/` is accepted here as JSON allows it; the canonical comparison refuses it later.
     fn escape(&mut self) -> Parsed<char> {
         let esc = match self.peek() {
             Some(c) => c,
@@ -201,6 +219,8 @@ impl Reader<'_> {
         }
     }
 
+    /// The character of a `\uXXXX` escape. A lone surrogate is `READ_SYNTAX`; a valid surrogate pair is `READ_NOT_CANONICAL`, because ADR 0008 writes
+    /// the character it stands for literally.
     fn unicode(&mut self) -> Parsed<char> {
         let first = match self.hex4() {
             Some(n) => n,
@@ -228,6 +248,7 @@ impl Reader<'_> {
         }
     }
 
+    /// A JSON array at nesting `depth`, starting at its `[`.
     fn array(&mut self, depth: usize) -> Parsed<Node> {
         self.at += 1;
         let mut items = Vec::new();
@@ -248,6 +269,7 @@ impl Reader<'_> {
         }
     }
 
+    /// A JSON object at nesting `depth`, starting at its `{`, with its members in the order read; a repeated key is `READ_DUPLICATE_KEY`.
     fn object(&mut self, depth: usize) -> Parsed<Node> {
         self.at += 1;
         let mut entries: Vec<Entry> = Vec::new();
@@ -285,10 +307,12 @@ impl Reader<'_> {
     }
 }
 
+/// A refusal about the whole document: offset 0.
 fn whole(reason: &'static str) -> DiffReadError {
     DiffReadError { reason, offset: 0 }
 }
 
+/// The member `key` of a map node, or `None` when it is absent or `n` is not a map.
 fn get<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(entries) => entries.iter().find(|e| e.key == key).map(|e| &e.value),
@@ -306,6 +330,7 @@ fn members<'a>(n: &'a Node, keys: &[&str]) -> Option<Vec<&'a Node>> {
     }
 }
 
+/// The string of a string node.
 fn text(n: &Node) -> Option<&str> {
     match &n.value {
         Value::Str(s) => Some(s),
@@ -313,6 +338,7 @@ fn text(n: &Node) -> Option<&str> {
     }
 }
 
+/// The items of a sequence node.
 fn items(n: &Node) -> Option<&[Node]> {
     match &n.value {
         Value::Seq(v) => Some(v),
@@ -330,6 +356,7 @@ fn path_order(path: &str) -> Option<Path> {
     }
 }
 
+/// Whether `n` is neither a sequence nor a map.
 fn is_scalar(n: &Node) -> bool {
     !matches!(n.value, Value::Seq(_) | Value::Map(_))
 }
@@ -341,6 +368,7 @@ fn strictly_sorted(v: &[Node]) -> bool {
             .all(|w| compare_scalars(&w[0], &w[1]) == Ordering::Less)
 }
 
+/// The event kind of its canonical name; `representation_change` is not an event kind and gives `None`.
 fn kind_of(name: &str) -> Option<EventKind> {
     match name {
         "added" => Some(EventKind::Added),
@@ -352,6 +380,7 @@ fn kind_of(name: &str) -> Option<EventKind> {
     }
 }
 
+/// An event of `kind` at `path` with no members filled in yet.
 fn blank(kind: EventKind, path: &str, order: Path) -> DiffEvent {
     DiffEvent {
         kind,
@@ -432,6 +461,8 @@ fn no_change(e: &DiffEvent) -> bool {
     }
 }
 
+/// A representation entry: exactly `kind` (`representation_change`), `next`, `path` and `previous`, the writings `short` or `expanded`, and a
+/// canonical non-root path.
 fn representation_of(n: &Node) -> Result<RepresentationChange, &'static str> {
     let m = members(n, &["kind", "next", "path", "previous"]).ok_or(READ_SHAPE)?;
     if text(m[0]) != Some("representation_change") {
@@ -454,6 +485,8 @@ fn representation_of(n: &Node) -> Result<RepresentationChange, &'static str> {
     })
 }
 
+/// The events of the `changes` list: strictly in the order of path and then kind name, none describing no change, and the `added` and `removed`
+/// of a set change each strictly sorted and disjoint.
 fn changes_of(list: &[Node]) -> Result<Vec<DiffEvent>, &'static str> {
     let mut out: Vec<DiffEvent> = Vec::with_capacity(list.len());
     for raw in list {
@@ -478,6 +511,7 @@ fn changes_of(list: &[Node]) -> Result<Vec<DiffEvent>, &'static str> {
     Ok(out)
 }
 
+/// The entries of the `representation` list: strictly in path order, and none with the same writing before and after.
 fn representation_list(list: &[Node]) -> Result<Vec<RepresentationChange>, &'static str> {
     let mut out: Vec<RepresentationChange> = Vec::with_capacity(list.len());
     for raw in list {
@@ -493,10 +527,6 @@ fn representation_list(list: &[Node]) -> Result<Vec<RepresentationChange>, &'sta
     Ok(out)
 }
 
-/// Reads the canonical bytes of a diff. See the comment at the top of the file.
-///
-/// # Errors
-/// A [`DiffReadError`] with the reason the bytes are not exactly the canonical writing of a diff of ADR 0008.
 /// What `read_diff` and `read_diff_version` share and what does not depend on the version: valid UTF-8, one JSON value that is an object with an integer
 /// `version` in range, and exactly the canonical writing of that value.
 fn read_root(b: &[u8]) -> Result<(Node, i64), DiffReadError> {

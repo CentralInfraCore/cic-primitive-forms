@@ -24,12 +24,20 @@ use crate::policy::{read_policy, PolicySurface};
 use crate::role::read_role;
 use crate::validate::{validate, DefaultValue, Presence, ScalarType, Shape, ShapeType};
 
+/// A schema refusal: the schema is not a valid schema of the grammar (a missing or ill-typed member, a forbidden combination, a default that is
+/// not a value of its own node, a list without a valid key).
 pub const SCHEMA_INVALID: &str = "SCHEMA_INVALID";
+/// A schema refusal: a valid declaration this slice does not process (`shape_type: choice`, the scalar types `number` and `bytes`, `max_items`).
 pub const SCHEMA_SHAPE_UNSUPPORTED: &str = "SCHEMA_SHAPE_UNSUPPORTED";
+/// A schema refusal: a reference that is not a pinned `cic:<namespace>:<Name>@vX.Y.Z`.
 pub const SCHEMA_REF_UNPINNED: &str = "SCHEMA_REF_UNPINNED";
+/// A schema refusal: the schema uses `item_choice` under a grammar profile that does not define it.
 pub const SCHEMA_FEATURE_NOT_IN_GRAMMAR: &str = "SCHEMA_FEATURE_NOT_IN_GRAMMAR";
+/// A binding refusal: the SHA-256 of the schema bytes is not the pinned digest the caller supplied.
 pub const SCHEMA_DIGEST_MISMATCH: &str = "SCHEMA_DIGEST_MISMATCH";
+/// A binding refusal: the grammar pin name is not one of the known profiles.
 pub const GRAMMAR_PIN_UNKNOWN: &str = "GRAMMAR_PIN_UNKNOWN";
+/// A binding refusal: a surface other than `config_surface`.
 pub const SURFACE_UNSUPPORTED: &str = "SURFACE_UNSUPPORTED";
 
 /// What a pinned grammar defines, as far as the schema reader needs it. Keyed by the pin name of
@@ -95,8 +103,10 @@ pub struct CompiledSchema {
     pub unevaluated_contracts: Vec<String>,
 }
 
+/// The refusal of one schema node, as the compiler collects it.
 pub(crate) type Problem = SchemaProblem;
 
+/// A [`SchemaProblem`] with `code` at the schema path `path`, with a human-readable `detail`.
 pub(crate) fn problem(code: &'static str, path: &str, detail: &str) -> Problem {
     SchemaProblem {
         code,
@@ -105,6 +115,7 @@ pub(crate) fn problem(code: &'static str, path: &str, detail: &str) -> Problem {
     }
 }
 
+/// The member `key` of a mapping node; `None` when it is absent or `n` is not a mapping.
 pub(crate) fn get<'a>(n: &'a Node, key: &str) -> Option<&'a Node> {
     match &n.value {
         Value::Map(entries) => entries.iter().find(|e| e.key == key).map(|e| &e.value),
@@ -120,6 +131,7 @@ pub(crate) fn str_member<'a>(n: &'a Node, key: &str) -> &'a str {
     }
 }
 
+/// The items of a sequence node.
 fn seq(n: &Node) -> Option<&[Node]> {
     match &n.value {
         Value::Seq(items) => Some(items),
@@ -150,6 +162,8 @@ fn is_pinned_ref(s: &str) -> bool {
         && parts.iter().all(|p| word(p, |c| c.is_ascii_digit()))
 }
 
+/// The state of one schema compile: the grammar profile, whether an `item_choice` was seen, the paths of the unevaluated contracts, and the
+/// problems collected so far.
 struct Compiler {
     profile: Profile,
     item_choice: bool,
@@ -167,6 +181,9 @@ pub fn compile_schema(input: &SchemaInput<'_>) -> Result<CompiledSchema, Error> 
     compile_with(input, PROFILES)
 }
 
+/// [`compile_schema`] against an explicit profile table, so a test can compile under a profile the pinned table does not have. The binding is
+/// checked in a fixed order (digest, grammar pin, surface), then the bytes are parsed and the surface's nodes compiled; every node problem is
+/// collected and returned together, in schema order.
 pub(crate) fn compile_with(
     input: &SchemaInput<'_>,
     profiles: &[(&str, Profile)],
@@ -300,6 +317,7 @@ fn default_fits(shape: &Shape, d: &Node) -> bool {
     }
 }
 
+/// Accepts an absent reference or a pinned one; anything else is `SCHEMA_REF_UNPINNED` at `path`.
 fn check_ref(path: &str, v: Option<&Node>) -> Result<(), Problem> {
     match v {
         None => Ok(()),
@@ -314,6 +332,7 @@ fn check_ref(path: &str, v: Option<&Node>) -> Result<(), Problem> {
     }
 }
 
+/// The boolean member `key`: `None` when absent, `SCHEMA_INVALID` when it is not a boolean.
 fn bool_member(n: &Node, key: &str, path: &str) -> Result<Option<bool>, Problem> {
     match get(n, key) {
         None => Ok(None),
@@ -328,6 +347,7 @@ fn bool_member(n: &Node, key: &str, path: &str) -> Result<Option<bool>, Problem>
     }
 }
 
+/// The non-negative integer member `key`: `None` when absent, `SCHEMA_INVALID` when it is not a non-negative integer.
 fn int_member(n: &Node, key: &str, path: &str) -> Result<Option<usize>, Problem> {
     match get(n, key) {
         None => Ok(None),
@@ -342,6 +362,7 @@ fn int_member(n: &Node, key: &str, path: &str) -> Result<Option<usize>, Problem>
     }
 }
 
+/// Refuses the first of `keys` that `n` declares (`SCHEMA_INVALID`): a member that does not belong to the node's shape type.
 fn forbid(n: &Node, path: &str, keys: &[&str]) -> Result<(), Problem> {
     for k in keys {
         if get(n, k).is_some() {
@@ -377,6 +398,7 @@ fn names(n: &Node) -> Option<Vec<String>> {
         .collect()
 }
 
+/// Whether `a` and `b` hold the same names, each once.
 fn same_set(a: &[String], b: &[String]) -> bool {
     let (mut x, mut y) = (a.to_vec(), b.to_vec());
     x.sort();
@@ -384,6 +406,8 @@ fn same_set(a: &[String], b: &[String]) -> bool {
     x == y && x.windows(2).all(|w| w[0] != w[1])
 }
 
+/// The scalar type named by the member `key`: `string`, `integer` or `boolean`. `number` and `bytes` are `SCHEMA_SHAPE_UNSUPPORTED`; another or
+/// a missing name is `SCHEMA_INVALID`.
 fn scalar_type(n: &Node, key: &str, path: &str) -> Result<ScalarType, Problem> {
     let at = format!("{path}.{key}");
     match get(n, key).map(|v| &v.value) {
@@ -467,6 +491,8 @@ impl Compiler {
         out
     }
 
+    /// The presence of a node: `mandatory: true` or nothing is mandatory, `optional: true` is optional; `false` for either, or both written, is
+    /// `SCHEMA_INVALID`.
     fn presence(n: &Node, path: &str) -> Result<Presence, Problem> {
         let mand = bool_member(n, "mandatory", path)?;
         let opt = bool_member(n, "optional", path)?;
@@ -493,6 +519,9 @@ impl Compiler {
         })
     }
 
+    /// Compiles one node into a [`Shape`]: presence, nullability, role, default and shape type, in that order, then checks that a declared default
+    /// is a valid value of the node itself. A default is refused on a mandatory node, as `null`, and on a role that takes none (ADR 0011). A
+    /// `contract` is recorded as unevaluated.
     fn node(&mut self, n: &Node, path: &str) -> Result<Shape, Problem> {
         let presence = Self::presence(n, path)?;
         let nullable = bool_member(n, "nullable", path)?.unwrap_or(false);
@@ -605,6 +634,8 @@ impl Compiler {
         Ok(shape)
     }
 
+    /// The shape type of a `collection` node: a set of one scalar type, or a list declared by `item_fields` or `item_choice` (exactly one of them).
+    /// `max_items` is refused, not dropped: only `min_items` is specified (ADR 0003).
     fn collection(&mut self, n: &Node, path: &str) -> Result<ShapeType, Problem> {
         forbid(n, path, &["scalar_type", "fields", "cases"])?;
         let min_items = int_member(n, "min_items", path)?;
@@ -661,6 +692,8 @@ impl Compiler {
         }
     }
 
+    /// The elements of a list declared by `item_fields`: one unnamed case whose key is the `role: key` fields, ordered by `item_key`. `item_key`
+    /// is required when there are several key fields and must name exactly them.
     fn item_fields(&mut self, owner: &Node, list: &Node, path: &str) -> Result<Elements, Problem> {
         let items = match seq(list) {
             Some(i) if !i.is_empty() => i,
@@ -712,6 +745,9 @@ impl Compiler {
         })
     }
 
+    /// The elements of a list declared by `item_choice`: at least two named cases, each with its fields and a `key` naming exactly its `role: key`
+    /// fields, no two cases with the same name or the same key set (C17). Refused as `SCHEMA_FEATURE_NOT_IN_GRAMMAR` when the profile lacks the
+    /// feature.
     fn item_choice_cases(&mut self, choice: &Node, path: &str) -> Result<Elements, Problem> {
         if !self.profile.item_choice {
             return Err(problem(

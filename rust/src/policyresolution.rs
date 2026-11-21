@@ -32,6 +32,7 @@ pub struct PolicyEntry {
 /// Keyed by the canonical logical path of the position.
 pub type PolicyResolution = BTreeMap<String, PolicyEntry>;
 
+/// A position to resolve: its logical path, the object that holds it and its own field-level rules (`None` is `inherit`).
 struct Target {
     path: String,
     object: String,
@@ -39,6 +40,8 @@ struct Target {
     modify: Option<PolicyRule>,
 }
 
+/// The walk over the object and the schema: builds the policy graph (one node per object, with its carrier) and collects
+/// every position as a [`Target`].
 struct Walker<'a> {
     a: &'a [String],
     g: Grammar,
@@ -46,6 +49,7 @@ struct Walker<'a> {
     targets: Vec<Target>,
 }
 
+/// An [`Error::Unsupported`] with `detail`.
 fn unsupported(detail: String) -> Error {
     Error::Unsupported(detail)
 }
@@ -248,6 +252,8 @@ impl Walker<'_> {
         }
     }
 
+    /// Adds the object `id` to the graph under `parent`, with no PolicySurface of its own and the wrapper at `carrier_path`
+    /// (its mode and rules) as its carrier.
     fn child(
         &mut self,
         id: &str,

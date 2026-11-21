@@ -28,6 +28,7 @@ use crate::validate::{validate, Shape, ShapeType};
 
 /// The two origins of a value (P3 design, section 2). Never "inherited": inheritance concerns policy rules.
 pub const VALUE_AUTHORED: &str = "authored";
+/// The origin of a value the schema's `default` inserted at an absent optional field.
 pub const VALUE_DEFAULT: &str = "default";
 
 /// The origin of one declared position that the output document holds.

@@ -37,6 +37,8 @@ pub struct NormalizationResult {
     pub value_origins: Vec<ValueOrigin>,
 }
 
+/// The origins the walk collected, sorted by path and written as canonical logical paths (`""` for one that cannot be
+/// written; the walk refuses to insert a default at such a path).
 fn origins_of(mut found: Vec<(crate::recognize::Path, &'static str)>) -> Vec<ValueOrigin> {
     found.sort_by(|x, y| x.0.cmp(&y.0));
     found

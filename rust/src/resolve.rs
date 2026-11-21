@@ -28,16 +28,27 @@ pub enum RuleKind {
     Unknown,
 }
 
+/// Layer 1: the position's own `access` / `modify` list.
 pub const LAYER_FIELD: &str = "field";
+/// Layer 2: a `surface_rules` entry of the containing object for the requested surface.
 pub const LAYER_SURFACE_RULE: &str = "surface_rule";
+/// Layer 3: the containing object's `default_access` / `default_modify`.
 pub const LAYER_OBJECT_DEFAULT: &str = "object_default";
+/// Layer 4a: the rule an `inherit` carrier passes down from the field that holds an object.
 pub const LAYER_FIELD_INHERITED: &str = "field_inherited";
+/// Layer 4b: a surface rule or default of an ancestor's PolicySurface.
 pub const LAYER_POLICY_INHERITED: &str = "policy_inherited";
+/// Layer 5: the documented system default, `open` for access and `owner` for modify.
 pub const LAYER_SYSTEM: &str = "system";
+/// No layer: the rule is [`RuleKind::None`] or [`RuleKind::Unknown`].
 pub const LAYER_NONE: &str = "none";
 
+/// A reset barrier (an object's `inherit_policy` or a carrier's mode) stopped the walk before any rule was found; the
+/// system default does not apply after it.
 pub const REASON_RESET_NO_LOCAL_RULE: &str = "RESET_NO_LOCAL_RULE";
+/// The walk had to read the PolicySurface of an object marked [`ObjectPolicy::Unknown`].
 pub const REASON_POLICY_CONTEXT_UNKNOWN: &str = "POLICY_CONTEXT_UNKNOWN";
+/// The graph does not hold the object, or a parent it names is missing or already visited (a cycle).
 pub const REASON_CONTEXT_INCOMPLETE: &str = "CONTEXT_INCOMPLETE";
 /// The operation is neither `"access"` nor `"modify"`; nothing is read for it (#85).
 pub const REASON_UNKNOWN_OPERATION: &str = "UNKNOWN_OPERATION";
@@ -93,6 +104,7 @@ pub struct PolicyObject {
 /// Maps an object id to the object.
 pub type PolicyGraph = BTreeMap<String, PolicyObject>;
 
+/// A [`RuleKind::Unknown`] result with `reason`, in no layer and with no source.
 fn unknown_rule(reason: &'static str) -> EffectiveRule {
     EffectiveRule {
         kind: RuleKind::Unknown,
@@ -103,6 +115,8 @@ fn unknown_rule(reason: &'static str) -> EffectiveRule {
     }
 }
 
+/// The effective rule of a declared rule found in `layer` and declared at `source`: the symbol `open` is
+/// [`RuleKind::Open`], any other symbol (`owner`) is [`RuleKind::Owner`], patterns are a [`RuleKind::List`].
 fn from_rule(r: &PolicyRule, layer: &'static str, source: &str) -> EffectiveRule {
     let (kind, patterns) = match r {
         PolicyRule::Symbol("open") => (RuleKind::Open, Vec::new()),
@@ -118,6 +132,7 @@ fn from_rule(r: &PolicyRule, layer: &'static str, source: &str) -> EffectiveRule
     }
 }
 
+/// Whether the operation reads the `modify` members; the caller has already refused any operation but the two.
 fn is_modify(op: &str) -> bool {
     op == "modify"
 }

@@ -21,20 +21,34 @@ use std::fmt;
 
 use crate::node::{Node, Value};
 
+/// `release.envelope` or `provenance.envelope` is not the integer 3 (decision D3: only an envelope 3 record is read).
 pub const MAPPING_ENVELOPE_NOT_3: &str = "envelope_not_3";
+/// A member the mapping reads is absent or null, or the pin has no entry for a grammar artifact path (`pin.<path>`).
 pub const MAPPING_FIELD_MISSING: &str = "field_missing";
+/// A member has the wrong type: a digest that is not a string, `artifacts.files` that is not a sequence, an artifact entry whose `digest` is not a string.
 pub const MAPPING_FIELD_TYPE: &str = "field_type";
+/// A base64 digest that is not, as a whole, 43 standard-alphabet characters and one `=`.
 pub const MAPPING_BASE64_SHAPE: &str = "base64_shape";
+/// A base64 digest of the right shape whose bytes encode back to another string (non-zero trailing bits): not the one canonical spelling.
 pub const MAPPING_BASE64_NOT_CANONICAL: &str = "base64_not_canonical";
+/// A base64 digest that does not decode to exactly 32 bytes. The shape check already implies 32; this guards the decoder.
 pub const MAPPING_BASE64_LENGTH: &str = "base64_length";
+/// The `digest` of an `artifacts.files` entry is a string but not `sha256:` and 64 lowercase hex.
 pub const MAPPING_DIGEST_FORM: &str = "digest_form";
+/// No `artifacts.files` entry has the grammar artifact's path (decision D1: the entry is the primary source).
 pub const MAPPING_ARTIFACT_ABSENT: &str = "artifact_absent";
+/// More than one `artifacts.files` entry has the grammar artifact's path, so there is no one primary source.
 pub const MAPPING_ARTIFACT_DUPLICATE: &str = "artifact_duplicate";
+/// `provenance.grammar_*` converts to another digest than the artifact entry (decision D2 cross-check).
 pub const MAPPING_PROVENANCE_ARTIFACTS_DISAGREE: &str = "provenance_artifacts_disagree";
+/// The artifact entry's digest differs from the pin of the same path in `corpus/pins.yaml`.
 pub const MAPPING_RECORD_PIN_DISAGREE: &str = "record_pin_disagree";
 
+/// The artifact path whose entry is the primary source of `grammar_sha256`.
 const CHECK_GRAMMAR: &str = "proposals/atom-grammar/check_grammar.py";
+/// The artifact path whose entry is the primary source of `grammar_schema_sha256`.
 const GRAMMAR_SCHEMA: &str = "proposals/atom-grammar/instance-grammar.schema.yaml";
+/// The standard base64 alphabet (RFC 4648 section 4), in sextet order; the URL-safe alphabet is not accepted.
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /// Why no receipt digest was made: one of the `MAPPING_*` reasons, and the member, the artifact path or the receipt field it is about.
@@ -56,6 +70,7 @@ impl fmt::Display for MappingError {
 
 impl std::error::Error for MappingError {}
 
+/// A [`MappingError`] with `reason`, about `field`.
 fn refused(reason: &'static str, field: &str) -> MappingError {
     MappingError {
         reason,
@@ -129,6 +144,7 @@ fn check_digest_bytes(raw: &[u8], text: &str, field: &str) -> Result<(), Mapping
     Ok(())
 }
 
+/// `raw` as lowercase hex, two digits per byte.
 fn hex_lower(raw: &[u8]) -> String {
     use fmt::Write;
     raw.iter()

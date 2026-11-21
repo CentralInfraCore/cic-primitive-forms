@@ -23,6 +23,7 @@ pub enum Phase {
 }
 
 impl Phase {
+    /// The snake_case name of the phase, the spelling of the `phase` field of the corpus and of the Go peer.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {

@@ -135,10 +135,14 @@ struct State<'a, 'b> {
 }
 
 impl State<'_, '_> {
+    /// Keeps `e` unless an earlier error is already kept: the first non-syntax error is the one reported.
     fn defer(&mut self, e: Error) {
         self.deferred.get_or_insert(e);
     }
 
+    /// Applies one parser event at the position `at`: refuses (deferred) aliases, anchors, tags, merge keys, duplicate keys, the node limit and the
+    /// unsupported block scalars, resolves a plain scalar, sets a pending mapping key, and opens or closes a collection. An empty implicit mapping
+    /// key is returned at once as a syntax error, as yaml.v3 refuses it.
     fn step(&mut self, event: Event, at: Pos) -> Result<(), Error> {
         match event {
             Event::Alias(_) => {
@@ -547,6 +551,7 @@ fn block_explicit_key(chars: &[char], i: usize) -> bool {
         })
 }
 
+/// Refuses a node count above `limits.max_nodes`.
 fn check_nodes(count: usize, limits: Limits) -> Result<(), Error> {
     if count > limits.max_nodes {
         Err(Error::Limit(format!(
@@ -558,6 +563,8 @@ fn check_nodes(count: usize, limits: Limits) -> Result<(), Error> {
     }
 }
 
+/// An open collection on the parser stack: the items or entries read so far and the collection's position; a mapping also holds the key that
+/// waits for its value.
 enum Frame {
     Seq {
         items: Vec<Node>,
@@ -583,6 +590,8 @@ struct Table<'a> {
 }
 
 impl<'a> Table<'a> {
+    /// Indexes `body`: the byte offset of every char (plus the end) and the byte offset of every line start, with `\n`, `\r\n` and a lone `\r` as line
+    /// breaks.
     fn new(body: &'a str, bom_len: usize) -> Table<'a> {
         let mut char_to_byte: Vec<usize> = body.char_indices().map(|(i, _)| i).collect();
         char_to_byte.push(body.len());
@@ -610,6 +619,7 @@ impl<'a> Table<'a> {
         }
     }
 
+    /// The byte offset in the BOM-free body of a position, whose `offset` counts the BOM.
     fn byte_of(&self, p: Pos) -> usize {
         p.offset - self.bom_len
     }
@@ -619,6 +629,7 @@ impl<'a> Table<'a> {
         self.body[self.byte_of(p)..].chars().next()
     }
 
+    /// The position (1-based line and column in chars, offset including the BOM) of a byte offset in the body.
     fn pos_of_byte(&self, byte: usize) -> Pos {
         let line = self.line_starts.partition_point(|&s| s <= byte);
         let start = self.line_starts[line - 1];
@@ -679,6 +690,7 @@ impl<'a> Table<'a> {
         p
     }
 
+    /// The position of the parser's char index; an index past the end is clamped to the end of the body.
     fn pos(&self, char_index: usize) -> Pos {
         let last = self.char_to_byte.len() - 1;
         let byte = self.char_to_byte[char_index.min(last)];
@@ -692,6 +704,8 @@ impl<'a> Table<'a> {
     }
 }
 
+/// The value of a plain scalar under the subset: the null and boolean spellings, a decimal integer that fits `i64` (an optional sign, no leading
+/// zero), otherwise a string. A leading zero, an integer beyond `i64`, a float spelling or a hex/octal prefix is [`Error::Unsupported`].
 fn resolve_plain(s: &str) -> Result<Value, Error> {
     match s {
         "" | "~" | "null" | "Null" | "NULL" => return Ok(Value::Null),
@@ -728,6 +742,7 @@ fn decimal_digits(s: &str) -> Option<&str> {
     }
 }
 
+/// Whether `s` starts with `0x` or `0o` followed only by hex digits (a superset of the octal digits, so every such spelling is refused).
 fn is_radix_number(s: &str) -> bool {
     ["0x", "0o"].iter().any(|p| {
         s.strip_prefix(p)
@@ -735,6 +750,8 @@ fn is_radix_number(s: &str) -> bool {
     })
 }
 
+/// Whether `s` reads as a float to some YAML reader: an optionally signed `.inf`, an unsigned `.nan`, digits with a fraction point, or digits with an
+/// exponent.
 fn is_float_like(s: &str) -> bool {
     let t = s.strip_prefix(['+', '-']).unwrap_or(s);
     if [".inf", ".Inf", ".INF"].contains(&t) || [".nan", ".NaN", ".NAN"].contains(&s) {
