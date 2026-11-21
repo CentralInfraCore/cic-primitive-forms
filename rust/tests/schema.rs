@@ -77,6 +77,11 @@ fn the_shared_schema_cases() {
             strings(&want["unevaluated_contracts"]),
             "{id}"
         );
+        assert_eq!(
+            compiled.unevaluated_surface_contracts,
+            strings(&want["unevaluated_surface_contracts"]),
+            "{id}: surface-level validation entries"
+        );
         for d in case
             .get("documents")
             .and_then(J::as_array)

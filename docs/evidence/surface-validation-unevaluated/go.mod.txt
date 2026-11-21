@@ -1,0 +1,9 @@
+module capprobe
+
+go 1.25
+
+require github.com/CentralInfraCore/cic-primitive-forms/go v0.0.0
+
+require gopkg.in/yaml.v3 v3.0.1 // indirect
+
+replace github.com/CentralInfraCore/cic-primitive-forms/go => /home/sinkog/.local/state/work-runtime/runtimes/task-relay-issue-queue-01/private/wt-forms-167/go
